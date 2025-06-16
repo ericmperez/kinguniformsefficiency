@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "./App.css";
 import { ProductForm } from "./components/ProductForm";
 import { ClientForm } from "./components/ClientForm";
 import ActiveInvoices from "./components/ActiveInvoices";
+import PickupWashing from "./components/PickupWashing";
 import {
   getClients,
   getProducts,
@@ -20,6 +20,7 @@ import {
   deleteInvoice,
   uploadImage,
   assignCartToInvoice,
+  getUsers,
 } from "./services/firebaseService";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "./firebase";
@@ -31,6 +32,12 @@ import type {
 import { Client, Product } from "./types";
 import { useAuth } from "./components/AuthContext";
 import LocalLoginForm from "./components/LocalLoginForm";
+import UserManagement from "./components/UserManagement";
+import DriverManagement from "./components/DriverManagement";
+import { useState, useEffect } from "react";
+import type { UserRecord } from "./services/firebaseService";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "./firebase";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -102,23 +109,30 @@ function updateClientInInvoices(
 
 function App() {
   const { user, logout } = useAuth();
-  const [activePage, setActivePage] = useState<"home" | "settings">("home");
+  const [activePage, setActivePage] = useState<"home" | "entradas" | "settings">("home");
   const [activeSettingsTab, setActiveSettingsTab] = useState<
-    "clients" | "products"
+    "clients" | "products" | "users" | "drivers"
   >("clients");
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [drivers, setDrivers] = useState<{ id: string; name: string }[]>([]);
   const [showClientForm, setShowClientForm] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [fetchedClients, fetchedProducts, fetchedInvoices] =
-          await Promise.all([getClients(), getProducts(), getInvoices()]);
+        const [fetchedClients, fetchedProducts, fetchedInvoices, fetchedUsers] =
+          await Promise.all([getClients(), getProducts(), getInvoices(), getUsers()]);
         setClients(fetchedClients);
         setProducts(fetchedProducts);
         setInvoices(fetchedInvoices);
+        setUsers(fetchedUsers);
+        // Fetch drivers from Firestore
+        const driverSnapshot = await getDocs(collection(db, "drivers"));
+        setDrivers(driverSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string; name: string })));
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -126,6 +140,14 @@ function App() {
 
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      setShowWelcome(true);
+      const timer = setTimeout(() => setShowWelcome(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
 
   // Patch: Ensure image is always File|null, never undefined, for Client
   const handleAddClient: (client: Omit<Client, "id">) => Promise<void> = async (
@@ -332,6 +354,36 @@ function App() {
     return <LocalLoginForm />;
   }
 
+  if (showWelcome) {
+    return (
+      <div
+        className="d-flex flex-column justify-content-center align-items-center"
+        style={{ minHeight: "100vh", background: "#f8f9fa" }}
+        onClick={() => setShowWelcome(false)}
+      >
+        <div
+          className="card shadow p-5 text-center"
+          style={{ maxWidth: 400 }}
+        >
+          <h2 className="mb-3">Hola, {user.username}!</h2>
+          <p className="lead mb-0">
+            Gracias por formar parte del{" "}
+            <b>Equipo de King Uniforms</b>.
+          </p>
+          <small className="text-muted d-block mt-3">
+            (Haz clic para continuar)
+          </small>
+        </div>
+      </div>
+    );
+  }
+
+  // Role-based tab visibility
+  const canManageUsers = user.role === "Admin" || user.role === "Owner";
+  const canManageProducts =
+    user.role === "Supervisor" || user.role === "Admin" || user.role === "Owner";
+  const canManageClients = true; // All roles
+
   return (
     <div className="container-fluid">
       <nav className="navbar navbar-expand-lg navbar-light bg-light mb-4">
@@ -341,25 +393,37 @@ function App() {
           </a>
           <div className="navbar-nav">
             <button
-              className={`nav-link btn btn-link ${
-                activePage === "home" ? "active" : ""
-              }`}
+              className={`nav-link btn btn-link ${activePage === "home" ? "active" : ""}`}
               onClick={() => setActivePage("home")}
             >
               Home
             </button>
             <button
-              className={`nav-link btn btn-link ${
-                activePage === "settings" ? "active" : ""
-              }`}
+              className={`nav-link btn btn-link ${activePage === "entradas" ? "active" : ""}`}
+              onClick={() => setActivePage("entradas")}
+            >
+              Entradas
+            </button>
+            <button
+              className={`nav-link btn btn-link ${activePage === "settings" ? "active" : ""}`}
               onClick={() => setActivePage("settings")}
             >
               Settings
             </button>
           </div>
+          <div className="d-flex align-items-center ms-auto">
+            <span className="me-3 text-muted">
+              Hello, {user.username} ({user.role})
+            </span>
+            <button
+              className="btn btn-outline-secondary btn-sm"
+              onClick={logout}
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </nav>
-
       {activePage === "home" ? (
         <ActiveInvoices
           clients={clients}
@@ -369,30 +433,46 @@ function App() {
           onDeleteInvoice={handleDeleteInvoice}
           onUpdateInvoice={handleUpdateInvoice}
         />
+      ) : activePage === "entradas" ? (
+        <PickupWashing clients={clients} drivers={drivers} />
       ) : (
         <div>
           {/* Tab Buttons */}
           <div className="mb-3">
+            {canManageClients && (
+              <button
+                className={`btn btn-outline-primary me-2 ${activeSettingsTab === "clients" ? "active" : ""}`}
+                onClick={() => setActiveSettingsTab("clients")}
+              >
+                Clients
+              </button>
+            )}
+            {canManageProducts && (
+              <button
+                className={`btn btn-outline-primary me-2 ${activeSettingsTab === "products" ? "active" : ""}`}
+                onClick={() => setActiveSettingsTab("products")}
+              >
+                Products
+              </button>
+            )}
+            {canManageUsers && (
+              <button
+                className={`btn btn-outline-primary me-2 ${activeSettingsTab === "users" ? "active" : ""}`}
+                onClick={() => setActiveSettingsTab("users")}
+              >
+                Users
+              </button>
+            )}
             <button
-              className={`btn btn-outline-primary me-2 ${
-                activeSettingsTab === "clients" ? "active" : ""
-              }`}
-              onClick={() => setActiveSettingsTab("clients")}
+              className={`btn btn-outline-primary ${activeSettingsTab === "drivers" ? "active" : ""}`}
+              onClick={() => setActiveSettingsTab("drivers")}
             >
-              Clients
-            </button>
-            <button
-              className={`btn btn-outline-primary ${
-                activeSettingsTab === "products" ? "active" : ""
-              }`}
-              onClick={() => setActiveSettingsTab("products")}
-            >
-              Products
+              Choferes
             </button>
           </div>
           {/* Show only one form at a time */}
           <div className="row">
-            {activeSettingsTab === "clients" && (
+            {activeSettingsTab === "clients" && canManageClients && (
               <div className="col-md-12">
                 <ClientForm
                   clients={clients}
@@ -403,7 +483,7 @@ function App() {
                 />
               </div>
             )}
-            {activeSettingsTab === "products" && (
+            {activeSettingsTab === "products" && canManageProducts && (
               <div className="col-md-12">
                 <ProductForm
                   products={products}
@@ -411,6 +491,16 @@ function App() {
                   onUpdateProduct={handleUpdateProduct}
                   onDeleteProduct={handleDeleteProduct}
                 />
+              </div>
+            )}
+            {activeSettingsTab === "users" && canManageUsers && (
+              <div className="col-md-12">
+                <UserManagement />
+              </div>
+            )}
+            {activeSettingsTab === "drivers" && (
+              <div className="col-md-12">
+                <DriverManagement />
               </div>
             )}
           </div>

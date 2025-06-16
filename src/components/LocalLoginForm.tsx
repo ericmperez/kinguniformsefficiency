@@ -3,8 +3,7 @@ import { useAuth } from "./AuthContext";
 
 export default function LocalLoginForm() {
   const { login } = useAuth();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [id, setId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -12,9 +11,9 @@ export default function LocalLoginForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const success = await login(username, password);
+    const success = await login(id);
     if (!success) {
-      setError("Invalid username or password");
+      setError("Please enter a valid 4-digit ID number");
     }
     setLoading(false);
   };
@@ -24,25 +23,18 @@ export default function LocalLoginForm() {
       <form className="card p-4 shadow-sm" style={{ minWidth: 320 }} onSubmit={handleSubmit}>
         <h2 className="mb-4 text-center">Login</h2>
         <div className="mb-3">
-          <label htmlFor="username" className="form-label">Username</label>
+          <label htmlFor="id" className="form-label">4-Digit ID Number</label>
           <input
-            id="username"
+            id="id"
             className="form-control"
-            value={username}
-            onChange={e => setUsername(e.target.value)}
+            value={id}
+            onChange={e => setId(e.target.value.replace(/\D/g, "").slice(0, 4))}
             autoFocus
             required
-          />
-        </div>
-        <div className="mb-3">
-          <label htmlFor="password" className="form-label">Password</label>
-          <input
-            id="password"
-            type="password"
-            className="form-control"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
+            inputMode="numeric"
+            pattern="\d{4}"
+            maxLength={4}
+            placeholder="e.g. 1234"
           />
         </div>
         <button className="btn btn-primary w-100" type="submit" disabled={loading}>

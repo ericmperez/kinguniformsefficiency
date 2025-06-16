@@ -1,26 +1,47 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { getUsers } from "../services/firebaseService";
+
+export type UserRole = "Employee" | "Supervisor" | "Admin" | "Owner";
+
+interface AuthUser {
+  id: string;
+  role: UserRole;
+  username: string;
+}
 
 interface AuthContextType {
-  user: string | null;
-  login: (username: string, password: string) => Promise<boolean>;
+  user: AuthUser | null;
+  login: (id: string) => Promise<boolean>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<string | null>(
-    localStorage.getItem("auth_user") || null
-  );
+function getStoredUser(): AuthUser | null {
+  const raw = localStorage.getItem("auth_user");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
-  const login = async (username: string, password: string) => {
-    // Simple local auth: username: admin, password: password123
-    if (username === "admin" && password === "password123") {
-      setUser(username);
-      localStorage.setItem("auth_user", username);
-      return true;
-    }
-    return false;
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(getStoredUser());
+
+  const login = async (id: string) => {
+    if (!/^\d{4}$/.test(id)) return false;
+    // Fetch users from Firebase
+    const users = await getUsers();
+    const found = users.find(u => u.id === id);
+    if (!found) return false;
+    // Owner must be 1991 (enforced by user creation UI, but double check)
+    if (found.role === "Owner" && id !== "1991") return false;
+    const userObj: AuthUser = { id, role: found.role as UserRole, username: found.username };
+    setUser(userObj);
+    localStorage.setItem("auth_user", JSON.stringify(userObj));
+    return true;
   };
 
   const logout = () => {

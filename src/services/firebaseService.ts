@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
-import { Client, Product, Invoice, LaundryCart, PickupEntry } from "../types";
+import { Client, Product, Invoice, LaundryCart } from "../types";
 
 // Client operations
 export const addClient = async (client: Omit<Client, "id">): Promise<string> => {
@@ -111,6 +111,38 @@ export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<string> 
   }
 };
 
+// User operations
+export interface UserRecord {
+  id: string;
+  username: string;
+  role: string;
+}
+
+export const addUser = async (user: UserRecord): Promise<void> => {
+  await addDoc(collection(db, "users"), user);
+};
+
+export const getUsers = async (): Promise<UserRecord[]> => {
+  const querySnapshot = await getDocs(collection(db, "users"));
+  return querySnapshot.docs.map((doc) => ({ id: doc.data().id, username: doc.data().username, role: doc.data().role }));
+};
+
+export const deleteUser = async (id: string): Promise<void> => {
+  const q = query(collection(db, "users"), where("id", "==", id));
+  const querySnapshot = await getDocs(q);
+  for (const docSnap of querySnapshot.docs) {
+    await deleteDoc(doc(db, "users", docSnap.id));
+  }
+};
+
+export const updateUser = async (id: string, updates: Partial<Omit<UserRecord, "id">>): Promise<void> => {
+  const q = query(collection(db, "users"), where("id", "==", id));
+  const querySnapshot = await getDocs(q);
+  for (const docSnap of querySnapshot.docs) {
+    await updateDoc(doc(db, "users", docSnap.id), updates);
+  }
+};
+
 // Utility to deeply sanitize invoice/cart data before sending to Firestore
 function sanitizeForFirestore(obj: any): any {
   if (Array.isArray(obj)) {
@@ -195,35 +227,3 @@ export const uploadImage = async (file: File, path: string): Promise<string> => 
 };
 
 export { uploadBytes, getDownloadURL };
-
-// Pickup operations
-export async function savePickupEntry(entry: PickupEntry) {
-  await addDoc(collection(db, "pickup_entries"), entry);
-}
-
-export async function fetchPickupEntries({ clientId, driver, start, end }: { clientId?: string; driver?: string; start?: Date; end?: Date }) {
-  let q: any = collection(db, "pickup_entries");
-  const filters: any[] = [];
-  if (clientId) filters.push(where("clientId", "==", clientId));
-  if (driver) filters.push(where("driver", "==", driver));
-  if (start) filters.push(where("timestamp", ">=", start.toISOString()));
-  if (end) filters.push(where("timestamp", "<=", end.toISOString()));
-  if (filters.length) {
-    q = query(q, ...filters);
-    const snap = await getDocs(q);
-    return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as object) }) as PickupEntry);
-  } else {
-    const snap = await getDocs(q);
-    return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as object) }) as PickupEntry);
-  }
-}
-
-export async function updatePickupEntry(id: string, data: Partial<PickupEntry>) {
-  const entryRef = doc(db, "pickup_entries", id);
-  await updateDoc(entryRef, data);
-}
-
-export async function deletePickupEntry(id: string) {
-  const entryRef = doc(db, "pickup_entries", id);
-  await deleteDoc(entryRef);
-}
