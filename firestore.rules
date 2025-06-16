@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isValidClient() {
+      return request.resource.data.keys().hasAll(['name', 'selectedProducts', 'isRented', 'createdAt']) &&
+             request.resource.data.name is string &&
+             request.resource.data.selectedProducts is list &&
+             request.resource.data.isRented is bool &&
+             request.resource.data.createdAt is timestamp;
+    }
+    
+    function isValidProduct() {
+      return request.resource.data.keys().hasAll(['name', 'createdAt']) &&
+             request.resource.data.name is string &&
+             request.resource.data.createdAt is timestamp;
+    }
+    
+    function isValidInvoice() {
+      return request.resource.data.keys().hasAll(['clientId', 'clientName', 'date', 'products', 'total', 'createdAt']) &&
+             request.resource.data.clientId is string &&
+             request.resource.data.clientName is string &&
+             request.resource.data.date is string &&
+             request.resource.data.products is list &&
+             request.resource.data.total is number &&
+             request.resource.data.createdAt is timestamp;
+    }
+    
+    function isValidCart() {
+      return request.resource.data.keys().hasAll(['name', 'isActive', 'createdAt']) &&
+             request.resource.data.name is string &&
+             request.resource.data.isActive is bool &&
+             request.resource.data.createdAt is timestamp;
+    }
+
+    // Clients collection
+    match /clients/{clientId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidClient();
+      allow update: if isAuthenticated() && isValidClient();
+      allow delete: if isAuthenticated();
+    }
+
+    // Products collection
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidProduct();
+      allow update: if isAuthenticated() && isValidProduct();
+      allow delete: if isAuthenticated();
+    }
+
+    // Invoices collection
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidInvoice();
+      allow update: if isAuthenticated() && isValidInvoice();
+      allow delete: if isAuthenticated();
+    }
+
+    // Carts collection
+    match /carts/{cartId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidCart();
+      allow update: if isAuthenticated() && isValidCart();
+      allow delete: if isAuthenticated();
+    }
+  }
+} 
