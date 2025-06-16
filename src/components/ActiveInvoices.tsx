@@ -2,7 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Client, Product, Invoice, CartItem, Cart } from "../types";
 import InvoiceForm from "./InvoiceForm";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
-import { getTodayPickupGroups, updatePickupGroupStatus } from "../services/firebaseService";
+import {
+  getTodayPickupGroups,
+  updatePickupGroupStatus,
+} from "../services/firebaseService";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -14,6 +17,8 @@ interface ActiveInvoicesProps {
     invoiceId: string,
     updatedInvoice: Partial<Invoice>
   ) => Promise<void>;
+  selectedInvoiceId?: string | null;
+  setSelectedInvoiceId?: (id: string | null) => void;
 }
 
 // Utility to sanitize cart items before updating invoice
@@ -37,12 +42,20 @@ export default function ActiveInvoices({
   onAddInvoice,
   onDeleteInvoice,
   onUpdateInvoice,
+  selectedInvoiceId: selectedInvoiceIdProp,
+  setSelectedInvoiceId: setSelectedInvoiceIdProp,
 }: ActiveInvoicesProps) {
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
-    null
-  );
+  const [selectedInvoiceIdLocal, setSelectedInvoiceIdLocal] = useState<
+    string | null
+  >(null);
+  const selectedInvoiceId =
+    selectedInvoiceIdProp !== undefined
+      ? selectedInvoiceIdProp
+      : selectedInvoiceIdLocal;
+  const setSelectedInvoiceId =
+    setSelectedInvoiceIdProp || setSelectedInvoiceIdLocal;
   const [showNewCartForm, setShowNewCartForm] = useState(false);
   const [newCartName, setNewCartName] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<string>("");
@@ -63,6 +76,9 @@ export default function ActiveInvoices({
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+  const [editGroupId, setEditGroupId] = useState<string | null>(null);
+  const [editGroupName, setEditGroupName] = useState("");
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
 
   // Placeholder for current user. Replace with actual user logic as needed.
   const currentUser = "Current User";
@@ -286,6 +302,22 @@ export default function ActiveInvoices({
     setEditingGroupId(null);
   };
 
+  // Progress bar steps
+  const STATUS_STEPS = [
+    { key: "Segregation", label: "Segregando" },
+    { key: "Tunnel", label: "Tunnel/Conventional" },
+    { key: "procesandose", label: "Procesandose" },
+    { key: "Empaque", label: "Empaque" },
+    { key: "Entregado", label: "Lista para Entrega" },
+  ];
+
+  function getStepIndex(status: string) {
+    const idx = STATUS_STEPS.findIndex(s =>
+      status === s.key || (s.key === "Tunnel" && (status === "Tunnel" || status === "Conventional"))
+    );
+    return idx === -1 ? 0 : idx;
+  }
+
   return (
     <div className="container-fluid py-4">
       {/* --- GROUP OVERVIEW --- */}
@@ -296,587 +328,480 @@ export default function ActiveInvoices({
         ) : pickupGroups.length === 0 ? (
           <div className="text-muted">No groups for today.</div>
         ) : (
-          <div className="row row-cols-1 row-cols-md-2 g-3 mb-4">
-            {pickupGroups.map((group) => (
-              <div key={group.id} className="col">
-                <div className="card shadow-sm p-3 h-100">
-                  <div className="d-flex align-items-center mb-2">
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        fontSize: 18,
-                        color: "#007bff",
-                      }}
-                    >
-                      {group.clientName}
-                    </span>
-                    <span className="ms-3 badge bg-secondary">
-                      {group.driverName}
-                    </span>
-                  </div>
-                  <div className="mb-1">
-                    <span className="badge bg-info me-2">
-                      Status: {group.status}
-                    </span>
-                    <span className="badge bg-light text-dark">
-                      Total: {group.totalWeight?.toFixed(2) || 0} lbs
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 13, color: "#888" }}>
-                    {group.startTime && (
-                      <span>
-                        Start:{" "}
-                        {new Date(group.startTime).toLocaleTimeString()}{" "}
-                      </span>
-                    )}
-                    {group.endTime && (
-                      <span>
-                        {" "}
-                        | End: {new Date(group.endTime).toLocaleTimeString()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-3">
-                    <span
-                      onClick={() => setEditingGroupId(group.id)}
-                      style={{
-                        cursor: "pointer",
-                        fontWeight: 600,
-                        color: editingGroupId === group.id ? "#007bff" : undefined,
-                      }}
-                    >
-                      {group.clientName}
-                    </span>
-                    {editingGroupId === group.id ? (
+          <div className="table-responsive">
+            <table className="table table-bordered align-middle">
+              <thead className="table-light">
+                <tr>
+                  <th>Client</th>
+                  <th>Status</th>
+                  <th>Total Pounds</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pickupGroups.map((group) => (
+                  <tr key={group.id}>
+                    <td>{group.clientName}</td>
+                    <td>
                       <select
+                        className="form-select form-select-sm"
                         value={group.status}
-                        onChange={(e) =>
-                          handleStatusChange(group.id, e.target.value)
-                        }
                         disabled={statusUpdating === group.id}
-                        style={{ marginLeft: 8 }}
+                        onChange={(e) => handleStatusChange(group.id, e.target.value)}
+                        style={{ minWidth: 120 }}
                       >
+                        <option value="Recibido">Recibido</option>
                         <option value="Segregation">Segregation</option>
                         <option value="Tunnel">Tunnel</option>
                         <option value="Conventional">Conventional</option>
-                        <option value="Complete">Complete</option>
+                        <option value="procesandose">Procesandose</option>
+                        <option value="Entregado">Entregado</option>
+                        <option value="deleted">Deleted</option>
                       </select>
-                    ) : (
-                      <span style={{ marginLeft: 8, color: "#888" }}>
-                        {group.status}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+                    </td>
+                    <td>
+                      {typeof group.totalWeight === "number"
+                        ? group.totalWeight.toFixed(2)
+                        : "?"}
+                    </td>
+                    <td>
+                      <button
+                        className="btn btn-outline-primary btn-sm me-2"
+                        onClick={() => {
+                          setEditGroupId(group.id);
+                          setEditGroupName(group.clientName);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-outline-danger btn-sm"
+                        onClick={() => setDeletingGroupId(group.id)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                    {/* Progress bar row */}
+                    <td colSpan={4}>
+                      <div style={{ margin: "8px 0" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {STATUS_STEPS.map((step, i) => {
+                            const active = i <= getStepIndex(group.status);
+                            return (
+                              <React.Fragment key={step.key}>
+                                <div
+                                  style={{
+                                    flex: 1,
+                                    height: 8,
+                                    background: active ? "var(--ku-yellow)" : "#e0e0e0",
+                                    borderRadius: 4,
+                                    transition: "background 0.3s",
+                                    position: "relative",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      position: "absolute",
+                                      top: 12,
+                                      left: "50%",
+                                      transform: "translateX(-50%)",
+                                      fontSize: 12,
+                                      color: active ? "#111" : "#888",
+                                      fontWeight: active ? 700 : 400,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {`${i + 1}/5 - ${step.label}`}
+                                  </span>
+                                </div>
+                                {i < STATUS_STEPS.length - 1 && (
+                                  <div style={{ width: 8 }}></div>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="mb-0">Active Invoices</h2>
-        <button className="btn btn-primary" onClick={handleAddInvoice}>
-          <i className="bi bi-plus-circle me-2"></i>
-          Add Invoice
-        </button>
-      </div>
-
-      {showInvoiceForm && (
-        <InvoiceForm
-          clients={clients}
-          onClose={() => setShowInvoiceForm(false)}
-          onAddInvoice={onAddInvoice}
-        />
-      )}
-
-      {showCartModal && (
+      {/* Edit Modal */}
+      {editGroupId && (
         <div
-          className="modal show d-block"
-          tabIndex={-1}
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
         >
-          <div className="modal-dialog modal-lg modal-dialog-centered">
-            <div
-              className="modal-content"
-              style={{
-                backgroundColor: "#f8f9fa",
-                border: "none",
-                boxShadow: "0 0 20px rgba(0, 0, 0, 0.1)",
-              }}
-            >
-              <div
-                className="modal-header"
-                style={{
-                  backgroundColor: "#e9ecef",
-                  borderBottom: "1px solid #dee2e6",
-                }}
-              >
-                <h5 className="modal-title">
-                  {isCreatingCart
-                    ? "Create New Cart"
-                    : showNewCartForm
-                    ? "Cart Options"
-                    : "Cart Items"}
-                </h5>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Edit Group</h5>
                 <button
                   type="button"
                   className="btn-close"
-                  onClick={() => {
-                    setShowCartModal(false);
-                    setSelectedInvoiceId(null);
-                    setNewCartName("");
-                    setShowNewCartForm(false);
-                    setIsCreatingCart(false);
-                    setCartItems([]);
-                  }}
-                  aria-label="Close"
+                  onClick={() => setEditGroupId(null)}
                 ></button>
               </div>
-              <div className="modal-body" style={{ padding: "2rem" }}>
-                {isCreatingCart ? (
-                  <div>
-                    <div className="mb-4">
-                      <label htmlFor="newCartName" className="form-label">
-                        Cart Name
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control form-control-lg"
-                        id="newCartName"
-                        value={newCartName}
-                        onChange={(e) => setNewCartName(e.target.value)}
-                        placeholder="Enter cart name"
-                      />
-                    </div>
-                    <div className="d-flex justify-content-end gap-2">
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setIsCreatingCart(false)}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleSaveNewCart}
-                        disabled={!newCartName.trim()}
-                      >
-                        Create Cart
-                      </button>
-                    </div>
-                  </div>
-                ) : showNewCartForm ? (
-                  <div className="text-center">
-                    <h5 className="mb-4" style={{ color: "#495057" }}>
-                      Select a Cart
-                    </h5>
-                    <div className="d-flex flex-column gap-3">
-                      {invoices.find((inv) => inv.id === selectedInvoiceId)
-                        ?.carts?.length ? (
-                        invoices
-                          .find((inv) => inv.id === selectedInvoiceId)
-                          ?.carts.map((cart) => (
-                            <div
-                              key={cart.id}
-                              className="card p-3"
-                              style={{
-                                cursor: "pointer",
-                                backgroundColor: "#fff",
-                                border: "1px solid #dee2e6",
-                              }}
-                              onClick={() => handleSelectCart(cart.id)}
-                            >
-                              <div className="d-flex align-items-center">
-                                <i
-                                  className="bi bi-cart-check me-3"
-                                  style={{
-                                    fontSize: "1.5rem",
-                                    color: "#0d6efd",
-                                  }}
-                                ></i>
-                                <div className="flex-grow-1">
-                                  <h6 className="mb-1">{cart.name}</h6>
-                                  <small className="text-muted">
-                                    {cart.items.length} items • Created{" "}
-                                    {new Date(
-                                      cart.createdAt
-                                    ).toLocaleDateString()}
-                                  </small>
-                                </div>
-                                <i className="bi bi-chevron-right"></i>
-                              </div>
-                            </div>
-                          ))
-                      ) : (
-                        <p className="text-muted">No carts available</p>
-                      )}
-                      <button
-                        className="btn btn-success w-100"
-                        onClick={handleCreateNewCart}
-                        style={{
-                          padding: "0.75rem 1.5rem",
-                          fontSize: "1.1rem",
-                        }}
-                      >
-                        <i className="bi bi-plus-circle me-2"></i>
-                        Create New Cart
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="mb-3">
-                      <label htmlFor="cartName" className="form-label">
-                        Cart Name
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="cartName"
-                        value={newCartName}
-                        onChange={(e) => setNewCartName(e.target.value)}
-                        placeholder="Enter cart name"
-                        disabled
-                      />
-                    </div>
-
-                    <div className="mb-3">
-                      <div className="row row-cols-1 row-cols-md-3 g-3">
-                        {(() => {
-                          const invoice = invoices.find(
-                            (inv) => inv.id === selectedInvoiceId
-                          );
-                          const client = clients.find(
-                            (c) => c.id === invoice?.clientId
-                          );
-                          const clientProducts = products.filter((p) =>
-                            client?.selectedProducts.includes(p.id)
-                          );
-                          return clientProducts.map((product) => (
-                            <div className="col" key={product.id}>
-                              <div
-                                className="card h-100 text-center"
-                                style={{ cursor: "pointer" }}
-                                onClick={() => handleProductCardClick(product)}
-                              >
-                                <img
-                                  src={
-                                    product.imageUrl ||
-                                    "https://via.placeholder.com/100x100?text=Product"
-                                  }
-                                  alt={product.name}
-                                  className="card-img-top mx-auto"
-                                  style={{
-                                    objectFit: "cover",
-                                    height: "120px",
-                                    width: "120px",
-                                  }}
-                                />
-                                <div className="card-body p-2">
-                                  <h6 className="card-title mb-1">
-                                    {product.name}
-                                  </h6>
-                                  {/* Price removed */}
-                                </div>
-                              </div>
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                    </div>
-
-                    {cartItems.length > 0 ? (
-                      <div className="table-responsive">
-                        <table className="table">
-                          <thead>
-                            <tr>
-                              <th>Product</th>
-                              <th>Quantity</th>
-                              <th>Added By</th>
-                              <th>Timestamp</th>
-                              <th></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {cartItems.map((item, idx) => (
-                              <tr key={item.productId + "-" + idx}>
-                                <td>{item.productName}</td>
-                                <td>{item.quantity ?? 0}</td>
-                                <td>{item.addedBy || "-"}</td>
-                                <td>
-                                  {item.addedAt
-                                    ? new Date(item.addedAt).toLocaleString()
-                                    : ""}
-                                </td>
-                                <td>
-                                  <button
-                                    className="btn btn-sm btn-outline-danger"
-                                    onClick={() =>
-                                      handleRemoveFromCart(item.productId)
-                                    }
-                                  >
-                                    <i className="bi bi-trash"></i>
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            {/* Totals for each unique product */}
-                            {(() => {
-                              const totals: {
-                                [productId: string]: {
-                                  name: string;
-                                  total: number;
-                                };
-                              } = {};
-                              cartItems.forEach((item) => {
-                                if (!totals[item.productId]) {
-                                  totals[item.productId] = {
-                                    name: item.productName,
-                                    total: 0,
-                                  };
-                                }
-                                totals[item.productId].total += item.quantity;
-                              });
-                              return Object.entries(totals).map(
-                                ([productId, { name, total }]) => (
-                                  <tr
-                                    key={productId + "-total"}
-                                    style={{ background: "#f8f9fa" }}
-                                  >
-                                    <td colSpan={1}>
-                                      <strong>Total for {name}:</strong>
-                                    </td>
-                                    <td colSpan={2}>
-                                      <strong>{total}</strong>
-                                    </td>
-                                    <td></td>
-                                  </tr>
-                                )
-                              );
-                            })()}
-                          </tfoot>
-                        </table>
-                      </div>
-                    ) : (
-                      <p className="text-muted text-center">No items in cart</p>
-                    )}
-
-                    {/* Below the cart items table, show the total number of items in all carts for this invoice */}
-                    {selectedInvoiceId &&
-                      (() => {
-                        const invoice = invoices.find(
-                          (inv) => inv.id === selectedInvoiceId
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label">Client Name</label>
+                  <input
+                    className="form-control"
+                    value={editGroupName}
+                    onChange={(e) => setEditGroupName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setEditGroupId(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    const group = pickupGroups.find((g) => g.id === editGroupId);
+                    if (group) {
+                      await updatePickupGroupStatus(group.id, group.status); // status unchanged
+                      await import("../firebase")
+                        .then(({ db }) =>
+                          import("firebase/firestore").then(({ doc, updateDoc }) =>
+                            updateDoc(doc(db, "pickup_groups", group.id), {
+                              clientName: editGroupName,
+                            })
+                          )
                         );
-                        if (!invoice) return null;
-                        const totalItems = invoice.carts.reduce(
-                          (sum, cart) =>
-                            sum +
-                            cart.items.reduce((s, i) => s + i.quantity, 0),
-                          0
-                        );
-                        return (
-                          <div className="mt-2 text-end">
-                            <span className="badge bg-info">
-                              Total items in all carts: {totalItems}
-                            </span>
-                          </div>
-                        );
-                      })()}
-
-                    <div className="d-flex justify-content-end mt-3">
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleCartAssign}
-                        disabled={!newCartName.trim() || cartItems.length === 0}
-                      >
-                        Save Cart
-                      </button>
-                    </div>
-                  </div>
-                )}
+                    }
+                    setEditGroupId(null);
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation */}
+      {deletingGroupId && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Delete Group</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setDeletingGroupId(null)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                Are you sure you want to delete this group?
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setDeletingGroupId(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={async () => {
+                    await import("../firebase").then(({ db }) =>
+                      import("firebase/firestore").then(({ doc, updateDoc }) =>
+                        updateDoc(doc(db, "pickup_groups", deletingGroupId), { status: "deleted" })
+                      )
+                    );
+                    setDeletingGroupId(null);
+                  }}
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {invoiceToDelete && (
-        <DeleteConfirmationModal
-          show={!!invoiceToDelete}
-          onClose={() => setInvoiceToDelete(null)}
-          onConfirm={handleConfirmDelete}
-          title="Delete Invoice"
-          message={`Are you sure you want to delete the invoice for ${invoiceToDelete.clientName}?`}
+      <div className="row">
+        <div className="col-md-6">
+          <h3 className="mb-4">Active Invoices</h3>
+        </div>
+        <div className="col-md-6 text-md-end">
+          <button
+            className="btn btn-primary"
+            onClick={handleAddInvoice}
+          >
+            Create New Invoice
+          </button>
+        </div>
+      </div>
+
+      <div className="row">
+        {invoices.length === 0 ? (
+          <div className="text-center text-muted py-5">
+            No active invoices found. Create a new invoice to get started.
+          </div>
+        ) : (
+          invoices.map((invoice) => (
+            <div
+              key={invoice.id}
+              className="col-lg-4 col-md-6 mb-4"
+              onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
+              onMouseLeave={() => setHoveredInvoiceId(null)}
+            >
+              <div className="card h-100">
+                <div className="card-body">
+                  <h5 className="card-title">
+                    Invoice #{invoice.id}
+                    {hoveredInvoiceId === invoice.id && (
+                      <span className="badge bg-info text-dark ms-2">
+                        {invoice.status}
+                      </span>
+                    )}
+                  </h5>
+                  <p className="card-text">
+                    Client: {clients.find((c) => c.id === invoice.clientId)?.name}
+                  </p>
+                  <p className="card-text">
+                    Products:{" "}
+                    {invoice.carts
+                      .flatMap((cart) => cart.items)
+                      .map((item) => `${item.productName} (x${item.quantity})`)
+                      .join(", ")}
+                  </p>
+                  <p className="card-text">
+                    Total: ${" "}
+                    {invoice.carts
+                      .flatMap((cart) => cart.items)
+                      .reduce((total, item) => total + item.price * item.quantity, 0)
+                      .toFixed(2)}
+                  </p>
+                </div>
+                <div className="card-footer bg-transparent border-top-0">
+                  <div className="d-flex justify-content-between">
+                    <button
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={() => handleInvoiceClick(invoice.id)}
+                    >
+                      View / Edit
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => handleDeleteClick(invoice)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Invoice Form */}
+      {showInvoiceForm && (
+        <InvoiceForm
+          clients={clients}
+          products={products}
+          onAddInvoice={onAddInvoice}
+          onClose={() => setShowInvoiceForm(false)}
         />
       )}
 
-      {invoices.length > 0 ? (
-        <div className="row row-cols-1 row-cols-md-3 g-3 mb-3">
-          {invoices.map((invoice) => {
-            const client = clients.find((c) => c.id === invoice.clientId);
-            const isHovered = hoveredInvoiceId === invoice.id;
-            const isDone = doneInvoices.includes(invoice.id);
-
-            return (
-              <div
-                key={invoice.id}
-                className={`card mb-3${isDone ? " bg-light text-muted" : ""}`}
-                onClick={() => handleInvoiceClick(invoice.id)}
-                style={{ cursor: "pointer", position: "relative" }}
-                onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
-                onMouseLeave={() => setHoveredInvoiceId(null)}
-              >
-                <div className="card-body d-flex align-items-center">
-                  {/* Removed cart icon */}
-                  <div className="flex-grow-1">
-                    <h5 className="card-title mb-1">{invoice.clientName}</h5>
-                    <small className="text-muted">
-                      {new Date(invoice.date).toLocaleDateString()}
-                    </small>
-                    {invoice.carts && invoice.carts.length > 0 && (
-                      <div className="mt-2">
-                        <strong style={{ color: "#004AAD", fontSize: 13 }}>
-                          Carts:
-                        </strong>
-                        <ul
-                          className="mb-0 ps-3"
-                          style={{ fontSize: 13, color: "#333" }}
-                        >
-                          {invoice.carts.map((cart) => (
-                            <li key={cart.id}>
-                              <span style={{ fontWeight: 600 }}>
-                                {cart.name}
-                              </span>
-                              {cart.items && cart.items.length > 0 && (
-                                <span style={{ color: "#888", marginLeft: 6 }}>
-                                  ({cart.items.length} item
-                                  {cart.items.length !== 1 ? "s" : ""})
-                                </span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+      {/* Cart Modal */}
+      {showCartModal && selectedInvoiceId && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Invoice Cart</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowCartModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {/* Show total weight if present on invoice */}
+                {(() => {
+                  const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
+                  if (invoice && typeof invoice.totalWeight === "number") {
+                    return (
+                      <div className="alert alert-info mb-3">
+                        <strong>Total Weight:</strong> {invoice.totalWeight.toFixed(2)} lbs
                       </div>
+                    );
+                  }
+                  return null;
+                })()}
+                <div className="mb-3">
+                  <label className="form-label">Cart Name</label>
+                  <input
+                    className="form-control"
+                    value={newCartName}
+                    onChange={(e) => setNewCartName(e.target.value)}
+                    placeholder="Enter cart name"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Products</label>
+                  <div className="border rounded p-3">
+                    {cartItems.length === 0 ? (
+                      <div className="text-muted">No products in cart.</div>
+                    ) : (
+                      cartItems.map((item) => (
+                        <div
+                          key={item.productId}
+                          className="d-flex justify-content-between align-items-center py-2"
+                        >
+                          <div>
+                            {item.productName} (x{item.quantity})
+                          </div>
+                          <div>${(item.price * item.quantity).toFixed(2)}</div>
+                        </div>
+                      ))
                     )}
                   </div>
-                  {/* Checkmark and Trashcan actions */}
-                  <button
-                    className={`btn btn-sm btn-outline-success me-2${
-                      isDone ? " active" : ""
-                    }`}
-                    title={isDone ? "Mark as not done" : "Mark as done"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDoneInvoices((prev) =>
-                        prev.includes(invoice.id)
-                          ? prev.filter((id) => id !== invoice.id)
-                          : [...prev, invoice.id]
-                      );
-                    }}
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Select Product</label>
+                  <select
+                    className="form-select"
+                    value={selectedProduct}
+                    onChange={(e) => setSelectedProduct(e.target.value)}
                   >
-                    <i className="bi bi-check-lg"></i>
+                    <option value="">-- Select a product --</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} - ${product.price.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Quantity</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Number(e.target.value))}
+                    min={1}
+                  />
+                </div>
+                <div className="d-flex justify-content-end">
+                  <button
+                    className="btn btn-primary me-2"
+                    onClick={handleAddToCart}
+                  >
+                    Add to Cart
                   </button>
                   <button
-                    className="btn btn-sm btn-outline-danger"
-                    title="Delete invoice"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteClick(invoice);
-                    }}
+                    className="btn btn-success"
+                    onClick={handleCartAssign}
                   >
-                    <i className="bi bi-trash"></i>
+                    {isCreatingCart ? "Create Cart" : "Assign to Cart"}
                   </button>
                 </div>
+                <div className="mt-4">
+                  <h6>Or add products using the keypad:</h6>
+                  <div className="row">
+                    {products.map((product) => (
+                      <div
+                        key={product.id}
+                        className="col-6 col-md-4 mb-3"
+                        onClick={() => handleProductCardClick(product)}
+                      >
+                        <div className="card text-center">
+                          <div className="card-body">
+                            <h5 className="card-title">{product.name}</h5>
+                            <p className="card-text">
+                              ${product.price.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            );
-          })}
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowCartModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="text-center py-5">
-          <i className="bi bi-receipt display-1 text-muted mb-3"></i>
-          <h4 className="text-muted">No Active Invoices</h4>
-          <p className="text-muted">
-            Click the "+" button to create your first invoice
-          </p>
-        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {invoiceToDelete && (
+        <DeleteConfirmationModal
+          invoice={invoiceToDelete}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setInvoiceToDelete(null)}
+        />
       )}
 
       {/* Product Keypad Modal */}
       {showProductKeypad && productForKeypad && (
         <div
-          className="modal show d-block"
-          tabIndex={-1}
-          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
         >
-          <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Add {productForKeypad.name}</h5>
+                <h5 className="modal-title">Add {productForKeypad.name} to Cart</h5>
                 <button
                   type="button"
                   className="btn-close"
                   onClick={() => setShowProductKeypad(false)}
                 ></button>
               </div>
-              <div className="modal-body text-center">
-                <img
-                  src={
-                    productForKeypad.imageUrl ||
-                    "https://via.placeholder.com/100x100?text=Product"
-                  }
-                  alt={productForKeypad.name}
-                  style={{
-                    width: 100,
-                    height: 100,
-                    objectFit: "cover",
-                    borderRadius: 8,
-                    marginBottom: 16,
-                  }}
-                />
-                <div style={{ fontSize: 24, marginBottom: 16 }}>
-                  Quantity: {keypadQuantity}
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label">Quantity</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={keypadQuantity}
+                    onChange={(e) => setKeypadQuantity(Number(e.target.value))}
+                    min={1}
+                  />
                 </div>
-                <div
-                  className="d-flex flex-wrap justify-content-center mb-3"
-                  style={{ maxWidth: 240, margin: "0 auto" }}
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
-                    <button
-                      key={num}
-                      className="btn btn-outline-primary m-1"
-                      style={{ width: 60, height: 60, fontSize: 24 }}
-                      onClick={() =>
-                        setKeypadQuantity((q) => (q === 0 ? num : q * 10 + num))
-                      }
-                    >
-                      {num}
-                    </button>
-                  ))}
-                  <button
-                    className="btn btn-outline-secondary m-1"
-                    style={{ width: 60, height: 60, fontSize: 24 }}
-                    onClick={() => setKeypadQuantity(1)}
-                  >
-                    C
-                  </button>
-                  <button
-                    className="btn btn-outline-secondary m-1"
-                    style={{ width: 60, height: 60, fontSize: 24 }}
-                    onClick={() =>
-                      setKeypadQuantity((q) => (q > 9 ? Math.floor(q / 10) : 1))
-                    }
-                  >
-                    ←
-                  </button>
-                </div>
+              </div>
+              <div className="modal-footer">
                 <button
-                  className="btn btn-success w-100"
-                  style={{ fontSize: 20 }}
+                  className="btn btn-secondary"
+                  onClick={() => setShowProductKeypad(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
                   onClick={handleKeypadAdd}
                 >
-                  Add {keypadQuantity} to Cart
+                  Add to Cart
                 </button>
               </div>
             </div>

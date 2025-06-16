@@ -252,7 +252,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   checked={washingType === "Conventional"}
                   onChange={() => setWashingType("Conventional")}
                 />
-                <label className="form-check-label" htmlFor="washingTypeConventional">
+                <label
+                  className="form-check-label"
+                  htmlFor="washingTypeConventional"
+                >
                   Conventional
                 </label>
               </div>
@@ -387,7 +390,11 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                         </span>
                       </td>
                       <td>
-                        <span className={`badge ${client.segregation ? "bg-success" : "bg-secondary"}`}>
+                        <span
+                          className={`badge ${
+                            client.segregation ? "bg-success" : "bg-secondary"
+                          }`}
+                        >
                           {client.segregation ? "Yes" : "No"}
                         </span>
                       </td>

@@ -1,7 +1,24 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Client } from "../types";
-import { UserRecord, addPickupEntry, updatePickupEntry, deletePickupEntry, addPickupGroup, updatePickupGroupStatus, getTodayPickupGroups } from "../services/firebaseService";
-import { collection, deleteDoc, doc, updateDoc, onSnapshot, query, where, Timestamp } from "firebase/firestore";
+import {
+  UserRecord,
+  addPickupEntry,
+  updatePickupEntry,
+  deletePickupEntry,
+  addPickupGroup,
+  updatePickupGroupStatus,
+  getTodayPickupGroups,
+} from "../services/firebaseService";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  updateDoc,
+  onSnapshot,
+  query,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 import { db } from "../firebase";
 
 interface Driver {
@@ -49,7 +66,9 @@ export default function PickupWashing({
   const [groups, setGroups] = useState<any[]>([]);
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState<string>("");
-  const [groupStatusUpdating, setGroupStatusUpdating] = useState<string | null>(null);
+  const [groupStatusUpdating, setGroupStatusUpdating] = useState<string | null>(
+    null
+  );
   const weightInputRef = useRef<HTMLInputElement>(null);
   const [showKeypad, setShowKeypad] = useState(false);
 
@@ -67,14 +86,25 @@ export default function PickupWashing({
   );
 
   // --- Helper to update group in Firestore ---
-  const updateGroupTotals = async (groupId: string, entriesForGroup: PickupEntry[]) => {
+  const updateGroupTotals = async (
+    groupId: string,
+    entriesForGroup: PickupEntry[]
+  ) => {
     if (!groupId) return;
     if (entriesForGroup.length === 0) return;
     const totalWeight = entriesForGroup.reduce((sum, e) => sum + e.weight, 0);
     // Convert all timestamps to Date for comparison
-    const getDate = (t: Date | Timestamp) => (t instanceof Date ? t : t.toDate());
-    const endTimeDate = entriesForGroup.reduce((latest, e) => getDate(e.timestamp) > latest ? getDate(e.timestamp) : latest, getDate(entriesForGroup[0].timestamp));
-    await updateDoc(doc(db, "pickup_groups", groupId), { totalWeight, endTime: endTimeDate.toISOString() });
+    const getDate = (t: Date | Timestamp) =>
+      t instanceof Date ? t : t.toDate();
+    const endTimeDate = entriesForGroup.reduce(
+      (latest, e) =>
+        getDate(e.timestamp) > latest ? getDate(e.timestamp) : latest,
+      getDate(entriesForGroup[0].timestamp)
+    );
+    await updateDoc(doc(db, "pickup_groups", groupId), {
+      totalWeight,
+      endTime: endTimeDate.toISOString(),
+    });
   };
 
   // When adding a new entry, check if it fits an existing group or needs a new group
@@ -86,15 +116,24 @@ export default function PickupWashing({
     if (!client || !driver || !weight) return;
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60000);
-    let group = groups.find(g =>
-      g.clientId === client.id &&
-      g.driverId === driver.id &&
-      new Date(g.endTime) >= oneHourAgo
+    let group = groups.find(
+      (g) =>
+        g.clientId === client.id &&
+        g.driverId === driver.id &&
+        new Date(g.endTime) >= oneHourAgo
     );
     let groupId = group ? group.id : null;
     let groupData: PickupGroup | null = null;
     if (!groupId) {
       // Create new group
+      let initialStatus = "Recibido";
+      if (client.segregation) {
+        initialStatus = "Segregation";
+      } else if (client.washingType === "Tunnel") {
+        initialStatus = "Tunnel";
+      } else if (client.washingType === "Conventional") {
+        initialStatus = "Conventional";
+      }
       const groupData = {
         clientId: client.id,
         clientName: client.name,
@@ -103,7 +142,7 @@ export default function PickupWashing({
         startTime: now,
         endTime: now,
         totalWeight: parseFloat(weight),
-        status: "Recibido"
+        status: initialStatus,
       };
       const groupRef = await addPickupGroup(groupData);
       groupId = groupRef.id;
@@ -123,7 +162,9 @@ export default function PickupWashing({
       const newEntry: PickupEntry = { ...entry, id: docRef.id };
       setEntries([newEntry, ...entries]);
       // Update group totals
-      const updatedEntries = [newEntry, ...entries].filter(e => e.groupId === groupId);
+      const updatedEntries = [newEntry, ...entries].filter(
+        (e) => e.groupId === groupId
+      );
       await updateGroupTotals(groupId!, updatedEntries);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
@@ -138,15 +179,17 @@ export default function PickupWashing({
 
   // Group entries by groupId (using Firestore groups)
   const groupedEntries = useMemo(() => {
-    return groups.map(group => {
-      const groupEntries = entries.filter(e => e.groupId === group.id);
-      const totalWeight = groupEntries.reduce((sum, e) => sum + e.weight, 0);
-      return {
-        ...group,
-        entries: groupEntries,
-        totalWeight,
-      };
-    }).filter(g => g.entries.length > 0);
+    return groups
+      .map((group) => {
+        const groupEntries = entries.filter((e) => e.groupId === group.id);
+        const totalWeight = groupEntries.reduce((sum, e) => sum + e.weight, 0);
+        return {
+          ...group,
+          entries: groupEntries,
+          totalWeight,
+        };
+      })
+      .filter((g) => g.entries.length > 0);
   }, [groups, entries]);
 
   // Edit an entry's weight inline
@@ -163,7 +206,9 @@ export default function PickupWashing({
       );
       setEntries(updatedEntries);
       // Update group totals
-      const groupEntries = updatedEntries.filter(e => e.groupId === entry.groupId);
+      const groupEntries = updatedEntries.filter(
+        (e) => e.groupId === entry.groupId
+      );
       await updateGroupTotals(entry.groupId, groupEntries);
       setEditEntryId(null);
       setEditWeight("");
@@ -184,7 +229,7 @@ export default function PickupWashing({
       const updatedEntries = entries.filter((e) => e.id !== entry.id);
       setEntries(updatedEntries);
       // Update group totals
-      const groupEntries = updatedEntries.filter(e => e.groupId === group.id);
+      const groupEntries = updatedEntries.filter((e) => e.groupId === group.id);
       await updateGroupTotals(group.id, groupEntries);
     } catch (err) {
       alert("Error al eliminar la entrada");
@@ -210,7 +255,7 @@ export default function PickupWashing({
       where("timestamp", "<", Timestamp.fromDate(tomorrow))
     );
     const unsub = onSnapshot(q, (snap) => {
-      const fetched = snap.docs.map(doc => {
+      const fetched = snap.docs.map((doc) => {
         const data = doc.data();
         return {
           id: doc.id,
@@ -220,11 +265,17 @@ export default function PickupWashing({
           driverName: data.driverName,
           groupId: data.groupId,
           weight: data.weight,
-          timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp),
+          timestamp:
+            data.timestamp instanceof Timestamp
+              ? data.timestamp.toDate()
+              : new Date(data.timestamp),
         };
       });
       setEntries(
-        fetched.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        fetched.sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        )
       );
     });
     return () => unsub();
@@ -244,7 +295,7 @@ export default function PickupWashing({
 
   return (
     <div className="container py-4">
-      <h2 className="mb-4">Entradas - Ropa Recogida</h2>
+      <h2 className="mb-4 text-center">Entradas Representantes de Servicios</h2>
       <form
         className="card p-4 mb-4"
         onSubmit={handleSubmit}
@@ -299,13 +350,36 @@ export default function PickupWashing({
             autoComplete="off"
           />
           {showKeypad && (
-            <div className="card p-2 mt-2" style={{ maxWidth: 300, margin: "0 auto" }}>
+            <div
+              className="card p-2 mt-2"
+              style={{ maxWidth: 300, margin: "0 auto" }}
+            >
               <div className="d-flex flex-wrap justify-content-center gap-2">
-                {["7","8","9","4","5","6","1","2","3","0",".","←","C"].map((key) => (
+                {[
+                  "7",
+                  "8",
+                  "9",
+                  "4",
+                  "5",
+                  "6",
+                  "1",
+                  "2",
+                  "3",
+                  "0",
+                  ".",
+                  "←",
+                  "C",
+                ].map((key) => (
                   <button
                     key={key}
                     type="button"
-                    className={`btn btn-outline-dark mb-2${key === "C" ? " btn-danger" : key === "←" ? " btn-warning" : ""}`}
+                    className={`btn btn-outline-dark mb-2${
+                      key === "C"
+                        ? " btn-danger"
+                        : key === "←"
+                        ? " btn-warning"
+                        : ""
+                    }`}
                     style={{ width: 60, height: 48, fontSize: 22 }}
                     onClick={() => handleKeypadInput(key)}
                   >
@@ -340,25 +414,35 @@ export default function PickupWashing({
           {groupedEntries.map((group, idx) => (
             <div key={idx} className="mb-4">
               <div className="mb-2">
-                <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#007bff' }}>{group.clientName}</span> &nbsp;|&nbsp;
-                <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#28a745' }}>{group.driverName}</span> &nbsp;|&nbsp;
-                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#6c757d' }}>
-                  Estado: {group.status}
-                </span>
-                <select
-                  className="form-select form-select-sm d-inline-block ms-2"
-                  style={{ width: 140 }}
-                  value={group.status}
-                  onChange={e => handleStatusChange(group.id, e.target.value)}
-                  disabled={groupStatusUpdating === group.id}
+                <span
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "bold",
+                    color: "#007bff",
+                  }}
                 >
-                  <option value="Recibido">Recibido</option>
-                  <option value="Lavando">Lavando</option>
-                  <option value="Listo">Listo</option>
-                  <option value="Entregado">Entregado</option>
-                </select>
+                  {group.clientName}
+                </span>{" "}
                 &nbsp;|&nbsp;
-                <strong>Total de carritos:</strong> {group.entries.length}
+                <span
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "bold",
+                    color: "#28a745",
+                  }}
+                >
+                  {group.driverName}
+                </span>{" "}
+                &nbsp;|&nbsp;
+                <span
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "bold",
+                    color: "#6c757d",
+                  }}
+                >
+                  Carros: {group.entries.length}
+                </span>
               </div>
               <div className="table-responsive">
                 <table className="table table-sm table-bordered">
@@ -375,10 +459,17 @@ export default function PickupWashing({
                       let timeString = "";
                       if (entry.timestamp instanceof Date) {
                         timeString = entry.timestamp.toLocaleTimeString();
-                      } else if (entry.timestamp && typeof entry.timestamp.toDate === "function") {
-                        timeString = entry.timestamp.toDate().toLocaleTimeString();
+                      } else if (
+                        entry.timestamp &&
+                        typeof entry.timestamp.toDate === "function"
+                      ) {
+                        timeString = entry.timestamp
+                          .toDate()
+                          .toLocaleTimeString();
                       } else {
-                        timeString = new Date(entry.timestamp as any).toLocaleTimeString();
+                        timeString = new Date(
+                          entry.timestamp as any
+                        ).toLocaleTimeString();
                       }
                       return (
                         <tr key={i}>
@@ -389,7 +480,7 @@ export default function PickupWashing({
                                 type="number"
                                 className="form-control form-control-sm"
                                 value={editWeight}
-                                onChange={e => setEditWeight(e.target.value)}
+                                onChange={(e) => setEditWeight(e.target.value)}
                                 style={{ width: 80, display: "inline-block" }}
                                 autoFocus
                               />
@@ -401,19 +492,33 @@ export default function PickupWashing({
                           <td>
                             {editEntryId === entry.id ? (
                               <>
-                                <button className="btn btn-success btn-sm me-2" onClick={() => handleEditSave(entry)}>
+                                <button
+                                  className="btn btn-success btn-sm me-2"
+                                  onClick={() => handleEditSave(entry)}
+                                >
                                   Guardar
                                 </button>
-                                <button className="btn btn-secondary btn-sm" onClick={handleEditCancel}>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={handleEditCancel}
+                                >
                                   Cancelar
                                 </button>
                               </>
                             ) : (
                               <>
-                                <button className="btn btn-outline-primary btn-sm me-2" onClick={() => handleEditEntry(entry)}>
+                                <button
+                                  className="btn btn-outline-primary btn-sm me-2"
+                                  onClick={() => handleEditEntry(entry)}
+                                >
                                   Editar
                                 </button>
-                                <button className="btn btn-outline-danger btn-sm" onClick={() => handleDeleteEntry(group, entry)}>
+                                <button
+                                  className="btn btn-outline-danger btn-sm"
+                                  onClick={() =>
+                                    handleDeleteEntry(group, entry)
+                                  }
+                                >
                                   Eliminar
                                 </button>
                               </>
@@ -422,13 +527,20 @@ export default function PickupWashing({
                         </tr>
                       );
                     })}
-                    <tr>
-                      <td colSpan={3} style={{ textAlign: 'right', fontWeight: 'bold', background: '#f8f9fa' }}>
-                        Peso total: {group.totalWeight.toFixed(2)} lbs
-                      </td>
-                    </tr>
                   </tbody>
                 </table>
+                <div
+                  style={{
+                    width: "100%",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    background: "#f8f9fa",
+                    padding: "8px 12px",
+                    borderTop: "1px solid #dee2e6",
+                  }}
+                >
+                  Peso total: {Math.round(group.totalWeight)} lbs
+                </div>
               </div>
             </div>
           ))}

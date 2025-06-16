@@ -46,6 +46,8 @@ import {
   DocumentData,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import Report from "./components/Report";
+import React from "react";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -118,7 +120,7 @@ function updateClientInInvoices(
 function App() {
   const { user, logout } = useAuth();
   const [activePage, setActivePage] = useState<
-    "home" | "entradas" | "washing" | "segregation" | "settings"
+    "home" | "entradas" | "washing" | "segregation" | "settings" | "reports"
   >("home");
   const [activeSettingsTab, setActiveSettingsTab] = useState<
     "clients" | "products" | "users" | "drivers"
@@ -130,6 +132,10 @@ function App() {
   const [drivers, setDrivers] = useState<{ id: string; name: string }[]>([]);
   const [showClientForm, setShowClientForm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
+    null
+  );
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -423,49 +429,100 @@ function App() {
       <nav className="navbar navbar-expand-lg navbar-light bg-light mb-4">
         <div className="container-fluid">
           <a className="navbar-brand" href="#">
-            Laundry App
+            King Uniforms
           </a>
-          <div className="navbar-nav">
-            <button
-              className={`nav-link btn btn-link ${
-                activePage === "home" ? "active" : ""
-              }`}
-              onClick={() => setActivePage("home")}
-            >
-              Home
-            </button>
-            <button
-              className={`nav-link btn btn-link ${
-                activePage === "entradas" ? "active" : ""
-              }`}
-              onClick={() => setActivePage("entradas")}
-            >
-              Entradas
-            </button>
-            <button
-              className={`nav-link btn btn-link ${
-                activePage === "washing" ? "active" : ""
-              }`}
-              onClick={() => setActivePage("washing")}
-            >
-              Washing
-            </button>
-            <button
-              className={`nav-link btn btn-link ${
-                activePage === "segregation" ? "active" : ""
-              }`}
-              onClick={() => setActivePage("segregation")}
-            >
-              Segregation
-            </button>
-            <button
-              className={`nav-link btn btn-link ${
-                activePage === "settings" ? "active" : ""
-              }`}
-              onClick={() => setActivePage("settings")}
-            >
-              Settings
-            </button>
+          {/* Hamburger for tablet/mobile */}
+          <button
+            className="navbar-toggler d-lg-none"
+            type="button"
+            aria-label="Toggle navigation"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <span className="navbar-toggler-icon"></span>
+          </button>
+          {/* Menu options: show inline on desktop, in dropdown on tablet/mobile */}
+          <div
+            className={`collapse navbar-collapse${
+              menuOpen ? " show" : ""
+            } d-lg-block`}
+            style={{
+              zIndex: 1000,
+              background: "var(--ku-red)",
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              borderRadius: "0 0 10px 10px",
+            }}
+          >
+            <div className="navbar-nav">
+              <button
+                className={`nav-link btn btn-link ${
+                  activePage === "home" ? "active" : ""
+                }`}
+                onClick={() => {
+                  setActivePage("home");
+                  setMenuOpen(false);
+                }}
+              >
+                Home
+              </button>
+              <button
+                className={`nav-link btn btn-link ${
+                  activePage === "entradas" ? "active" : ""
+                }`}
+                onClick={() => {
+                  setActivePage("entradas");
+                  setMenuOpen(false);
+                }}
+              >
+                Entradas
+              </button>
+              <button
+                className={`nav-link btn btn-link ${
+                  activePage === "washing" ? "active" : ""
+                }`}
+                onClick={() => {
+                  setActivePage("washing");
+                  setMenuOpen(false);
+                }}
+              >
+                Washing
+              </button>
+              <button
+                className={`nav-link btn btn-link ${
+                  activePage === "segregation" ? "active" : ""
+                }`}
+                onClick={() => {
+                  setActivePage("segregation");
+                  setMenuOpen(false);
+                }}
+              >
+                Segregation
+              </button>
+              <button
+                className={`nav-link btn btn-link ${
+                  activePage === "reports" ? "active" : ""
+                }`}
+                onClick={() => {
+                  setActivePage("reports");
+                  setMenuOpen(false);
+                }}
+              >
+                Reports
+              </button>
+              <button
+                className={`nav-link btn btn-link ${
+                  activePage === "settings" ? "active" : ""
+                }`}
+                onClick={() => {
+                  setActivePage("settings");
+                  setMenuOpen(false);
+                }}
+              >
+                Settings
+              </button>
+            </div>
           </div>
           <div className="d-flex align-items-center ms-auto">
             <span className="me-3 text-muted">
@@ -488,13 +545,17 @@ function App() {
           onAddInvoice={handleAddInvoice}
           onDeleteInvoice={handleDeleteInvoice}
           onUpdateInvoice={handleUpdateInvoice}
+          selectedInvoiceId={selectedInvoiceId}
+          setSelectedInvoiceId={setSelectedInvoiceId}
         />
       ) : activePage === "entradas" ? (
         <PickupWashing clients={clients} drivers={drivers} />
       ) : activePage === "washing" ? (
-        <Washing />
+        <Washing setSelectedInvoiceId={setSelectedInvoiceId} />
       ) : activePage === "segregation" ? (
         <Segregation />
+      ) : activePage === "reports" ? (
+        <Report />
       ) : (
         <div>
           {/* Tab Buttons */}

@@ -23,6 +23,7 @@ export interface CartItem {
   quantity: number;
   price: number;
   addedBy?: string; // Name or ID of the user who added the item
+  addedAt?: string; // Timestamp when the item was added
 }
 
 export interface Cart {
@@ -41,6 +42,7 @@ export interface Invoice {
   products: Product[];
   total: number;
   carts: Cart[];
+  totalWeight?: number; // Add totalWeight for tunnel invoices
 }
 
 export interface LaundryCart {

@@ -1,11 +1,23 @@
 import React, { useEffect, useState } from "react";
-import { getTodayPickupGroups, updatePickupGroupStatus, getClients } from "../services/firebaseService";
+import {
+  getTodayPickupGroups,
+  updatePickupGroupStatus,
+  getClients,
+} from "../services/firebaseService";
 import type { Client } from "../types";
 // Add Firestore imports
 import { doc, updateDoc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 
-const Segregation: React.FC = () => {
+interface SegregationProps {
+  hideArrows?: boolean;
+  onGroupComplete?: () => void;
+}
+
+const Segregation: React.FC<SegregationProps> = ({
+  hideArrows,
+  onGroupComplete,
+}) => {
   const [groups, setGroups] = useState<any[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,53 +38,30 @@ const Segregation: React.FC = () => {
     // Optionally, add polling or a real-time listener for groups if needed
   }, [statusUpdating]);
 
-  // Filter groups for clients with segregation=true and status is exactly 'Segregation'
-  const segregationClientIds = clients.filter(c => c.segregation).map(c => c.id);
+  // Show only groups with status 'Segregation' and not 'Entregado'
+  const segregationClientIds = clients
+    .filter((c) => c.segregation)
+    .map((c) => c.id);
   const segregationGroups = groups.filter(
-    g => segregationClientIds.includes(g.clientId) && g.status === "Segregation"
+    (g) =>
+      segregationClientIds.includes(g.clientId) && g.status === "Segregation"
   );
 
-  // Set group status to 'Segregation' automatically if not already, and trigger home page update instantly
-  useEffect(() => {
-    if (!loading && segregationGroups.length > 0) {
-      segregationGroups.forEach((group) => {
-        if (group.status !== "Segregation") {
-          updatePickupGroupStatus(group.id, "Segregation"); // This updates Firestore, not just local state
-        }
-      });
-    }
-    // eslint-disable-next-line
-  }, [loading, segregationGroups.length]);
-
-  // On mount, for groups whose client needs segregation and are not already in Segregation, set their status to Segregation
+  // Only set group status to 'Segregation' if it is in a pre-segregation state (e.g., 'Pickup Complete')
   useEffect(() => {
     if (!loading && groups.length > 0 && clients.length > 0) {
       groups.forEach((group) => {
-        const client = clients.find(c => c.id === group.clientId);
-        if (client && client.segregation && group.status !== "Segregation") {
+        const client = clients.find((c) => c.id === group.clientId);
+        // Only set to 'Segregation' if client needs segregation and group is in a pre-segregation state
+        if (
+          client &&
+          client.segregation &&
+          (group.status === "Recibido" || group.status === undefined)
+        ) {
           updatePickupGroupStatus(group.id, "Segregation");
         }
       });
     }
-    // eslint-disable-next-line
-  }, [loading, groups.length, clients.length]);
-
-  // On mount, for groups whose client does NOT need segregation and are not already in Tunnel/Conventional, set their status directly
-  useEffect(() => {
-    if (!loading && groups.length > 0 && clients.length > 0) {
-      groups.forEach((group) => {
-        const client = clients.find(c => c.id === group.clientId);
-        if (client && !client.segregation) {
-          let nextStatus = null;
-          if (client.washingType === "Tunnel" && group.status !== "Tunnel") nextStatus = "Tunnel";
-          if (client.washingType === "Conventional" && group.status !== "Conventional") nextStatus = "Conventional";
-          if (nextStatus) {
-            updatePickupGroupStatus(group.id, nextStatus);
-          }
-        }
-      });
-    }
-    // eslint-disable-next-line
   }, [loading, groups.length, clients.length]);
 
   // Fetch all entries for today to count carts per group
@@ -85,25 +74,33 @@ const Segregation: React.FC = () => {
     tomorrow.setDate(today.getDate() + 1);
     // Firestore query for today's pickup_entries
     import("../firebase").then(({ db }) => {
-      import("firebase/firestore").then(({ collection, onSnapshot, query, where, Timestamp }) => {
-        const q = query(
-          collection(db, "pickup_entries"),
-          where("timestamp", ">=", Timestamp.fromDate(today)),
-          where("timestamp", "<", Timestamp.fromDate(tomorrow))
-        );
-        const unsub = onSnapshot(q, (snap) => {
-          const fetched = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setEntries(fetched);
-        });
-      });
+      import("firebase/firestore").then(
+        ({ collection, onSnapshot, query, where, Timestamp }) => {
+          const q = query(
+            collection(db, "pickup_entries"),
+            where("timestamp", ">=", Timestamp.fromDate(today)),
+            where("timestamp", "<", Timestamp.fromDate(tomorrow))
+          );
+          const unsub = onSnapshot(q, (snap) => {
+            const fetched = snap.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+            setEntries(fetched);
+          });
+        }
+      );
     });
   }, []);
 
   // Helper: count carts for a group
-  const getCartCount = (groupId: string) => entries.filter(e => e.groupId === groupId).length;
+  const getCartCount = (groupId: string) =>
+    entries.filter((e) => e.groupId === groupId).length;
 
   // Track input and completion state for each group
-  const [segregatedCounts, setSegregatedCounts] = useState<{ [groupId: string]: string }>({});
+  const [segregatedCounts, setSegregatedCounts] = useState<{
+    [groupId: string]: string;
+  }>({});
   const [completingGroup, setCompletingGroup] = useState<string | null>(null);
 
   // Track manual order for segregation groups, persist in Firestore
@@ -135,13 +132,19 @@ const Segregation: React.FC = () => {
 
   // When segregationGroups changes, initialize order in Firestore if needed
   useEffect(() => {
-    if (!orderLoading && segregationGroups.length > 0 && groupOrder.length === 0) {
-      const initialOrder = segregationGroups.map(g => g.id);
+    if (
+      !orderLoading &&
+      segregationGroups.length > 0 &&
+      groupOrder.length === 0
+    ) {
+      const initialOrder = segregationGroups.map((g) => g.id);
       setDoc(orderDocRef, { order: initialOrder }, { merge: true });
     }
     // Remove ids that are no longer present
     if (!orderLoading && groupOrder.length > 0) {
-      const filtered = groupOrder.filter(id => segregationGroups.some(g => g.id === id));
+      const filtered = groupOrder.filter((id) =>
+        segregationGroups.some((g) => g.id === id)
+      );
       if (filtered.length !== groupOrder.length) {
         setDoc(orderDocRef, { order: filtered }, { merge: true });
       }
@@ -150,7 +153,7 @@ const Segregation: React.FC = () => {
 
   // Move group up/down in the order and persist to Firestore
   const moveGroup = (groupId: string, direction: -1 | 1) => {
-    setGroupOrder(prev => {
+    setGroupOrder((prev) => {
       const idx = prev.indexOf(groupId);
       if (idx < 0) return prev;
       const newOrder = [...prev];
@@ -178,25 +181,28 @@ const Segregation: React.FC = () => {
       setCompletingGroup(null);
       return;
     }
-    const group = groups.find(g => g.id === groupId);
-    const client = clients.find(c => c.id === group?.clientId);
+    const group = groups.find((g) => g.id === groupId);
+    const client = clients.find((c) => c.id === group?.clientId);
     let nextStatus = "Tunnel";
     if (client?.washingType === "Conventional") nextStatus = "Conventional";
-    // Await status update before removing from UI
     await updatePickupGroupStatus(groupId, nextStatus);
     const groupRef = doc(db, "pickup_groups", groupId);
     await updateDoc(groupRef, { segregatedCarts: count });
     setCompletingGroup(null);
     setSegregatedCounts((prev) => ({ ...prev, [groupId]: "" }));
-    setGroups(prev => prev.filter(g => g.id !== groupId)); // Remove only after Firestore update
+    if (onGroupComplete) onGroupComplete();
+    // setGroups(prev => prev.filter(g => g.id !== groupId)); // Remove only after Firestore update
   };
 
   // Render groups in custom order
   const orderedGroups = groupOrder
-    .map(id => segregationGroups.find(g => g.id === id))
+    .map((id) => segregationGroups.find((g) => g.id === id))
     .filter(Boolean);
   // If order is not loaded yet, fallback to default order
-  const displayGroups = orderLoading || orderedGroups.length === 0 ? segregationGroups : orderedGroups;
+  const displayGroups =
+    orderLoading || orderedGroups.length === 0
+      ? segregationGroups
+      : orderedGroups;
 
   return (
     <div className="container py-4">
@@ -204,45 +210,130 @@ const Segregation: React.FC = () => {
       {loading || orderLoading ? (
         <div className="text-center py-5">Loading...</div>
       ) : segregationGroups.length === 0 ? (
-        <div className="text-muted text-center py-5">No groups for segregation today.</div>
+        <div className="text-muted text-center py-5">
+          No groups for segregation today.
+        </div>
       ) : (
-        <div className="card shadow p-4 mb-4 mx-auto" style={{ maxWidth: 600 }}>
-          <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>Groups for Segregation</h5>
+        <div className="card shadow p-4 mb-4 mx-auto" style={{ maxWidth: 900 }}>
+          <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>
+            Groups for Segregation
+          </h5>
           <div className="list-group list-group-flush">
             {displayGroups.map((group, idx) => (
               <div
                 key={group.id}
-                className="list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded"
-                style={{ background: '#f8f9fa', border: '1px solid #e3e3e3' }}
+                className={`list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded${
+                  idx === 0 ? " bg-primary text-white border-primary" : ""
+                }`}
+                style={
+                  idx === 0
+                    ? {
+                        background: "#007bff",
+                        color: "#fff",
+                        border: "2px solid #007bff",
+                        fontSize: "1.35rem",
+                        fontWeight: 700,
+                        boxShadow: "0 0 12px #007bff44",
+                      }
+                    : { background: "#f8f9fa", border: "1px solid #e3e3e3" }
+                }
               >
                 <div className="d-flex flex-column flex-md-row align-items-md-center gap-3 flex-grow-1">
-                  <span style={{ fontSize: '1.2rem', fontWeight: 600, color: '#007bff', minWidth: 120 }}>{group.clientName}</span>
-                  <span style={{ fontSize: '1.1rem', color: '#333' }}>
-                    Carts: <strong>{getCartCount(group.id)}</strong>
+                  <div className="d-flex flex-row gap-2 align-items-center">
+                    {!hideArrows && (
+                      <>
+                        <button
+                          className="btn btn-outline-dark btn-sm"
+                          onClick={() => moveGroup(group.id, -1)}
+                          disabled={idx === 0}
+                          title="Move up"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          className="btn btn-outline-dark btn-sm"
+                          onClick={() => moveGroup(group.id, 1)}
+                          disabled={idx === orderedGroups.length - 1}
+                          title="Move down"
+                        >
+                          ↓
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <span
+                    style={
+                      idx === 0
+                        ? {
+                            fontSize: "1.5rem",
+                            fontWeight: 800,
+                            color: "#fff",
+                            letterSpacing: 1,
+                          }
+                        : {
+                            fontSize: "1.2rem",
+                            fontWeight: 600,
+                            color: "#007bff",
+                          }
+                    }
+                  >
+                    {group.clientName}
                   </span>
+                  <span
+                    style={
+                      idx === 0
+                        ? { fontSize: "1.3rem", color: "#fff" }
+                        : { fontSize: "1.1rem", color: "#333" }
+                    }
+                  >
+                    Carros: <strong>{getCartCount(group.id)}</strong>
+                  </span>
+                </div>
+                <div className="d-flex flex-row gap-2 align-items-center">
                   <input
                     type="number"
                     min={0}
                     className="form-control form-control-sm"
-                    style={{ width: 110, maxWidth: '100%' }}
+                    style={
+                      idx === 0
+                        ? {
+                            width: 110,
+                            maxWidth: "100%",
+                            fontSize: "1.2rem",
+                            fontWeight: 600,
+                            background: "#fff",
+                            color: "#007bff",
+                            border: "2px solid #fff",
+                          }
+                        : { width: 110, maxWidth: "100%" }
+                    }
                     placeholder="# segregated"
                     value={segregatedCounts[group.id] || ""}
-                    onChange={e => handleInputChange(group.id, e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange(group.id, e.target.value)
+                    }
                     disabled={completingGroup === group.id}
                   />
-                </div>
-                <div className="d-flex flex-row gap-2 align-items-center">
-                  <button className="btn btn-outline-secondary btn-sm" onClick={() => moveGroup(group.id, -1)} disabled={idx === 0} title="Move up">
-                    ↑
-                  </button>
-                  <button className="btn btn-outline-secondary btn-sm" onClick={() => moveGroup(group.id, 1)} disabled={idx === orderedGroups.length - 1} title="Move down">
-                    ↓
-                  </button>
                   <button
-                    className="btn btn-success btn-sm px-4"
-                    disabled={completingGroup === group.id || !segregatedCounts[group.id]}
+                    className={`btn btn-success btn-sm px-4${
+                      idx === 0 ? " border-white" : ""
+                    }`}
+                    disabled={
+                      completingGroup === group.id ||
+                      !segregatedCounts[group.id]
+                    }
                     onClick={() => handleComplete(group.id)}
-                    style={{ fontWeight: 500, fontSize: 15 }}
+                    style={
+                      idx === 0
+                        ? {
+                            fontWeight: 700,
+                            fontSize: 18,
+                            background: "#fff",
+                            color: "#007bff",
+                            border: "2px solid #fff",
+                          }
+                        : { fontWeight: 500, fontSize: 15 }
+                    }
                   >
                     {completingGroup === group.id ? "Saving..." : "Complete"}
                   </button>
