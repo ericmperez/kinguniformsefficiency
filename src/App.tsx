@@ -48,6 +48,7 @@ import {
 import { db } from "./firebase";
 import Report from "./components/Report";
 import React from "react";
+import { canUserSeeComponent, AppComponentKey } from "./permissions";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -136,6 +137,10 @@ function App() {
     null
   );
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Helper: check if current user can see a component (per-user or fallback to role)
+  const canSee = (component: AppComponentKey) =>
+    user && canUserSeeComponent(user, component);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -416,13 +421,10 @@ function App() {
     );
   }
 
-  // Role-based tab visibility
-  const canManageUsers = user.role === "Admin" || user.role === "Owner";
-  const canManageProducts =
-    user.role === "Supervisor" ||
-    user.role === "Admin" ||
-    user.role === "Owner";
-  const canManageClients = true; // All roles
+  // Role-based tab visibility (now using permissions map)
+  const canManageUsers = canSee("UserManagement");
+  const canManageProducts = canSee("Report"); // adjust if you have a separate key for products
+  const canManageClients = true; // All roles, or use canSee('ClientForm') if you want to restrict
 
   return (
     <div className="container-fluid">
@@ -456,72 +458,84 @@ function App() {
             }}
           >
             <div className="navbar-nav">
-              <button
-                className={`nav-link btn btn-link ${
-                  activePage === "home" ? "active" : ""
-                }`}
-                onClick={() => {
-                  setActivePage("home");
-                  setMenuOpen(false);
-                }}
-              >
-                Home
-              </button>
-              <button
-                className={`nav-link btn btn-link ${
-                  activePage === "entradas" ? "active" : ""
-                }`}
-                onClick={() => {
-                  setActivePage("entradas");
-                  setMenuOpen(false);
-                }}
-              >
-                Entradas
-              </button>
-              <button
-                className={`nav-link btn btn-link ${
-                  activePage === "washing" ? "active" : ""
-                }`}
-                onClick={() => {
-                  setActivePage("washing");
-                  setMenuOpen(false);
-                }}
-              >
-                Washing
-              </button>
-              <button
-                className={`nav-link btn btn-link ${
-                  activePage === "segregation" ? "active" : ""
-                }`}
-                onClick={() => {
-                  setActivePage("segregation");
-                  setMenuOpen(false);
-                }}
-              >
-                Segregation
-              </button>
-              <button
-                className={`nav-link btn btn-link ${
-                  activePage === "reports" ? "active" : ""
-                }`}
-                onClick={() => {
-                  setActivePage("reports");
-                  setMenuOpen(false);
-                }}
-              >
-                Reports
-              </button>
-              <button
-                className={`nav-link btn btn-link ${
-                  activePage === "settings" ? "active" : ""
-                }`}
-                onClick={() => {
-                  setActivePage("settings");
-                  setMenuOpen(false);
-                }}
-              >
-                Settings
-              </button>
+              {canSee("ActiveInvoices") && (
+                <button
+                  className={`nav-link btn btn-link ${
+                    activePage === "home" ? "active" : ""
+                  }`}
+                  onClick={() => {
+                    setActivePage("home");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Home
+                </button>
+              )}
+              {canSee("PickupWashing") && (
+                <button
+                  className={`nav-link btn btn-link ${
+                    activePage === "entradas" ? "active" : ""
+                  }`}
+                  onClick={() => {
+                    setActivePage("entradas");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Entradas
+                </button>
+              )}
+              {canSee("Washing") && (
+                <button
+                  className={`nav-link btn btn-link ${
+                    activePage === "washing" ? "active" : ""
+                  }`}
+                  onClick={() => {
+                    setActivePage("washing");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Washing
+                </button>
+              )}
+              {canSee("Segregation") && (
+                <button
+                  className={`nav-link btn btn-link ${
+                    activePage === "segregation" ? "active" : ""
+                  }`}
+                  onClick={() => {
+                    setActivePage("segregation");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Segregation
+                </button>
+              )}
+              {canSee("Report") && (
+                <button
+                  className={`nav-link btn btn-link ${
+                    activePage === "reports" ? "active" : ""
+                  }`}
+                  onClick={() => {
+                    setActivePage("reports");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Reports
+                </button>
+              )}
+              {canManageUsers && (
+                <button
+                  className={`nav-link btn btn-link ${
+                    activePage === "settings" ? "active" : ""
+                  }`}
+                  onClick={() => {
+                    setActivePage("settings");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Settings
+                </button>
+              )}
             </div>
           </div>
           <div className="d-flex align-items-center ms-auto">
@@ -537,7 +551,8 @@ function App() {
           </div>
         </div>
       </nav>
-      {activePage === "home" ? (
+      {/* Main content: only render components if user has permission */}
+      {activePage === "home" && canSee("ActiveInvoices") && (
         <ActiveInvoices
           clients={clients}
           products={products}
@@ -548,90 +563,23 @@ function App() {
           selectedInvoiceId={selectedInvoiceId}
           setSelectedInvoiceId={setSelectedInvoiceId}
         />
-      ) : activePage === "entradas" ? (
+      )}
+      {activePage === "entradas" && canSee("PickupWashing") && (
         <PickupWashing clients={clients} drivers={drivers} />
-      ) : activePage === "washing" ? (
+      )}
+      {activePage === "washing" && canSee("Washing") && (
         <Washing setSelectedInvoiceId={setSelectedInvoiceId} />
-      ) : activePage === "segregation" ? (
+      )}
+      {activePage === "segregation" && canSee("Segregation") && (
         <Segregation />
-      ) : activePage === "reports" ? (
+      )}
+      {activePage === "reports" && canSee("Report") && (
         <Report />
-      ) : (
-        <div>
-          {/* Tab Buttons */}
-          <div className="mb-3">
-            {canManageClients && (
-              <button
-                className={`btn btn-outline-primary me-2 ${
-                  activeSettingsTab === "clients" ? "active" : ""
-                }`}
-                onClick={() => setActiveSettingsTab("clients")}
-              >
-                Clients
-              </button>
-            )}
-            {canManageProducts && (
-              <button
-                className={`btn btn-outline-primary me-2 ${
-                  activeSettingsTab === "products" ? "active" : ""
-                }`}
-                onClick={() => setActiveSettingsTab("products")}
-              >
-                Products
-              </button>
-            )}
-            {canManageUsers && (
-              <button
-                className={`btn btn-outline-primary me-2 ${
-                  activeSettingsTab === "users" ? "active" : ""
-                }`}
-                onClick={() => setActiveSettingsTab("users")}
-              >
-                Users
-              </button>
-            )}
-            <button
-              className={`btn btn-outline-primary ${
-                activeSettingsTab === "drivers" ? "active" : ""
-              }`}
-              onClick={() => setActiveSettingsTab("drivers")}
-            >
-              Choferes
-            </button>
-          </div>
-          {/* Show only one form at a time */}
-          <div className="row">
-            {activeSettingsTab === "clients" && canManageClients && (
-              <div className="col-md-12">
-                <ClientForm
-                  clients={clients}
-                  products={products}
-                  onAddClient={handleAddClient}
-                  onUpdateClient={handleUpdateClient}
-                  onDeleteClient={handleDeleteClient}
-                />
-              </div>
-            )}
-            {activeSettingsTab === "products" && canManageProducts && (
-              <div className="col-md-12">
-                <ProductForm
-                  products={products}
-                  onAddProduct={handleAddProduct}
-                  onUpdateProduct={handleUpdateProduct}
-                  onDeleteProduct={handleDeleteProduct}
-                />
-              </div>
-            )}
-            {activeSettingsTab === "users" && canManageUsers && (
-              <div className="col-md-12">
-                <UserManagement />
-              </div>
-            )}
-            {activeSettingsTab === "drivers" && (
-              <div className="col-md-12">
-                <DriverManagement drivers={drivers} />
-              </div>
-            )}
+      )}
+      {activePage === "settings" && canManageUsers && (
+        <div className="row">
+          <div className="col-md-12">
+            <UserManagement />
           </div>
         </div>
       )}

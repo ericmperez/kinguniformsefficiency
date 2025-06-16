@@ -6,16 +6,29 @@ import {
   deleteUser,
   updateUser,
 } from "../services/firebaseService";
+import { AppComponentKey } from "../permissions";
 
 interface UserRecord {
   id: string;
   username: string;
   role: UserRole;
+  allowedComponents?: AppComponentKey[];
+  defaultPage?: AppComponentKey;
 }
 
 type UserManagementProps = {};
 
 const roles: UserRole[] = ["Employee", "Supervisor", "Admin", "Owner"];
+
+const componentOptions: { key: AppComponentKey; label: string }[] = [
+  { key: "PickupWashing", label: "Pickup Washing" },
+  { key: "ActiveInvoices", label: "Active Invoices" },
+  { key: "UserManagement", label: "User Management" },
+  { key: "Report", label: "Report" },
+  { key: "Segregation", label: "Segregation" },
+  { key: "Washing", label: "Washing" },
+  { key: "GlobalActivityLog", label: "Global Activity Log" },
+];
 
 export default function UserManagement(props: UserManagementProps) {
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -27,6 +40,8 @@ export default function UserManagement(props: UserManagementProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editUsername, setEditUsername] = useState("");
   const [editRole, setEditRole] = useState<UserRole>("Employee");
+  const [editAllowedComponents, setEditAllowedComponents] = useState<AppComponentKey[]>([]);
+  const [editDefaultPage, setEditDefaultPage] = useState<AppComponentKey | undefined>(undefined);
 
   useEffect(() => {
     (async () => {
@@ -56,7 +71,7 @@ export default function UserManagement(props: UserManagementProps) {
       setError("Username already exists");
       return;
     }
-    const newUser: UserRecord = { id, username: username.trim(), role };
+    const newUser: UserRecord = { id, username: username.trim(), role, allowedComponents: undefined, defaultPage: undefined };
     setLoading(true);
     await addUser(newUser);
     const firebaseUsers = await getUsers();
@@ -79,12 +94,16 @@ export default function UserManagement(props: UserManagementProps) {
     setEditingId(user.id);
     setEditUsername(user.username);
     setEditRole(user.role);
+    setEditAllowedComponents(user.allowedComponents || []);
+    setEditDefaultPage(user.defaultPage);
   };
 
   const handleEditCancel = () => {
     setEditingId(null);
     setEditUsername("");
     setEditRole("Employee");
+    setEditAllowedComponents([]);
+    setEditDefaultPage(undefined);
     setError(null);
   };
 
@@ -99,12 +118,19 @@ export default function UserManagement(props: UserManagementProps) {
       return;
     }
     setLoading(true);
-    await updateUser(id, { username: editUsername.trim(), role: editRole });
+    await updateUser(id, {
+      username: editUsername.trim(),
+      role: editRole,
+      allowedComponents: editAllowedComponents.length > 0 ? editAllowedComponents : undefined,
+      defaultPage: editDefaultPage,
+    });
     const firebaseUsers = await getUsers();
     setUsers(firebaseUsers.map((u) => ({ ...u, role: u.role as UserRole })));
     setEditingId(null);
     setEditUsername("");
     setEditRole("Employee");
+    setEditAllowedComponents([]);
+    setEditDefaultPage(undefined);
     setLoading(false);
   };
 
@@ -172,6 +198,8 @@ export default function UserManagement(props: UserManagementProps) {
                   <th>ID</th>
                   <th>Username</th>
                   <th>Role</th>
+                  <th>Allowed Components</th>
+                  <th>Default Page</th>
                   <th></th>
                 </tr>
               </thead>
@@ -209,6 +237,67 @@ export default function UserManagement(props: UserManagementProps) {
                         </select>
                       ) : (
                         u.role
+                      )}
+                    </td>
+                    <td>
+                      {editingId === u.id ? (
+                        <div>
+                          {componentOptions.map((c) => (
+                            <div key={c.key} className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                checked={editAllowedComponents.includes(c.key)}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setEditAllowedComponents((prev) =>
+                                    checked
+                                      ? [...prev, c.key]
+                                      : prev.filter((key) => key !== c.key)
+                                  );
+                                }}
+                                id={`component-${c.key}`}
+                                disabled={loading}
+                              />
+                              <label
+                                className="form-check-label"
+                                htmlFor={`component-${c.key}`}
+                              >
+                                {c.label}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div>
+                          {u.allowedComponents?.map((key) => {
+                            const component = componentOptions.find(
+                              (c) => c.key === key
+                            );
+                            return component ? component.label : null;
+                          })}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {editingId === u.id ? (
+                        <select
+                          className="form-control form-control-sm"
+                          value={editDefaultPage}
+                          onChange={(e) =>
+                            setEditDefaultPage(e.target.value as AppComponentKey)
+                          }
+                          disabled={loading}
+                        >
+                          <option value="">None</option>
+                          {componentOptions.map((c) => (
+                            <option key={c.key} value={c.key}>
+                              {c.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        u.defaultPage
                       )}
                     </td>
                     <td>
@@ -252,7 +341,7 @@ export default function UserManagement(props: UserManagementProps) {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="text-center text-muted">
+                    <td colSpan={6} className="text-center text-muted">
                       No users yet.
                     </td>
                   </tr>

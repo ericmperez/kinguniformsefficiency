@@ -312,8 +312,11 @@ export default function ActiveInvoices({
   ];
 
   function getStepIndex(status: string) {
-    const idx = STATUS_STEPS.findIndex(s =>
-      status === s.key || (s.key === "Tunnel" && (status === "Tunnel" || status === "Conventional"))
+    const idx = STATUS_STEPS.findIndex(
+      (s) =>
+        status === s.key ||
+        (s.key === "Tunnel" &&
+          (status === "Tunnel" || status === "Conventional"))
     );
     return idx === -1 ? 0 : idx;
   }
@@ -347,7 +350,9 @@ export default function ActiveInvoices({
                         className="form-select form-select-sm"
                         value={group.status}
                         disabled={statusUpdating === group.id}
-                        onChange={(e) => handleStatusChange(group.id, e.target.value)}
+                        onChange={(e) =>
+                          handleStatusChange(group.id, e.target.value)
+                        }
                         style={{ minWidth: 120 }}
                       >
                         <option value="Recibido">Recibido</option>
@@ -384,7 +389,13 @@ export default function ActiveInvoices({
                     {/* Progress bar row */}
                     <td colSpan={4}>
                       <div style={{ margin: "8px 0" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
                           {STATUS_STEPS.map((step, i) => {
                             const active = i <= getStepIndex(group.status);
                             return (
@@ -393,26 +404,15 @@ export default function ActiveInvoices({
                                   style={{
                                     flex: 1,
                                     height: 8,
-                                    background: active ? "var(--ku-yellow)" : "#e0e0e0",
+                                    background: active
+                                      ? "var(--ku-yellow)"
+                                      : "#e0e0e0",
                                     borderRadius: 4,
                                     transition: "background 0.3s",
                                     position: "relative",
                                   }}
                                 >
-                                  <span
-                                    style={{
-                                      position: "absolute",
-                                      top: 12,
-                                      left: "50%",
-                                      transform: "translateX(-50%)",
-                                      fontSize: 12,
-                                      color: active ? "#111" : "#888",
-                                      fontWeight: active ? 700 : 400,
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    {`${i + 1}/5 - ${step.label}`}
-                                  </span>
+                                  {/* Removed label span for no labels */}
                                 </div>
                                 {i < STATUS_STEPS.length - 1 && (
                                   <div style={{ width: 8 }}></div>
@@ -467,17 +467,19 @@ export default function ActiveInvoices({
                 <button
                   className="btn btn-primary"
                   onClick={async () => {
-                    const group = pickupGroups.find((g) => g.id === editGroupId);
+                    const group = pickupGroups.find(
+                      (g) => g.id === editGroupId
+                    );
                     if (group) {
                       await updatePickupGroupStatus(group.id, group.status); // status unchanged
-                      await import("../firebase")
-                        .then(({ db }) =>
-                          import("firebase/firestore").then(({ doc, updateDoc }) =>
+                      await import("../firebase").then(({ db }) =>
+                        import("firebase/firestore").then(
+                          ({ doc, updateDoc }) =>
                             updateDoc(doc(db, "pickup_groups", group.id), {
                               clientName: editGroupName,
                             })
-                          )
-                        );
+                        )
+                      );
                     }
                     setEditGroupId(null);
                   }}
@@ -520,7 +522,9 @@ export default function ActiveInvoices({
                   onClick={async () => {
                     await import("../firebase").then(({ db }) =>
                       import("firebase/firestore").then(({ doc, updateDoc }) =>
-                        updateDoc(doc(db, "pickup_groups", deletingGroupId), { status: "deleted" })
+                        updateDoc(doc(db, "pickup_groups", deletingGroupId), {
+                          status: "deleted",
+                        })
                       )
                     );
                     setDeletingGroupId(null);
@@ -539,10 +543,7 @@ export default function ActiveInvoices({
           <h3 className="mb-4">Active Invoices</h3>
         </div>
         <div className="col-md-6 text-md-end">
-          <button
-            className="btn btn-primary"
-            onClick={handleAddInvoice}
-          >
+          <button className="btn btn-primary" onClick={handleAddInvoice}>
             Create New Invoice
           </button>
         </div>
@@ -572,7 +573,8 @@ export default function ActiveInvoices({
                     )}
                   </h5>
                   <p className="card-text">
-                    Client: {clients.find((c) => c.id === invoice.clientId)?.name}
+                    Client:{" "}
+                    {clients.find((c) => c.id === invoice.clientId)?.name}
                   </p>
                   <p className="card-text">
                     Products:{" "}
@@ -585,7 +587,10 @@ export default function ActiveInvoices({
                     Total: ${" "}
                     {invoice.carts
                       .flatMap((cart) => cart.items)
-                      .reduce((total, item) => total + item.price * item.quantity, 0)
+                      .reduce(
+                        (total, item) => total + item.price * item.quantity,
+                        0
+                      )
                       .toFixed(2)}
                   </p>
                 </div>
@@ -640,11 +645,14 @@ export default function ActiveInvoices({
               <div className="modal-body">
                 {/* Show total weight if present on invoice */}
                 {(() => {
-                  const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
+                  const invoice = invoices.find(
+                    (inv) => inv.id === selectedInvoiceId
+                  );
                   if (invoice && typeof invoice.totalWeight === "number") {
                     return (
                       <div className="alert alert-info mb-3">
-                        <strong>Total Weight:</strong> {invoice.totalWeight.toFixed(2)} lbs
+                        <strong>Total Weight:</strong>{" "}
+                        {invoice.totalWeight.toFixed(2)} lbs
                       </div>
                     );
                   }
@@ -771,7 +779,9 @@ export default function ActiveInvoices({
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Add {productForKeypad.name} to Cart</h5>
+                <h5 className="modal-title">
+                  Add {productForKeypad.name} to Cart
+                </h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -797,10 +807,7 @@ export default function ActiveInvoices({
                 >
                   Cancel
                 </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleKeypadAdd}
-                >
+                <button className="btn btn-primary" onClick={handleKeypadAdd}>
                   Add to Cart
                 </button>
               </div>

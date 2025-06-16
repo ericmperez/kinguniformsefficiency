@@ -13,6 +13,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { Client, Product, Invoice, LaundryCart } from "../types";
+import type { AppComponentKey } from "../permissions";
 
 // Client operations
 export const addClient = async (client: Omit<Client, "id">): Promise<string> => {
@@ -118,13 +119,24 @@ export interface UserRecord {
   role: string;
 }
 
+export type UserUpdate = Partial<Omit<UserRecord, "id">> & { allowedComponents?: AppComponentKey[]; defaultPage?: AppComponentKey };
+
 export const addUser = async (user: UserRecord): Promise<void> => {
   await addDoc(collection(db, "users"), user);
 };
 
 export const getUsers = async (): Promise<UserRecord[]> => {
   const querySnapshot = await getDocs(collection(db, "users"));
-  return querySnapshot.docs.map((doc) => ({ id: doc.data().id, username: doc.data().username, role: doc.data().role }));
+  return querySnapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: data.id,
+      username: data.username,
+      role: data.role,
+      allowedComponents: data.allowedComponents || undefined,
+      defaultPage: data.defaultPage || undefined,
+    };
+  });
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
@@ -135,7 +147,7 @@ export const deleteUser = async (id: string): Promise<void> => {
   }
 };
 
-export const updateUser = async (id: string, updates: Partial<Omit<UserRecord, "id">>): Promise<void> => {
+export const updateUser = async (id: string, updates: UserUpdate): Promise<void> => {
   const q = query(collection(db, "users"), where("id", "==", id));
   const querySnapshot = await getDocs(q);
   for (const docSnap of querySnapshot.docs) {

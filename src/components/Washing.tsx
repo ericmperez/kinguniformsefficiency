@@ -368,7 +368,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 className="btn btn-success btn-sm ms-2"
                                 onClick={async () => {
                                   // Always create a new invoice for this group
-                                  const { addInvoice, updatePickupGroupStatus } = await import("../services/firebaseService");
+                                  const {
+                                    addInvoice,
+                                    updatePickupGroupStatus,
+                                  } = await import(
+                                    "../services/firebaseService"
+                                  );
                                   const newInvoice = {
                                     clientId: group.clientId,
                                     clientName: group.clientName,
@@ -378,9 +383,15 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     carts: [],
                                     totalWeight: group.totalWeight || 0, // Save the group's total weight in the invoice
                                   };
-                                  const invoiceId = await addInvoice(newInvoice);
-                                  await updatePickupGroupStatus(group.id, "procesandose");
-                                  if (setSelectedInvoiceId) setSelectedInvoiceId(invoiceId);
+                                  const invoiceId = await addInvoice(
+                                    newInvoice
+                                  );
+                                  await updatePickupGroupStatus(
+                                    group.id,
+                                    "procesandose"
+                                  );
+                                  if (setSelectedInvoiceId)
+                                    setSelectedInvoiceId(invoiceId);
                                   setSelectedTunnelGroup(null);
                                   setTunnelCartInput("");
                                   setTunnelCartError("");
