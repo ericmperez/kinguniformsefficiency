@@ -13,6 +13,8 @@ export interface Client {
   image: File | null;
   imageUrl?: string;
   isRented: boolean;
+  washingType?: "Tunnel" | "Conventional";
+  segregation?: boolean;
 }
 
 export interface CartItem {

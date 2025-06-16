@@ -41,33 +41,38 @@ export const ClientForm: React.FC<ClientFormProps> = ({
   const [newClientImage, setNewClientImage] = useState<File | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [isRented, setIsRented] = useState(false);
+  const [washingType, setWashingType] = useState<"Tunnel" | "Conventional">(
+    "Tunnel"
+  );
   const [editingClient, setEditingClient] = useState<AppClient | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<AppClient | null>(null);
+  const [segregation, setSegregation] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClientName.trim()) return;
-
     const clientData = {
       name: newClientName,
       image: newClientImage,
       selectedProducts,
       isRented,
+      washingType,
+      segregation,
     };
-
     if (editingClient) {
       await onUpdateClient(editingClient.id, clientData);
       setEditingClient(null);
     } else {
       await onAddClient(clientData);
     }
-
     setNewClientName("");
     setNewClientImage(null);
     setSelectedProducts([]);
     setIsRented(false);
+    setWashingType("Tunnel");
+    setSegregation(false);
   };
 
   // Patch: always provide image as File|null (never undefined) for AppClient
@@ -81,6 +86,8 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setNewClientName(client.name);
     setSelectedProducts(client.selectedProducts);
     setIsRented(client.isRented);
+    setWashingType(client.washingType || "Tunnel");
+    setSegregation(client.segregation ?? false);
   };
 
   const handleCancel = () => {
@@ -89,6 +96,8 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setNewClientImage(null);
     setSelectedProducts([]);
     setIsRented(false);
+    setWashingType("Tunnel");
+    setSegregation(false);
   };
 
   const handleProductToggle = async (productId: string) => {
@@ -216,6 +225,74 @@ export const ClientForm: React.FC<ClientFormProps> = ({
             </div>
           </div>
 
+          <div className="mb-3">
+            <label className="form-label">Washing Type</label>
+            <div>
+              <div className="form-check form-check-inline">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  name="washingType"
+                  id="washingTypeTunnel"
+                  value="Tunnel"
+                  checked={washingType === "Tunnel"}
+                  onChange={() => setWashingType("Tunnel")}
+                />
+                <label className="form-check-label" htmlFor="washingTypeTunnel">
+                  Tunnel
+                </label>
+              </div>
+              <div className="form-check form-check-inline">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  name="washingType"
+                  id="washingTypeConventional"
+                  value="Conventional"
+                  checked={washingType === "Conventional"}
+                  onChange={() => setWashingType("Conventional")}
+                />
+                <label className="form-check-label" htmlFor="washingTypeConventional">
+                  Conventional
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-3">
+            <label className="form-label">Segregation</label>
+            <div>
+              <div className="form-check form-check-inline">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  name="segregation"
+                  id="segregationYes"
+                  value="yes"
+                  checked={segregation === true}
+                  onChange={() => setSegregation(true)}
+                />
+                <label className="form-check-label" htmlFor="segregationYes">
+                  Yes
+                </label>
+              </div>
+              <div className="form-check form-check-inline">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  name="segregation"
+                  id="segregationNo"
+                  value="no"
+                  checked={segregation === false}
+                  onChange={() => setSegregation(false)}
+                />
+                <label className="form-check-label" htmlFor="segregationNo">
+                  No
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div className="d-flex gap-2">
             <button
               type="submit"
@@ -251,72 +328,87 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   <th>Image</th>
                   <th>Products</th>
                   <th>Status</th>
+                  <th>Washing Type</th>
+                  <th>Segregation</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {clients.map((client) => (
-                  <tr key={client.id}>
-                    <td>{client.name}</td>
-                    <td style={{ width: "60px" }}>
-                      {client.imageUrl && (
-                        <img
-                          src={client.imageUrl}
-                          alt={client.name}
-                          className="rounded"
-                          style={{
-                            width: "40px",
-                            height: "40px",
-                            objectFit: "cover",
-                          }}
-                        />
-                      )}
-                    </td>
-                    <td>
-                      <div className="d-flex flex-wrap gap-1">
-                        {client.selectedProducts &&
-                          client.selectedProducts.map((productId) => {
-                            const product = products.find(
-                              (p) => p.id === productId
-                            );
-                            return product ? (
-                              <span
-                                key={productId}
-                                className="badge bg-secondary"
-                              >
-                                {product.name}
-                              </span>
-                            ) : null;
-                          })}
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        className={`badge ${
-                          client.isRented ? "bg-success" : "bg-danger"
-                        }`}
-                      >
-                        {client.isRented ? "Rented" : "Not Rented"}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="d-flex gap-2">
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleEdit(client)}
+                {clients
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((client) => (
+                    <tr key={client.id}>
+                      <td>{client.name}</td>
+                      <td style={{ width: "60px" }}>
+                        {client.imageUrl && (
+                          <img
+                            src={client.imageUrl}
+                            alt={client.name}
+                            className="rounded"
+                            style={{
+                              width: "40px",
+                              height: "40px",
+                              objectFit: "cover",
+                            }}
+                          />
+                        )}
+                      </td>
+                      <td>
+                        <div className="d-flex flex-wrap gap-1">
+                          {client.selectedProducts &&
+                            client.selectedProducts.map((productId) => {
+                              const product = products.find(
+                                (p) => p.id === productId
+                              );
+                              return product ? (
+                                <span
+                                  key={productId}
+                                  className="badge bg-secondary"
+                                >
+                                  {product.name}
+                                </span>
+                              ) : null;
+                            })}
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            client.isRented ? "bg-success" : "bg-danger"
+                          }`}
                         >
-                          Edit
-                        </button>
-                        <button
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() => setClientToDelete(client)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {client.isRented ? "Rented" : "Not Rented"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge bg-info">
+                          {client.washingType || "Tunnel"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${client.segregation ? "bg-success" : "bg-secondary"}`}>
+                          {client.segregation ? "Yes" : "No"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="d-flex gap-2">
+                          <button
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => handleEdit(client)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => setClientToDelete(client)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

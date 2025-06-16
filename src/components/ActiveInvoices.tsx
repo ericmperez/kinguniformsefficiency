@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Client, Product, Invoice, CartItem, Cart } from "../types";
 import InvoiceForm from "./InvoiceForm";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
+import { getTodayPickupGroups, updatePickupGroupStatus } from "../services/firebaseService";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -57,8 +58,23 @@ export default function ActiveInvoices({
   const [keypadQuantity, setKeypadQuantity] = useState(1);
   const [doneInvoices, setDoneInvoices] = useState<string[]>([]);
 
+  // --- GROUP OVERVIEW ---
+  const [pickupGroups, setPickupGroups] = useState<any[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(true);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+
   // Placeholder for current user. Replace with actual user logic as needed.
   const currentUser = "Current User";
+
+  useEffect(() => {
+    (async () => {
+      setGroupsLoading(true);
+      const groups = await getTodayPickupGroups();
+      setPickupGroups(groups);
+      setGroupsLoading(false);
+    })();
+  }, []);
 
   const handleAddInvoice = () => {
     setShowInvoiceForm(true);
@@ -263,8 +279,101 @@ export default function ActiveInvoices({
     }
   };
 
+  const handleStatusChange = async (groupId: string, newStatus: string) => {
+    setStatusUpdating(groupId);
+    await updatePickupGroupStatus(groupId, newStatus);
+    setStatusUpdating(null);
+    setEditingGroupId(null);
+  };
+
   return (
     <div className="container-fluid py-4">
+      {/* --- GROUP OVERVIEW --- */}
+      <div className="mb-4">
+        <h2 className="mb-3">Today's Client Groups Overview</h2>
+        {groupsLoading ? (
+          <div>Loading groups...</div>
+        ) : pickupGroups.length === 0 ? (
+          <div className="text-muted">No groups for today.</div>
+        ) : (
+          <div className="row row-cols-1 row-cols-md-2 g-3 mb-4">
+            {pickupGroups.map((group) => (
+              <div key={group.id} className="col">
+                <div className="card shadow-sm p-3 h-100">
+                  <div className="d-flex align-items-center mb-2">
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 18,
+                        color: "#007bff",
+                      }}
+                    >
+                      {group.clientName}
+                    </span>
+                    <span className="ms-3 badge bg-secondary">
+                      {group.driverName}
+                    </span>
+                  </div>
+                  <div className="mb-1">
+                    <span className="badge bg-info me-2">
+                      Status: {group.status}
+                    </span>
+                    <span className="badge bg-light text-dark">
+                      Total: {group.totalWeight?.toFixed(2) || 0} lbs
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#888" }}>
+                    {group.startTime && (
+                      <span>
+                        Start:{" "}
+                        {new Date(group.startTime).toLocaleTimeString()}{" "}
+                      </span>
+                    )}
+                    {group.endTime && (
+                      <span>
+                        {" "}
+                        | End: {new Date(group.endTime).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <span
+                      onClick={() => setEditingGroupId(group.id)}
+                      style={{
+                        cursor: "pointer",
+                        fontWeight: 600,
+                        color: editingGroupId === group.id ? "#007bff" : undefined,
+                      }}
+                    >
+                      {group.clientName}
+                    </span>
+                    {editingGroupId === group.id ? (
+                      <select
+                        value={group.status}
+                        onChange={(e) =>
+                          handleStatusChange(group.id, e.target.value)
+                        }
+                        disabled={statusUpdating === group.id}
+                        style={{ marginLeft: 8 }}
+                      >
+                        <option value="Segregation">Segregation</option>
+                        <option value="Tunnel">Tunnel</option>
+                        <option value="Conventional">Conventional</option>
+                        <option value="Complete">Complete</option>
+                      </select>
+                    ) : (
+                      <span style={{ marginLeft: 8, color: "#888" }}>
+                        {group.status}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="mb-0">Active Invoices</h2>
         <button className="btn btn-primary" onClick={handleAddInvoice}>

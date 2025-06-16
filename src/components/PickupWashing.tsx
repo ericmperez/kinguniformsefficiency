@@ -1,12 +1,35 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Client } from "../types";
-import { UserRecord, addPickupEntry, updatePickupEntry, deletePickupEntry } from "../services/firebaseService";
-import { collection, deleteDoc, doc, updateDoc, onSnapshot, query, where } from "firebase/firestore";
+import { UserRecord, addPickupEntry, updatePickupEntry, deletePickupEntry, addPickupGroup, updatePickupGroupStatus, getTodayPickupGroups } from "../services/firebaseService";
+import { collection, deleteDoc, doc, updateDoc, onSnapshot, query, where, Timestamp } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface Driver {
   id: string;
   name: string;
+}
+
+interface PickupEntry {
+  id?: string;
+  clientId: string;
+  clientName: string;
+  driverId: string;
+  driverName: string;
+  groupId: string;
+  weight: number;
+  timestamp: Date | Timestamp;
+}
+
+interface PickupGroup {
+  id: string;
+  clientId: string;
+  clientName: string;
+  driverId: string;
+  driverName: string;
+  startTime: string;
+  endTime: string;
+  totalWeight: number;
+  status: string;
 }
 
 interface PickupWashingProps {
@@ -23,99 +46,125 @@ export default function PickupWashing({
   const [driverId, setDriverId] = useState("");
   const [success, setSuccess] = useState(false);
   const [entries, setEntries] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState<string>("");
+  const [groupStatusUpdating, setGroupStatusUpdating] = useState<string | null>(null);
+  const weightInputRef = useRef<HTMLInputElement>(null);
+  const [showKeypad, setShowKeypad] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSuccess(false);
-    const client = sortedClients.find((c) => c.id === clientId);
-    const driver = drivers.find((d) => d.id === driverId);
-    if (!client || !driver || !weight) return;
-    const entry = {
-      clientId: client.id,
-      clientName: client.name,
-      driverId: driver.id,
-      driverName: driver.name,
-      weight: parseFloat(weight),
-      timestamp: new Date().toISOString(),
-    };
-    try {
-      const docRef = await addPickupEntry(entry);
-      setEntries([{ ...entry, id: docRef.id }, ...entries]);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 2000);
-      setClientId("");
-      setDriverId("");
-      setWeight("");
-    } catch (err) {
-      alert("Error al guardar la entrada en Firebase");
-    }
-  };
+  // Fetch today's groups on mount and on status update
+  useEffect(() => {
+    (async () => {
+      const fetchedGroups = await getTodayPickupGroups();
+      setGroups(fetchedGroups);
+    })();
+  }, [groupStatusUpdating]);
 
   // Sort clients alphabetically by name
   const sortedClients = [...clients].sort((a, b) =>
     a.name.localeCompare(b.name)
   );
 
-  // Group entries by client+driver and 60-min window from the previous entry in the group
-  function groupEntries(entries: any[]) {
-    const groups: {
-      clientName: string;
-      driverName: string;
-      startTime: string;
-      endTime: string;
-      totalWeight: number;
-      entries: any[];
-    }[] = [];
-    const sorted = [...entries].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-    const lastGroupMap = new Map<string, number>(); // key: clientId|driverId, value: groupIdx
-    sorted.forEach((entry) => {
-      const key = entry.clientId + "|" + entry.driverId;
-      const now = new Date(entry.timestamp).getTime();
-      const lastIdx = lastGroupMap.get(key);
-      if (
-        lastIdx !== undefined &&
-        now - new Date(groups[lastIdx].endTime).getTime() <= 60 * 60000
-      ) {
-        // Add to existing group
-        groups[lastIdx].entries.push(entry);
-        groups[lastIdx].endTime = entry.timestamp;
-        groups[lastIdx].totalWeight += entry.weight;
-      } else {
-        // Start new group
-        groups.push({
-          clientName: entry.clientName,
-          driverName: entry.driverName,
-          startTime: entry.timestamp,
-          endTime: entry.timestamp,
-          totalWeight: entry.weight,
-          entries: [entry],
-        });
-        lastGroupMap.set(key, groups.length - 1);
-      }
-    });
-    return groups;
-  }
+  // --- Helper to update group in Firestore ---
+  const updateGroupTotals = async (groupId: string, entriesForGroup: PickupEntry[]) => {
+    if (!groupId) return;
+    if (entriesForGroup.length === 0) return;
+    const totalWeight = entriesForGroup.reduce((sum, e) => sum + e.weight, 0);
+    // Convert all timestamps to Date for comparison
+    const getDate = (t: Date | Timestamp) => (t instanceof Date ? t : t.toDate());
+    const endTimeDate = entriesForGroup.reduce((latest, e) => getDate(e.timestamp) > latest ? getDate(e.timestamp) : latest, getDate(entriesForGroup[0].timestamp));
+    await updateDoc(doc(db, "pickup_groups", groupId), { totalWeight, endTime: endTimeDate.toISOString() });
+  };
 
-  const groupedEntries = useMemo(() => groupEntries(entries), [entries]);
+  // When adding a new entry, check if it fits an existing group or needs a new group
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSuccess(false);
+    const client = sortedClients.find((c) => c.id === clientId);
+    const driver = drivers.find((d) => d.id === driverId);
+    if (!client || !driver || !weight) return;
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60000);
+    let group = groups.find(g =>
+      g.clientId === client.id &&
+      g.driverId === driver.id &&
+      new Date(g.endTime) >= oneHourAgo
+    );
+    let groupId = group ? group.id : null;
+    let groupData: PickupGroup | null = null;
+    if (!groupId) {
+      // Create new group
+      const groupData = {
+        clientId: client.id,
+        clientName: client.name,
+        driverId: driver.id,
+        driverName: driver.name,
+        startTime: now,
+        endTime: now,
+        totalWeight: parseFloat(weight),
+        status: "Recibido"
+      };
+      const groupRef = await addPickupGroup(groupData);
+      groupId = groupRef.id;
+      setGroups([{ ...groupData, id: groupId }, ...groups]);
+    }
+    const entry: Omit<PickupEntry, "id"> = {
+      clientId: client.id,
+      clientName: client.name,
+      driverId: driver.id,
+      driverName: driver.name,
+      groupId: groupId!,
+      weight: parseFloat(weight),
+      timestamp: now,
+    };
+    try {
+      const docRef = await addPickupEntry(entry);
+      const newEntry: PickupEntry = { ...entry, id: docRef.id };
+      setEntries([newEntry, ...entries]);
+      // Update group totals
+      const updatedEntries = [newEntry, ...entries].filter(e => e.groupId === groupId);
+      await updateGroupTotals(groupId!, updatedEntries);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000);
+      setClientId("");
+      setDriverId("");
+      setWeight("");
+      setShowKeypad(false); // Hide keypad on submit
+    } catch (err) {
+      alert("Error al guardar la entrada en Firebase");
+    }
+  };
+
+  // Group entries by groupId (using Firestore groups)
+  const groupedEntries = useMemo(() => {
+    return groups.map(group => {
+      const groupEntries = entries.filter(e => e.groupId === group.id);
+      const totalWeight = groupEntries.reduce((sum, e) => sum + e.weight, 0);
+      return {
+        ...group,
+        entries: groupEntries,
+        totalWeight,
+      };
+    }).filter(g => g.entries.length > 0);
+  }, [groups, entries]);
 
   // Edit an entry's weight inline
   const handleEditEntry = (entry: any) => {
     setEditEntryId(entry.id);
     setEditWeight(entry.weight.toString());
   };
-  const handleEditSave = async (entry: any) => {
+  const handleEditSave = async (entry: PickupEntry) => {
     if (isNaN(parseFloat(editWeight))) return;
     try {
-      await updatePickupEntry(entry.id, { weight: parseFloat(editWeight) });
-      setEntries(
-        entries.map((e) =>
-          e.id === entry.id ? { ...e, weight: parseFloat(editWeight) } : e
-        )
+      await updatePickupEntry(entry.id!, { weight: parseFloat(editWeight) });
+      const updatedEntries = entries.map((e) =>
+        e.id === entry.id ? { ...e, weight: parseFloat(editWeight) } : e
       );
+      setEntries(updatedEntries);
+      // Update group totals
+      const groupEntries = updatedEntries.filter(e => e.groupId === entry.groupId);
+      await updateGroupTotals(entry.groupId, groupEntries);
       setEditEntryId(null);
       setEditWeight("");
     } catch (err) {
@@ -128,26 +177,37 @@ export default function PickupWashing({
   };
 
   // Delete an entry
-  const handleDeleteEntry = async (group: any, entry: any) => {
+  const handleDeleteEntry = async (group: PickupGroup, entry: PickupEntry) => {
     if (!window.confirm("¿Eliminar esta entrada?")) return;
     try {
-      await deletePickupEntry(entry.id);
-      setEntries(entries.filter((e) => e.id !== entry.id));
+      await deletePickupEntry(entry.id!);
+      const updatedEntries = entries.filter((e) => e.id !== entry.id);
+      setEntries(updatedEntries);
+      // Update group totals
+      const groupEntries = updatedEntries.filter(e => e.groupId === group.id);
+      await updateGroupTotals(group.id, groupEntries);
     } catch (err) {
       alert("Error al eliminar la entrada");
     }
   };
 
+  // Handler to update group status
+  const handleStatusChange = async (groupId: string, status: string) => {
+    setGroupStatusUpdating(groupId);
+    await updatePickupGroupStatus(groupId, status);
+    setGroupStatusUpdating(null);
+  };
+
   useEffect(() => {
-    // Get today's date range
+    // Get today's date range in local time
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
     const q = query(
       collection(db, "pickup_entries"),
-      where("timestamp", ">=", today.toISOString()),
-      where("timestamp", "<", tomorrow.toISOString())
+      where("timestamp", ">=", Timestamp.fromDate(today)),
+      where("timestamp", "<", Timestamp.fromDate(tomorrow))
     );
     const unsub = onSnapshot(q, (snap) => {
       const fetched = snap.docs.map(doc => {
@@ -158,8 +218,9 @@ export default function PickupWashing({
           clientName: data.clientName,
           driverId: data.driverId,
           driverName: data.driverName,
+          groupId: data.groupId,
           weight: data.weight,
-          timestamp: data.timestamp,
+          timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp),
         };
       });
       setEntries(
@@ -168,6 +229,18 @@ export default function PickupWashing({
     });
     return () => unsub();
   }, []);
+
+  // Keypad input handler
+  const handleKeypadInput = (val: string) => {
+    setWeight((prev) => {
+      if (val === "C") return "";
+      if (val === "←") return prev.slice(0, -1);
+      if (val === "." && prev.includes(".")) return prev;
+      if (val === "." && prev === "") return "0.";
+      return prev + val;
+    });
+    if (weightInputRef.current) weightInputRef.current.focus();
+  };
 
   return (
     <div className="container py-4">
@@ -212,15 +285,43 @@ export default function PickupWashing({
         <div className="mb-3">
           <label className="form-label">Peso (libras)</label>
           <input
-            type="number"
+            type="text"
             className="form-control"
             value={weight}
+            ref={weightInputRef}
+            onFocus={() => setShowKeypad(true)}
             onChange={(e) => setWeight(e.target.value)}
             min={0}
             step={0.1}
             required
             placeholder="Ej: 12.5"
+            inputMode="decimal"
+            autoComplete="off"
           />
+          {showKeypad && (
+            <div className="card p-2 mt-2" style={{ maxWidth: 300, margin: "0 auto" }}>
+              <div className="d-flex flex-wrap justify-content-center gap-2">
+                {["7","8","9","4","5","6","1","2","3","0",".","←","C"].map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`btn btn-outline-dark mb-2${key === "C" ? " btn-danger" : key === "←" ? " btn-warning" : ""}`}
+                    style={{ width: 60, height: 48, fontSize: 22 }}
+                    onClick={() => handleKeypadInput(key)}
+                  >
+                    {key === "←" ? <>&larr;</> : key}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary w-100 mt-2"
+                onClick={() => setShowKeypad(false)}
+              >
+                Ocultar teclado
+              </button>
+            </div>
+          )}
         </div>
         <button className="btn btn-primary w-100" type="submit">
           Registrar Entrada
@@ -241,6 +342,22 @@ export default function PickupWashing({
               <div className="mb-2">
                 <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#007bff' }}>{group.clientName}</span> &nbsp;|&nbsp;
                 <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#28a745' }}>{group.driverName}</span> &nbsp;|&nbsp;
+                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#6c757d' }}>
+                  Estado: {group.status}
+                </span>
+                <select
+                  className="form-select form-select-sm d-inline-block ms-2"
+                  style={{ width: 140 }}
+                  value={group.status}
+                  onChange={e => handleStatusChange(group.id, e.target.value)}
+                  disabled={groupStatusUpdating === group.id}
+                >
+                  <option value="Recibido">Recibido</option>
+                  <option value="Lavando">Lavando</option>
+                  <option value="Listo">Listo</option>
+                  <option value="Entregado">Entregado</option>
+                </select>
+                &nbsp;|&nbsp;
                 <strong>Total de carritos:</strong> {group.entries.length}
               </div>
               <div className="table-responsive">
@@ -254,47 +371,57 @@ export default function PickupWashing({
                     </tr>
                   </thead>
                   <tbody>
-                    {group.entries.map((entry, i) => (
-                      <tr key={i}>
-                        <td>{i + 1}</td>
-                        <td>
-                          {editEntryId === entry.id ? (
-                            <input
-                              type="number"
-                              className="form-control form-control-sm"
-                              value={editWeight}
-                              onChange={e => setEditWeight(e.target.value)}
-                              style={{ width: 80, display: "inline-block" }}
-                              autoFocus
-                            />
-                          ) : (
-                            entry.weight
-                          )}
-                        </td>
-                        <td>{new Date(entry.timestamp).toLocaleTimeString()}</td>
-                        <td>
-                          {editEntryId === entry.id ? (
-                            <>
-                              <button className="btn btn-success btn-sm me-2" onClick={() => handleEditSave(entry)}>
-                                Guardar
-                              </button>
-                              <button className="btn btn-secondary btn-sm" onClick={handleEditCancel}>
-                                Cancelar
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button className="btn btn-outline-primary btn-sm me-2" onClick={() => handleEditEntry(entry)}>
-                                Editar
-                              </button>
-                              <button className="btn btn-outline-danger btn-sm" onClick={() => handleDeleteEntry(group, entry)}>
-                                Eliminar
-                              </button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {group.entries.map((entry: PickupEntry, i: number) => {
+                      let timeString = "";
+                      if (entry.timestamp instanceof Date) {
+                        timeString = entry.timestamp.toLocaleTimeString();
+                      } else if (entry.timestamp && typeof entry.timestamp.toDate === "function") {
+                        timeString = entry.timestamp.toDate().toLocaleTimeString();
+                      } else {
+                        timeString = new Date(entry.timestamp as any).toLocaleTimeString();
+                      }
+                      return (
+                        <tr key={i}>
+                          <td>{i + 1}</td>
+                          <td>
+                            {editEntryId === entry.id ? (
+                              <input
+                                type="number"
+                                className="form-control form-control-sm"
+                                value={editWeight}
+                                onChange={e => setEditWeight(e.target.value)}
+                                style={{ width: 80, display: "inline-block" }}
+                                autoFocus
+                              />
+                            ) : (
+                              entry.weight
+                            )}
+                          </td>
+                          <td>{timeString}</td>
+                          <td>
+                            {editEntryId === entry.id ? (
+                              <>
+                                <button className="btn btn-success btn-sm me-2" onClick={() => handleEditSave(entry)}>
+                                  Guardar
+                                </button>
+                                <button className="btn btn-secondary btn-sm" onClick={handleEditCancel}>
+                                  Cancelar
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button className="btn btn-outline-primary btn-sm me-2" onClick={() => handleEditEntry(entry)}>
+                                  Editar
+                                </button>
+                                <button className="btn btn-outline-danger btn-sm" onClick={() => handleDeleteEntry(group, entry)}>
+                                  Eliminar
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                     <tr>
                       <td colSpan={3} style={{ textAlign: 'right', fontWeight: 'bold', background: '#f8f9fa' }}>
                         Peso total: {group.totalWeight.toFixed(2)} lbs

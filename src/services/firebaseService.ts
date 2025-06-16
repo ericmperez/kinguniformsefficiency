@@ -232,11 +232,15 @@ export const addPickupEntry = async (entry: {
   clientName: string;
   driverId: string;
   driverName: string;
+  groupId: string;
   weight: number;
-  timestamp: string;
+  timestamp: Date | Timestamp;
 }) => {
   try {
-    const docRef = await addDoc(collection(db, "pickup_entries"), entry);
+    const docRef = await addDoc(collection(db, "pickup_entries"), {
+      ...entry,
+      timestamp: entry.timestamp instanceof Date ? Timestamp.fromDate(entry.timestamp) : entry.timestamp,
+    });
     return docRef;
   } catch (error) {
     console.error("Error adding pickup entry:", error);
@@ -262,6 +266,61 @@ export const deletePickupEntry = async (entryId: string) => {
     console.error("Error deleting pickup entry:", error);
     throw error;
   }
+};
+
+// Pickup Group operations
+export const addPickupGroup = async (group: {
+  clientId: string;
+  clientName: string;
+  driverId: string;
+  driverName: string;
+  startTime: Date | Timestamp;
+  endTime: Date | Timestamp;
+  totalWeight: number;
+  status: string;
+}) => {
+  try {
+    const docRef = await addDoc(collection(db, "pickup_groups"), {
+      ...group,
+      startTime: group.startTime instanceof Date ? Timestamp.fromDate(group.startTime) : group.startTime,
+      endTime: group.endTime instanceof Date ? Timestamp.fromDate(group.endTime) : group.endTime,
+    });
+    return docRef;
+  } catch (error) {
+    console.error("Error adding pickup group:", error);
+    throw error;
+  }
+};
+
+export const updatePickupGroupStatus = async (groupId: string, status: string) => {
+  try {
+    await updateDoc(doc(db, "pickup_groups", groupId), { status });
+  } catch (error) {
+    console.error("Error updating pickup group status:", error);
+    throw error;
+  }
+};
+
+export const getTodayPickupGroups = async () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const q = query(
+    collection(db, "pickup_groups"),
+    where("startTime", ">=", Timestamp.fromDate(today)),
+    where("startTime", "<", Timestamp.fromDate(tomorrow))
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      startTime: data.startTime instanceof Timestamp ? data.startTime.toDate() : new Date(data.startTime),
+      endTime: data.endTime instanceof Timestamp ? data.endTime.toDate() : new Date(data.endTime),
+    };
+  });
 };
 
 export { uploadBytes, getDownloadURL };

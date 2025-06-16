@@ -5,6 +5,8 @@ import { ProductForm } from "./components/ProductForm";
 import { ClientForm } from "./components/ClientForm";
 import ActiveInvoices from "./components/ActiveInvoices";
 import PickupWashing from "./components/PickupWashing";
+import Washing from "./components/Washing";
+import Segregation from "./components/Segregation";
 import {
   getClients,
   getProducts,
@@ -116,7 +118,7 @@ function updateClientInInvoices(
 function App() {
   const { user, logout } = useAuth();
   const [activePage, setActivePage] = useState<
-    "home" | "entradas" | "settings"
+    "home" | "entradas" | "washing" | "segregation" | "settings"
   >("home");
   const [activeSettingsTab, setActiveSettingsTab] = useState<
     "clients" | "products" | "users" | "drivers"
@@ -442,6 +444,22 @@ function App() {
             </button>
             <button
               className={`nav-link btn btn-link ${
+                activePage === "washing" ? "active" : ""
+              }`}
+              onClick={() => setActivePage("washing")}
+            >
+              Washing
+            </button>
+            <button
+              className={`nav-link btn btn-link ${
+                activePage === "segregation" ? "active" : ""
+              }`}
+              onClick={() => setActivePage("segregation")}
+            >
+              Segregation
+            </button>
+            <button
+              className={`nav-link btn btn-link ${
                 activePage === "settings" ? "active" : ""
               }`}
               onClick={() => setActivePage("settings")}
@@ -473,6 +491,10 @@ function App() {
         />
       ) : activePage === "entradas" ? (
         <PickupWashing clients={clients} drivers={drivers} />
+      ) : activePage === "washing" ? (
+        <Washing />
+      ) : activePage === "segregation" ? (
+        <Segregation />
       ) : (
         <div>
           {/* Tab Buttons */}
