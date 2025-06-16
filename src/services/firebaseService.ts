@@ -226,4 +226,42 @@ export const uploadImage = async (file: File, path: string): Promise<string> => 
   return getDownloadURL(storageRef);
 };
 
+// Pickup Entry operations
+export const addPickupEntry = async (entry: {
+  clientId: string;
+  clientName: string;
+  driverId: string;
+  driverName: string;
+  weight: number;
+  timestamp: string;
+}) => {
+  try {
+    const docRef = await addDoc(collection(db, "pickup_entries"), entry);
+    return docRef;
+  } catch (error) {
+    console.error("Error adding pickup entry:", error);
+    throw error;
+  }
+};
+
+// Update a pickup entry
+export const updatePickupEntry = async (entryId: string, updates: Partial<{ weight: number }>) => {
+  try {
+    await updateDoc(doc(db, "pickup_entries", entryId), updates);
+  } catch (error) {
+    console.error("Error updating pickup entry:", error);
+    throw error;
+  }
+};
+
+// Delete a pickup entry
+export const deletePickupEntry = async (entryId: string) => {
+  try {
+    await deleteDoc(doc(db, "pickup_entries", entryId));
+  } catch (error) {
+    console.error("Error deleting pickup entry:", error);
+    throw error;
+  }
+};
+
 export { uploadBytes, getDownloadURL };

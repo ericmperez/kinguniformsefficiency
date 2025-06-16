@@ -19,16 +19,27 @@ export default function LocalLoginForm() {
   };
 
   return (
-    <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "80vh" }}>
-      <form className="card p-4 shadow-sm" style={{ minWidth: 320 }} onSubmit={handleSubmit}>
+    <div
+      className="d-flex justify-content-center align-items-center"
+      style={{ minHeight: "80vh" }}
+    >
+      <form
+        className="card p-4 shadow-sm"
+        style={{ minWidth: 320 }}
+        onSubmit={handleSubmit}
+      >
         <h2 className="mb-4 text-center">Login</h2>
         <div className="mb-3">
-          <label htmlFor="id" className="form-label">4-Digit ID Number</label>
+          <label htmlFor="id" className="form-label">
+            4-Digit ID Number
+          </label>
           <input
             id="id"
             className="form-control"
             value={id}
-            onChange={e => setId(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            onChange={(e) =>
+              setId(e.target.value.replace(/\D/g, "").slice(0, 4))
+            }
             autoFocus
             required
             inputMode="numeric"
@@ -37,7 +48,11 @@ export default function LocalLoginForm() {
             placeholder="e.g. 1234"
           />
         </div>
-        <button className="btn btn-primary w-100" type="submit" disabled={loading}>
+        <button
+          className="btn btn-primary w-100"
+          type="submit"
+          disabled={loading}
+        >
           {loading ? "Logging in..." : "Login"}
         </button>
         {error && <div className="alert alert-danger mt-3">{error}</div>}

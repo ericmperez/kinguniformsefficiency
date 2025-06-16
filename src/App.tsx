@@ -36,7 +36,13 @@ import UserManagement from "./components/UserManagement";
 import DriverManagement from "./components/DriverManagement";
 import { useState, useEffect } from "react";
 import type { UserRecord } from "./services/firebaseService";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  onSnapshot,
+  QuerySnapshot,
+  DocumentData,
+} from "firebase/firestore";
 import { db } from "./firebase";
 
 interface ActiveInvoicesProps {
@@ -109,7 +115,9 @@ function updateClientInInvoices(
 
 function App() {
   const { user, logout } = useAuth();
-  const [activePage, setActivePage] = useState<"home" | "entradas" | "settings">("home");
+  const [activePage, setActivePage] = useState<
+    "home" | "entradas" | "settings"
+  >("home");
   const [activeSettingsTab, setActiveSettingsTab] = useState<
     "clients" | "products" | "users" | "drivers"
   >("clients");
@@ -125,14 +133,24 @@ function App() {
     const fetchData = async () => {
       try {
         const [fetchedClients, fetchedProducts, fetchedInvoices, fetchedUsers] =
-          await Promise.all([getClients(), getProducts(), getInvoices(), getUsers()]);
+          await Promise.all([
+            getClients(),
+            getProducts(),
+            getInvoices(),
+            getUsers(),
+          ]);
         setClients(fetchedClients);
         setProducts(fetchedProducts);
         setInvoices(fetchedInvoices);
         setUsers(fetchedUsers);
         // Fetch drivers from Firestore
         const driverSnapshot = await getDocs(collection(db, "drivers"));
-        setDrivers(driverSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string; name: string })));
+        setDrivers(
+          driverSnapshot.docs.map(
+            (doc) =>
+              ({ id: doc.id, ...doc.data() } as { id: string; name: string })
+          )
+        );
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -148,6 +166,22 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [user]);
+
+  // Real-time driver updates
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "drivers"),
+      (querySnapshot: QuerySnapshot<DocumentData>) => {
+        setDrivers(
+          querySnapshot.docs.map(
+            (doc) =>
+              ({ id: doc.id, ...doc.data() } as { id: string; name: string })
+          )
+        );
+      }
+    );
+    return () => unsubscribe();
+  }, []);
 
   // Patch: Ensure image is always File|null, never undefined, for Client
   const handleAddClient: (client: Omit<Client, "id">) => Promise<void> = async (
@@ -361,14 +395,10 @@ function App() {
         style={{ minHeight: "100vh", background: "#f8f9fa" }}
         onClick={() => setShowWelcome(false)}
       >
-        <div
-          className="card shadow p-5 text-center"
-          style={{ maxWidth: 400 }}
-        >
+        <div className="card shadow p-5 text-center" style={{ maxWidth: 400 }}>
           <h2 className="mb-3">Hola, {user.username}!</h2>
           <p className="lead mb-0">
-            Gracias por formar parte del{" "}
-            <b>Equipo de King Uniforms</b>.
+            Gracias por formar parte del <b>Equipo de King Uniforms</b>.
           </p>
           <small className="text-muted d-block mt-3">
             (Haz clic para continuar)
@@ -381,7 +411,9 @@ function App() {
   // Role-based tab visibility
   const canManageUsers = user.role === "Admin" || user.role === "Owner";
   const canManageProducts =
-    user.role === "Supervisor" || user.role === "Admin" || user.role === "Owner";
+    user.role === "Supervisor" ||
+    user.role === "Admin" ||
+    user.role === "Owner";
   const canManageClients = true; // All roles
 
   return (
@@ -393,19 +425,25 @@ function App() {
           </a>
           <div className="navbar-nav">
             <button
-              className={`nav-link btn btn-link ${activePage === "home" ? "active" : ""}`}
+              className={`nav-link btn btn-link ${
+                activePage === "home" ? "active" : ""
+              }`}
               onClick={() => setActivePage("home")}
             >
               Home
             </button>
             <button
-              className={`nav-link btn btn-link ${activePage === "entradas" ? "active" : ""}`}
+              className={`nav-link btn btn-link ${
+                activePage === "entradas" ? "active" : ""
+              }`}
               onClick={() => setActivePage("entradas")}
             >
               Entradas
             </button>
             <button
-              className={`nav-link btn btn-link ${activePage === "settings" ? "active" : ""}`}
+              className={`nav-link btn btn-link ${
+                activePage === "settings" ? "active" : ""
+              }`}
               onClick={() => setActivePage("settings")}
             >
               Settings
@@ -441,7 +479,9 @@ function App() {
           <div className="mb-3">
             {canManageClients && (
               <button
-                className={`btn btn-outline-primary me-2 ${activeSettingsTab === "clients" ? "active" : ""}`}
+                className={`btn btn-outline-primary me-2 ${
+                  activeSettingsTab === "clients" ? "active" : ""
+                }`}
                 onClick={() => setActiveSettingsTab("clients")}
               >
                 Clients
@@ -449,7 +489,9 @@ function App() {
             )}
             {canManageProducts && (
               <button
-                className={`btn btn-outline-primary me-2 ${activeSettingsTab === "products" ? "active" : ""}`}
+                className={`btn btn-outline-primary me-2 ${
+                  activeSettingsTab === "products" ? "active" : ""
+                }`}
                 onClick={() => setActiveSettingsTab("products")}
               >
                 Products
@@ -457,14 +499,18 @@ function App() {
             )}
             {canManageUsers && (
               <button
-                className={`btn btn-outline-primary me-2 ${activeSettingsTab === "users" ? "active" : ""}`}
+                className={`btn btn-outline-primary me-2 ${
+                  activeSettingsTab === "users" ? "active" : ""
+                }`}
                 onClick={() => setActiveSettingsTab("users")}
               >
                 Users
               </button>
             )}
             <button
-              className={`btn btn-outline-primary ${activeSettingsTab === "drivers" ? "active" : ""}`}
+              className={`btn btn-outline-primary ${
+                activeSettingsTab === "drivers" ? "active" : ""
+              }`}
               onClick={() => setActiveSettingsTab("drivers")}
             >
               Choferes
@@ -500,7 +546,7 @@ function App() {
             )}
             {activeSettingsTab === "drivers" && (
               <div className="col-md-12">
-                <DriverManagement />
+                <DriverManagement drivers={drivers} />
               </div>
             )}
           </div>

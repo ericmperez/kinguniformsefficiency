@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { collection, addDoc, deleteDoc, doc, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
+import React, { useState } from "react";
+import { collection, addDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface Driver {
@@ -7,23 +7,14 @@ interface Driver {
   name: string;
 }
 
-const DriverManagement: React.FC = () => {
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+interface DriverManagementProps {
+  drivers: Driver[];
+}
+
+const DriverManagement: React.FC<DriverManagementProps> = ({ drivers }) => {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    const unsubscribe = onSnapshot(
-      collection(db, "drivers"),
-      (querySnapshot: QuerySnapshot<DocumentData>) => {
-        setDrivers(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Driver)));
-        setLoading(false);
-      }
-    );
-    return () => unsubscribe();
-  }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,13 +44,17 @@ const DriverManagement: React.FC = () => {
           <input
             className="form-control"
             value={name}
-            onChange={e => setName(e.target.value)}
+            onChange={(e) => setName(e.target.value)}
             required
             placeholder="Nombre"
           />
         </div>
         <div className="col-md-3">
-          <button className="btn btn-primary w-100" type="submit" disabled={loading}>
+          <button
+            className="btn btn-primary w-100"
+            type="submit"
+            disabled={loading}
+          >
             Agregar
           </button>
         </div>
@@ -67,8 +62,8 @@ const DriverManagement: React.FC = () => {
       {error && <div className="alert alert-danger mt-3">{error}</div>}
       <div className="mt-4">
         <h5>Lista de Choferes</h5>
-        {loading ? (
-          <div>Loading...</div>
+        {drivers.length === 0 ? (
+          <div className="text-center text-muted">No hay choferes.</div>
         ) : (
           <div className="table-responsive">
             <table className="table table-sm table-bordered">
@@ -79,21 +74,20 @@ const DriverManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {drivers.map(d => (
+                {drivers.map((d) => (
                   <tr key={d.id}>
                     <td>{d.name}</td>
                     <td>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(d.id)} disabled={loading}>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDelete(d.id)}
+                        disabled={loading}
+                      >
                         Eliminar
                       </button>
                     </td>
                   </tr>
                 ))}
-                {drivers.length === 0 && (
-                  <tr>
-                    <td colSpan={2} className="text-center text-muted">No hay choferes.</td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>

@@ -34,11 +34,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!/^\d{4}$/.test(id)) return false;
     // Fetch users from Firebase
     const users = await getUsers();
-    const found = users.find(u => u.id === id);
+    const found = users.find((u) => u.id === id);
     if (!found) return false;
     // Owner must be 1991 (enforced by user creation UI, but double check)
     if (found.role === "Owner" && id !== "1991") return false;
-    const userObj: AuthUser = { id, role: found.role as UserRole, username: found.username };
+    const userObj: AuthUser = {
+      id,
+      role: found.role as UserRole,
+      username: found.username,
+    };
     setUser(userObj);
     localStorage.setItem("auth_user", JSON.stringify(userObj));
     return true;

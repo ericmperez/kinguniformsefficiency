@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { UserRole } from "./AuthContext";
-import { addUser, getUsers, deleteUser, updateUser } from "../services/firebaseService";
+import {
+  addUser,
+  getUsers,
+  deleteUser,
+  updateUser,
+} from "../services/firebaseService";
 
 interface UserRecord {
   id: string;
@@ -27,7 +32,7 @@ export default function UserManagement(props: UserManagementProps) {
     (async () => {
       setLoading(true);
       const firebaseUsers = await getUsers();
-      setUsers(firebaseUsers.map(u => ({ ...u, role: u.role as UserRole })));
+      setUsers(firebaseUsers.map((u) => ({ ...u, role: u.role as UserRole })));
       setLoading(false);
     })();
   }, []);
@@ -43,11 +48,11 @@ export default function UserManagement(props: UserManagementProps) {
       setError("Username is required");
       return;
     }
-    if (users.some(u => u.id === id)) {
+    if (users.some((u) => u.id === id)) {
       setError("ID already exists");
       return;
     }
-    if (users.some(u => u.username === username.trim())) {
+    if (users.some((u) => u.username === username.trim())) {
       setError("Username already exists");
       return;
     }
@@ -55,7 +60,7 @@ export default function UserManagement(props: UserManagementProps) {
     setLoading(true);
     await addUser(newUser);
     const firebaseUsers = await getUsers();
-    setUsers(firebaseUsers.map(u => ({ ...u, role: u.role as UserRole })));
+    setUsers(firebaseUsers.map((u) => ({ ...u, role: u.role as UserRole })));
     setId("");
     setUsername("");
     setRole("Employee");
@@ -66,7 +71,7 @@ export default function UserManagement(props: UserManagementProps) {
     setLoading(true);
     await deleteUser(id);
     const firebaseUsers = await getUsers();
-    setUsers(firebaseUsers.map(u => ({ ...u, role: u.role as UserRole })));
+    setUsers(firebaseUsers.map((u) => ({ ...u, role: u.role as UserRole })));
     setLoading(false);
   };
 
@@ -89,14 +94,14 @@ export default function UserManagement(props: UserManagementProps) {
       setError("Username is required");
       return;
     }
-    if (users.some(u => u.username === editUsername.trim() && u.id !== id)) {
+    if (users.some((u) => u.username === editUsername.trim() && u.id !== id)) {
       setError("Username already exists");
       return;
     }
     setLoading(true);
     await updateUser(id, { username: editUsername.trim(), role: editRole });
     const firebaseUsers = await getUsers();
-    setUsers(firebaseUsers.map(u => ({ ...u, role: u.role as UserRole })));
+    setUsers(firebaseUsers.map((u) => ({ ...u, role: u.role as UserRole })));
     setEditingId(null);
     setEditUsername("");
     setEditRole("Employee");
@@ -112,7 +117,9 @@ export default function UserManagement(props: UserManagementProps) {
           <input
             className="form-control"
             value={id}
-            onChange={e => setId(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            onChange={(e) =>
+              setId(e.target.value.replace(/\D/g, "").slice(0, 4))
+            }
             maxLength={4}
             required
             placeholder="4-digit"
@@ -123,7 +130,7 @@ export default function UserManagement(props: UserManagementProps) {
           <input
             className="form-control"
             value={username}
-            onChange={e => setUsername(e.target.value)}
+            onChange={(e) => setUsername(e.target.value)}
             required
             placeholder="Name"
           />
@@ -133,15 +140,21 @@ export default function UserManagement(props: UserManagementProps) {
           <select
             className="form-control"
             value={role}
-            onChange={e => setRole(e.target.value as UserRole)}
+            onChange={(e) => setRole(e.target.value as UserRole)}
           >
-            {roles.map(r => (
-              <option key={r} value={r}>{r}</option>
+            {roles.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
           </select>
         </div>
         <div className="col-md-2">
-          <button className="btn btn-primary w-100" type="submit" disabled={loading}>
+          <button
+            className="btn btn-primary w-100"
+            type="submit"
+            disabled={loading}
+          >
             Add User
           </button>
         </div>
@@ -163,7 +176,7 @@ export default function UserManagement(props: UserManagementProps) {
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {users.map((u) => (
                   <tr key={u.id}>
                     <td>{u.id}</td>
                     <td>
@@ -171,7 +184,7 @@ export default function UserManagement(props: UserManagementProps) {
                         <input
                           className="form-control form-control-sm"
                           value={editUsername}
-                          onChange={e => setEditUsername(e.target.value)}
+                          onChange={(e) => setEditUsername(e.target.value)}
                           disabled={loading}
                         />
                       ) : (
@@ -183,11 +196,15 @@ export default function UserManagement(props: UserManagementProps) {
                         <select
                           className="form-control form-control-sm"
                           value={editRole}
-                          onChange={e => setEditRole(e.target.value as UserRole)}
+                          onChange={(e) =>
+                            setEditRole(e.target.value as UserRole)
+                          }
                           disabled={loading}
                         >
-                          {roles.map(r => (
-                            <option key={r} value={r}>{r}</option>
+                          {roles.map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
                           ))}
                         </select>
                       ) : (
@@ -197,19 +214,35 @@ export default function UserManagement(props: UserManagementProps) {
                     <td>
                       {editingId === u.id ? (
                         <>
-                          <button className="btn btn-success btn-sm me-1" onClick={() => handleEditSave(u.id)} disabled={loading}>
+                          <button
+                            className="btn btn-success btn-sm me-1"
+                            onClick={() => handleEditSave(u.id)}
+                            disabled={loading}
+                          >
                             Save
                           </button>
-                          <button className="btn btn-secondary btn-sm" onClick={handleEditCancel} disabled={loading}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={handleEditCancel}
+                            disabled={loading}
+                          >
                             Cancel
                           </button>
                         </>
                       ) : (
                         <>
-                          <button className="btn btn-warning btn-sm me-1" onClick={() => handleEdit(u)} disabled={loading}>
+                          <button
+                            className="btn btn-warning btn-sm me-1"
+                            onClick={() => handleEdit(u)}
+                            disabled={loading}
+                          >
                             Edit
                           </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(u.id)} disabled={loading}>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleDelete(u.id)}
+                            disabled={loading}
+                          >
                             Delete
                           </button>
                         </>
@@ -219,7 +252,9 @@ export default function UserManagement(props: UserManagementProps) {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="text-center text-muted">No users yet.</td>
+                    <td colSpan={4} className="text-center text-muted">
+                      No users yet.
+                    </td>
                   </tr>
                 )}
               </tbody>
