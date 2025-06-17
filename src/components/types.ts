@@ -25,10 +25,11 @@ export interface Invoice {
   date: string;
   total: number;
   cartId?: string;
+  status?: string; // Add status for invoice status tracking
 }
 
 export interface LaundryCart {
   id: string;
   name: string;
   isActive: boolean;
-} 
+}

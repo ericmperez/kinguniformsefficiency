@@ -265,3 +265,5 @@ export default function Report() {
     </div>
   );
 }
+
+// When setting or using PickupEntry[], ensure all required fields are present.

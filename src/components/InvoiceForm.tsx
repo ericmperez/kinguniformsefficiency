@@ -1,14 +1,16 @@
 import React, { useState } from "react";
-import { Client, Invoice } from "../types";
+import { Client, Invoice, Product } from "../types";
 
 interface InvoiceFormProps {
   clients: Client[];
+  products: Product[];
   onClose: () => void;
   onAddInvoice: (invoice: Omit<Invoice, "id">) => Promise<void>;
 }
 
 export default function InvoiceForm({
   clients,
+  products,
   onClose,
   onAddInvoice,
 }: InvoiceFormProps) {

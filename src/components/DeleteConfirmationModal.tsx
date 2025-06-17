@@ -1,22 +1,25 @@
 import React from 'react';
 
 interface DeleteConfirmationModalProps {
-  show: boolean;
-  onClose: () => void;
+  show?: boolean;
+  onClose?: () => void;
   onConfirm: () => void;
-  title: string;
-  message: string;
+  title?: string;
+  message?: string;
+  invoice?: any; // Optional, for compatibility with invoice deletion
+  onCancel?: () => void; // For compatibility with onCancel usage
 }
 
 export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
-  show,
+  show = true,
   onClose,
   onConfirm,
-  title,
-  message,
+  title = "Delete Confirmation",
+  message = "Are you sure you want to delete this item? This action cannot be undone.",
+  invoice,
+  onCancel,
 }) => {
-  if (!show) return null;
-
+  if (show === false) return null;
   return (
     <div className="modal show d-block" tabIndex={-1}>
       <div className="modal-dialog">
@@ -26,15 +29,20 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
             <button
               type="button"
               className="btn-close"
-              onClick={onClose}
+              onClick={onClose || onCancel}
               aria-label="Close"
             ></button>
           </div>
           <div className="modal-body">
             <p>{message}</p>
+            {invoice && (
+              <div className="alert alert-warning mt-2">
+                Invoice #{invoice.id} for {invoice.clientName}
+              </div>
+            )}
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+            <button type="button" className="btn btn-secondary" onClick={onClose || onCancel}>
               Cancel
             </button>
             <button type="button" className="btn btn-danger" onClick={onConfirm}>
@@ -45,4 +53,4 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
       </div>
     </div>
   );
-}; 
+};

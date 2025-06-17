@@ -43,6 +43,7 @@ export interface Invoice {
   total: number;
   carts: Cart[];
   totalWeight?: number; // Add totalWeight for tunnel invoices
+  status?: string; // Add status for invoice status tracking
 }
 
 export interface LaundryCart {
