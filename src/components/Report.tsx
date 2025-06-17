@@ -99,7 +99,12 @@ export default function Report() {
         const data = doc.data();
         return {
           id: doc.id,
-          ...data,
+          clientId: data.clientId || "",
+          clientName: data.clientName || "",
+          driverId: data.driverId || "",
+          driverName: data.driverName || "",
+          groupId: data.groupId || "",
+          weight: typeof data.weight === "number" ? data.weight : 0,
           timestamp:
             data.timestamp instanceof Timestamp
               ? data.timestamp.toDate()
