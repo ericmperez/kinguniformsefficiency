@@ -282,22 +282,24 @@ export default function UserManagement(props: UserManagementProps) {
                     <td>
                       {editingId === u.id ? (
                         <select
-                          className="form-control form-control-sm"
-                          value={editDefaultPage}
-                          onChange={(e) =>
-                            setEditDefaultPage(e.target.value as AppComponentKey)
-                          }
+                          className="form-select form-select-sm"
+                          value={editDefaultPage || ""}
+                          onChange={e => setEditDefaultPage(e.target.value as AppComponentKey)}
                           disabled={loading}
                         >
-                          <option value="">None</option>
-                          {componentOptions.map((c) => (
+                          <option value="">(Use role default)</option>
+                          {componentOptions.map(c => (
                             <option key={c.key} value={c.key}>
                               {c.label}
                             </option>
                           ))}
                         </select>
                       ) : (
-                        u.defaultPage
+                        <span>
+                          {u.defaultPage
+                            ? (componentOptions.find(c => c.key === u.defaultPage)?.label || u.defaultPage)
+                            : <span className="text-muted">(Role default)</span>}
+                        </span>
                       )}
                     </td>
                     <td>

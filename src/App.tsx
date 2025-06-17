@@ -174,6 +174,32 @@ function App() {
 
   useEffect(() => {
     if (user) {
+      // If user has a defaultPage, set it as the active page on login
+      if (user.defaultPage) {
+        setActivePage(
+          user.defaultPage === "ActiveInvoices"
+            ? "home"
+            : user.defaultPage === "PickupWashing"
+            ? "entradas"
+            : user.defaultPage === "Washing"
+            ? "washing"
+            : user.defaultPage === "Segregation"
+            ? "segregation"
+            : user.defaultPage === "Report"
+            ? "reports"
+            : user.defaultPage === "UserManagement"
+            ? "settings"
+            : "home"
+        );
+        setShowWelcome(false);
+      } else {
+        setShowWelcome(true);
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
       setShowWelcome(true);
       const timer = setTimeout(() => setShowWelcome(false), 3000);
       return () => clearTimeout(timer);
@@ -577,11 +603,76 @@ function App() {
         <Report />
       )}
       {activePage === "settings" && canManageUsers && (
-        <div className="row">
-          <div className="col-md-12">
-            <UserManagement />
+        <>
+          {/* Settings Nav Bar - always visible below main navbar */}
+          <div style={{ height: 56 }} /> {/* Spacer to push submenu below navbar */}
+          <div className="mb-3" style={{ marginTop: 0, marginBottom: 24, zIndex: 1, position: 'relative' }}>
+            <div className="btn-group w-100 justify-content-center" role="group" style={{ display: 'flex' }}>
+              <button
+                className={`btn btn-outline-primary${activeSettingsTab === "clients" ? " active" : ""}`}
+                onClick={() => setActiveSettingsTab("clients")}
+                style={{ minWidth: 120 }}
+              >
+                Clients
+              </button>
+              <button
+                className={`btn btn-outline-primary${activeSettingsTab === "products" ? " active" : ""}`}
+                onClick={() => setActiveSettingsTab("products")}
+                style={{ minWidth: 120 }}
+              >
+                Products
+              </button>
+              <button
+                className={`btn btn-outline-primary${activeSettingsTab === "drivers" ? " active" : ""}`}
+                onClick={() => setActiveSettingsTab("drivers")}
+                style={{ minWidth: 120 }}
+              >
+                Choferes
+              </button>
+              <button
+                className={`btn btn-outline-primary${activeSettingsTab === "users" ? " active" : ""}`}
+                onClick={() => setActiveSettingsTab("users")}
+                style={{ minWidth: 120 }}
+              >
+                Users
+              </button>
+            </div>
           </div>
-        </div>
+          {/* Show only one form at a time */}
+          <div className="row">
+            {activeSettingsTab === "clients" && canManageClients && (
+              <div className="col-md-12">
+                <ClientForm
+                  clients={clients}
+                  products={products}
+                  onAddClient={handleAddClient}
+                  onUpdateClient={handleUpdateClient}
+                  onDeleteClient={handleDeleteClient}
+                />
+              </div>
+            )}
+            {activeSettingsTab === "products" && canManageProducts && (
+              <div className="col-md-12">
+                <ProductForm
+                  products={products}
+                  onAddProduct={handleAddProduct}
+                  onUpdateProduct={handleUpdateProduct}
+                  onDeleteProduct={handleDeleteProduct}
+                />
+              </div>
+            )}
+            {activeSettingsTab === "drivers" && (
+              <div className="col-md-12">
+                <DriverManagement drivers={drivers} />
+              </div>
+            )}
+            {activeSettingsTab === "users" && canManageUsers && (
+              <div className="col-md-12">
+                <UserManagement />
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

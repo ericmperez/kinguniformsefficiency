@@ -7,6 +7,8 @@ interface AuthUser {
   id: string;
   role: UserRole;
   username: string;
+  allowedComponents?: import("../permissions").AppComponentKey[];
+  defaultPage?: import("../permissions").AppComponentKey;
 }
 
 interface AuthContextType {
@@ -42,6 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id,
       role: found.role as UserRole,
       username: found.username,
+      allowedComponents: (found as any).allowedComponents,
+      defaultPage: (found as any).defaultPage,
     };
     setUser(userObj);
     localStorage.setItem("auth_user", JSON.stringify(userObj));

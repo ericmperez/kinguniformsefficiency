@@ -360,6 +360,7 @@ export default function ActiveInvoices({
                         <option value="Tunnel">Tunnel</option>
                         <option value="Conventional">Conventional</option>
                         <option value="procesandose">Procesandose</option>
+                        <option value="Empaque">Empaque</option>
                         <option value="Entregado">Entregado</option>
                         <option value="deleted">Deleted</option>
                       </select>
@@ -385,43 +386,6 @@ export default function ActiveInvoices({
                       >
                         Delete
                       </button>
-                    </td>
-                    {/* Progress bar row */}
-                    <td colSpan={4}>
-                      <div style={{ margin: "8px 0" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                          }}
-                        >
-                          {STATUS_STEPS.map((step, i) => {
-                            const active = i <= getStepIndex(group.status);
-                            return (
-                              <React.Fragment key={step.key}>
-                                <div
-                                  style={{
-                                    flex: 1,
-                                    height: 8,
-                                    background: active
-                                      ? "var(--ku-yellow)"
-                                      : "#e0e0e0",
-                                    borderRadius: 4,
-                                    transition: "background 0.3s",
-                                    position: "relative",
-                                  }}
-                                >
-                                  {/* Removed label span for no labels */}
-                                </div>
-                                {i < STATUS_STEPS.length - 1 && (
-                                  <div style={{ width: 8 }}></div>
-                                )}
-                              </React.Fragment>
-                            );
-                          })}
-                        </div>
-                      </div>
                     </td>
                   </tr>
                 ))}
