@@ -100,14 +100,28 @@ export const getProducts = async (): Promise<Product[]> => {
 };
 
 // Invoice operations
+let nextInvoiceNumber = 56091;
+
+export const getNextInvoiceNumber = async (): Promise<number> => {
+  // Fetch all invoices and find the max invoiceNumber
+  const querySnapshot = await getDocs(collection(db, "invoices"));
+  let max = 56090;
+  querySnapshot.forEach(doc => {
+    const data = doc.data();
+    if (typeof data.invoiceNumber === 'number' && data.invoiceNumber > max) {
+      max = data.invoiceNumber;
+    }
+  });
+  return max + 1;
+};
+
 export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<string> => {
   try {
-    console.log("Adding invoice to Firebase:", invoice);
-    const docRef = await addDoc(collection(db, "invoices"), invoice);
-    console.log("Invoice added with ID:", docRef.id);
+    // Assign invoiceNumber
+    const invoiceNumber = (invoice as any).invoiceNumber || await getNextInvoiceNumber();
+    const docRef = await addDoc(collection(db, "invoices"), { ...invoice, invoiceNumber });
     return docRef.id;
   } catch (error) {
-    console.error("Error adding invoice:", error);
     throw error;
   }
 };

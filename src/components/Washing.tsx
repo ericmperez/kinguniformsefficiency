@@ -569,18 +569,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             {!isVerified && isSelected && (
                               <>
                                 <div className="mb-2 text-secondary small">
-                                  Segregated Carts: <strong>{getSegregatedCarts(group)}</strong>
+                                  {(() => {
+                                    const client = getClient(group.clientId);
+                                    if (client && client.segregation === false && client.washingType === "Tunnel") {
+                                      return <>Cart Count: <strong>{getSegregatedCarts(group)}</strong></>;
+                                    }
+                                    return <>Segregated Carts: <strong>{getSegregatedCarts(group)}</strong></>;
+                                  })()}
                                 </div>
                                 <input
                                   type="number"
                                   min={0}
                                   className="form-control form-control-sm"
                                   style={{ width: 110, maxWidth: "100%" }}
-                                  placeholder="How many carts did you count?"
+                                  placeholder={(() => {
+                                    const client = getClient(group.clientId);
+                                    if (client && client.segregation === false && client.washingType === "Tunnel") {
+                                      return "How many carts did you count?";
+                                    }
+                                    return "How many segregated carts?";
+                                  })()}
                                   value={tunnelCartInput}
-                                  onChange={(e) =>
-                                    setTunnelCartInput(e.target.value)
-                                  }
+                                  onChange={(e) => setTunnelCartInput(e.target.value)}
                                   autoFocus
                                 />
                                 {tunnelCartError && (
@@ -598,32 +608,27 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                       );
                                       return;
                                     }
-                                    if (val !== group.segregatedCarts) {
+                                    const client = getClient(group.clientId);
+                                    const expected = getSegregatedCarts(group);
+                                    if (val !== expected) {
                                       setTunnelCartError(
-                                        `Cart count does not match segregation value (${group.segregatedCarts}).`
+                                        client && client.segregation === false && client.washingType === "Tunnel"
+                                          ? `Cart count does not match expected value (${expected} carts).`
+                                          : `Cart count does not match segregation value (${expected}).`
                                       );
                                       return;
                                     }
                                     setTunnelCartError("");
-                                    setVerifiedGroups((prev) => ({
-                                      ...prev,
-                                      [group.id]: true,
-                                    }));
-                                    setCartCounters((prev) => ({
-                                      ...prev,
-                                      [group.id]: 0,
-                                    }));
+                                    setVerifiedGroups((prev) => ({ ...prev, [group.id]: true }));
+                                    setCartCounters((prev) => ({ ...prev, [group.id]: 0 }));
                                     // Save verification and counter to Firestore
-                                    await updateDoc(
-                                      doc(db, "pickup_groups", group.id),
-                                      {
-                                        tunnelVerified: true,
-                                        tunnelCartCount: 0,
-                                      }
-                                    );
+                                    await updateDoc(doc(db, "pickup_groups", group.id), {
+                                      tunnelVerified: true,
+                                      tunnelCartCount: 0,
+                                    });
                                   }}
                                 >
-                                  Verify
+                                  Start Counting
                                 </button>
                                 <button
                                   className="btn btn-secondary btn-sm ms-2"
@@ -686,48 +691,25 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   <button
                                     className="btn btn-success btn-sm ms-2"
                                     onClick={async () => {
-                                      // If locked and segregationComplete, use segregatedCarts as the value
-                                      if (group.showInTunnel && group.segregationComplete) {
-                                        const { updatePickupGroupStatus } = await import("../services/firebaseService");
-                                        await updatePickupGroupStatus(group.id, "procesandose");
-                                        // Optionally, clear lock and segregationComplete
-                                        await updateDoc(doc(db, "pickup_groups", group.id), {
-                                          showInTunnel: false,
-                                          segregationComplete: false,
-                                        });
-                                        setSelectedTunnelGroup(null);
-                                        setTunnelCartInput("");
-                                        setTunnelCartError("");
-                                      } else {
-                                        // Always create a new invoice for this group
-                                        const {
-                                          addInvoice,
-                                          updatePickupGroupStatus,
-                                        } = await import(
-                                          "../services/firebaseService"
-                                        );
-                                        const newInvoice = {
-                                          clientId: group.clientId,
-                                          clientName: group.clientName,
-                                          date: new Date().toISOString(),
-                                          products: [],
-                                          total: 0,
-                                          carts: [],
-                                          totalWeight: group.totalWeight || 0, // Save the group's total weight in the invoice
-                                        };
-                                        const invoiceId = await addInvoice(
-                                          newInvoice
-                                        );
-                                        await updatePickupGroupStatus(
-                                          group.id,
-                                          "procesandose"
-                                        );
-                                        if (setSelectedInvoiceId)
-                                          setSelectedInvoiceId(invoiceId);
-                                        setSelectedTunnelGroup(null);
-                                        setTunnelCartInput("");
-                                        setTunnelCartError("");
-                                      }
+                                      // Always create a new invoice for this group when Done is clicked
+                                      const { addInvoice, updatePickupGroupStatus } = await import("../services/firebaseService");
+                                      const newInvoice = {
+                                        clientId: group.clientId,
+                                        clientName: group.clientName,
+                                        date: new Date().toISOString(),
+                                        products: [],
+                                        total: 0,
+                                        carts: Array.isArray(group.carts) ? group.carts : [],
+                                        totalWeight: group.totalWeight || 0,
+                                        status: "procesandose",
+                                        // invoiceNumber will be auto-assigned in addInvoice
+                                      };
+                                      const invoiceId = await addInvoice(newInvoice);
+                                      await updatePickupGroupStatus(group.id, "procesandose");
+                                      if (setSelectedInvoiceId) setSelectedInvoiceId(invoiceId);
+                                      setSelectedTunnelGroup(null);
+                                      setTunnelCartInput("");
+                                      setTunnelCartError("");
                                     }}
                                   >
                                     Done

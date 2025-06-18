@@ -707,16 +707,18 @@ export default function ActiveInvoices({
               <div className="card h-100">
                 <div className="card-body">
                   <h5 className="card-title">
-                    Invoice #{invoice.id}
+                    {clients.find((c) => c.id === invoice.clientId)?.name}
+                    <span className="ms-2 text-muted" style={{ fontSize: 16 }}>
+                      #{invoice.invoiceNumber}
+                    </span>
                     {hoveredInvoiceId === invoice.id && (
                       <span className="badge bg-info text-dark ms-2">
                         {invoice.status}
                       </span>
                     )}
                   </h5>
-                  <p className="card-text">
-                    Client:{" "}
-                    {clients.find((c) => c.id === invoice.clientId)?.name}
+                  <p className="card-text mb-1">
+                    <span className="fw-bold">Date:</span> {new Date(invoice.date).toLocaleDateString()}
                   </p>
                   <p className="card-text">
                     Products:{" "}
