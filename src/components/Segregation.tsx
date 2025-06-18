@@ -151,7 +151,7 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   }, [segregationGroups, groupOrder, orderLoading]);
 
-  // Move group up/down in the order and persist to Firestore
+  // Move group up/down in the order and persist to Firestore, then update all screens immediately
   const moveGroup = (groupId: string, direction: -1 | 1) => {
     setGroupOrder((prev) => {
       const idx = prev.indexOf(groupId);
@@ -160,10 +160,30 @@ const Segregation: React.FC<SegregationProps> = ({
       const swapIdx = idx + direction;
       if (swapIdx < 0 || swapIdx >= newOrder.length) return prev;
       [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+      // Save to Firestore and trigger real-time update for all screens
       setDoc(orderDocRef, { order: newOrder }, { merge: true });
       return newOrder;
     });
   };
+
+  // Listen for order changes in Firestore and update local state immediately
+  useEffect(() => {
+    setOrderLoading(true);
+    const unsub = onSnapshot(orderDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (Array.isArray(data.order)) {
+          setGroupOrder(data.order);
+        } else {
+          setGroupOrder([]);
+        }
+      } else {
+        setGroupOrder([]);
+      }
+      setOrderLoading(false);
+    });
+    return () => unsub();
+  }, [todayStr]);
 
   // Handler for input change
   const handleInputChange = (groupId: string, value: string) => {
@@ -204,6 +224,7 @@ const Segregation: React.FC<SegregationProps> = ({
       ? segregationGroups
       : orderedGroups;
 
+  // --- UI ---
   return (
     <div className="container py-4">
       <h2 className="mb-4 text-center">Segregation</h2>
@@ -214,100 +235,126 @@ const Segregation: React.FC<SegregationProps> = ({
           No groups for segregation today.
         </div>
       ) : (
-        <>
-          {/* Current Segregating Client Card */}
-          {displayGroups[0] && (
-            <div className="card shadow-lg p-5 mb-5 mx-auto" style={{ maxWidth: 700, background: '#eaf2fb', border: '3px solid #007bff' }}>
-              <h4 className="mb-4 text-center" style={{ letterSpacing: 1, fontWeight: 700 }}>
-                Current Segregating Client:
-              </h4>
-              <div className="d-flex flex-column flex-md-row align-items-md-center gap-4 justify-content-between">
-                <div className="flex-grow-1">
-                  <div style={{ fontSize: '2rem', fontWeight: 800, color: '#007bff' }}>{displayGroups[0].clientName}</div>
-                  <div style={{ fontSize: '1.2rem', color: '#333' }}>
-                    Carros: <strong>{getCartCount(displayGroups[0].id)}</strong>
-                  </div>
+        <div className="card shadow p-4 mb-4 mx-auto" style={{ maxWidth: 900 }}>
+          <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>
+            Groups for Segregation
+          </h5>
+          <div className="list-group list-group-flush">
+            {displayGroups.map((group, idx) => (
+              <div
+                key={group.id}
+                className={`list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded${
+                  idx === 0
+                    ? " border border-3 border-primary bg-info-subtle"
+                    : ""
+                }`}
+                style={{
+                  background: idx === 0 ? "#eaf2fb" : "#f8f9fa",
+                  border:
+                    idx === 0 ? "3px solid #007bff" : "1px solid #e3e3e3",
+                }}
+              >
+                <div className="d-flex flex-column flex-md-row align-items-md-center gap-3 flex-grow-1">
+                  <span
+                    style={{
+                      fontSize: idx === 0 ? "2rem" : "1.2rem",
+                      fontWeight: idx === 0 ? 800 : 600,
+                      color: "#007bff",
+                    }}
+                  >
+                    {group.clientName}
+                  </span>
+                  <span style={{ fontSize: "1.1rem", color: "#333" }}>
+                    Weight:{" "}
+                    <strong>
+                      {typeof group.totalWeight === "number"
+                        ? group.totalWeight.toFixed(2)
+                        : "?"}
+                    </strong>{" "}
+                    lbs
+                  </span>
+                  <span style={{ fontSize: "1.1rem", color: "#333" }}>
+                    Carros: <strong>{getCartCount(group.id)}</strong>
+                  </span>
                 </div>
-                <div className="d-flex flex-row gap-3 align-items-center mt-3 mt-md-0">
+                <div className="d-flex flex-row gap-1 align-items-center ms-auto">
                   <button
-                    className="btn btn-outline-secondary btn-lg"
-                    onClick={() => handleInputChange(displayGroups[0].id, String(Math.max(0, (parseInt(segregatedCounts[displayGroups[0].id] || '0', 10) - 1)) ))}
-                    disabled={completingGroup === displayGroups[0].id}
+                    className="btn btn-outline-secondary btn-sm"
+                    title="Move up"
+                    disabled={idx === 0}
+                    onClick={() => moveGroup(group.id, -1)}
                   >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    min={0}
-                    className="form-control form-control-lg text-center"
-                    style={{ width: 100, fontSize: 24, fontWeight: 700 }}
-                    placeholder="# segregated"
-                    value={segregatedCounts[displayGroups[0].id] || ""}
-                    onChange={e => handleInputChange(displayGroups[0].id, e.target.value)}
-                    disabled={completingGroup === displayGroups[0].id}
-                  />
-                  <button
-                    className="btn btn-outline-secondary btn-lg"
-                    onClick={() => handleInputChange(displayGroups[0].id, String((parseInt(segregatedCounts[displayGroups[0].id] || '0', 10) + 1) ))}
-                    disabled={completingGroup === displayGroups[0].id}
-                  >
-                    +
+                    <span aria-hidden="true">▲</span>
                   </button>
                   <button
-                    className="btn btn-success btn-lg ms-3"
-                    disabled={completingGroup === displayGroups[0].id || !segregatedCounts[displayGroups[0].id]}
-                    onClick={() => handleComplete(displayGroups[0].id)}
-                    style={{ fontWeight: 700, fontSize: 20 }}
+                    className="btn btn-outline-secondary btn-sm"
+                    title="Move down"
+                    disabled={idx === displayGroups.length - 1}
+                    onClick={() => moveGroup(group.id, 1)}
                   >
-                    {completingGroup === displayGroups[0].id ? "Saving..." : "Verify"}
+                    <span aria-hidden="true">▼</span>
                   </button>
                 </div>
-              </div>
-            </div>
-          )}
-          {/* Other Groups */}
-          <div className="card shadow p-4 mb-4 mx-auto" style={{ maxWidth: 900 }}>
-            <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>
-              Groups for Segregation
-            </h5>
-            <div className="list-group list-group-flush">
-              {displayGroups.slice(1).map((group, idx) => (
-                <div
-                  key={group.id}
-                  className="list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded"
-                  style={{ background: "#f8f9fa", border: "1px solid #e3e3e3" }}
-                >
-                  <div className="d-flex flex-column flex-md-row align-items-md-center gap-3 flex-grow-1">
-                    <span style={{ fontSize: "1.2rem", fontWeight: 600, color: "#007bff" }}>{group.clientName}</span>
-                    <span style={{ fontSize: "1.1rem", color: "#333" }}>
-                      Carros: <strong>{getCartCount(group.id)}</strong>
-                    </span>
-                  </div>
-                  <div className="d-flex flex-row gap-2 align-items-center">
+                {idx === 0 && (
+                  <div className="d-flex flex-row gap-3 align-items-center mt-3 mt-md-0 ms-4">
+                    <button
+                      className="btn btn-outline-secondary btn-lg"
+                      onClick={() =>
+                        handleInputChange(
+                          group.id,
+                          String(
+                            Math.max(
+                              0,
+                              parseInt(segregatedCounts[group.id] || "0", 10) - 1
+                            )
+                          )
+                        )
+                      }
+                      disabled={completingGroup === group.id}
+                    >
+                      -
+                    </button>
                     <input
                       type="number"
                       min={0}
-                      className="form-control form-control-sm"
-                      style={{ width: 110, maxWidth: "100%" }}
+                      className="form-control form-control-lg text-center"
+                      style={{ width: 100, fontSize: 24, fontWeight: 700 }}
                       placeholder="# segregated"
                       value={segregatedCounts[group.id] || ""}
-                      onChange={e => handleInputChange(group.id, e.target.value)}
+                      onChange={(e) => handleInputChange(group.id, e.target.value)}
                       disabled={completingGroup === group.id}
                     />
                     <button
-                      className="btn btn-success btn-sm px-4"
-                      disabled={completingGroup === group.id || !segregatedCounts[group.id]}
-                      onClick={() => handleComplete(group.id)}
-                      style={{ fontWeight: 500, fontSize: 15 }}
+                      className="btn btn-outline-secondary btn-lg"
+                      onClick={() =>
+                        handleInputChange(
+                          group.id,
+                          String(
+                            parseInt(segregatedCounts[group.id] || "0", 10) + 1
+                          )
+                        )
+                      }
+                      disabled={completingGroup === group.id}
                     >
-                      {completingGroup === group.id ? "Saving..." : "Complete"}
+                      +
+                    </button>
+                    <button
+                      className="btn btn-success btn-lg ms-3"
+                      disabled={
+                        completingGroup === group.id ||
+                        !segregatedCounts[group.id]
+                      }
+                      onClick={() => handleComplete(group.id)}
+                      style={{ fontWeight: 700, fontSize: 20 }}
+                    >
+                      {completingGroup === group.id ? "Saving..." : "Completed"}
                     </button>
                   </div>
-                </div>
-              ))}
-            </div>
+                )}
+              </div>
+            ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

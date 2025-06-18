@@ -179,17 +179,29 @@ export default function PickupWashing({
 
   // Group entries by groupId (using Firestore groups)
   const groupedEntries = useMemo(() => {
+    // Sort groups by most recent (latest endTime or startTime) first
     return groups
       .map((group) => {
         const groupEntries = entries.filter((e) => e.groupId === group.id);
         const totalWeight = groupEntries.reduce((sum, e) => sum + e.weight, 0);
+        // Find the latest timestamp in the group's entries, fallback to group.endTime/startTime
+        let latest = group.endTime ? new Date(group.endTime) : new Date(group.startTime);
+        if (groupEntries.length > 0) {
+          const maxEntry = groupEntries.reduce((max, e) => {
+            const t = e.timestamp instanceof Date ? e.timestamp : new Date(e.timestamp);
+            return t > max ? t : max;
+          }, latest);
+          latest = maxEntry;
+        }
         return {
           ...group,
           entries: groupEntries,
           totalWeight,
+          _latest: latest,
         };
       })
-      .filter((g) => g.entries.length > 0);
+      .filter((g) => g.entries.length > 0)
+      .sort((a, b) => b._latest - a._latest); // Most recent group first
   }, [groups, entries]);
 
   // Edit an entry's weight inline
@@ -280,6 +292,21 @@ export default function PickupWashing({
     });
     return () => unsub();
   }, []);
+
+  // Find the most recent entry for prepopulation
+  const lastEntry = useMemo(() => {
+    if (!entries || entries.length === 0) return null;
+    // Sort by timestamp descending
+    return [...entries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+  }, [entries]);
+
+  // Prepopulate client and driver from last entry if empty
+  useEffect(() => {
+    if (lastEntry) {
+      if (!clientId) setClientId(lastEntry.clientId);
+      if (!driverId) setDriverId(lastEntry.driverId);
+    }
+  }, [lastEntry]);
 
   // Keypad input handler
   const handleKeypadInput = (val: string) => {

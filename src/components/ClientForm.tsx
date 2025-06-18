@@ -134,193 +134,185 @@ export const ClientForm: React.FC<ClientFormProps> = ({
   return (
     <div className="card">
       <div className="card-header">
-        <h3>{editingClient ? "Edit Client" : "Add New Client"}</h3>
+        <h3>Add New Client</h3>
       </div>
       <div className="card-body">
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label htmlFor="clientName" className="form-label">
-              Client Name
-            </label>
-            <input
-              type="text"
-              className="form-control"
-              id="clientName"
-              value={newClientName}
-              onChange={(e) => setNewClientName(e.target.value)}
-              required
-            />
-          </div>
+        {/* Add New Client Form */}
+        {!editingClient && (
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3">
+              <label htmlFor="clientName" className="form-label">
+                Client Name
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                id="clientName"
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                required
+              />
+            </div>
 
-          <div className="mb-3">
-            <label htmlFor="clientImage" className="form-label">
-              Client Image
-            </label>
-            <input
-              type="file"
-              className="form-control"
-              id="clientImage"
-              accept="image/*"
-              onChange={(e) => setNewClientImage(e.target.files?.[0] || null)}
-            />
-          </div>
+            <div className="mb-3">
+              <label htmlFor="clientImage" className="form-label">
+                Client Image
+              </label>
+              <input
+                type="file"
+                className="form-control"
+                id="clientImage"
+                accept="image/*"
+                onChange={(e) => setNewClientImage(e.target.files?.[0] || null)}
+              />
+            </div>
 
-          <div className="mb-3">
-            <label className="form-label">Selected Products</label>
-            <div className="row g-3">
-              {products.map((product) => (
-                <div key={product.id} className="col-6 col-md-4 col-lg-3">
-                  <label
-                    className={`card h-100 shadow-sm position-relative product-checkbox-card ${
-                      selectedProducts.includes(product.id)
-                        ? "border-primary"
-                        : "border-light"
-                    }`}
-                    style={{ cursor: "pointer", minHeight: 90 }}
-                  >
-                    <input
-                      type="checkbox"
-                      className="form-check-input position-absolute top-0 end-0 m-2"
-                      style={{ zIndex: 2, width: 22, height: 22 }}
-                      id={`product-${product.id}`}
-                      checked={selectedProducts.includes(product.id)}
-                      onChange={() => handleProductToggle(product.id)}
-                      disabled={isSaving}
-                    />
-                    <div className="card-body d-flex flex-column align-items-center justify-content-center p-2">
-                      {product.imageUrl && (
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="mb-2 rounded"
-                          style={{ width: 40, height: 40, objectFit: "cover" }}
-                        />
-                      )}
-                      <span
-                        className="fw-semibold text-center"
-                        style={{ fontSize: 15 }}
-                      >
-                        {product.name}
-                      </span>
-                    </div>
+            <div className="mb-3">
+              <label className="form-label">Selected Products</label>
+              <div className="row g-3">
+                {products.map((product) => (
+                  <div key={product.id} className="col-6 col-md-4 col-lg-3">
+                    <label
+                      className={`card h-100 shadow-sm position-relative product-checkbox-card ${
+                        selectedProducts.includes(product.id)
+                          ? "border-primary"
+                          : "border-light"
+                      }`}
+                      style={{ cursor: "pointer", minHeight: 90 }}
+                    >
+                      <input
+                        type="checkbox"
+                        className="form-check-input position-absolute top-0 end-0 m-2"
+                        style={{ zIndex: 2, width: 22, height: 22 }}
+                        id={`product-${product.id}`}
+                        checked={selectedProducts.includes(product.id)}
+                        onChange={() => handleProductToggle(product.id)}
+                        disabled={isSaving}
+                      />
+                      <div className="card-body d-flex flex-column align-items-center justify-content-center p-2">
+                        {product.imageUrl && (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="mb-2 rounded"
+                            style={{ width: 40, height: 40, objectFit: "cover" }}
+                          />
+                        )}
+                        <span
+                          className="fw-semibold text-center"
+                          style={{ fontSize: 15 }}
+                        >
+                          {product.name}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <div className="form-check">
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  id="isRented"
+                  checked={isRented}
+                  onChange={(e) => handleIsRentedToggle(e.target.checked)}
+                  disabled={isSaving}
+                />
+                <label className="form-check-label" htmlFor="isRented">
+                  Is Rented
+                </label>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">Washing Type</label>
+              <div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="washingType"
+                    id="washingTypeTunnel"
+                    value="Tunnel"
+                    checked={washingType === "Tunnel"}
+                    onChange={() => setWashingType("Tunnel")}
+                  />
+                  <label className="form-check-label" htmlFor="washingTypeTunnel">
+                    Tunnel
                   </label>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <div className="form-check">
-              <input
-                type="checkbox"
-                className="form-check-input"
-                id="isRented"
-                checked={isRented}
-                onChange={(e) => handleIsRentedToggle(e.target.checked)}
-                disabled={isSaving}
-              />
-              <label className="form-check-label" htmlFor="isRented">
-                Is Rented
-              </label>
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label">Washing Type</label>
-            <div>
-              <div className="form-check form-check-inline">
-                <input
-                  className="form-check-input"
-                  type="radio"
-                  name="washingType"
-                  id="washingTypeTunnel"
-                  value="Tunnel"
-                  checked={washingType === "Tunnel"}
-                  onChange={() => setWashingType("Tunnel")}
-                />
-                <label className="form-check-label" htmlFor="washingTypeTunnel">
-                  Tunnel
-                </label>
-              </div>
-              <div className="form-check form-check-inline">
-                <input
-                  className="form-check-input"
-                  type="radio"
-                  name="washingType"
-                  id="washingTypeConventional"
-                  value="Conventional"
-                  checked={washingType === "Conventional"}
-                  onChange={() => setWashingType("Conventional")}
-                />
-                <label
-                  className="form-check-label"
-                  htmlFor="washingTypeConventional"
-                >
-                  Conventional
-                </label>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="washingType"
+                    id="washingTypeConventional"
+                    value="Conventional"
+                    checked={washingType === "Conventional"}
+                    onChange={() => setWashingType("Conventional")}
+                  />
+                  <label
+                    className="form-check-label"
+                    htmlFor="washingTypeConventional"
+                  >
+                    Conventional
+                  </label>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="mb-3">
-            <label className="form-label">Segregation</label>
-            <div>
-              <div className="form-check form-check-inline">
-                <input
-                  className="form-check-input"
-                  type="radio"
-                  name="segregation"
-                  id="segregationYes"
-                  value="yes"
-                  checked={segregation === true}
-                  onChange={() => setSegregation(true)}
-                />
-                <label className="form-check-label" htmlFor="segregationYes">
-                  Yes
-                </label>
-              </div>
-              <div className="form-check form-check-inline">
-                <input
-                  className="form-check-input"
-                  type="radio"
-                  name="segregation"
-                  id="segregationNo"
-                  value="no"
-                  checked={segregation === false}
-                  onChange={() => setSegregation(false)}
-                />
-                <label className="form-check-label" htmlFor="segregationNo">
-                  No
-                </label>
+            <div className="mb-3">
+              <label className="form-label">Segregation</label>
+              <div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="segregation"
+                    id="segregationYes"
+                    value="yes"
+                    checked={segregation === true}
+                    onChange={() => setSegregation(true)}
+                  />
+                  <label className="form-check-label" htmlFor="segregationYes">
+                    Yes
+                  </label>
+                </div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="segregation"
+                    id="segregationNo"
+                    value="no"
+                    checked={segregation === false}
+                    onChange={() => setSegregation(false)}
+                  />
+                  <label className="form-check-label" htmlFor="segregationNo">
+                    No
+                  </label>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="d-flex gap-2">
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={isSaving}
-            >
-              {editingClient ? "Update Client" : "Add Client"}
-            </button>
-            {editingClient && (
+            <div className="d-flex gap-2">
               <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleCancel}
+                type="submit"
+                className="btn btn-primary"
+                disabled={isSaving}
               >
-                Cancel
+                Add Client
               </button>
-            )}
-          </div>
-        </form>
-
+            </div>
+          </form>
+        )}
         {saveError && (
           <div className="alert alert-danger mt-2">{saveError}</div>
         )}
         {isSaving && <div className="text-info mt-2">Saving...</div>}
-
         <div className="mt-4">
           <h4>Client List</h4>
           <div className="table-responsive">
@@ -385,15 +377,48 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                         </span>
                       </td>
                       <td>
-                        <span className="badge bg-info">
+                        <span
+                          className="badge bg-info"
+                          style={{ cursor: "pointer" }}
+                          title="Click to toggle washing type"
+                          onClick={async () => {
+                            const newType =
+                              client.washingType === "Tunnel"
+                                ? "Conventional"
+                                : "Tunnel";
+                            setIsSaving(true);
+                            setSaveError(null);
+                            try {
+                              await onUpdateClient(client.id, {
+                                washingType: newType,
+                              });
+                            } catch {
+                              setSaveError("Failed to update washing type.");
+                            } finally {
+                              setIsSaving(false);
+                            }
+                          }}
+                        >
                           {client.washingType || "Tunnel"}
                         </span>
                       </td>
                       <td>
                         <span
-                          className={`badge ${
-                            client.segregation ? "bg-success" : "bg-secondary"
-                          }`}
+                          className={`badge ${client.segregation ? "bg-success" : "bg-secondary"}`}
+                          style={{ cursor: "pointer" }}
+                          title="Click to toggle segregation"
+                          onClick={async () => {
+                            const newSeg = !client.segregation;
+                            setIsSaving(true);
+                            setSaveError(null);
+                            try {
+                              await onUpdateClient(client.id, { segregation: newSeg });
+                            } catch {
+                              setSaveError("Failed to update segregation.");
+                            } finally {
+                              setIsSaving(false);
+                            }
+                          }}
                         >
                           {client.segregation ? "Yes" : "No"}
                         </span>
@@ -421,7 +446,201 @@ export const ClientForm: React.FC<ClientFormProps> = ({
           </div>
         </div>
       </div>
+      {/* Edit Client Modal */}
+      {editingClient && (
+        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Edit Client</h5>
+                <button type="button" className="btn-close" onClick={handleCancel}></button>
+              </div>
+              <div className="modal-body">
+                <form onSubmit={handleSubmit}>
+                  <div className="mb-3">
+                    <label htmlFor="clientNameEdit" className="form-label">
+                      Client Name
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      id="clientNameEdit"
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      required
+                    />
+                  </div>
 
+                  <div className="mb-3">
+                    <label htmlFor="clientImageEdit" className="form-label">
+                      Client Image
+                    </label>
+                    <input
+                      type="file"
+                      className="form-control"
+                      id="clientImageEdit"
+                      accept="image/*"
+                      onChange={(e) => setNewClientImage(e.target.files?.[0] || null)}
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Selected Products</label>
+                    <div className="row g-3">
+                      {products.map((product) => (
+                        <div key={product.id} className="col-6 col-md-4 col-lg-3">
+                          <label
+                            className={`card h-100 shadow-sm position-relative product-checkbox-card ${
+                              selectedProducts.includes(product.id)
+                                ? "border-primary"
+                                : "border-light"
+                            }`}
+                            style={{ cursor: "pointer", minHeight: 90 }}
+                          >
+                            <input
+                              type="checkbox"
+                              className="form-check-input position-absolute top-0 end-0 m-2"
+                              style={{ zIndex: 2, width: 22, height: 22 }}
+                              id={`product-${product.id}-edit`}
+                              checked={selectedProducts.includes(product.id)}
+                              onChange={() => handleProductToggle(product.id)}
+                              disabled={isSaving}
+                            />
+                            <div className="card-body d-flex flex-column align-items-center justify-content-center p-2">
+                              {product.imageUrl && (
+                                <img
+                                  src={product.imageUrl}
+                                  alt={product.name}
+                                  className="mb-2 rounded"
+                                  style={{ width: 40, height: 40, objectFit: "cover" }}
+                                />
+                              )}
+                              <span
+                                className="fw-semibold text-center"
+                                style={{ fontSize: 15 }}
+                              >
+                                {product.name}
+                              </span>
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <div className="form-check">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        id="isRentedEdit"
+                        checked={isRented}
+                        onChange={(e) => handleIsRentedToggle(e.target.checked)}
+                        disabled={isSaving}
+                      />
+                      <label className="form-check-label" htmlFor="isRentedEdit">
+                        Is Rented
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Washing Type</label>
+                    <div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="washingTypeEdit"
+                          id="washingTypeTunnelEdit"
+                          value="Tunnel"
+                          checked={washingType === "Tunnel"}
+                          onChange={() => setWashingType("Tunnel")}
+                        />
+                        <label className="form-check-label" htmlFor="washingTypeTunnelEdit">
+                          Tunnel
+                        </label>
+                      </div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="washingTypeEdit"
+                          id="washingTypeConventionalEdit"
+                          value="Conventional"
+                          checked={washingType === "Conventional"}
+                          onChange={() => setWashingType("Conventional")}
+                        />
+                        <label
+                          className="form-check-label"
+                          htmlFor="washingTypeConventionalEdit"
+                        >
+                          Conventional
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Segregation</label>
+                    <div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="segregationEdit"
+                          id="segregationYesEdit"
+                          value="yes"
+                          checked={segregation === true}
+                          onChange={() => setSegregation(true)}
+                        />
+                        <label className="form-check-label" htmlFor="segregationYesEdit">
+                          Yes
+                        </label>
+                      </div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="segregationEdit"
+                          id="segregationNoEdit"
+                          value="no"
+                          checked={segregation === false}
+                          onChange={() => setSegregation(false)}
+                        />
+                        <label className="form-check-label" htmlFor="segregationNoEdit">
+                          No
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="d-flex gap-2">
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={isSaving}
+                    >
+                      Update Client
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleCancel}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+                {saveError && (
+                  <div className="alert alert-danger mt-2">{saveError}</div>
+                )}
+                {isSaving && <div className="text-info mt-2">Saving...</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Confirmation Modal */}
       <DeleteConfirmationModal
         show={!!clientToDelete}

@@ -596,41 +596,58 @@ function App() {
       {activePage === "washing" && canSee("Washing") && (
         <Washing setSelectedInvoiceId={setSelectedInvoiceId} />
       )}
-      {activePage === "segregation" && canSee("Segregation") && (
-        <Segregation />
-      )}
-      {activePage === "reports" && canSee("Report") && (
-        <Report />
-      )}
+      {activePage === "segregation" && canSee("Segregation") && <Segregation />}
+      {activePage === "reports" && canSee("Report") && <Report />}
       {activePage === "settings" && canManageUsers && (
         <>
           {/* Settings Nav Bar - always visible below main navbar */}
-          <div style={{ height: 56 }} /> {/* Spacer to push submenu below navbar */}
-          <div className="mb-3" style={{ marginTop: 0, marginBottom: 24, zIndex: 1, position: 'relative' }}>
-            <div className="btn-group w-100 justify-content-center" role="group" style={{ display: 'flex' }}>
+          <div style={{ height: 56 }} />{" "}
+          {/* Spacer to push submenu below navbar */}
+          <div
+            className="mb-3"
+            style={{
+              marginTop: 0,
+              marginBottom: 24,
+              zIndex: 1,
+              position: "relative",
+            }}
+          >
+            <div
+              className="btn-group w-100 justify-content-center"
+              role="group"
+              style={{ display: "flex" }}
+            >
               <button
-                className={`btn btn-outline-primary${activeSettingsTab === "clients" ? " active" : ""}`}
+                className={`btn btn-outline-primary${
+                  activeSettingsTab === "clients" ? " active" : ""
+                }`}
                 onClick={() => setActiveSettingsTab("clients")}
                 style={{ minWidth: 120 }}
               >
                 Clients
               </button>
               <button
-                className={`btn btn-outline-primary${activeSettingsTab === "products" ? " active" : ""}`}
+                className={`btn btn-outline-primary${
+                  activeSettingsTab === "products" ? " active" : ""
+                }`}
                 onClick={() => setActiveSettingsTab("products")}
                 style={{ minWidth: 120 }}
               >
                 Products
               </button>
               <button
-                className={`btn btn-outline-primary${activeSettingsTab === "drivers" ? " active" : ""}`}
+                className={`btn btn-outline-primary${
+                  activeSettingsTab === "drivers" ? " active" : ""
+                }`}
                 onClick={() => setActiveSettingsTab("drivers")}
                 style={{ minWidth: 120 }}
               >
                 Choferes
               </button>
               <button
-                className={`btn btn-outline-primary${activeSettingsTab === "users" ? " active" : ""}`}
+                className={`btn btn-outline-primary${
+                  activeSettingsTab === "users" ? " active" : ""
+                }`}
                 onClick={() => setActiveSettingsTab("users")}
                 style={{ minWidth: 120 }}
               >

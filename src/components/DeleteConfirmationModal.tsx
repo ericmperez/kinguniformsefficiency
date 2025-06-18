@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface DeleteConfirmationModalProps {
   show?: boolean;
@@ -10,7 +10,9 @@ interface DeleteConfirmationModalProps {
   onCancel?: () => void; // For compatibility with onCancel usage
 }
 
-export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
+export const DeleteConfirmationModal: React.FC<
+  DeleteConfirmationModalProps
+> = ({
   show = true,
   onClose,
   onConfirm,
@@ -42,10 +44,18 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
             )}
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose || onCancel}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose || onCancel}
+            >
               Cancel
             </button>
-            <button type="button" className="btn btn-danger" onClick={onConfirm}>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={onConfirm}
+            >
               Delete
             </button>
           </div>

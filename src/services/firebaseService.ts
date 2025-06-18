@@ -122,7 +122,8 @@ export interface UserRecord {
 export type UserUpdate = Partial<Omit<UserRecord, "id">> & { allowedComponents?: AppComponentKey[]; defaultPage?: AppComponentKey };
 
 export const addUser = async (user: UserRecord): Promise<void> => {
-  await addDoc(collection(db, "users"), user);
+  const sanitizedUser = sanitizeForFirestore(user);
+  await addDoc(collection(db, "users"), sanitizedUser);
 };
 
 export const getUsers = async (): Promise<UserRecord[]> => {
@@ -150,8 +151,9 @@ export const deleteUser = async (id: string): Promise<void> => {
 export const updateUser = async (id: string, updates: UserUpdate): Promise<void> => {
   const q = query(collection(db, "users"), where("id", "==", id));
   const querySnapshot = await getDocs(q);
+  const sanitizedUpdates = sanitizeForFirestore(updates);
   for (const docSnap of querySnapshot.docs) {
-    await updateDoc(doc(db, "users", docSnap.id), updates);
+    await updateDoc(doc(db, "users", docSnap.id), sanitizedUpdates);
   }
 };
 

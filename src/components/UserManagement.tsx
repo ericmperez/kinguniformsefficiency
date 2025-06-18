@@ -40,8 +40,12 @@ export default function UserManagement(props: UserManagementProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editUsername, setEditUsername] = useState("");
   const [editRole, setEditRole] = useState<UserRole>("Employee");
-  const [editAllowedComponents, setEditAllowedComponents] = useState<AppComponentKey[]>([]);
-  const [editDefaultPage, setEditDefaultPage] = useState<AppComponentKey | undefined>(undefined);
+  const [editAllowedComponents, setEditAllowedComponents] = useState<
+    AppComponentKey[]
+  >([]);
+  const [editDefaultPage, setEditDefaultPage] = useState<
+    AppComponentKey | undefined
+  >(undefined);
 
   useEffect(() => {
     (async () => {
@@ -71,7 +75,13 @@ export default function UserManagement(props: UserManagementProps) {
       setError("Username already exists");
       return;
     }
-    const newUser: UserRecord = { id, username: username.trim(), role, allowedComponents: undefined, defaultPage: undefined };
+    const newUser: UserRecord = {
+      id,
+      username: username.trim(),
+      role,
+      allowedComponents: undefined,
+      defaultPage: undefined,
+    };
     setLoading(true);
     await addUser(newUser);
     const firebaseUsers = await getUsers();
@@ -121,7 +131,8 @@ export default function UserManagement(props: UserManagementProps) {
     await updateUser(id, {
       username: editUsername.trim(),
       role: editRole,
-      allowedComponents: editAllowedComponents.length > 0 ? editAllowedComponents : undefined,
+      allowedComponents:
+        editAllowedComponents.length > 0 ? editAllowedComponents : undefined,
       defaultPage: editDefaultPage,
     });
     const firebaseUsers = await getUsers();
@@ -284,11 +295,15 @@ export default function UserManagement(props: UserManagementProps) {
                         <select
                           className="form-select form-select-sm"
                           value={editDefaultPage || ""}
-                          onChange={e => setEditDefaultPage(e.target.value as AppComponentKey)}
+                          onChange={(e) =>
+                            setEditDefaultPage(
+                              e.target.value as AppComponentKey
+                            )
+                          }
                           disabled={loading}
                         >
                           <option value="">(Use role default)</option>
-                          {componentOptions.map(c => (
+                          {componentOptions.map((c) => (
                             <option key={c.key} value={c.key}>
                               {c.label}
                             </option>
@@ -296,9 +311,13 @@ export default function UserManagement(props: UserManagementProps) {
                         </select>
                       ) : (
                         <span>
-                          {u.defaultPage
-                            ? (componentOptions.find(c => c.key === u.defaultPage)?.label || u.defaultPage)
-                            : <span className="text-muted">(Role default)</span>}
+                          {u.defaultPage ? (
+                            componentOptions.find(
+                              (c) => c.key === u.defaultPage
+                            )?.label || u.defaultPage
+                          ) : (
+                            <span className="text-muted">(Role default)</span>
+                          )}
                         </span>
                       )}
                     </td>
