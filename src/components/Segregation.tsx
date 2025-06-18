@@ -24,18 +24,33 @@ const Segregation: React.FC<SegregationProps> = ({
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const [fetchedGroups, fetchedClients] = await Promise.all([
-        getTodayPickupGroups(),
-        getClients(),
-      ]);
-      setGroups(fetchedGroups);
-      setClients(fetchedClients);
-      setLoading(false);
-    };
-    fetchData();
-    // Optionally, add polling or a real-time listener for groups if needed
+    setLoading(true);
+    // Get today's date range in local time
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    // Firestore query for today's pickup_groups
+    import("../firebase").then(({ db }) => {
+      import("firebase/firestore").then(
+        ({ collection, onSnapshot, query, where, Timestamp }) => {
+          const q = query(
+            collection(db, "pickup_groups"),
+            where("startTime", ">=", Timestamp.fromDate(today)),
+            where("startTime", "<", Timestamp.fromDate(tomorrow))
+          );
+          const unsub = onSnapshot(q, (snap) => {
+            const fetched = snap.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+            setGroups(fetched);
+            setLoading(false);
+          });
+        }
+      );
+    });
+    // No cleanup needed because this is a one-day query and component unmount will clear listeners
   }, [statusUpdating]);
 
   // Show only groups with status 'Segregation' and not 'Entregado'

@@ -171,7 +171,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     .filter(
       (g) =>
         g.status === "Conventional" &&
-        getWashingType(g.clientId) === "Conventional" &&
         g.status !== "Entregado"
     )
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)); // Sort by order property
@@ -244,7 +243,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   // Helper: get clients not already in a conventional group today
   const clientsNotInConventional = clients.filter(
     (client) =>
-      !conventionalGroups.some((g) => g.clientId === client.id)
+      !groups.some((g) => g.status === "Conventional" && g.clientId === client.id)
   );
 
   // Helper: get carts for a group
@@ -267,8 +266,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       let group = groups.find(
         (g) =>
           g.clientId === selectedConventionalClientId &&
-          g.status === "Conventional" &&
-          getWashingType(g.clientId) === "Conventional"
+          g.status === "Conventional"
       );
       let groupId = group ? group.id : null;
       if (!group) {
@@ -294,7 +292,31 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       let carts = Array.isArray(group.carts) ? [...group.carts] : [];
       const product = products.find((p) => p.id === selectedConventionalProductId);
       if (!product) throw new Error("Product not found");
-      if (conventionalAddMode === 'cart') {
+      if (selectedConventionalCartId) {
+        // Add to existing cart
+        const cartIdx = carts.findIndex((c) => c.id === selectedConventionalCartId);
+        if (cartIdx !== -1) {
+          const cart = { ...carts[cartIdx] };
+          const items: any[] = cart.items;
+          const itemIdx = items.findIndex((item: any) => item.productId === product.id);
+          if (itemIdx !== -1) {
+            // Increment quantity
+            items[itemIdx].quantity += conventionalProductQty;
+            items[itemIdx].addedAt = new Date().toISOString();
+          } else {
+            items.push({
+              productId: product.id,
+              productName: product.name,
+              quantity: conventionalProductQty,
+              price: product.price,
+              addedBy: "WashingPage",
+              addedAt: new Date().toISOString(),
+            });
+          }
+          cart.items = items;
+          carts[cartIdx] = cart;
+        }
+      } else if (conventionalAddMode === 'cart') {
         // Add N carts, each with 1 of the selected product
         for (let i = 0; i < conventionalProductQty; i++) {
           const cartId = Date.now().toString() + '-' + i;
@@ -366,7 +388,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         const updated = prev.map((g, idx) => {
           if (
             g.status === 'Conventional' &&
-            getWashingType(g.clientId) === 'Conventional' &&
             typeof g.order !== 'number'
           ) {
             changed = true;
@@ -386,13 +407,11 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       const conventional = prevGroups.filter(
         (g) =>
           g.status === "Conventional" &&
-          getWashingType(g.clientId) === "Conventional" &&
           g.status !== "Entregado"
       );
       const others = prevGroups.filter(
         (g) =>
           g.status !== "Conventional" ||
-          getWashingType(g.clientId) !== "Conventional" ||
           g.status === "Entregado"
       );
       // Sort by order or fallback to index
@@ -771,28 +790,24 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             ) : (
               <div className="list-group list-group-flush">
                 {conventionalGroups.map((group, idx) => {
-                  // Calculate totals for display
-                  let cartCount = 0, qty = 0, lbs = 0;
-                  // If group.carts is a number (added by entradas), use that as cartCount
-                  if (typeof group.carts === 'number') {
-                    cartCount = group.carts;
-                  } else if (Array.isArray(group.carts)) {
+                  // Collect all products and quantities for this group, and their type (cart/lbs/qty)
+                  const productMap: { [productId: string]: { name: string; quantity: number; type: string } } = {};
+                  if (Array.isArray(group.carts)) {
                     group.carts.forEach((cart: any) => {
+                      let type = 'cart';
                       const name = (cart.name || '').toLowerCase();
-                      if (name.includes('qty')) {
-                        qty += (cart.items as any[]).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
-                      } else if (name.includes('lbs')) {
-                        lbs += (cart.items as any[]).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
-                      } else if (
-                        // treat as 'cart' if all items are quantity 1 and not qty/lbs
-                        Array.isArray(cart.items) && cart.items.length > 0 && cart.items.every((item: any) => item.quantity === 1)
-                      ) {
-                        cartCount++;
-                      } else if (Array.isArray(cart.items)) {
-                        qty += cart.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
-                      } else {
-                        cartCount++;
-                      }
+                      if (name.includes('qty')) type = 'qty';
+                      else if (name.includes('lbs')) type = 'lbs';
+                      (cart.items || []).forEach((item: any) => {
+                        if (!productMap[item.productId]) {
+                          productMap[item.productId] = { name: item.productName, quantity: 0, type };
+                        }
+                        productMap[item.productId].quantity += item.quantity;
+                        // If the same product appears in different cart types, mark as 'mixed'
+                        if (productMap[item.productId].type !== type) {
+                          productMap[item.productId].type = 'mixed';
+                        }
+                      });
                     });
                   }
                   return (
@@ -815,17 +830,36 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         {group.clientName}
                       </span>
                       <span style={{ fontSize: "1.1rem", color: "#333" }}>
-                        {cartCount > 0 && (
-                          <span className="badge bg-primary me-2">Carts: {cartCount}</span>
-                        )}
-                        {qty > 0 && (
-                          <span className="badge bg-success me-2">Qty: {qty}</span>
-                        )}
-                        {lbs > 0 && (
-                          <span className="badge bg-warning text-dark">Lbs: {lbs}</span>
-                        )}
-                        {(cartCount === 0 && qty === 0 && lbs === 0) && (
-                          <span className="text-muted">No items</span>
+                        {Object.keys(productMap).length === 0 ? (
+                          <span className="text-muted">No products</span>
+                        ) : (
+                          <>
+                            Products: {Object.values(productMap).map((prod, i) => (
+                              <span key={prod.name} className="me-2 d-inline-flex align-items-center">
+                                <span className="badge bg-secondary">
+                                  {prod.name}
+                                </span>
+                                <span
+                                  className={
+                                    prod.type === 'cart'
+                                      ? 'badge bg-primary ms-1'
+                                      : prod.type === 'qty'
+                                      ? 'badge bg-success ms-1'
+                                      : prod.type === 'lbs'
+                                      ? 'badge bg-warning text-dark ms-1'
+                                      : 'badge bg-dark ms-1'
+                                  }
+                                  style={{ fontWeight: 500, fontSize: '0.95em' }}
+                                >
+                                  {prod.type === 'cart' && 'Cart'}
+                                  {prod.type === 'qty' && 'Qty'}
+                                  {prod.type === 'lbs' && 'Lbs'}
+                                  {prod.type === 'mixed' && 'Mixed'}
+                                  : {prod.quantity}
+                                </span>
+                              </span>
+                            ))}
+                          </>
                         )}
                       </span>
                       <div className="d-flex flex-row gap-1 align-items-center ms-auto">
@@ -887,9 +921,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           }}
                         >
                           <option value="">-- Select a client --</option>
-                          {clientsNotInConventional.map((client) => (
-                            <option key={client.id} value={client.id}>{client.name}</option>
-                          ))}
+                          {clientsNotInConventional
+                            .slice()
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map((client) => (
+                              <option key={client.id} value={client.id}>{client.name}</option>
+                            ))}
                         </select>
                       </div>
                       <div className="mb-3">

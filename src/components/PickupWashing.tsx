@@ -72,13 +72,25 @@ export default function PickupWashing({
   const weightInputRef = useRef<HTMLInputElement>(null);
   const [showKeypad, setShowKeypad] = useState(false);
 
-  // Fetch today's groups on mount and on status update
+  // Fetch today's groups in real-time and update instantly on any change
   useEffect(() => {
-    (async () => {
-      const fetchedGroups = await getTodayPickupGroups();
-      setGroups(fetchedGroups);
-    })();
-  }, [groupStatusUpdating]);
+    // Get today's date range in local time
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const q = query(
+      collection(db, "pickup_groups"),
+      where("startTime", ">=", Timestamp.fromDate(today)),
+      where("startTime", "<", Timestamp.fromDate(tomorrow))
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const fetched = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as any[];
+      // Filter out deleted groups (handle missing status)
+      setGroups(fetched.filter((g) => (g.status || "") !== "deleted"));
+    });
+    return () => unsub();
+  }, []);
 
   // Sort clients alphabetically by name
   const sortedClients = [...clients].sort((a, b) =>
@@ -300,13 +312,14 @@ export default function PickupWashing({
     return [...entries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
   }, [entries]);
 
-  // Prepopulate client and driver from last entry if empty
+  // Prepopulate client and driver from last entry on every open of the form
   useEffect(() => {
     if (lastEntry) {
-      if (!clientId) setClientId(lastEntry.clientId);
-      if (!driverId) setDriverId(lastEntry.driverId);
+      setClientId(lastEntry.clientId);
+      setDriverId(lastEntry.driverId);
     }
-  }, [lastEntry]);
+    // Only run when success (form submit) changes to true
+  }, [success]);
 
   // Keypad input handler
   const handleKeypadInput = (val: string) => {

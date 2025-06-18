@@ -142,19 +142,37 @@ function App() {
   const canSee = (component: AppComponentKey) =>
     user && canUserSeeComponent(user, component);
 
+  // Real-time Firestore listeners for invoices, products, and clients
+  useEffect(() => {
+    // Invoices
+    const unsubInvoices = onSnapshot(collection(db, "invoices"), (snapshot) => {
+      const invoices = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setInvoices(invoices as Invoice[]);
+    });
+    // Products
+    const unsubProducts = onSnapshot(collection(db, "products"), (snapshot) => {
+      const products = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setProducts(products as Product[]);
+    });
+    // Clients (optional, for real-time sync)
+    const unsubClients = onSnapshot(collection(db, "clients"), (snapshot) => {
+      const clients = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setClients(clients as Client[]);
+    });
+    return () => {
+      unsubInvoices();
+      unsubProducts();
+      unsubClients();
+    };
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [fetchedClients, fetchedProducts, fetchedInvoices, fetchedUsers] =
-          await Promise.all([
-            getClients(),
-            getProducts(),
-            getInvoices(),
-            getUsers(),
-          ]);
-        setClients(fetchedClients);
-        setProducts(fetchedProducts);
-        setInvoices(fetchedInvoices);
+        // Only fetch drivers and users here
+        const [fetchedUsers] = await Promise.all([
+          getUsers(),
+        ]);
         setUsers(fetchedUsers);
         // Fetch drivers from Firestore
         const driverSnapshot = await getDocs(collection(db, "drivers"));
@@ -168,7 +186,6 @@ function App() {
         console.error("Error fetching data:", error);
       }
     };
-
     fetchData();
   }, []);
 
@@ -327,9 +344,7 @@ function App() {
         price,
         imageUrl,
       };
-      const productId = await addProduct(newProduct);
-      const completeProduct = { ...newProduct, id: productId };
-      setProducts((prevProducts) => [...prevProducts, completeProduct]);
+      await addProduct(newProduct);
     } catch (error) {
       console.error("Error adding product:", error);
     }
@@ -354,20 +369,6 @@ function App() {
       };
 
       await updateProduct(productId, productToUpdate);
-      setProducts(
-        products.map((product) =>
-          product.id === productId
-            ? { ...product, ...productToUpdate }
-            : product
-        )
-      );
-      // Update product info in all invoices/carts
-      const updated = products.find((p) => p.id === productId);
-      if (updated) {
-        setInvoices((prev) =>
-          updateProductInInvoices({ ...updated, ...productToUpdate }, prev)
-        );
-      }
     } catch (error) {
       console.error("Error updating product:", error);
     }
@@ -376,8 +377,6 @@ function App() {
   const handleDeleteProduct = async (productId: string) => {
     try {
       await deleteProduct(productId);
-      setProducts(products.filter((product) => product.id !== productId));
-      setInvoices((prev) => removeProductFromInvoices(productId, prev));
     } catch (error) {
       console.error("Error deleting product:", error);
     }
@@ -385,8 +384,7 @@ function App() {
 
   const handleAddInvoice = async (invoice: Omit<Invoice, "id">) => {
     try {
-      const invoiceId = await addInvoice(invoice);
-      setInvoices([...invoices, { ...invoice, id: invoiceId }]);
+      await addInvoice(invoice);
     } catch (error) {
       console.error("Error adding invoice:", error);
     }
@@ -397,16 +395,7 @@ function App() {
     updatedInvoice: Partial<Invoice>
   ) => {
     try {
-      console.log("Updating invoice:", { invoiceId, updatedInvoice });
       await updateInvoice(invoiceId, updatedInvoice);
-
-      setInvoices((prevInvoices) =>
-        prevInvoices.map((invoice) =>
-          invoice.id === invoiceId ? { ...invoice, ...updatedInvoice } : invoice
-        )
-      );
-
-      console.log("Invoice updated successfully in local state");
     } catch (error) {
       console.error("Error updating invoice:", error);
       alert("Error updating invoice. Please try again.");
@@ -417,7 +406,6 @@ function App() {
   const handleDeleteInvoice = async (invoiceId: string) => {
     try {
       await deleteInvoice(invoiceId);
-      setInvoices(invoices.filter((invoice) => invoice.id !== invoiceId));
     } catch (error) {
       console.error("Error deleting invoice:", error);
     }
