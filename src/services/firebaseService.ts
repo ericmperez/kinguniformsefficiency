@@ -351,4 +351,17 @@ export const getTodayPickupGroups = async () => {
   });
 };
 
+export const getAllPickupGroups = async () => {
+  const snap = await getDocs(collection(db, "pickup_groups"));
+  return snap.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      startTime: data.startTime instanceof Timestamp ? data.startTime.toDate() : new Date(data.startTime),
+      endTime: data.endTime instanceof Timestamp ? data.endTime.toDate() : new Date(data.endTime),
+    };
+  });
+};
+
 export { uploadBytes, getDownloadURL };

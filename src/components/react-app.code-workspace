@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "react-app",
+			"path": "../.."
+		},
+		{
+			"name": "react-login-page-main",
+			"path": "../../../../Downloads/react-login-page-main"
+		},
+		{
+			"name": "sign-in-side",
+			"path": "../../../../Downloads/material-ui-7.1.1/docs/data/material/getting-started/templates/sign-in-side"
+		}
+	],
+	"settings": {}
+}

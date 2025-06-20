@@ -795,55 +795,109 @@ function App() {
               marginBottom: 24,
               zIndex: 1,
               position: "relative",
+              display: 'flex',
+              justifyContent: 'center',
             }}
           >
             <div
-              className="btn-group w-100 justify-content-center"
-              role="group"
-              style={{ display: "flex" }}
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 16,
+                justifyContent: 'center',
+                alignItems: 'center',
+                maxWidth: 600,
+                width: '100%',
+              }}
             >
               <button
-                className={`btn btn-outline-primary${
-                  activeSettingsTab === "clients" ? " active" : ""
-                }`}
+                className={`btn${activeSettingsTab === "clients" ? " btn-primary" : " btn-outline-primary"}`}
                 onClick={() => setActiveSettingsTab("clients")}
-                style={{ minWidth: 120 }}
+                style={{
+                  minWidth: 120,
+                  padding: '12px 20px',
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  boxShadow: activeSettingsTab === "clients" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                  background: activeSettingsTab === "clients" ? 'var(--ku-blue)' : '#fff',
+                  color: activeSettingsTab === "clients" ? '#fff' : '#0E62A0',
+                  border: '2px solid var(--ku-blue)',
+                  transition: 'all 0.2s',
+                }}
               >
                 Clients
               </button>
               <button
-                className={`btn btn-outline-primary${
-                  activeSettingsTab === "products" ? " active" : ""
-                }`}
+                className={`btn${activeSettingsTab === "products" ? " btn-primary" : " btn-outline-primary"}`}
                 onClick={() => setActiveSettingsTab("products")}
-                style={{ minWidth: 120 }}
+                style={{
+                  minWidth: 120,
+                  padding: '12px 20px',
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  boxShadow: activeSettingsTab === "products" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                  background: activeSettingsTab === "products" ? 'var(--ku-blue)' : '#fff',
+                  color: activeSettingsTab === "products" ? '#fff' : '#0E62A0',
+                  border: '2px solid var(--ku-blue)',
+                  transition: 'all 0.2s',
+                }}
               >
                 Products
               </button>
               <button
-                className={`btn btn-outline-primary${
-                  activeSettingsTab === "drivers" ? " active" : ""
-                }`}
+                className={`btn${activeSettingsTab === "drivers" ? " btn-primary" : " btn-outline-primary"}`}
                 onClick={() => setActiveSettingsTab("drivers")}
-                style={{ minWidth: 120 }}
+                style={{
+                  minWidth: 120,
+                  padding: '12px 20px',
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  boxShadow: activeSettingsTab === "drivers" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                  background: activeSettingsTab === "drivers" ? 'var(--ku-blue)' : '#fff',
+                  color: activeSettingsTab === "drivers" ? '#fff' : '#0E62A0',
+                  border: '2px solid var(--ku-blue)',
+                  transition: 'all 0.2s',
+                }}
               >
                 Choferes
               </button>
               <button
-                className={`btn btn-outline-primary${
-                  activeSettingsTab === "users" ? " active" : ""
-                }`}
+                className={`btn${activeSettingsTab === "users" ? " btn-primary" : " btn-outline-primary"}`}
                 onClick={() => setActiveSettingsTab("users")}
-                style={{ minWidth: 120 }}
+                style={{
+                  minWidth: 120,
+                  padding: '12px 20px',
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  boxShadow: activeSettingsTab === "users" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                  background: activeSettingsTab === "users" ? 'var(--ku-blue)' : '#fff',
+                  color: activeSettingsTab === "users" ? '#fff' : '#0E62A0',
+                  border: '2px solid var(--ku-blue)',
+                  transition: 'all 0.2s',
+                }}
               >
                 Users
               </button>
               <button
-                className={`btn btn-outline-primary${
-                  activeSettingsTab === "loginContent" ? " active" : ""
-                }`}
+                className={`btn${activeSettingsTab === "loginContent" ? " btn-primary" : " btn-outline-primary"}`}
                 onClick={() => setActiveSettingsTab("loginContent")}
-                style={{ minWidth: 120 }}
+                style={{
+                  minWidth: 120,
+                  padding: '12px 20px',
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  boxShadow: activeSettingsTab === "loginContent" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                  background: activeSettingsTab === "loginContent" ? 'var(--ku-blue)' : '#fff',
+                  color: activeSettingsTab === "loginContent" ? '#fff' : '#0E62A0',
+                  border: '2px solid var(--ku-blue)',
+                  transition: 'all 0.2s',
+                }}
               >
                 Login Content
               </button>

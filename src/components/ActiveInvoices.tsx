@@ -2,55 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { Client, Product, Invoice, CartItem, Cart } from "../types";
 import InvoiceForm from "./InvoiceForm";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
-import {
-  getTodayPickupGroups,
-  updatePickupGroupStatus,
-} from "../services/firebaseService";
-import LaundryCartModal from "./LaundryCartModal";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  Timestamp,
-} from "firebase/firestore";
-import { db } from "../firebase";
-
-// Material UI imports
-import {
-  Box,
-  Grid,
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Button,
-  Select,
-  MenuItem,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  IconButton,
-  Tooltip,
-  Chip,
-  Alert,
-  Card,
-  CardContent,
-  CardActions,
-  CardHeader,
-  Divider,
-} from "@mui/material";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import AddIcon from "@mui/icons-material/Add";
-import ArchiveIcon from "@mui/icons-material/Archive";
-import InfoIcon from "@mui/icons-material/Info";
+import { getAllPickupGroups, updatePickupGroupStatus } from "../services/firebaseService";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -78,18 +30,6 @@ function sanitizeCartItem(item: any) {
         : 1,
     addedBy: typeof item.addedBy === "string" ? item.addedBy : "",
   };
-}
-
-// Add PickupGroup type for correct typings
-interface PickupGroup {
-  id: string;
-  clientId: string;
-  clientName: string;
-  startTime?: string | Date;
-  endTime?: string | Date;
-  totalWeight?: number;
-  status?: string;
-  [key: string]: any;
 }
 
 export default function ActiveInvoices({
@@ -129,7 +69,7 @@ export default function ActiveInvoices({
   const [doneInvoices, setDoneInvoices] = useState<string[]>([]);
 
   // --- GROUP OVERVIEW ---
-  const [pickupGroups, setPickupGroups] = useState<PickupGroup[]>([]);
+  const [pickupGroups, setPickupGroups] = useState<any[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
@@ -143,140 +83,30 @@ export default function ActiveInvoices({
   const [selectedCartId, setSelectedCartId] = useState<string>("");
   const [selectedAddProductId, setSelectedAddProductId] = useState<string>("");
   const [addProductQty, setAddProductQty] = useState<number>(1);
-  const [archivedGroups, setArchivedGroups] = useState<any[]>([]);
 
   // New state variables for Add To Group modal
   const [showAddToGroupModal, setShowAddToGroupModal] = useState(false);
   const [addToGroupClientId, setAddToGroupClientId] = useState("");
   const [addToGroupProductId, setAddToGroupProductId] = useState("");
-  const [addToGroupMode, setAddToGroupMode] = useState<
-    "carts" | "quantity" | "pounds"
-  >("carts");
+  const [addToGroupMode, setAddToGroupMode] = useState<"carts"|"quantity"|"pounds">("carts");
   const [addToGroupValue, setAddToGroupValue] = useState<number>(1);
   const [addToGroupError, setAddToGroupError] = useState("");
   const [addToGroupLoading, setAddToGroupLoading] = useState(false);
 
-  // --- Add state for cart selection modal ---
-  const [showCartSelectModal, setShowCartSelectModal] = useState(false);
-  const [cartSelectCallback, setCartSelectCallback] = useState<
-    null | ((cartId: string) => void)
-  >(null);
-  const [cartSelectInvoiceId, setCartSelectInvoiceId] = useState<string | null>(
-    null
-  );
-
-  // --- Add state for selected cart in modal ---
-  const [selectedCartForModal, setSelectedCartForModal] = useState<
-    string | null
-  >(null);
-  const [newCartNameInput, setNewCartNameInput] = useState("");
-  const [creatingCart, setCreatingCart] = useState(false);
-
-  // Add a new state for the cart id being edited in the keypad modal
-  const [keypadCartId, setKeypadCartId] = useState<string | null>(null);
-
   // Placeholder for current user. Replace with actual user logic as needed.
   const currentUser = "Current User";
 
-  // Real-time Firestore listener for today's pickup_groups
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const q = query(
-      collection(db, "pickup_groups"),
-      where("startTime", ">=", Timestamp.fromDate(today)),
-      where("startTime", "<", Timestamp.fromDate(tomorrow))
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const fetched = snap.docs.map((doc) => {
-        const data = doc.data() as PickupGroup;
-        return {
-          ...data,
-          id: doc.id,
-        };
-      });
-      // Use 'as any' to bypass the type error for status property
-      setPickupGroups(
-        (fetched as any[]).filter((g) => (g.status || "") !== "deleted")
-      );
+    (async () => {
+      setGroupsLoading(true);
+      const groups = await getAllPickupGroups();
+      setPickupGroups(groups);
       setGroupsLoading(false);
-    });
-    return () => unsub();
+    })();
   }, []);
 
-  // Fetch all pickup groups in real-time (not just today)
-  useEffect(() => {
-    setGroupsLoading(true);
-    const unsub = onSnapshot(collection(db, "pickup_groups"), (snap) => {
-      const fetched = snap.docs.map((doc) => {
-        const data = doc.data() as PickupGroup;
-        return {
-          ...data,
-          id: doc.id,
-        };
-      });
-      // Separate archived groups
-      const now = new Date();
-      const active: PickupGroup[] = [];
-      const archived: PickupGroup[] = [];
-      fetched.forEach((g) => {
-        if ((g.status || "") === "deleted") return;
-        if (g.status === "Entregado" && g.endTime) {
-          const end = new Date(g.endTime);
-          if (
-            end.getFullYear() < now.getFullYear() ||
-            (end.getFullYear() === now.getFullYear() &&
-              end.getMonth() < now.getMonth()) ||
-            (end.getFullYear() === now.getFullYear() &&
-              end.getMonth() === now.getMonth() &&
-              end.getDate() < now.getDate())
-          ) {
-            archived.push(g);
-            return;
-          }
-        }
-        active.push(g);
-      });
-      setPickupGroups(active);
-      setArchivedGroups(archived);
-      setGroupsLoading(false);
-    });
-    return () => unsub();
-  }, []);
-
-  const handleAddInvoice = async (invoice: Omit<Invoice, "id">) => {
-    try {
-      await onAddInvoice(invoice);
-      // After invoice is created, set the group status to 'Empaque'
-      // Find the pickup group for this client for today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
-      // Get the group for this client today
-      const { db } = await import("../firebase");
-      const { collection, query, where, getDocs, updateDoc, doc, Timestamp } =
-        await import("firebase/firestore");
-      const q = query(
-        collection(db, "pickup_groups"),
-        where("clientId", "==", invoice.clientId),
-        where("startTime", ">=", Timestamp.fromDate(today)),
-        where("startTime", "<", Timestamp.fromDate(tomorrow))
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        // Set all groups for this client today to Empaque
-        for (const groupDoc of snap.docs) {
-          await updateDoc(doc(db, "pickup_groups", groupDoc.id), {
-            status: "Empaque",
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error adding invoice or updating group status:", error);
-    }
+  const handleAddInvoice = () => {
+    setShowInvoiceForm(true);
   };
 
   const handleInvoiceClick = (invoiceId: string) => {
@@ -334,77 +164,77 @@ export default function ActiveInvoices({
     }
   };
 
-  // --- Cart selection logic ---
-  const handleSelectOrCreateCart = (
-    invoiceId: string,
-    cb: (cartId: string) => void
-  ) => {
-    setCartSelectInvoiceId(invoiceId);
-    setCartSelectCallback(() => cb);
-    setShowCartSelectModal(true);
+  const handleAddToCart = () => {
+    if (selectedProduct && quantity > 0) {
+      const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
+      const client = clients.find((c) => c.id === invoice?.clientId);
+      const product = products.find((p) => p.id === selectedProduct);
+
+      if (product && client) {
+        const existingItem = cartItems.find(
+          (item) => item.productId === selectedProduct
+        );
+        if (existingItem) {
+          setCartItems(
+            cartItems.map((item) =>
+              item.productId === selectedProduct
+                ? {
+                    ...item,
+                    quantity: item.quantity + quantity,
+                    addedAt: new Date().toISOString(),
+                  }
+                : item
+            )
+          );
+        } else {
+          setCartItems([
+            ...cartItems,
+            {
+              productId: product.id,
+              productName: product.name,
+              quantity,
+              price: product.price,
+              addedBy: currentUser,
+              addedAt: new Date().toISOString(),
+            },
+          ]);
+        }
+        setSelectedProduct("");
+        setQuantity(1);
+      }
+    }
   };
 
-  const handleCartSelected = (cartId: string) => {
-    if (cartSelectCallback) cartSelectCallback(cartId);
-    setShowCartSelectModal(false);
-    setCartSelectCallback(null);
-    setCartSelectInvoiceId(null);
+  const handleRemoveFromCart = (productId: string) => {
+    setCartItems(cartItems.filter((item) => item.productId !== productId));
   };
 
-  // --- Refactor add product logic to require cart selection ---
-  const handleAddProductToCart = (productId: string, quantity: number) => {
-    if (!selectedInvoiceId) return;
-    const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
-    if (!invoice) return;
-    // If no carts, force create
-    if (!invoice.carts || invoice.carts.length === 0) {
-      handleSelectOrCreateCart(selectedInvoiceId, (cartId) => {
-        actuallyAddProductToCart(cartId, productId, quantity);
-      });
-      return;
-    }
-    // If only one cart, use it
-    if (invoice.carts.length === 1) {
-      actuallyAddProductToCart(invoice.carts[0].id, productId, quantity);
-      return;
-    }
-    // If multiple carts, prompt selection
-    handleSelectOrCreateCart(selectedInvoiceId, (cartId) => {
-      actuallyAddProductToCart(cartId, productId, quantity);
-    });
-  };
+  const handleCartAssign = async () => {
+    if (selectedInvoiceId && newCartName.trim()) {
+      try {
+        const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
+        const updatedCart: Cart = {
+          id: Date.now().toString(),
+          name: newCartName.trim(),
+          items: cartItems.map(sanitizeCartItem),
+          total: 0, // Total calculation removed
+          createdAt: new Date().toISOString(),
+        };
 
-  const actuallyAddProductToCart = (
-    cartId: string,
-    productId: string,
-    quantity: number
-  ) => {
-    if (!selectedInvoiceId) return;
-    const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
-    if (!invoice) return;
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
-    const carts = invoice.carts ? [...invoice.carts] : [];
-    const cartIdx = carts.findIndex((c) => c.id === cartId);
-    if (cartIdx === -1) return;
-    const cart = { ...carts[cartIdx] };
-    const existingItemIdx = cart.items.findIndex(
-      (item) => item.productId === productId
-    );
-    if (existingItemIdx > -1) {
-      cart.items[existingItemIdx].quantity += quantity;
-    } else {
-      cart.items.push({
-        productId: product.id,
-        productName: product.name,
-        quantity,
-        price: product.price,
-        addedBy: currentUser,
-        addedAt: new Date().toISOString(),
-      });
+        await onUpdateInvoice(selectedInvoiceId, {
+          carts: [...(invoice?.carts || []), updatedCart],
+        });
+
+        setShowCartModal(false);
+        setSelectedInvoiceId(null);
+        setNewCartName("");
+        setShowNewCartForm(false);
+        setCartItems([]);
+      } catch (error) {
+        console.error("Error assigning cart:", error);
+        alert("Error assigning cart to invoice. Please try again.");
+      }
     }
-    carts[cartIdx] = cart;
-    onUpdateInvoice(selectedInvoiceId, { carts });
   };
 
   const handleDeleteClick = (invoice: Invoice) => {
@@ -481,37 +311,24 @@ export default function ActiveInvoices({
   const handleStatusChange = async (groupId: string, newStatus: string) => {
     // Normalize status for Segregation/Segregacion
     let normalizedStatus = newStatus;
-    if (
-      newStatus.toLowerCase() === "segregacion" ||
-      newStatus.toLowerCase() === "segregation"
-    ) {
+    if (newStatus.toLowerCase() === "segregacion" || newStatus.toLowerCase() === "segregation") {
       normalizedStatus = "Segregation";
     }
 
     // Find the group and client
-    const group = pickupGroups.find((g) => g.id === groupId);
-    const client = group
-      ? clients.find((c) => c.id === group.clientId)
-      : undefined;
+    const group = pickupGroups.find(g => g.id === groupId);
+    const client = group ? clients.find(c => c.id === group.clientId) : undefined;
 
     // If changing from 'Recibido' and the new status is 'Segregation', check client settings
-    if (
-      group &&
-      group.status === "Recibido" &&
-      normalizedStatus === "Segregation" &&
-      client
-    ) {
+    if (group && group.status === "Recibido" && normalizedStatus === "Segregation" && client) {
       if (!client.segregation) {
         // If client does not need segregation, go directly to Tunnel or Conventional
-        normalizedStatus =
-          client.washingType === "Conventional" ? "Conventional" : "Tunnel";
+        normalizedStatus = client.washingType === "Conventional" ? "Conventional" : "Tunnel";
       }
     }
 
     setPickupGroups((prev) =>
-      prev.map((g) =>
-        g.id === groupId ? { ...g, status: normalizedStatus } : g
-      )
+      prev.map((g) => (g.id === groupId ? { ...g, status: normalizedStatus } : g))
     );
     setStatusUpdating(groupId);
     await updatePickupGroupStatus(groupId, normalizedStatus);
@@ -528,13 +345,8 @@ export default function ActiveInvoices({
     }
 
     // Refetch groups to ensure UI is in sync with backend
-    const groups = await getTodayPickupGroups();
-    // Ensure all required fields for PickupGroup
-    setPickupGroups(
-      (groups as PickupGroup[]).filter(
-        (g) => g.id && g.clientId && g.clientName && g.status !== undefined
-      )
-    );
+    const groups = await getAllPickupGroups();
+    setPickupGroups(groups);
     setStatusUpdating(null);
     setEditingGroupId(null);
   };
@@ -567,9 +379,7 @@ export default function ActiveInvoices({
     setAddProductMode("cart");
   };
 
-  const [addProductMode, setAddProductMode] = useState<
-    "cart" | "quantity" | "pounds"
-  >("cart");
+  const [addProductMode, setAddProductMode] = useState<"cart" | "quantity" | "pounds">("cart");
 
   // --- Delete Entry from Invoice Cart ---
   const handleDeleteCartItem = async (cartId: string, productId: string) => {
@@ -586,297 +396,113 @@ export default function ActiveInvoices({
     await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
   };
 
-  // Filter out groups with status 'deleted' from pickupGroups before rendering
-  const visiblePickupGroups = pickupGroups.filter(
-    (g) => g.status !== "deleted"
-  );
-
-  // --- Handler for creating a new cart from modal ---
-  const handleCreateCartFromModal = async () => {
-    if (!selectedInvoiceId || !newCartNameInput.trim()) return;
-    const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
-    if (!invoice) return;
-    const newCart = {
-      id: Date.now().toString(),
-      name: newCartNameInput.trim(),
-      items: [],
-      total: 0,
-      createdAt: new Date().toISOString(),
-    };
-    await onUpdateInvoice(selectedInvoiceId, {
-      carts: [...(invoice.carts || []), newCart],
-    });
-    setSelectedCartForModal(newCart.id);
-    setNewCartNameInput("");
-    setCreatingCart(false);
-  };
-
-  // --- Handler for opening keypad ---
-  const handleCartProductCardClick = (cartId: string, product: Product) => {
-    setProductForKeypad(product);
-    setKeypadQuantity(1);
-    setKeypadCartId(cartId);
-    setShowProductKeypad(true);
-  };
-
-  // --- Handler for confirming keypad add ---
-  const handleCartKeypadAdd = () => {
-    if (productForKeypad && keypadCartId && keypadQuantity > 0) {
-      actuallyAddProductToCart(
-        keypadCartId,
-        productForKeypad.id,
-        keypadQuantity
-      );
-      setShowProductKeypad(false);
-      setProductForKeypad(null);
-      setKeypadCartId(null);
-      setKeypadQuantity(1);
+  // Archive logic: show all groups except those with status 'Entregado' (Boleta Impresa) whose endTime/startTime is before today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const visiblePickupGroups = pickupGroups.filter(g => {
+    if (g.status === 'deleted') return false;
+    if (g.status === 'Entregado' || g.status === 'Boleta Impresa') {
+      // Use endTime if available, else startTime
+      const groupDate = g.endTime || g.startTime;
+      if (!groupDate) return false;
+      const groupDay = new Date(groupDate);
+      groupDay.setHours(0, 0, 0, 0);
+      // If group was completed before today, archive it
+      if (groupDay < today) return false;
     }
-  };
-
-  // --- REQUIRED PRODUCTS LOGIC ---
-  // For demo: requiredProductsByInvoiceId could be loaded from Firestore or set by Washing.tsx
-  // Here, we use a local object for illustration. In production, fetch from Firestore or group definition.
-  const [requiredProductsByInvoiceId, setRequiredProductsByInvoiceId] =
-    useState<{
-      [invoiceId: string]: {
-        productId: string;
-        name: string;
-        quantity: number;
-      }[];
-    }>({});
-
-  // Helper: get required products for an invoice (not in any cart)
-  function getRequiredProductsForInvoice(invoice: Invoice) {
-    return requiredProductsByInvoiceId[invoice.id] || [];
-  }
-
-  // Helper: check if required products are missing from invoice (not in any cart)
-  function invoiceMissingRequiredProducts(invoice: Invoice) {
-    const required = getRequiredProductsForInvoice(invoice);
-    for (const req of required) {
-      // Check if product is present in any cart
-      const found = (invoice.carts || []).some((cart) =>
-        cart.items.some(
-          (item) =>
-            item.productId === req.productId && item.quantity >= req.quantity
-        )
-      );
-      if (!found) return true;
-    }
-    return false;
-  }
-
-  useEffect(() => {
-    // For each invoice, if there is a conventional group for the same client, ensure all carts are present in the invoice
-    invoices.forEach((invoice) => {
-      const group = pickupGroups.find(
-        (g) =>
-          g.clientId === invoice.clientId &&
-          g.status === "Conventional" &&
-          g.carts &&
-          Array.isArray(g.carts)
-      );
-      if (!group) return;
-      // Compare carts by id
-      const invoiceCartIds = (invoice.carts || []).map((c) => c.id);
-      const groupCarts = group.carts || [];
-      let needsUpdate = false;
-      const mergedCarts = [...(invoice.carts || [])];
-      groupCarts.forEach((groupCart: any) => {
-        if (!invoiceCartIds.includes(groupCart.id)) {
-          mergedCarts.push({ ...groupCart });
-          needsUpdate = true;
-        } else {
-          // If cart exists, check if items match (by productId/quantity)
-          const invCart = mergedCarts.find((c) => c.id === groupCart.id);
-          if (invCart) {
-            // If items differ, update
-            const itemsMatch =
-              invCart.items.length === groupCart.items.length &&
-              invCart.items.every((item: any, idx: number) => {
-                const gItem = groupCart.items[idx];
-                return (
-                  item.productId === gItem.productId &&
-                  item.quantity === gItem.quantity
-                );
-              });
-            if (!itemsMatch) {
-              invCart.items = [...groupCart.items];
-              needsUpdate = true;
-            }
-          }
-        }
-      });
-      if (needsUpdate) {
-        onUpdateInvoice(invoice.id, { carts: mergedCarts });
-      }
-    });
-  }, [invoices, pickupGroups]);
-
-  // Helper: check if invoice is missing any carts/items from the conventional group
-  function invoiceMissingConventionalCarts(invoice: Invoice): boolean {
-    const group = pickupGroups.find(
-      (g) =>
-        g.clientId === invoice.clientId &&
-        g.status === "Conventional" &&
-        g.carts &&
-        Array.isArray(g.carts)
-    );
-    if (!group) return false;
-    const invoiceCartIds = (invoice.carts || []).map((c) => c.id);
-    const groupCarts = group.carts || [];
-    // All group carts must be present in invoice
-    for (const groupCart of groupCarts) {
-      const invCart = (invoice.carts || []).find((c) => c.id === groupCart.id);
-      if (!invCart) return true;
-      // Check items
-      if (
-        invCart.items.length !== groupCart.items.length ||
-        !invCart.items.every((item: any, idx: number) => {
-          const gItem = groupCart.items[idx];
-          return (
-            item.productId === gItem.productId &&
-            item.quantity === gItem.quantity
-          );
-        })
-      ) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  const [inlineAddProduct, setInlineAddProduct] = useState<{
-    [cartId: string]: { productId: string; quantity: number };
-  }>({});
-
-  const handleInlineAddProductToCart = (cartId: string) => {
-    const entry = inlineAddProduct[cartId];
-    if (!entry || !entry.productId || entry.quantity < 1) return;
-    actuallyAddProductToCart(cartId, entry.productId, entry.quantity);
-    setInlineAddProduct((prev) => ({
-      ...prev,
-      [cartId]: { productId: "", quantity: 1 },
-    }));
-  };
-
-  // Add stub for handleArchiveGroup
-  const handleArchiveGroup = (groupId: string) => {
-    // Implement archiving logic here, e.g. update status or move to archive
-    // For now, just set status to 'archived' or remove from UI
-    // You may want to update Firestore as well
-    // Example:
-    // await updateDoc(doc(db, "pickup_groups", groupId), { status: "archived" });
-  };
+    return true;
+  });
 
   return (
-    <Box sx={{ p: 3 }}>
+    <div className="container-fluid py-4">
       {/* --- GROUP OVERVIEW --- */}
-      <Box mb={4}>
-        <Typography variant="h4" mb={2} fontWeight={700}>
-          Today's Client Groups Overview
-        </Typography>
+      <div className="mb-4">
+        <h2 className="mb-3">Today's Client Groups Overview</h2>
         {groupsLoading ? (
-          <Typography>Loading groups...</Typography>
+          <div>Loading groups...</div>
         ) : visiblePickupGroups.length === 0 ? (
-          <Typography color="text.secondary">No groups for today.</Typography>
+          <div className="text-muted">No groups for today.</div>
         ) : (
-          <TableContainer component={Paper} elevation={2}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Client</TableCell>
-                  <TableCell>Date Created</TableCell>
-                  <TableCell>Total Pounds</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+          <div className="table-responsive">
+            <table className="table table-bordered align-middle">
+              <thead className="table-light">
+                <tr>
+                  <th>Client</th>
+                  <th>Date Created</th>
+                  <th>Total Pounds</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
                 {visiblePickupGroups.map((group) => {
-                  const stepIdx = getStepIndex(group.status || "");
+                  const stepIdx = getStepIndex(group.status);
                   const totalSteps = STATUS_STEPS.length;
                   const percent = (stepIdx + 1) / totalSteps;
-                  const interpolateColor = (
-                    a: string,
-                    b: string,
-                    t: number
-                  ) => {
+                  const interpolateColor = (a: string, b: string, t: number) => {
                     const ah = a.match(/\w\w/g)!.map((x) => parseInt(x, 16));
                     const bh = b.match(/\w\w/g)!.map((x) => parseInt(x, 16));
-                    const rh = ah.map((av, i) =>
-                      Math.round(av + (bh[i] - av) * t)
-                    );
+                    const rh = ah.map((av, i) => Math.round(av + (bh[i] - av) * t));
                     return `rgb(${rh[0]},${rh[1]},${rh[2]})`;
                   };
-                  const barColor = interpolateColor(
-                    "#ffe066",
-                    "#51cf66",
-                    percent
-                  );
+                  const barColor = interpolateColor("#ffe066", "#51cf66", percent);
+                  // Format date
                   const createdDate = group.createdAt
                     ? new Date(group.createdAt).toLocaleString()
                     : "-";
                   return (
-                    <TableRow
-                      key={group.id}
-                      sx={group.showInTunnel ? { background: "#fff3cd" } : {}}
+                    <tr key={group.id}
+                      style={group.showInTunnel ? { background: "#fff3cd" } : {}}
                     >
-                      <TableCell>
-                        <Typography fontWeight={700} fontSize={18}>
+                      <td>
+                        <span style={{ fontSize: 20, fontWeight: 700 }}>
                           {group.clientName}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{createdDate}</TableCell>
-                      <TableCell>
+                        </span>
+                      </td>
+                      <td>{createdDate}</td>
+                      <td>
                         {typeof group.totalWeight === "number"
                           ? group.totalWeight.toFixed(2)
                           : "?"}
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          size="small"
-                          value={group.status || ""}
+                      </td>
+                      <td>
+                        <select
+                          className="form-select form-select-sm"
+                          value={group.status}
                           disabled={statusUpdating === group.id}
-                          onChange={(e) =>
-                            handleStatusChange(
-                              group.id,
-                              (e.target as HTMLInputElement).value
-                            )
-                          }
-                          sx={{ minWidth: 120 }}
+                          onChange={(e) => handleStatusChange(group.id, e.target.value)}
+                          style={{ minWidth: 120 }}
                         >
-                          <MenuItem value="Recibido">Recibido</MenuItem>
-                          <MenuItem value="Segregation">Segregacion</MenuItem>
-                          <MenuItem value="Tunnel">Tunnel</MenuItem>
-                          <MenuItem value="Conventional">Conventional</MenuItem>
-                          <MenuItem value="procesandose">Procesandose</MenuItem>
-                          <MenuItem value="Empaque">Empaque</MenuItem>
-                          <MenuItem value="Entregado">Boleta Impresa</MenuItem>
-                          <MenuItem value="deleted">Deleted</MenuItem>
-                        </Select>
+                          <option value="Recibido">Recibido</option>
+                          <option value="Segregation">Segregacion</option>
+                          <option value="Tunnel">Tunnel</option>
+                          <option value="Conventional">Conventional</option>
+                          <option value="procesandose">Procesandose</option>
+                          <option value="Empaque">Empaque</option>
+                          <option value="Entregado">Boleta Impresa</option>
+                          <option value="deleted">Deleted</option>
+                        </select>
                         {/* Progress Bar */}
-                        <Box mt={1}>
-                          <Box
-                            sx={{
-                              height: 12,
+                        <div style={{ marginTop: 8 }}>
+                          <div
+                            style={{
+                              height: 16,
                               background: "#eee",
-                              borderRadius: 6,
+                              borderRadius: 8,
                               overflow: "hidden",
                               position: "relative",
                             }}
                           >
-                            <Box
-                              sx={{
+                            <div
+                              style={{
                                 width: `${((stepIdx + 1) / totalSteps) * 100}%`,
                                 background: barColor,
                                 height: "100%",
                                 transition: "width 0.3s, background 0.3s",
                               }}
-                            />
-                            <Box
-                              sx={{
+                            ></div>
+                            <div
+                              style={{
                                 position: "absolute",
                                 left: 0,
                                 top: 0,
@@ -887,7 +513,7 @@ export default function ActiveInvoices({
                                 alignItems: "center",
                                 fontSize: 10,
                                 color: "#555",
-                                px: 1,
+                                padding: "0 4px",
                                 pointerEvents: "none",
                               }}
                             >
@@ -901,151 +527,178 @@ export default function ActiveInvoices({
                                   {i + 1}
                                 </span>
                               ))}
-                            </Box>
-                          </Box>
-                          <Typography fontSize={11} mt={0.5} align="center">
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              marginTop: 2,
+                              textAlign: "center",
+                            }}
+                          >
                             {STATUS_STEPS[stepIdx]?.label}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip title="View Log">
-                          <IconButton
-                            color="info"
-                            size="small"
-                            onClick={() => {
-                              setLogGroup(group);
-                              setShowLogModal(true);
-                            }}
-                          >
-                            <InfoIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Edit">
-                          <IconButton
-                            color="primary"
-                            size="small"
-                            onClick={() => {
-                              setEditGroupId(group.id);
-                              setEditGroupName(group.clientName);
-                            }}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton
-                            color="error"
-                            size="small"
-                            onClick={() => setDeletingGroupId(group.id)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-outline-info btn-sm me-2"
+                          onClick={() => {
+                            setLogGroup(group);
+                            setShowLogModal(true);
+                          }}
+                        >
+                          View Log
+                        </button>
+                        <button
+                          className="btn btn-outline-primary btn-sm me-2"
+                          onClick={() => {
+                            setEditGroupId(group.id);
+                            setEditGroupName(group.clientName);
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn btn-outline-danger btn-sm"
+                          onClick={() => setDeletingGroupId(group.id)}
+                        >
+                          Delete
+                        </button>
                         {group.status === "Conventional" && (
-                          <Tooltip title="Add Product to Cart">
-                            <IconButton
-                              color="success"
-                              size="small"
-                              onClick={() => handleOpenAddProductModal(group)}
-                            >
-                              <AddIcon />
-                            </IconButton>
-                          </Tooltip>
+                          <button
+                            className="btn btn-success btn-sm ms-2"
+                            title="Add Product to Cart"
+                            onClick={() => handleOpenAddProductModal(group)}
+                          >
+                            +
+                          </button>
                         )}
-                        {group.status === "Entregado" && (
-                          <Tooltip title="Archive group">
-                            <IconButton
-                              color="secondary"
-                              size="small"
-                              onClick={() => handleArchiveGroup(group.id)}
-                            >
-                              <ArchiveIcon />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              </tbody>
+            </table>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* Edit Modal */}
-      <Dialog open={!!editGroupId} onClose={() => setEditGroupId(null)}>
-        <DialogTitle>Edit Group</DialogTitle>
-        <DialogContent>
-          <TextField
-            label="Client Name"
-            fullWidth
-            value={editGroupName}
-            onChange={(e) => setEditGroupName(e.target.value)}
-            sx={{ mt: 2 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditGroupId(null)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={async () => {
-              const group = pickupGroups.find((g) => g.id === editGroupId);
-              if (group) {
-                await updatePickupGroupStatus(group.id, group.status || "");
-                await import("../firebase").then(({ db }) =>
-                  import("firebase/firestore").then(({ doc, updateDoc }) =>
-                    updateDoc(doc(db, "pickup_groups", group.id), {
-                      clientName: editGroupName,
-                    })
-                  )
-                );
-              }
-              setEditGroupId(null);
-            }}
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
-
+      {editGroupId && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Edit Group</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setEditGroupId(null)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label">Client Name</label>
+                  <input
+                    className="form-control"
+                    value={editGroupName}
+                    onChange={(e) => setEditGroupName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setEditGroupId(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    const group = pickupGroups.find(
+                      (g) => g.id === editGroupId
+                    );
+                    if (group) {
+                      await updatePickupGroupStatus(group.id, group.status); // status unchanged
+                      await import("../firebase").then(({ db }) =>
+                        import("firebase/firestore").then(
+                          ({ doc, updateDoc }) =>
+                            updateDoc(doc(db, "pickup_groups", group.id), {
+                              clientName: editGroupName,
+                            })
+                        )
+                      );
+                    }
+                    setEditGroupId(null);
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Delete Confirmation */}
-      <Dialog open={!!deletingGroupId} onClose={() => setDeletingGroupId(null)}>
-        <DialogTitle>Delete Group</DialogTitle>
-        <DialogContent>
-          Are you sure you want to delete this group?
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeletingGroupId(null)}>Cancel</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={async () => {
-              if (!deletingGroupId) return;
-              await import("../firebase").then(({ db }) =>
-                import("firebase/firestore").then(({ doc, updateDoc }) =>
-                  updateDoc(doc(db, "pickup_groups", deletingGroupId), {
-                    status: "deleted",
-                  })
-                )
-              );
-              setDeletingGroupId(null);
-            }}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {deletingGroupId && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Delete Group</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setDeletingGroupId(null)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                Are you sure you want to delete this group?
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setDeletingGroupId(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={async () => {
+                    await import("../firebase").then(({ db }) =>
+                      import("firebase/firestore").then(({ doc, updateDoc }) =>
+                        updateDoc(doc(db, "pickup_groups", deletingGroupId), {
+                          status: "deleted",
+                        })
+                      )
+                    );
+                    setDeletingGroupId(null);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="row">
         <div className="col-md-6">
           <h3 className="mb-4">Active Invoices</h3>
         </div>
         <div className="col-md-6 text-md-end">
-          <Button variant="contained" onClick={() => setShowInvoiceForm(true)}>
+          <button className="btn btn-primary" onClick={handleAddInvoice}>
             Create New Invoice
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -1065,41 +718,17 @@ export default function ActiveInvoices({
               <div className="card h-100">
                 <div className="card-body">
                   <h5 className="card-title">
-                    {clients.find((c) => c.id === invoice.clientId)?.name}
-                    <span className="ms-2 text-muted" style={{ fontSize: 16 }}>
-                      #{invoice.invoiceNumber}
-                    </span>
-                    {hoveredInvoiceId === invoice.id && invoice.status !== 'procesandose' && (
+                    Invoice #{invoice.id}
+                    {hoveredInvoiceId === invoice.id && (
                       <span className="badge bg-info text-dark ms-2">
                         {invoice.status}
                       </span>
                     )}
                   </h5>
-                  <p className="card-text mb-1">
-                    <span className="fw-bold">Date:</span>{" "}
-                    {new Date(invoice.date).toLocaleDateString()}
+                  <p className="card-text">
+                    Client:{" "}
+                    {clients.find((c) => c.id === invoice.clientId)?.name}
                   </p>
-                  {/* Show active carts summary */}
-                  <div className="mb-2">
-                    <span className="fw-bold">Carts:</span>
-                    {invoice.carts && invoice.carts.length > 0 ? (
-                      <ul className="mb-0 ps-3">
-                        {invoice.carts.map((cart) => (
-                          <li key={cart.id}>
-                            <span className="text-primary">{cart.name}</span>
-                            {cart.items.length > 0 && (
-                              <span className="text-muted ms-2">
-                                ({cart.items.length} product
-                                {cart.items.length !== 1 ? "s" : ""})
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <span className="text-muted ms-2">No carts</span>
-                    )}
-                  </div>
                   <p className="card-text">
                     Products:{" "}
                     {invoice.carts
@@ -1107,74 +736,16 @@ export default function ActiveInvoices({
                       .map((item) => `${item.productName} (x${item.quantity})`)
                       .join(", ")}
                   </p>
-                  {/* Show required products from the conventional group, if any */}
-                  {(() => {
-                    const group = pickupGroups.find(
-                      (g) =>
-                        g.clientId === invoice.clientId &&
-                        g.status === "Conventional" &&
-                        g.carts &&
-                        Array.isArray(g.carts)
-                    );
-                    if (!group || !group.carts || group.carts.length === 0)
-                      return null;
-                    // Flatten all required products from all carts
-                    const requiredProducts: {
-                      [key: string]: { name: string; quantity: number };
-                    } = {};
-                    group.carts.forEach((cart: any) => {
-                      cart.items.forEach((item: any) => {
-                        if (!requiredProducts[item.productId]) {
-                          requiredProducts[item.productId] = {
-                            name: item.productName,
-                            quantity: 0,
-                          };
-                        }
-                        requiredProducts[item.productId].quantity +=
-                          item.quantity;
-                      });
-                    });
-                    return (
-                      <div className="mt-2">
-                        <span className="fw-bold">Required Products:</span>
-                        <ul className="mb-0 ps-3">
-                          {Object.values(requiredProducts).map((prod) => (
-                            <li key={prod.name}>
-                              {prod.name} (x{prod.quantity})
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    );
-                  })()}
-                  {(() => {
-                    const requiredProducts =
-                      getRequiredProductsForInvoice(invoice);
-                    if (requiredProducts.length > 0) {
-                      return (
-                        <div className="mt-2">
-                          <span className="fw-bold">
-                            Required Products (not in any cart):
-                          </span>
-                          <ul className="mb-0 ps-3">
-                            {requiredProducts.map((prod) => (
-                              <li key={prod.productId}>
-                                {prod.name} (x{prod.quantity})
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-                  {invoiceMissingRequiredProducts(invoice) && (
-                    <div className="alert alert-warning p-2 mt-2 mb-0">
-                      <strong>Warning:</strong> This invoice is missing one or
-                      more required products (not in any cart). Please add them
-                      before completing the invoice.
-                    </div>
-                  )}
+                  <p className="card-text">
+                    Total: ${" "}
+                    {invoice.carts
+                      .flatMap((cart) => cart.items)
+                      .reduce(
+                        (total, item) => total + item.price * item.quantity,
+                        0
+                      )
+                      .toFixed(2)}
+                  </p>
                 </div>
                 <div className="card-footer bg-transparent border-top-0">
                   <div className="d-flex justify-content-between">
@@ -1217,377 +788,131 @@ export default function ActiveInvoices({
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Invoice Carts</h5>
+                <h5 className="modal-title">Invoice Cart</h5>
                 <button
                   type="button"
                   className="btn-close"
-                  onClick={() => {
-                    setShowCartModal(false);
-                    setSelectedCartForModal(null);
-                    setCreatingCart(false);
-                  }}
+                  onClick={() => setShowCartModal(false)}
                 ></button>
               </div>
               <div className="modal-body">
-                {/* Show all carts and their products */}
+                {/* Show total weight if present on invoice */}
                 {(() => {
                   const invoice = invoices.find(
                     (inv) => inv.id === selectedInvoiceId
                   );
+                  if (invoice && typeof invoice.totalWeight === "number") {
+                    return (
+                      <div className="alert alert-info mb-3">
+                        <strong>Total Weight:</strong>{" "}
+                        {invoice.totalWeight.toFixed(2)} lbs
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                {(() => {
+                  const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
                   if (!invoice) return null;
-                  // If no cart selected, show cart cards
-                  if (!selectedCartForModal && !creatingCart) {
-                    return (
-                      <div className="row g-3">
-                        {invoice.carts.map((cart) => (
-                          <div
-                            className="col-12 col-md-6 col-lg-4"
-                            key={cart.id}
-                          >
-                            <div
-                              className="card h-100 shadow-sm"
-                              style={{
-                                cursor: "pointer",
-                                border: "2px solid #007bff",
-                              }}
-                            >
-                              <div
-                                className="card-body"
-                                onClick={() => setSelectedCartForModal(cart.id)}
-                              >
-                                <h5 className="card-title mb-2">{cart.name}</h5>
-                                <div className="text-muted small">
-                                  {cart.items.length} product
-                                  {cart.items.length !== 1 ? "s" : ""}
-                                </div>
-                              </div>
-                              {/* Inline Add Product Form */}
-                              <div className="card-footer bg-white border-top-0 pt-0">
-                                <form
-                                  className="d-flex align-items-end gap-2"
-                                  onSubmit={(e) => {
-                                    e.preventDefault();
-                                    handleInlineAddProductToCart(cart.id);
-                                  }}
-                                >
-                                  <select
-                                    className="form-select form-select-sm"
-                                    style={{ maxWidth: 120 }}
-                                    value={
-                                      inlineAddProduct[cart.id]?.productId || ""
-                                    }
-                                    onChange={(e) =>
-                                      setInlineAddProduct((prev) => ({
-                                        ...prev,
-                                        [cart.id]: {
-                                          ...prev[cart.id],
-                                          productId: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  >
-                                    <option value="">Product</option>
-                                    {products.map((p) => (
-                                      <option key={p.id} value={p.id}>
-                                        {p.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <input
-                                    type="number"
-                                    className="form-control form-control-sm"
-                                    style={{ maxWidth: 70 }}
-                                    min={1}
-                                    value={
-                                      inlineAddProduct[cart.id]?.quantity || 1
-                                    }
-                                    onChange={(e) =>
-                                      setInlineAddProduct((prev) => ({
-                                        ...prev,
-                                        [cart.id]: {
-                                          ...prev[cart.id],
-                                          quantity: Number(e.target.value),
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <button
-                                    className="btn btn-primary btn-sm"
-                                    type="submit"
-                                    disabled={
-                                      !inlineAddProduct[cart.id]?.productId ||
-                                      (inlineAddProduct[cart.id]?.quantity ||
-                                        1) < 1
-                                    }
-                                  >
-                                    Add
-                                  </button>
-                                </form>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        <div className="col-12 col-md-6 col-lg-4">
-                          <div
-                            className="card h-100 shadow-sm border-dashed"
-                            style={{
-                              cursor: "pointer",
-                              border: "2px dashed #28a745",
-                            }}
-                            onClick={() => setCreatingCart(true)}
-                          >
-                            <div
-                              className="card-body d-flex flex-column justify-content-center align-items-center"
-                              style={{ minHeight: 120 }}
-                            >
-                              <span className="display-6 text-success">+</span>
-                              <div className="fw-bold mt-2">
-                                Create New Cart
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  // If creating a cart
-                  if (creatingCart) {
-                    return (
-                      <div className="p-3">
-                        <h6>Create New Cart</h6>
-                        <input
-                          type="text"
-                          className="form-control mb-2"
-                          placeholder="Cart Name"
-                          value={newCartNameInput}
-                          onChange={(e) => setNewCartNameInput(e.target.value)}
-                          autoFocus
-                        />
-                        <div className="d-flex gap-2">
-                          <button
-                            className="btn btn-secondary"
-                            onClick={() => {
-                              setCreatingCart(false);
-                              setNewCartNameInput("");
-                            }}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            className="btn btn-success"
-                            disabled={!newCartNameInput.trim()}
-                            onClick={handleCreateCartFromModal}
-                          >
-                            Create
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-                  // If a cart is selected, show its products and add-product UI
-                  const cart = invoice.carts.find(
-                    (c) => c.id === selectedCartForModal
-                  );
-                  if (!cart) return null;
                   return (
                     <>
-                      <div className="mb-3">
-                        <button
-                          className="btn btn-link p-0"
-                          onClick={() => setSelectedCartForModal(null)}
-                        >
-                          &larr; Back to carts
-                        </button>
-                      </div>
-                      <div className="mb-3 border rounded p-2">
-                        <div className="fw-bold mb-2">{cart.name}</div>
-                        {cart.items.length === 0 ? (
-                          <div className="text-muted">No products in cart.</div>
-                        ) : (
-                          cart.items.map((item) => (
-                            <div
-                              key={item.productId}
-                              className="d-flex justify-content-between align-items-center py-2"
-                            >
-                              <div>
-                                {item.productName} (x{item.quantity})
-                              </div>
-                              <button
-                                className="btn btn-outline-danger btn-sm"
-                                title="Delete entry"
-                                onClick={() =>
-                                  handleDeleteCartItem(cart.id, item.productId)
-                                }
-                              >
-                                <span aria-hidden="true">🗑️</span>
-                              </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                      <div className="mb-3">
-                        <label className="form-label">Add Product</label>
-                        {/* Carousel for product cards */}
-                        <div
-                          style={{
-                            overflowX: "auto",
-                            whiteSpace: "nowrap",
-                            paddingBottom: 8,
-                          }}
-                        >
-                          {products.map((product) => (
-                            <div
-                              key={product.id}
-                              style={{
-                                display: "inline-block",
-                                width: 160,
-                                marginRight: 12,
-                                verticalAlign: "top",
-                                cursor: "pointer",
-                              }}
-                              onClick={() =>
-                                handleCartProductCardClick(cart.id, product)
-                              }
-                            >
+                      {invoice.carts.map((cart) => (
+                        <div key={cart.id} className="mb-3 border rounded p-2">
+                          <div className="fw-bold mb-2">{cart.name}</div>
+                          {cart.items.length === 0 ? (
+                            <div className="text-muted">No products in cart.</div>
+                          ) : (
+                            cart.items.map((item) => (
                               <div
-                                className="card h-100 text-center"
-                                style={{ minHeight: 220 }}
+                                key={item.productId}
+                                className="d-flex justify-content-between align-items-center py-2"
                               >
-                                <div
-                                  style={{
-                                    height: 100,
-                                    background: "#f0f0f0",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                >
-                                  <img
-                                    src={
-                                      product.imageUrl ||
-                                      "/images/placeholder-product.png"
-                                    }
-                                    alt={product.name}
-                                    style={{
-                                      width: 64,
-                                      height: 64,
-                                      objectFit: "contain",
-                                      opacity: 0.5,
-                                    }}
-                                    onError={(e) =>
-                                      (e.currentTarget.src =
-                                        "/images/placeholder-product.png")
-                                    }
-                                  />
+                                <div>
+                                  {item.productName} (x{item.quantity})
                                 </div>
-                                <div className="card-body p-2">
-                                  <div
-                                    className="fw-bold mb-1"
-                                    style={{ fontSize: 15 }}
+                                <div className="d-flex align-items-center gap-2">
+                                  <div>${(item.price * item.quantity).toFixed(2)}</div>
+                                  <button
+                                    className="btn btn-outline-danger btn-sm"
+                                    title="Delete entry"
+                                    onClick={() => handleDeleteCartItem(cart.id, item.productId)}
                                   >
-                                    {product.name}
-                                  </div>
-                                  {/* No price, no add button, click opens keypad */}
+                                    <span aria-hidden="true">🗑️</span>
+                                  </button>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            ))
+                          )}
                         </div>
-                      </div>
-                      {/* Pending Products Section */}
-                      {(() => {
-                        const pendingProducts =
-                          getRequiredProductsForInvoice(invoice);
-                        if (!pendingProducts.length) return null;
-                        return (
-                          <div className="mt-4">
-                            <h6>Pending Products</h6>
-                            <ul className="mb-2 ps-3">
-                              {pendingProducts.map((prod) => (
-                                <li
-                                  key={prod.productId}
-                                  className="d-flex align-items-center gap-2 mb-1"
-                                >
-                                  <span>
-                                    {prod.name} (x{prod.quantity})
-                                  </span>
-                                  {/* Assign to cart dropdown */}
-                                  <select
-                                    className="form-select form-select-sm"
-                                    style={{ maxWidth: 120 }}
-                                    value={
-                                      pendingAssignCart[prod.productId]
-                                        ?.cartId || ""
-                                    }
-                                    onChange={(e) =>
-                                      setPendingAssignCart((prev) => ({
-                                        ...prev,
-                                        [prod.productId]: {
-                                          ...prev[prod.productId],
-                                          cartId: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  >
-                                    <option value="">Assign to cart...</option>
-                                    {invoice.carts.map((c) => (
-                                      <option key={c.id} value={c.id}>
-                                        {c.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <input
-                                    type="number"
-                                    className="form-control form-control-sm"
-                                    style={{ maxWidth: 70 }}
-                                    min={1}
-                                    max={prod.quantity}
-                                    value={
-                                      pendingAssignCart[prod.productId]
-                                        ?.quantity || prod.quantity
-                                    }
-                                    onChange={(e) =>
-                                      setPendingAssignCart((prev) => ({
-                                        ...prev,
-                                        [prod.productId]: {
-                                          ...prev[prod.productId],
-                                          quantity: Number(e.target.value),
-                                        },
-                                      }))
-                                    }
-                                  />
-                                  <button
-                                    className="btn btn-success btn-sm"
-                                    disabled={
-                                      !pendingAssignCart[prod.productId]
-                                        ?.cartId ||
-                                      (pendingAssignCart[prod.productId]
-                                        ?.quantity || 1) < 1
-                                    }
-                                    onClick={() =>
-                                      handlePendingAssignToCart(prod.productId)
-                                    }
-                                  >
-                                    Add
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        );
-                      })()}
+                      ))}
                     </>
                   );
                 })()}
+                <div className="mb-3">
+                  <label className="form-label">Select Product</label>
+                  <select
+                    className="form-select"
+                    value={selectedProduct}
+                    onChange={(e) => setSelectedProduct(e.target.value)}
+                  >
+                    <option value="">-- Select a product --</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} - ${product.price.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Quantity</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Number(e.target.value))}
+                    min={1}
+                  />
+                </div>
+                <div className="d-flex justify-content-end">
+                  <button
+                    className="btn btn-primary me-2"
+                    onClick={handleAddToCart}
+                  >
+                    Add to Cart
+                  </button>
+                  <button
+                    className="btn btn-success"
+                    onClick={handleCartAssign}
+                  >
+                    {isCreatingCart ? "Create Cart" : "Assign to Cart"}
+                  </button>
+                </div>
+                <div className="mt-4">
+                  <h6>Or add products using the keypad:</h6>
+                  <div className="row">
+                    {products.map((product) => (
+                      <div
+                        key={product.id}
+                        className="col-6 col-md-4 mb-3"
+                        onClick={() => handleProductCardClick(product)}
+                      >
+                        <div className="card text-center">
+                          <div className="card-body">
+                            <h5 className="card-title">{product.name}</h5>
+                            <p className="card-text">
+                              ${product.price.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="modal-footer">
                 <button
                   className="btn btn-secondary"
-                  onClick={() => {
-                    setShowCartModal(false);
-                    setSelectedCartForModal(null);
-                    setCreatingCart(false);
-                  }}
+                  onClick={() => setShowCartModal(false)}
                 >
                   Close
                 </button>
@@ -1597,38 +922,16 @@ export default function ActiveInvoices({
         </div>
       )}
 
-      {/* Cart selection/creation modal */}
-      {showCartSelectModal && cartSelectInvoiceId && (
-        <LaundryCartModal
-          show={showCartSelectModal}
-          onClose={() => setShowCartSelectModal(false)}
-          carts={(
-            invoices.find((inv) => inv.id === cartSelectInvoiceId)?.carts || []
-          ).map((c) => ({ id: c.id, name: c.name, isActive: true }))}
-          onSelect={async (cart) => handleCartSelected(cart.id)}
-          onAddCart={async (cartName: string) => {
-            // Add new cart to invoice
-            if (!cartSelectInvoiceId) throw new Error("No invoice selected");
-            const invoice = invoices.find(
-              (inv) => inv.id === cartSelectInvoiceId
-            );
-            if (!invoice) throw new Error("Invoice not found");
-            const newCart = {
-              id: Date.now().toString(),
-              name: cartName,
-              items: [],
-              total: 0,
-              createdAt: new Date().toISOString(),
-            };
-            await onUpdateInvoice(cartSelectInvoiceId, {
-              carts: [...(invoice.carts || []), newCart],
-            });
-            return { id: newCart.id, name: newCart.name, isActive: true };
-          }}
+      {/* Delete Confirmation Modal */}
+      {invoiceToDelete && (
+        <DeleteConfirmationModal
+          invoice={invoiceToDelete}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setInvoiceToDelete(null)}
         />
       )}
 
-      {/* Keypad modal for cart product quantity */}
+      {/* Product Keypad Modal */}
       {showProductKeypad && productForKeypad && (
         <div
           className="modal show"
@@ -1655,7 +958,6 @@ export default function ActiveInvoices({
                     value={keypadQuantity}
                     onChange={(e) => setKeypadQuantity(Number(e.target.value))}
                     min={1}
-                    autoFocus
                   />
                 </div>
               </div>
@@ -1666,11 +968,7 @@ export default function ActiveInvoices({
                 >
                   Cancel
                 </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleCartKeypadAdd}
-                  disabled={keypadQuantity < 1}
-                >
+                <button className="btn btn-primary" onClick={handleKeypadAdd}>
                   Add to Cart
                 </button>
               </div>
@@ -1679,55 +977,360 @@ export default function ActiveInvoices({
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal
-        show={!!invoiceToDelete}
-        onClose={() => setInvoiceToDelete(null)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Invoice"
-        message={`Are you sure you want to delete invoice #${
-          invoiceToDelete?.invoiceNumber || invoiceToDelete?.id
-        }? This action cannot be undone.`}
-        invoice={invoiceToDelete}
-      />
-
-      {/* Archived Groups Table */}
-      {archivedGroups.length > 0 && (
-        <div className="mt-5">
-          <h4>Archived Groups</h4>
-          <div className="table-responsive">
-            <table className="table table-bordered align-middle">
-              <thead className="table-light">
-                <tr>
-                  <th>Client</th>
-                  <th>Date Created</th>
-                  <th>Total Pounds</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {archivedGroups.map((group) => {
-                  const createdDate = group.createdAt
-                    ? new Date(group.createdAt).toLocaleString()
-                    : "-";
-                  return (
-                    <tr key={group.id}>
-                      <td>{group.clientName}</td>
-                      <td>{createdDate}</td>
-                      <td>
-                        {typeof group.totalWeight === "number"
-                          ? group.totalWeight.toFixed(2)
-                          : "?"}
-                      </td>
-                      <td>{group.status}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* Log Modal */}
+      {showLogModal && logGroup && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Status Change Log</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowLogModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {Array.isArray(logGroup.statusLog) &&
+                logGroup.statusLog.length > 0 ? (
+                  <ul className="list-group">
+                    {logGroup.statusLog.map((log: any, idx: number) => (
+                      <li key={idx} className="list-group-item">
+                        <b>Step:</b> {log.step} <br />
+                        <b>Time:</b>{" "}
+                        {log.timestamp
+                          ? new Date(log.timestamp).toLocaleString()
+                          : "-"}{" "}
+                        <br />
+                        <b>User:</b> {log.user || "-"}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-muted">
+                    No log available for this group.
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowLogModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
-    </Box>
+
+      {/* Add Product to Cart Modal */}
+      {showAddProductModal && addProductGroup && (
+        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Add Product to Group</h5>
+                <button type="button" className="btn-close" onClick={() => setShowAddProductModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label">Select Client</label>
+                  <select
+                    className="form-select"
+                    value={addProductGroup.clientId || ''}
+                    disabled
+                  >
+                    {clients.map(client => (
+                      <option key={client.id} value={client.id}>{client.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Select Product</label>
+                  <select
+                    className="form-select"
+                    value={selectedAddProductId}
+                    onChange={e => setSelectedAddProductId(e.target.value)}
+                  >
+                    <option value="">-- Select a product --</option>
+                    {products.map(product => (
+                      <option key={product.id} value={product.id}>{product.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Add By</label>
+                  <div>
+                    <div className="form-check form-check-inline">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="addByMode"
+                        id="addByCart"
+                        value="cart"
+                        checked={addProductMode === 'cart'}
+                        onChange={() => setAddProductMode('cart')}
+                      />
+                      <label className="form-check-label" htmlFor="addByCart">Carts</label>
+                    </div>
+                    <div className="form-check form-check-inline">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="addByMode"
+                        id="addByQty"
+                        value="quantity"
+                        checked={addProductMode === 'quantity'}
+                        onChange={() => setAddProductMode('quantity')}
+                      />
+                      <label className="form-check-label" htmlFor="addByQty">Quantity</label>
+                    </div>
+                    <div className="form-check form-check-inline">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="addByMode"
+                        id="addByLbs"
+                        value="pounds"
+                        checked={addProductMode === 'pounds'}
+                        onChange={() => setAddProductMode('pounds')}
+                      />
+                      <label className="form-check-label" htmlFor="addByLbs">Pounds</label>
+                    </div>
+                  </div>
+                </div>
+                {addProductMode === 'cart' && (
+                  <div className="mb-3">
+                    <label className="form-label">Select Cart</label>
+                    <select
+                      className="form-select"
+                      value={selectedCartId}
+                      onChange={e => setSelectedCartId(e.target.value)}
+                    >
+                      <option value="">-- Select a cart --</option>
+                      {(addProductGroup.carts || []).map((cart: any) => (
+                        <option key={cart.id} value={cart.id}>{cart.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {(addProductMode === 'quantity' || addProductMode === 'pounds') && (
+                  <div className="mb-3">
+                    <label className="form-label">{addProductMode === 'quantity' ? 'Quantity' : 'Pounds'}</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      min={1}
+                      value={addProductQty}
+                      onChange={e => setAddProductQty(Number(e.target.value))}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowAddProductModal(false)}>
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={
+                    !selectedAddProductId ||
+                    (addProductMode === 'cart' && !selectedCartId) ||
+                    ((addProductMode === 'quantity' || addProductMode === 'pounds') && addProductQty < 1)
+                  }
+                  onClick={async () => {
+                    const product = products.find(p => p.id === selectedAddProductId);
+                    if (!product) return;
+                    let updatedCarts = [...(addProductGroup.carts || [])];
+                    if (addProductMode === 'cart') {
+                      const cartIdx = updatedCarts.findIndex((c: any) => c.id === selectedCartId);
+                      if (cartIdx === -1) return;
+                      const cart = { ...updatedCarts[cartIdx] };
+                      const existingItemIdx = cart.items.findIndex((item: any) => item.productId === product.id);
+                      if (existingItemIdx > -1) {
+                        cart.items[existingItemIdx].quantity += addProductQty;
+                      } else {
+                        cart.items.push({
+                          productId: product.id,
+                          productName: product.name,
+                          quantity: addProductQty,
+                          price: product.price,
+                          addedBy: currentUser,
+                          addedAt: new Date().toISOString(),
+                        });
+                      }
+                      updatedCarts[cartIdx] = cart;
+                    } else {
+                      // For quantity or pounds, create a new cart entry
+                      const newCart = {
+                        id: Date.now().toString(),
+                        name: `${addProductMode === 'quantity' ? 'Qty' : 'Lbs'} Cart - ${new Date().toLocaleTimeString()}`,
+                        items: [
+                          {
+                            productId: product.id,
+                            productName: product.name,
+                            quantity: addProductQty,
+                            price: product.price,
+                            addedBy: currentUser,
+                            addedAt: new Date().toISOString(),
+                          },
+                        ],
+                        total: 0,
+                        createdAt: new Date().toISOString(),
+                      };
+                      updatedCarts.push(newCart);
+                    }
+                    // Update in Firestore directly
+                    await import("../firebase").then(({ db }) =>
+                      import("firebase/firestore").then(({ doc, updateDoc }) =>
+                        updateDoc(doc(db, "pickup_groups", addProductGroup.id), { carts: updatedCarts })
+                      )
+                    );
+                    setPickupGroups(prev => prev.map(g => g.id === addProductGroup.id ? { ...g, carts: updatedCarts } : g));
+                    setShowAddProductModal(false);
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add To Group Modal */}
+      {showAddToGroupModal && (
+        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Add Product to Group</h5>
+                <button type="button" className="btn-close" onClick={() => setShowAddToGroupModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label">Client</label>
+                  <select className="form-select" value={addToGroupClientId} onChange={e => setAddToGroupClientId(e.target.value)}>
+                    <option value="">-- Select a client --</option>
+                    {clients.map(client => (
+                      <option key={client.id} value={client.id}>{client.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Product</label>
+                  <select className="form-select" value={addToGroupProductId} onChange={e => setAddToGroupProductId(e.target.value)}>
+                    <option value="">-- Select a product --</option>
+                    {products.map(product => (
+                      <option key={product.id} value={product.id}>{product.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Mode</label>
+                  <div className="form-check">
+                    <input className="form-check-input" type="radio" id="mode-carts" name="addToGroupMode" value="carts" checked={addToGroupMode === "carts"} onChange={() => setAddToGroupMode("carts")} />
+                    <label className="form-check-label" htmlFor="mode-carts">Carts</label>
+                  </div>
+                  <div className="form-check">
+                    <input className="form-check-input" type="radio" id="mode-quantity" name="addToGroupMode" value="quantity" checked={addToGroupMode === "quantity"} onChange={() => setAddToGroupMode("quantity")} />
+                    <label className="form-check-label" htmlFor="mode-quantity">Quantity</label>
+                  </div>
+                  <div className="form-check">
+                    <input className="form-check-input" type="radio" id="mode-pounds" name="addToGroupMode" value="pounds" checked={addToGroupMode === "pounds"} onChange={() => setAddToGroupMode("pounds")} />
+                    <label className="form-check-label" htmlFor="mode-pounds">Pounds</label>
+                  </div>
+                </div>
+                {(addToGroupMode === "quantity" || addToGroupMode === "pounds") && (
+                  <div className="mb-3">
+                    <label className="form-label">{addToGroupMode === "quantity" ? "Quantity" : "Pounds"}</label>
+                    <input type="number" className="form-control" min={1} value={addToGroupValue} onChange={e => setAddToGroupValue(Number(e.target.value))} />
+                  </div>
+                )}
+                {addToGroupError && <div className="alert alert-danger">{addToGroupError}</div>}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowAddToGroupModal(false)}>Cancel</button>
+                <button className="btn btn-primary" disabled={addToGroupLoading} onClick={async () => {
+                  setAddToGroupError("");
+                  setAddToGroupLoading(true);
+                  try {
+                    if (!addToGroupClientId || !addToGroupProductId || (addToGroupMode !== "carts" && addToGroupValue < 1)) {
+                      setAddToGroupError("Please select all fields and enter a valid value.");
+                      setAddToGroupLoading(false);
+                      return;
+                    }
+                    // Find the group for this client (Conventional or Tunnel)
+                    const group = pickupGroups.find(g => g.clientId === addToGroupClientId && (g.status === "Conventional" || g.status === "Tunnel"));
+                    if (!group) {
+                      setAddToGroupError("No group found for this client today.");
+                      setAddToGroupLoading(false);
+                      return;
+                    }
+                    // Find or create cart
+                    let carts = Array.isArray(group.carts) ? [...group.carts] : [];
+                    let cartId = carts.length > 0 ? carts[0].id : Date.now().toString();
+                    let cartIdx = carts.findIndex((c: any) => c.id === cartId);
+                    if (cartIdx === -1) {
+                      carts.push({
+                        id: cartId,
+                        name: `Cart ${carts.length + 1}`,
+                        items: [],
+                        total: 0,
+                        createdAt: new Date().toISOString(),
+                      });
+                      cartIdx = carts.length - 1;
+                    }
+                    const product = products.find(p => p.id === addToGroupProductId);
+                    if (!product) throw new Error("Product not found");
+                    let cart = { ...carts[cartIdx] };
+                    // Add product with the selected mode
+                    let item: any = {
+                      productId: product.id,
+                      productName: product.name,
+                      price: product.price,
+                      addedBy: currentUser,
+                      addedAt: new Date().toISOString(),
+                    };
+                    if (addToGroupMode === "carts") {
+                      item.quantity = 1;
+                    } else if (addToGroupMode === "quantity") {
+                      item.quantity = addToGroupValue;
+                    } else if (addToGroupMode === "pounds") {
+                      item.quantity = addToGroupValue; // You may want to store this as pounds in a separate field
+                    }
+                    // If product already exists, update quantity
+                    const existingIdx = cart.items.findIndex((i: any) => i.productId === product.id);
+                    if (existingIdx > -1) {
+                      cart.items[existingIdx].quantity += item.quantity;
+                    } else {
+                      cart.items.push(item);
+                    }
+                    carts[cartIdx] = cart;
+                    // Update in Firestore
+                    await import("../firebase").then(({ db }) =>
+                      import("firebase/firestore").then(({ doc, updateDoc }) =>
+                        updateDoc(doc(db, "pickup_groups", group.id), { carts })
+                      )
+                    );
+                    setPickupGroups(prev => prev.map(g => g.id === group.id ? { ...g, carts } : g));
+                    setShowAddToGroupModal(false);
+                  } catch (err: any) {
+                    setAddToGroupError(err.message || "Error adding product to group");
+                  } finally {
+                    setAddToGroupLoading(false);
+                  }
+                }}>Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
