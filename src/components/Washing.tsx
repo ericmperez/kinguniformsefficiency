@@ -483,7 +483,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         {activeTab === "tunnel" && (
           <div
             className="card shadow p-4 mb-4 mx-auto"
-            style={{ maxWidth: 600 }}
+            style={{ maxWidth: 900 }}
           >
             <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>
               Groups for Tunnel Washing

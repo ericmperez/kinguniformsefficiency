@@ -31,12 +31,27 @@ function getStoredUser(): AuthUser | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(getStoredUser());
+  const [users, setUsers] = useState<any[]>([]); // Store all users in state
+
+  // Real-time Firestore listener for users
+  React.useEffect(() => {
+    const unsub = (async () => {
+      const { collection, onSnapshot } = await import("firebase/firestore");
+      const { db } = await import("../firebase");
+      return onSnapshot(collection(db, "users"), (snapshot) => {
+        setUsers(snapshot.docs.map((doc) => doc.data()));
+      });
+    })();
+    return () => {
+      unsub.then && unsub.then((u) => u && u());
+    };
+  }, []);
 
   const login = async (id: string) => {
     if (!/^\d{4}$/.test(id)) return false;
-    // Fetch users from Firebase
-    const users = await getUsers();
-    const found = users.find((u) => u.id === id);
+    // Use real-time users state if available
+    const userList = users.length > 0 ? users : await getUsers();
+    const found = userList.find((u: any) => u.id === id);
     if (!found) return false;
     // Owner must be 1991 (enforced by user creation UI, but double check)
     if (found.role === "Owner" && id !== "1991") return false;
@@ -44,8 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id,
       role: found.role as UserRole,
       username: found.username,
-      allowedComponents: (found as any).allowedComponents,
-      defaultPage: (found as any).defaultPage,
+      allowedComponents: found.allowedComponents,
+      defaultPage: found.defaultPage,
     };
     setUser(userObj);
     localStorage.setItem("auth_user", JSON.stringify(userObj));

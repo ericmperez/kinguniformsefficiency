@@ -40,15 +40,42 @@ import { useState, useEffect } from "react";
 import type { UserRecord } from "./services/firebaseService";
 import {
   collection,
-  getDocs,
   onSnapshot,
-  QuerySnapshot,
-  DocumentData,
+  query as firestoreQuery,
+  where as firestoreWhere,
+  Timestamp as FirestoreTimestamp,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import Report from "./components/Report";
 import React from "react";
 import { canUserSeeComponent, AppComponentKey } from "./permissions";
+import AppBar from "@mui/material/AppBar";
+import Toolbar from "@mui/material/Toolbar";
+import IconButton from "@mui/material/IconButton";
+import Typography from "@mui/material/Typography";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import MenuIcon from "@mui/icons-material/Menu";
+import AccountCircle from "@mui/icons-material/AccountCircle";
+import Button from "@mui/material/Button";
+import Avatar from "@mui/material/Avatar";
+import Box from "@mui/material/Box";
+import Drawer from "@mui/material/Drawer";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import HomeIcon from "@mui/icons-material/Home";
+import ListAltIcon from "@mui/icons-material/ListAlt";
+import LocalLaundryServiceIcon from "@mui/icons-material/LocalLaundryService";
+import SettingsIcon from "@mui/icons-material/Settings";
+import LogoutIcon from "@mui/icons-material/Logout";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import GroupWorkIcon from "@mui/icons-material/GroupWork";
+import kingUniformsLogo from "./assets/King Uniforms Logo.jpeg";
+import SignInSide from "./components/SignInSide";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -123,9 +150,6 @@ function App() {
   const [activePage, setActivePage] = useState<
     "home" | "entradas" | "washing" | "segregation" | "settings" | "reports"
   >("home");
-  const [activeSettingsTab, setActiveSettingsTab] = useState<
-    "clients" | "products" | "users" | "drivers"
-  >("clients");
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -137,6 +161,17 @@ function App() {
     null
   );
   const [menuOpen, setMenuOpen] = useState(false);
+  const [todayTotalLbs, setTodayTotalLbs] = useState<number>(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [announcements, setAnnouncements] = useState<string>(
+    localStorage.getItem('loginAnnouncements') || ''
+  );
+  const [announcementImage, setAnnouncementImage] = useState<string | null>(
+    localStorage.getItem('loginAnnouncementImage') || null
+  );
+  const [activeSettingsTab, setActiveSettingsTab] = useState<
+    'clients' | 'products' | 'users' | 'drivers' | 'loginContent'
+  >('clients');
 
   // Helper: check if current user can see a component (per-user or fallback to role)
   const canSee = (component: AppComponentKey) =>
@@ -146,17 +181,26 @@ function App() {
   useEffect(() => {
     // Invoices
     const unsubInvoices = onSnapshot(collection(db, "invoices"), (snapshot) => {
-      const invoices = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const invoices = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       setInvoices(invoices as Invoice[]);
     });
     // Products
     const unsubProducts = onSnapshot(collection(db, "products"), (snapshot) => {
-      const products = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const products = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       setProducts(products as Product[]);
     });
     // Clients (optional, for real-time sync)
     const unsubClients = onSnapshot(collection(db, "clients"), (snapshot) => {
-      const clients = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const clients = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       setClients(clients as Client[]);
     });
     return () => {
@@ -170,15 +214,13 @@ function App() {
     const fetchData = async () => {
       try {
         // Only fetch drivers and users here
-        const [fetchedUsers] = await Promise.all([
-          getUsers(),
-        ]);
+        const [fetchedUsers] = await Promise.all([getUsers()]);
         setUsers(fetchedUsers);
         // Fetch drivers from Firestore
         const driverSnapshot = await getDocs(collection(db, "drivers"));
         setDrivers(
           driverSnapshot.docs.map(
-            (doc) =>
+            (doc: any) =>
               ({ id: doc.id, ...doc.data() } as { id: string; name: string })
           )
         );
@@ -227,10 +269,10 @@ function App() {
   useEffect(() => {
     const unsubscribe = onSnapshot(
       collection(db, "drivers"),
-      (querySnapshot: QuerySnapshot<DocumentData>) => {
+      (querySnapshot: any) => {
         setDrivers(
           querySnapshot.docs.map(
-            (doc) =>
+            (doc: any) =>
               ({ id: doc.id, ...doc.data() } as { id: string; name: string })
           )
         );
@@ -411,8 +453,67 @@ function App() {
     }
   };
 
+  // Save announcements and image to localStorage when changed
+  useEffect(() => {
+    localStorage.setItem('loginAnnouncements', announcements);
+    if (announcementImage) {
+      localStorage.setItem('loginAnnouncementImage', announcementImage);
+    }
+  }, [announcements, announcementImage]);
+
+  // Real-time listener for today's total pounds
+  useEffect(() => {
+    // Fetch today's groups and entries, then sum only entries whose group is not deleted
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    // Listen to both groups and entries
+    const groupsQ = firestoreQuery(
+      collection(db, "pickup_groups"),
+      firestoreWhere("startTime", ">=", FirestoreTimestamp.fromDate(today)),
+      firestoreWhere("startTime", "<", FirestoreTimestamp.fromDate(tomorrow))
+    );
+    const entriesQ = firestoreQuery(
+      collection(db, "pickup_entries"),
+      firestoreWhere("timestamp", ">=", FirestoreTimestamp.fromDate(today)),
+      firestoreWhere("timestamp", "<", FirestoreTimestamp.fromDate(tomorrow))
+    );
+    let unsubGroups: any, unsubEntries: any;
+    let groupStatusMap: Record<string, string> = {};
+    let entryCache: any[] = [];
+    function updateTotal() {
+      // Only sum entries whose group is not deleted (or missing from map)
+      const total = entryCache.reduce((sum, entry) => {
+        const status = groupStatusMap[entry.groupId];
+        if (typeof status === "undefined" || status !== "deleted") {
+          return sum + (typeof entry.weight === "number" ? entry.weight : 0);
+        }
+        return sum;
+      }, 0);
+      setTodayTotalLbs(total);
+    }
+    unsubGroups = onSnapshot(groupsQ, (snap) => {
+      groupStatusMap = {};
+      snap.docs.forEach((doc: any) => {
+        const data = doc.data();
+        groupStatusMap[doc.id] = data.status || "";
+      });
+      updateTotal();
+    });
+    unsubEntries = onSnapshot(entriesQ, (snap) => {
+      entryCache = snap.docs.map((doc: any) => doc.data());
+      updateTotal();
+    });
+    return () => {
+      unsubGroups && unsubGroups();
+      unsubEntries && unsubEntries();
+    };
+  }, []);
+
   if (!user) {
-    return <LocalLoginForm />;
+    // Use the new SignInSide as the login page
+    return <SignInSide />;
   }
 
   if (showWelcome) {
@@ -440,131 +541,227 @@ function App() {
   const canManageProducts = canSee("Report"); // adjust if you have a separate key for products
   const canManageClients = true; // All roles, or use canSee('ClientForm') if you want to restrict
 
+  // Remove the Home button from navLinks and use the logo as the home button
+  const navLinks = [
+    // {
+    //   label: "Home",
+    //   page: "home" as const,
+    //   icon: <HomeIcon />, // Remove HomeIcon
+    //   visible: canSee("ActiveInvoices"),
+    // },
+    {
+      label: "Entradas",
+      page: "entradas" as const,
+      icon: <ListAltIcon />,
+      visible: canSee("PickupWashing"),
+    },
+    {
+      label: "Segregation",
+      page: "segregation" as const,
+      icon: <GroupWorkIcon />,
+      visible: canSee("Segregation"),
+    },
+    {
+      label: "Washing",
+      page: "washing" as const,
+      icon: <LocalLaundryServiceIcon />,
+      visible: canSee("Washing"),
+    },
+    {
+      label: "Reports",
+      page: "reports" as const,
+      icon: <AssessmentIcon />,
+      visible: canSee("Report"),
+    },
+    {
+      label: "Settings",
+      page: "settings" as const,
+      icon: <SettingsIcon />,
+      visible: canManageUsers,
+    },
+  ];
+
   return (
-    <div className="container-fluid">
-      <nav className="navbar navbar-expand-lg navbar-light bg-light mb-4">
-        <div className="container-fluid">
-          <a className="navbar-brand" href="#">
-            King Uniforms
-          </a>
-          {/* Hamburger for tablet/mobile */}
-          <button
-            className="navbar-toggler d-lg-none"
-            type="button"
-            aria-label="Toggle navigation"
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <span className="navbar-toggler-icon"></span>
-          </button>
-          {/* Menu options: show inline on desktop, in dropdown on tablet/mobile */}
-          <div
-            className={`collapse navbar-collapse${
-              menuOpen ? " show" : ""
-            } d-lg-block`}
-            style={{
-              zIndex: 1000,
-              background: "var(--ku-red)",
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              right: 0,
-              borderRadius: "0 0 10px 10px",
+    <div className="App">
+      <AppBar
+        position="sticky"
+        color="default"
+        elevation={2}
+        sx={{
+          background: {
+            xs: 'linear-gradient(90deg, var(--ku-red) 80%, var(--ku-yellow) 100%)',
+            md: 'linear-gradient(90deg, var(--ku-red) 70%, var(--ku-yellow) 100%)',
+          },
+          color: '#fff',
+          borderRadius: { xs: 0, md: '0 0 18px 18px' },
+          boxShadow: '0 4px 24px rgba(215,35,40,0.10)',
+          px: { xs: 1, md: 4 },
+          backdropFilter: 'blur(8px)',
+          position: 'relative',
+        }}
+      >
+        <Toolbar sx={{
+          minHeight: { xs: 48, md: 56 },
+          display: 'flex',
+          flexDirection: 'row',
+          flexWrap: 'nowrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 1,
+          overflowX: 'auto',
+          whiteSpace: 'nowrap',
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+            <IconButton
+              edge="start"
+              color="inherit"
+              aria-label="menu"
+              sx={{ mr: 1, display: { xs: 'flex', md: 'none' } }}
+              onClick={() => setDrawerOpen(true)}
+            >
+              <MenuIcon />
+            </IconButton>
+            <IconButton
+              edge="start"
+              color="inherit"
+              aria-label="home"
+              sx={{ p: 0, mr: 1, borderRadius: 2, background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}
+              onClick={() => setActivePage('home')}
+            >
+              <Avatar
+                src={kingUniformsLogo}
+                alt="King Uniforms"
+                sx={{
+                  width: { xs: 28, md: 36 },
+                  height: { xs: 28, md: 36 },
+                  bgcolor: 'var(--ku-yellow)',
+                  border: '2px solid #fff',
+                }}
+              />
+            </IconButton>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 800,
+                letterSpacing: 1,
+                color: '#111', // Make King Uniforms black
+                fontSize: { xs: 13, md: 18 },
+                textShadow: '0 2px 8px rgba(0,0,0,0.10)',
+                textTransform: 'uppercase',
+                ml: 0.5,
+                display: { xs: 'none', sm: 'block' },
+                whiteSpace: 'nowrap',
+              }}
+            >
+              King Uniforms
+            </Typography>
+          </Box>
+          <Box
+            sx={{
+              display: { xs: 'none', md: 'flex' },
+              gap: 1,
+              alignItems: 'center',
+              flex: 1,
+              justifyContent: 'center',
+              overflowX: 'auto',
+              whiteSpace: 'nowrap',
             }}
           >
-            <div className="navbar-nav">
-              {canSee("ActiveInvoices") && (
-                <button
-                  className={`nav-link btn btn-link ${
-                    activePage === "home" ? "active" : ""
-                  }`}
-                  onClick={() => {
-                    setActivePage("home");
-                    setMenuOpen(false);
+            {navLinks
+              .filter((l) => l.visible)
+              .map((link) => (
+                <Button
+                  key={link.page}
+                  color={activePage === link.page ? 'warning' : 'inherit'}
+                  startIcon={link.icon}
+                  sx={{
+                    fontWeight: 600,
+                    color: activePage === link.page ? 'var(--ku-yellow)' : '#fff',
+                    bgcolor: activePage === link.page ? 'rgba(255,224,102,0.18)' : 'transparent',
+                    borderRadius: 2,
+                    px: 1.5,
+                    fontSize: 13,
+                    minWidth: 0,
+                    boxShadow: activePage === link.page ? '0 2px 8px rgba(250,198,27,0.10)' : 'none',
+                    transition: 'all 0.2s',
+                    borderBottom: activePage === link.page ? '2px solid var(--ku-yellow)' : '2px solid transparent',
+                    '&:hover': {
+                      bgcolor: 'var(--ku-yellow)',
+                      color: '#222',
+                    },
+                    whiteSpace: 'nowrap',
                   }}
+                  onClick={() => setActivePage(link.page)}
                 >
-                  Home
-                </button>
-              )}
-              {canSee("PickupWashing") && (
-                <button
-                  className={`nav-link btn btn-link ${
-                    activePage === "entradas" ? "active" : ""
-                  }`}
-                  onClick={() => {
-                    setActivePage("entradas");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Entradas
-                </button>
-              )}
-              {canSee("Washing") && (
-                <button
-                  className={`nav-link btn btn-link ${
-                    activePage === "washing" ? "active" : ""
-                  }`}
-                  onClick={() => {
-                    setActivePage("washing");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Washing
-                </button>
-              )}
-              {canSee("Segregation") && (
-                <button
-                  className={`nav-link btn btn-link ${
-                    activePage === "segregation" ? "active" : ""
-                  }`}
-                  onClick={() => {
-                    setActivePage("segregation");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Segregation
-                </button>
-              )}
-              {canSee("Report") && (
-                <button
-                  className={`nav-link btn btn-link ${
-                    activePage === "reports" ? "active" : ""
-                  }`}
-                  onClick={() => {
-                    setActivePage("reports");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Reports
-                </button>
-              )}
-              {canManageUsers && (
-                <button
-                  className={`nav-link btn btn-link ${
-                    activePage === "settings" ? "active" : ""
-                  }`}
-                  onClick={() => {
-                    setActivePage("settings");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Settings
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="d-flex align-items-center ms-auto">
-            <span className="me-3 text-muted">
-              Hello, {user.username} ({user.role})
-            </span>
-            <button
-              className="btn btn-outline-secondary btn-sm"
-              onClick={logout}
+                  {link.label}
+                </Button>
+              ))}
+          </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              flexShrink: 0,
+              justifyContent: { xs: 'flex-end', md: 'unset' },
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={{
+                color: '#fff',
+                mr: 1,
+                display: { xs: 'none', md: 'block' },
+                fontWeight: 500,
+                letterSpacing: 0.5,
+                fontSize: 13,
+                whiteSpace: 'nowrap',
+              }}
             >
-              Logout
-            </button>
-          </div>
-        </div>
-      </nav>
+              Hello, {user.username} ({user.role})
+            </Typography>
+            <IconButton color="inherit" onClick={logout} sx={{ ml: 1, bgcolor: 'rgba(255,255,255,0.10)', borderRadius: 2, width: 32, height: 32 }}>
+              <LogoutIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Box>
+        </Toolbar>
+      </AppBar>
+      <Drawer
+        anchor="left"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      >
+        <Box
+          sx={{ width: 240 }}
+          role="presentation"
+          onClick={() => setDrawerOpen(false)}
+        >
+          <List>
+            {navLinks
+              .filter((l) => l.visible)
+              .map((link) => (
+                <ListItem key={link.page} disablePadding>
+                  <ListItemButton
+                    selected={activePage === link.page}
+                    onClick={() => setActivePage(link.page)}
+                  >
+                    <ListItemIcon>{link.icon}</ListItemIcon>
+                    <ListItemText primary={link.label} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            <ListItem disablePadding>
+              <ListItemButton onClick={logout}>
+                <ListItemIcon>
+                  <LogoutIcon />
+                </ListItemIcon>
+                <ListItemText primary="Logout" />
+              </ListItemButton>
+            </ListItem>
+          </List>
+        </Box>
+      </Drawer>
       {/* Main content: only render components if user has permission */}
       {activePage === "home" && canSee("ActiveInvoices") && (
         <ActiveInvoices
@@ -589,7 +786,7 @@ function App() {
       {activePage === "settings" && canManageUsers && (
         <>
           {/* Settings Nav Bar - always visible below main navbar */}
-          <div style={{ height: 56 }} />{" "}
+          <div style={{ height: 56 }} />
           {/* Spacer to push submenu below navbar */}
           <div
             className="mb-3"
@@ -641,6 +838,15 @@ function App() {
               >
                 Users
               </button>
+              <button
+                className={`btn btn-outline-primary${
+                  activeSettingsTab === "loginContent" ? " active" : ""
+                }`}
+                onClick={() => setActiveSettingsTab("loginContent")}
+                style={{ minWidth: 120 }}
+              >
+                Login Content
+              </button>
             </div>
           </div>
           {/* Show only one form at a time */}
@@ -676,8 +882,82 @@ function App() {
                 <UserManagement />
               </div>
             )}
+            {activeSettingsTab === "loginContent" && (
+              <div className="col-md-12">
+                <div className="card p-4 mb-4">
+                  <h3 className="mb-3">Login Page Side Content</h3>
+                  <div className="mb-3">
+                    <label className="form-label">Announcements / Message</label>
+                    <textarea
+                      className="form-control"
+                      rows={6}
+                      value={announcements}
+                      onChange={e => setAnnouncements(e.target.value)}
+                      placeholder="Enter announcements, birthdays, or any message to show on the login page...\nYou can use *markdown* for formatting, including bold, italics, lists, and links."
+                    />
+                    <div className="form-text">
+                      <b>Formatting tips:</b> You can use <a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noopener noreferrer">Markdown</a> for bold, italics, lists, and links.<br/>
+                      Example: <code>*Important*</code>, <code>**Bold**</code>, <code>- List item</code>, <code>[Link](https://example.com)</code>
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Image (URL)</label>
+                    <input
+                      className="form-control"
+                      type="text"
+                      value={announcementImage || ''}
+                      onChange={e => setAnnouncementImage(e.target.value)}
+                      placeholder="Paste image URL for birthdays, etc."
+                    />
+                  </div>
+                  {announcementImage && (
+                    <div className="mb-3">
+                      <img src={announcementImage} alt="Announcement" style={{ maxWidth: 300, borderRadius: 8 }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </>
+      )}
+      {activePage === "home" && (
+        <div className="container py-4">
+          <div className="row justify-content-center mb-4">
+            <div className="col-12 col-md-6 col-lg-4">
+              <div
+                className="card shadow text-center"
+                style={{
+                  background: "#fffbe6",
+                  border: "1px solid #ffe066",
+                }}
+              >
+                <div className="card-body">
+                  <h5
+                    className="card-title mb-2"
+                    style={{
+                      color: "#FFB300",
+                      fontWeight: 700,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    Total Pounds Entered Today
+                  </h5>
+                  <div
+                    style={{
+                      fontSize: 36,
+                      fontWeight: 700,
+                      color: "#333",
+                    }}
+                  >
+                    {todayTotalLbs.toLocaleString()} lbs
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* ...existing home content... */}
+        </div>
       )}
     </div>
   );

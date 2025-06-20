@@ -53,13 +53,9 @@ const Segregation: React.FC<SegregationProps> = ({
     // No cleanup needed because this is a one-day query and component unmount will clear listeners
   }, [statusUpdating]);
 
-  // Show only groups with status 'Segregation' and not 'Entregado'
-  const segregationClientIds = clients
-    .filter((c) => c.segregation)
-    .map((c) => c.id);
+  // Show only groups with status 'Segregation' and not 'Entregado' or 'deleted'
   const segregationGroups = groups.filter(
-    (g) =>
-      segregationClientIds.includes(g.clientId) && g.status === "Segregation"
+    (g) => g.status === "Segregation" && g.status !== "Entregado" && g.status !== "deleted"
   );
 
   // Only set group status to 'Segregation' if it is in a pre-segregation state (e.g., 'Pickup Complete')

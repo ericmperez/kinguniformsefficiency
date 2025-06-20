@@ -446,141 +446,81 @@ export default function PickupWashing({
       </form>
       {/* Grouped entries table */}
       {groupedEntries.length > 0 && (
-        <div
-          className="card p-3 mb-4"
-          style={{ maxWidth: 700, margin: "0 auto" }}
-        >
-          <h5 className="mb-3">Entradas recientes agrupadas</h5>
+        <div className="d-flex flex-column gap-3">
           {groupedEntries.map((group, idx) => (
-            <div key={idx} className="mb-4">
-              <div className="mb-2">
-                <span
-                  style={{
-                    fontSize: "1.5rem",
-                    fontWeight: "bold",
-                    color: "#007bff",
-                  }}
-                >
-                  {group.clientName}
-                </span>{" "}
-                &nbsp;|&nbsp;
-                <span
-                  style={{
-                    fontSize: "1.5rem",
-                    fontWeight: "bold",
-                    color: "#28a745",
-                  }}
-                >
-                  {group.driverName}
-                </span>{" "}
-                &nbsp;|&nbsp;
-                <span
-                  style={{
-                    fontSize: "1.5rem",
-                    fontWeight: "bold",
-                    color: "#6c757d",
-                  }}
-                >
-                  Carros: {group.entries.length}
-                </span>
+            <div key={idx} className="card shadow" style={{ maxWidth: 500, margin: "0 auto", width: "100%" }}>
+              <div className="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between" style={{ background: "#FFB300", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+                <span style={{ fontSize: "1.2rem", fontWeight: 600, color: "#007bff" }}>{group.clientName}</span>
+                <span style={{ fontSize: "1.1rem", color: "#28a745" }}>{group.driverName}</span>
+                <span style={{ fontSize: "1.1rem", color: "#6c757d" }}>Carros: {group.entries.length}</span>
               </div>
-              <div className="table-responsive">
-                <table className="table table-sm table-bordered">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Peso (libras)</th>
-                      <th>Hora</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.entries.map((entry: PickupEntry, i: number) => {
-                      let timeString = "";
-                      if (entry.timestamp instanceof Date) {
-                        timeString = entry.timestamp.toLocaleTimeString();
-                      } else if (
-                        entry.timestamp &&
-                        typeof entry.timestamp.toDate === "function"
-                      ) {
-                        timeString = entry.timestamp
-                          .toDate()
-                          .toLocaleTimeString();
-                      } else {
-                        timeString = new Date(
-                          entry.timestamp as any
-                        ).toLocaleTimeString();
-                      }
-                      return (
-                        <tr key={i}>
-                          <td>{i + 1}</td>
-                          <td>
-                            {editEntryId === entry.id ? (
-                              <input
-                                type="number"
-                                className="form-control form-control-sm"
-                                value={editWeight}
-                                onChange={(e) => setEditWeight(e.target.value)}
-                                style={{ width: 80, display: "inline-block" }}
-                                autoFocus
-                              />
-                            ) : (
-                              entry.weight
-                            )}
-                          </td>
-                          <td>{timeString}</td>
-                          <td>
-                            {editEntryId === entry.id ? (
-                              <>
-                                <button
-                                  className="btn btn-success btn-sm me-2"
-                                  onClick={() => handleEditSave(entry)}
-                                >
-                                  Guardar
-                                </button>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={handleEditCancel}
-                                >
-                                  Cancelar
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  className="btn btn-outline-primary btn-sm me-2"
-                                  onClick={() => handleEditEntry(entry)}
-                                >
-                                  Editar
-                                </button>
-                                <button
-                                  className="btn btn-outline-danger btn-sm"
-                                  onClick={() =>
-                                    handleDeleteEntry(group, entry)
-                                  }
-                                >
-                                  Eliminar
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div
-                  style={{
-                    width: "100%",
-                    textAlign: "right",
-                    fontWeight: "bold",
-                    background: "#f8f9fa",
-                    padding: "8px 12px",
-                    borderTop: "1px solid #dee2e6",
-                  }}
-                >
-                  Peso total: {Math.round(group.totalWeight)} lbs
+              <div className="card-body p-2">
+                <div className="table-responsive">
+                  <table className="table table-sm table-bordered mb-0">
+                    <thead>
+                      <tr>
+                        <th className="text-center">Peso (libras)</th>
+                        <th>Hora</th>
+                        <th className="text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.entries.map((entry: any, i: number) => {
+                        let timeString = "";
+                        if (entry.timestamp instanceof Date) {
+                          timeString = entry.timestamp.toLocaleTimeString();
+                        } else if (entry.timestamp && typeof entry.timestamp.toDate === "function") {
+                          timeString = entry.timestamp.toDate().toLocaleTimeString();
+                        } else {
+                          timeString = new Date(entry.timestamp).toLocaleTimeString();
+                        }
+                        return (
+                          <tr key={i}>
+                            <td className="text-center">
+                              {editEntryId === entry.id ? (
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm text-center"
+                                  value={editWeight}
+                                  onChange={(e) => setEditWeight(e.target.value)}
+                                  style={{ width: 80, display: "inline-block" }}
+                                  autoFocus
+                                />
+                              ) : (
+                                entry.weight
+                              )}
+                            </td>
+                            <td>{timeString}</td>
+                            <td>
+                              {editEntryId === entry.id ? (
+                                <div className="d-flex justify-content-end gap-2">
+                                  <button className="btn btn-success btn-sm" onClick={() => handleEditSave(entry)}>
+                                    Guardar
+                                  </button>
+                                  <button className="btn btn-secondary btn-sm" onClick={handleEditCancel}>
+                                    Cancelar
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="d-flex justify-content-end gap-2">
+                                  <button className="btn btn-outline-primary btn-sm" onClick={() => handleEditEntry(entry)}>
+                                    Editar
+                                  </button>
+                                  <button className="btn btn-outline-danger btn-sm" onClick={() => handleDeleteEntry(group, entry)}>
+                                    Eliminar
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
+              </div>
+              <div className="card-footer text-end bg-light fw-bold">
+                Peso total: {Math.round(group.totalWeight)} lbs
               </div>
             </div>
           ))}

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { UserRole } from "./AuthContext";
 import {
   addUser,
-  getUsers,
   deleteUser,
   updateUser,
 } from "../services/firebaseService";
@@ -48,12 +47,27 @@ export default function UserManagement(props: UserManagementProps) {
   >(undefined);
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      const firebaseUsers = await getUsers();
-      setUsers(firebaseUsers.map((u) => ({ ...u, role: u.role as UserRole })));
-      setLoading(false);
+    setLoading(true);
+    // Real-time Firestore listener for users
+    const unsub = (async () => {
+      const { collection, onSnapshot } = await import("firebase/firestore");
+      const { db } = await import("../firebase");
+      return onSnapshot(collection(db, "users"), (snapshot) => {
+        setUsers(
+          snapshot.docs.map((doc) => ({
+            id: doc.data().id,
+            username: doc.data().username,
+            role: doc.data().role as UserRole,
+            allowedComponents: doc.data().allowedComponents,
+            defaultPage: doc.data().defaultPage,
+          }))
+        );
+        setLoading(false);
+      });
     })();
+    return () => {
+      unsub.then && unsub.then((u) => u && u());
+    };
   }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -84,8 +98,6 @@ export default function UserManagement(props: UserManagementProps) {
     };
     setLoading(true);
     await addUser(newUser);
-    const firebaseUsers = await getUsers();
-    setUsers(firebaseUsers.map((u) => ({ ...u, role: u.role as UserRole })));
     setId("");
     setUsername("");
     setRole("Employee");
@@ -95,8 +107,6 @@ export default function UserManagement(props: UserManagementProps) {
   const handleDelete = async (id: string) => {
     setLoading(true);
     await deleteUser(id);
-    const firebaseUsers = await getUsers();
-    setUsers(firebaseUsers.map((u) => ({ ...u, role: u.role as UserRole })));
     setLoading(false);
   };
 
@@ -135,8 +145,6 @@ export default function UserManagement(props: UserManagementProps) {
         editAllowedComponents.length > 0 ? editAllowedComponents : undefined,
       defaultPage: editDefaultPage,
     });
-    const firebaseUsers = await getUsers();
-    setUsers(firebaseUsers.map((u) => ({ ...u, role: u.role as UserRole })));
     setEditingId(null);
     setEditUsername("");
     setEditRole("Employee");
