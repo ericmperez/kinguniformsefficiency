@@ -23,22 +23,17 @@ const Segregation: React.FC<SegregationProps> = ({
   const [loading, setLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
+  // State for log modal
+  const [logGroup, setLogGroup] = useState<any | null>(null);
+  const [showLogModal, setShowLogModal] = useState(false);
+
   useEffect(() => {
     setLoading(true);
-    // Get today's date range in local time
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    // Firestore query for today's pickup_groups
+    // Load ALL pickup_groups, not just today's
     import("../firebase").then(({ db }) => {
       import("firebase/firestore").then(
-        ({ collection, onSnapshot, query, where, Timestamp }) => {
-          const q = query(
-            collection(db, "pickup_groups"),
-            where("startTime", ">=", Timestamp.fromDate(today)),
-            where("startTime", "<", Timestamp.fromDate(tomorrow))
-          );
+        ({ collection, onSnapshot, query }) => {
+          const q = query(collection(db, "pickup_groups"));
           const unsub = onSnapshot(q, (snap) => {
             const fetched = snap.docs.map((doc) => ({
               id: doc.id,
@@ -75,23 +70,13 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   }, [loading, groups.length, clients.length]);
 
-  // Fetch all entries for today to count carts per group
+  // Fetch all entries to count carts per group (remove date filter)
   const [entries, setEntries] = useState<any[]>([]);
   useEffect(() => {
-    // Get today's date range in local time
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    // Firestore query for today's pickup_entries
     import("../firebase").then(({ db }) => {
       import("firebase/firestore").then(
-        ({ collection, onSnapshot, query, where, Timestamp }) => {
-          const q = query(
-            collection(db, "pickup_entries"),
-            where("timestamp", ">=", Timestamp.fromDate(today)),
-            where("timestamp", "<", Timestamp.fromDate(tomorrow))
-          );
+        ({ collection, onSnapshot, query }) => {
+          const q = query(collection(db, "pickup_entries"));
           const unsub = onSnapshot(q, (snap) => {
             const fetched = snap.docs.map((doc) => ({
               id: doc.id,
@@ -235,9 +220,62 @@ const Segregation: React.FC<SegregationProps> = ({
       ? segregationGroups
       : orderedGroups;
 
+  // --- Pending Conventional Products Widget ---
+  const [pendingConventionalGroups, setPendingConventionalGroups] = useState<any[]>([]);
+  useEffect(() => {
+    // Listen for all pickup_groups with status 'Pending Products', washingType 'Conventional', not deleted or 'Boleta Impresa', and at least one product in carts
+    import("../firebase").then(({ db }) => {
+      import("firebase/firestore").then(({ collection, onSnapshot, query, where }) => {
+        const q = query(
+          collection(db, "pickup_groups"),
+          where("status", "==", "Pending Products"),
+          where("washingType", "==", "Conventional")
+        );
+        const unsub = onSnapshot(q, (snap) => {
+          const filtered = snap.docs
+            .map((doc) => ({ id: doc.id, ...(doc.data() as any) }))
+            .filter((g: any) =>
+              g.status === "Pending Products" &&
+              g.washingType === "Conventional" &&
+              g.status !== "deleted" &&
+              g.status !== "Boleta Impresa" &&
+              Array.isArray(g.carts) &&
+              g.carts.length > 0
+            );
+          setPendingConventionalGroups(filtered);
+        });
+      });
+    });
+  }, []);
+
   // --- UI ---
   return (
     <div className="container py-4">
+      {/* Pending Conventional Products Widget */}
+      {pendingConventionalGroups.length > 0 && (
+        <div className="card shadow p-3 mb-4 mx-auto" style={{ maxWidth: 900, background: '#fffbe6', border: '2px solid #ffc107' }}>
+          <h5 className="mb-3 text-center" style={{ color: '#b8860b', letterSpacing: 1 }}>
+            Pending Conventional Products (added via + button)
+          </h5>
+          <div className="d-flex flex-wrap gap-3 justify-content-center">
+            {pendingConventionalGroups.map((group) => (
+              <div key={group.id} className="p-3 rounded shadow-sm bg-white border" style={{ minWidth: 180, maxWidth: 260 }}>
+                <div style={{ fontWeight: 700, color: '#007bff', fontSize: 18 }}>{group.clientName}</div>
+                <div style={{ fontSize: 14, color: '#333' }}>Weight: <strong>{typeof group.totalWeight === 'number' ? group.totalWeight.toFixed(2) : '?'}</strong> lbs</div>
+                <div style={{ fontSize: 14, color: '#333' }}>Carros: <strong>{Array.isArray(group.carts) ? group.carts.length : 0}</strong></div>
+                <div className="mt-2">
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>Products:</div>
+                  <ul className="mb-0" style={{ fontSize: 13, paddingLeft: 18 }}>
+                    {Array.isArray(group.carts) && group.carts.map((cart: any, idx: number) => (
+                      <li key={idx}>{cart.productName || cart.productId || 'Product'} x{cart.quantity || 1}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <h2 className="mb-4 text-center">Segregation</h2>
       {loading || orderLoading ? (
         <div className="text-center py-5">Loading...</div>
@@ -250,123 +288,199 @@ const Segregation: React.FC<SegregationProps> = ({
           <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>
             Groups for Segregation
           </h5>
-          <div className="list-group list-group-flush">
-            {displayGroups.map((group, idx) => (
-              <div
-                key={group.id}
-                className={`list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded${
-                  idx === 0
-                    ? " border border-3 border-primary bg-info-subtle"
-                    : ""
-                }`}
-                style={{
-                  background: idx === 0 ? "#eaf2fb" : "#f8f9fa",
-                  border:
-                    idx === 0 ? "3px solid #007bff" : "1px solid #e3e3e3",
-                }}
-              >
-                <div className="d-flex flex-column flex-md-row align-items-md-center gap-3 flex-grow-1">
+          {/* First group: full card with controls */}
+          {displayGroups[0] && (
+            <div
+              key={displayGroups[0].id}
+              className="list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded border border-3 border-primary bg-info-subtle"
+              style={{ background: "#eaf2fb", border: "3px solid #007bff" }}
+            >
+              <div className="row w-100 g-2 align-items-center flex-nowrap flex-md-wrap">
+                <div className="col-12 col-md-auto d-flex align-items-center mb-2 mb-md-0" style={{ minWidth: 160 }}>
                   <span
                     style={{
-                      fontSize: idx === 0 ? "2rem" : "1.2rem",
-                      fontWeight: idx === 0 ? 800 : 600,
+                      fontSize: "2rem",
+                      fontWeight: 800,
                       color: "#007bff",
+                      wordBreak: "break-word",
                     }}
                   >
-                    {group.clientName}
-                  </span>
-                  <span style={{ fontSize: "1.1rem", color: "#333" }}>
-                    Weight:{" "}
-                    <strong>
-                      {typeof group.totalWeight === "number"
-                        ? group.totalWeight.toFixed(2)
-                        : "?"}
-                    </strong>{" "}
-                    lbs
-                  </span>
-                  <span style={{ fontSize: "1.1rem", color: "#333" }}>
-                    Carros: <strong>{getCartCount(group.id)}</strong>
+                    {displayGroups[0].clientName}
                   </span>
                 </div>
-                <div className="d-flex flex-row gap-1 align-items-center ms-auto">
+                <div className="col-6 col-md-auto text-md-center mb-2 mb-md-0" style={{ minWidth: 120 }}>
+                  <span style={{ fontSize: "1.1rem", color: "#333" }}>
+                    Weight: <strong>{typeof displayGroups[0].totalWeight === "number" ? displayGroups[0].totalWeight.toFixed(2) : "?"}</strong> lbs
+                  </span>
+                </div>
+                <div className="col-6 col-md-auto text-md-center mb-2 mb-md-0" style={{ minWidth: 120 }}>
+                  <span style={{ fontSize: "1.1rem", color: "#333" }}>
+                    Carros: <strong>{getCartCount(displayGroups[0].id)}</strong>
+                  </span>
+                </div>
+                <div className="col-12 col-md-auto d-flex flex-row gap-1 align-items-center justify-content-md-end ms-auto mb-2 mb-md-0" style={{ minWidth: 120 }}>
                   <button
                     className="btn btn-outline-secondary btn-sm"
                     title="Move up"
-                    disabled={idx === 0}
-                    onClick={() => moveGroup(group.id, -1)}
+                    disabled={true}
                   >
                     <span aria-hidden="true">▲</span>
                   </button>
                   <button
                     className="btn btn-outline-secondary btn-sm"
                     title="Move down"
-                    disabled={idx === displayGroups.length - 1}
-                    onClick={() => moveGroup(group.id, 1)}
+                    disabled={displayGroups.length === 1}
+                    onClick={() => moveGroup(displayGroups[0].id, 1)}
                   >
                     <span aria-hidden="true">▼</span>
                   </button>
+                  <button
+                    className="btn btn-outline-info btn-sm ms-2"
+                    onClick={() => {
+                      setLogGroup(displayGroups[0]);
+                      setShowLogModal(true);
+                    }}
+                    title="View Group Log"
+                  >
+                    Log
+                  </button>
                 </div>
-                {idx === 0 && (
-                  <div className="d-flex flex-row gap-3 align-items-center mt-3 mt-md-0 ms-4">
-                    <button
-                      className="btn btn-outline-secondary btn-lg"
-                      onClick={() =>
-                        handleInputChange(
-                          group.id,
-                          String(
-                            Math.max(
-                              0,
-                              parseInt(segregatedCounts[group.id] || "0", 10) - 1
-                            )
-                          )
-                        )
-                      }
-                      disabled={completingGroup === group.id}
-                    >
-                      -
-                    </button>
-                    <input
-                      type="number"
-                      min={0}
-                      className="form-control form-control-lg text-center"
-                      style={{ width: 100, fontSize: 24, fontWeight: 700 }}
-                      placeholder="# segregated"
-                      value={segregatedCounts[group.id] || ""}
-                      onChange={(e) => handleInputChange(group.id, e.target.value)}
-                      disabled={completingGroup === group.id}
-                    />
-                    <button
-                      className="btn btn-outline-secondary btn-lg"
-                      onClick={() =>
-                        handleInputChange(
-                          group.id,
-                          String(
-                            parseInt(segregatedCounts[group.id] || "0", 10) + 1
-                          )
-                        )
-                      }
-                      disabled={completingGroup === group.id}
-                    >
-                      +
-                    </button>
-                    <button
-                      className="btn btn-success btn-lg ms-3"
-                      disabled={
-                        completingGroup === group.id ||
-                        !segregatedCounts[group.id]
-                      }
-                      onClick={() => handleComplete(group.id)}
-                      style={{ fontWeight: 700, fontSize: 20 }}
-                    >
-                      {completingGroup === group.id ? "Saving..." : "Completed"}
-                    </button>
-                  </div>
-                )}
               </div>
-            ))}
-          </div>
+              <div className="d-flex flex-column flex-md-row gap-3 align-items-center mt-3 mt-md-0 w-100">
+                <div className="d-flex flex-row gap-2 align-items-center justify-content-center flex-wrap w-100">
+                  <button
+                    className="btn btn-outline-secondary btn-lg"
+                    onClick={() =>
+                      handleInputChange(
+                        displayGroups[0].id,
+                        String(Math.max(0, parseInt(segregatedCounts[displayGroups[0].id] || "0", 10) - 1))
+                      )
+                    }
+                    disabled={completingGroup === displayGroups[0].id}
+                    style={{ minWidth: 48 }}
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    className="form-control form-control-lg text-center"
+                    style={{ width: 100, fontSize: 24, fontWeight: 700, maxWidth: "100%" }}
+                    placeholder="# segregated"
+                    value={segregatedCounts[displayGroups[0].id] || ""}
+                    onChange={(e) => handleInputChange(displayGroups[0].id, e.target.value)}
+                    disabled={completingGroup === displayGroups[0].id}
+                  />
+                  <button
+                    className="btn btn-outline-secondary btn-lg"
+                    onClick={() =>
+                      handleInputChange(
+                        displayGroups[0].id,
+                        String(parseInt(segregatedCounts[displayGroups[0].id] || "0", 10) + 1)
+                      )
+                    }
+                    disabled={completingGroup === displayGroups[0].id}
+                    style={{ minWidth: 48 }}
+                  >
+                    +
+                  </button>
+                  <button
+                    className="btn btn-success btn-lg ms-3"
+                    disabled={
+                      completingGroup === displayGroups[0].id ||
+                      !segregatedCounts[displayGroups[0].id]
+                    }
+                    onClick={() => handleComplete(displayGroups[0].id)}
+                    style={{ fontWeight: 700, fontSize: 20, minWidth: 120 }}
+                  >
+                    {completingGroup === displayGroups[0].id ? "Saving..." : "Completed"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* All other groups: summarized in a single responsive row */}
+          {displayGroups.length > 1 && (
+            <div className="d-block mt-3">
+              <div className="d-flex flex-wrap flex-md-nowrap gap-2 justify-content-center align-items-center w-100" style={{ overflowX: "auto" }}>
+                {displayGroups.slice(1).map((group, idx) => (
+                  <div
+                    key={group.id}
+                    className="px-3 py-2 rounded shadow-sm bg-white border d-flex flex-column align-items-center"
+                    style={{ minWidth: 140, maxWidth: 180, marginBottom: 8, flex: 1 }}
+                  >
+                    <span style={{ fontWeight: 600, color: "#007bff", fontSize: 16, textAlign: "center", wordBreak: "break-word" }}>{group.clientName}</span>
+                    <span style={{ fontSize: 13, color: "#333" }}>Weight: <strong>{typeof group.totalWeight === "number" ? group.totalWeight.toFixed(2) : "?"}</strong> lbs</span>
+                    <span style={{ fontSize: 13, color: "#333" }}>Carros: <strong>{getCartCount(group.id)}</strong></span>
+                    <div className="d-flex flex-row gap-1 align-items-center mt-2">
+                      <button
+                        className="btn btn-outline-secondary btn-sm"
+                        title="Move up"
+                        disabled={idx === 0 && displayGroups.length === 2}
+                        onClick={() => moveGroup(group.id, -1)}
+                      >
+                        <span aria-hidden="true">▲</span>
+                      </button>
+                      <button
+                        className="btn btn-outline-secondary btn-sm"
+                        title="Move down"
+                        disabled={idx === displayGroups.length - 2}
+                        onClick={() => moveGroup(group.id, 1)}
+                      >
+                        <span aria-hidden="true">▼</span>
+                      </button>
+                      <button
+                        className="btn btn-outline-info btn-sm"
+                        onClick={() => {
+                          setLogGroup(group);
+                          setShowLogModal(true);
+                        }}
+                        title="View Group Log"
+                      >
+                        Log
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
+      {showLogModal && logGroup && (
+  <div
+    className="modal show"
+    style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+  >
+    <div className="modal-dialog">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h5 className="modal-title">Group History Log</h5>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setShowLogModal(false)}
+          ></button>
+        </div>
+        <div className="modal-body">
+          {Array.isArray(logGroup.statusLog) && logGroup.statusLog.length > 0 ? (
+            <ul className="list-group">
+              {logGroup.statusLog.map((log: any, idx: number) => (
+                <li key={idx} className="list-group-item">
+                  <b>Step:</b> {log.step} <br />
+                  <b>Time:</b> {log.timestamp ? new Date(log.timestamp).toLocaleString() : "-"} <br />
+                  <b>User:</b> {log.user || "-"}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-muted">No log history for this group.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

@@ -446,9 +446,13 @@ export default function ActiveInvoices({
                     return `rgb(${rh[0]},${rh[1]},${rh[2]})`;
                   };
                   const barColor = interpolateColor("#ffe066", "#51cf66", percent);
-                  // Format date
-                  const createdDate = group.createdAt
-                    ? new Date(group.createdAt).toLocaleString()
+                  // Format date: Hour:Minute (24h), Month/Date
+                  const createdDate = group.startTime
+                    ? (() => {
+                        const d = new Date(group.startTime);
+                        const pad = (n: number) => n.toString().padStart(2, "0");
+                        return `${pad(d.getHours())}:${pad(d.getMinutes())}  ${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}`;
+                      })()
                     : "-";
                   return (
                     <tr key={group.id}
@@ -1146,10 +1150,57 @@ export default function ActiveInvoices({
                   onClick={async () => {
                     const product = products.find(p => p.id === selectedAddProductId);
                     if (!product) return;
-                    let updatedCarts = [...(addProductGroup.carts || [])];
+                    // Find or create 'Pending Products' group for this client
+                    let pendingGroup = pickupGroups.find(
+                      g => g.clientId === addProductGroup.clientId && g.status === 'Pending Products'
+                    );
+                    if (!pendingGroup) {
+                      // Create new group in Firestore
+                      const now = new Date();
+                      const groupData = {
+                        clientId: addProductGroup.clientId,
+                        clientName: addProductGroup.clientName,
+                        startTime: now,
+                        endTime: now,
+                        totalWeight: 0,
+                        status: 'Pending Products',
+                        carts: [],
+                        createdAt: now.toISOString(),
+                        // washingType: 'Conventional', // Ensure this is set for filtering
+                      };
+                      const groupRef = await import('../firebase').then(({ db }) =>
+                        import('firebase/firestore').then(({ collection, addDoc }) =>
+                          addDoc(collection(db, 'pickup_groups'), groupData)
+                        )
+                      );
+                      pendingGroup = { ...groupData, id: groupRef.id };
+                      setPickupGroups(prev => [...prev, pendingGroup]);
+                    } else {
+                      // If group exists but status is not 'Pending Products', update it
+                      if (pendingGroup.status !== 'Pending Products') {
+                        await import('../firebase').then(({ db }) =>
+                          import('firebase/firestore').then(({ doc, updateDoc }) =>
+                            updateDoc(doc(db, 'pickup_groups', pendingGroup.id), { status: 'Pending Products' })
+                          )
+                        );
+                        pendingGroup.status = 'Pending Products';
+                      }
+                    }
+                    // Add product to the group's carts
+                    let updatedCarts = Array.isArray(pendingGroup.carts) ? [...pendingGroup.carts] : [];
                     if (addProductMode === 'cart') {
-                      const cartIdx = updatedCarts.findIndex((c: any) => c.id === selectedCartId);
-                      if (cartIdx === -1) return;
+                      let cartIdx = updatedCarts.findIndex((c: any) => c.id === selectedCartId);
+                      if (cartIdx === -1) {
+                        const newCart = {
+                          id: Date.now().toString(),
+                          name: `Cart ${updatedCarts.length + 1}`,
+                          items: [],
+                          total: 0,
+                          createdAt: new Date().toISOString(),
+                        };
+                        updatedCarts.push(newCart);
+                        cartIdx = updatedCarts.length - 1;
+                      }
                       const cart = { ...updatedCarts[cartIdx] };
                       const existingItemIdx = cart.items.findIndex((item: any) => item.productId === product.id);
                       if (existingItemIdx > -1) {
@@ -1166,7 +1217,6 @@ export default function ActiveInvoices({
                       }
                       updatedCarts[cartIdx] = cart;
                     } else {
-                      // For quantity or pounds, create a new cart entry
                       const newCart = {
                         id: Date.now().toString(),
                         name: `${addProductMode === 'quantity' ? 'Qty' : 'Lbs'} Cart - ${new Date().toLocaleTimeString()}`,
@@ -1185,13 +1235,13 @@ export default function ActiveInvoices({
                       };
                       updatedCarts.push(newCart);
                     }
-                    // Update in Firestore directly
-                    await import("../firebase").then(({ db }) =>
-                      import("firebase/firestore").then(({ doc, updateDoc }) =>
-                        updateDoc(doc(db, "pickup_groups", addProductGroup.id), { carts: updatedCarts })
+                    // Update in Firestore
+                    await import('../firebase').then(({ db }) =>
+                      import('firebase/firestore').then(({ doc, updateDoc }) =>
+                        updateDoc(doc(db, 'pickup_groups', pendingGroup.id), { carts: updatedCarts, status: 'Pending Products' })
                       )
                     );
-                    setPickupGroups(prev => prev.map(g => g.id === addProductGroup.id ? { ...g, carts: updatedCarts } : g));
+                    setPickupGroups(prev => prev.map(g => g.id === pendingGroup.id ? { ...g, carts: updatedCarts, status: 'Pending Products' } : g));
                     setShowAddProductModal(false);
                   }}
                 >

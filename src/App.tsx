@@ -581,6 +581,59 @@ function App() {
     },
   ];
 
+  // PendingProductsWidget: shows all pending products groups and their products
+  function PendingProductsWidget() {
+    const [pendingGroups, setPendingGroups] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      const unsub = onSnapshot(collection(db, "pickup_groups"), (snap) => {
+        // Show all groups with status 'Pending Products', not deleted or Boleta Impresa, and with at least one product in carts
+        const groups = snap.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+          .filter((g: any) => {
+            if (g.status !== "Pending Products") return false;
+            if (g.status === "deleted" || g.status === "Boleta Impresa") return false;
+            if (!Array.isArray(g.carts) || g.carts.length === 0) return false;
+            // At least one cart has at least one product
+            return g.carts.some((cart: any) => Array.isArray(cart.items) && cart.items.length > 0);
+          });
+        setPendingGroups(groups);
+        setLoading(false);
+      });
+      return () => unsub();
+    }, []);
+
+    if (loading) return <div className="card p-3 mb-3">Loading pending products...</div>;
+    if (pendingGroups.length === 0) return <div className="card p-3 mb-3">No pending products.</div>;
+
+    return (
+      <div className="card p-3 mb-3">
+        <h5 className="mb-3">Pending Products (Conventional + Button)</h5>
+        {pendingGroups.map((group) => (
+          <div key={group.id} className="mb-2">
+            <div><b>Client:</b> {group.clientName}</div>
+            <div style={{ fontSize: 13, color: '#555' }}>
+              {Array.isArray(group.carts) && group.carts.length > 0 ? (
+                <ul className="mb-1">
+                  {group.carts.map((cart: any) =>
+                    cart.items.map((item: any, idx: number) => (
+                      <li key={cart.id + '-' + idx}>
+                        {item.productName} (x{item.quantity})
+                      </li>
+                    ))
+                  )}
+                </ul>
+              ) : (
+                <span>No products</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <AppBar
@@ -1010,7 +1063,13 @@ function App() {
               </div>
             </div>
           </div>
+          <PendingProductsWidget />
           {/* ...existing home content... */}
+        </div>
+      )}
+      {(activePage === "home" || activePage === "ActiveInvoices") && (
+        <div className="container mt-4">
+          <PendingProductsWidget />
         </div>
       )}
     </div>
