@@ -164,14 +164,14 @@ function App() {
   const [todayTotalLbs, setTodayTotalLbs] = useState<number>(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [announcements, setAnnouncements] = useState<string>(
-    localStorage.getItem('loginAnnouncements') || ''
+    localStorage.getItem("loginAnnouncements") || ""
   );
   const [announcementImage, setAnnouncementImage] = useState<string | null>(
-    localStorage.getItem('loginAnnouncementImage') || null
+    localStorage.getItem("loginAnnouncementImage") || null
   );
   const [activeSettingsTab, setActiveSettingsTab] = useState<
-    'clients' | 'products' | 'users' | 'drivers' | 'loginContent'
-  >('clients');
+    "clients" | "products" | "users" | "drivers" | "loginContent"
+  >("clients");
 
   // Helper: check if current user can see a component (per-user or fallback to role)
   const canSee = (component: AppComponentKey) =>
@@ -455,9 +455,9 @@ function App() {
 
   // Save announcements and image to localStorage when changed
   useEffect(() => {
-    localStorage.setItem('loginAnnouncements', announcements);
+    localStorage.setItem("loginAnnouncements", announcements);
     if (announcementImage) {
-      localStorage.setItem('loginAnnouncementImage', announcementImage);
+      localStorage.setItem("loginAnnouncementImage", announcementImage);
     }
   }, [announcements, announcementImage]);
 
@@ -581,55 +581,70 @@ function App() {
     },
   ];
 
-  // PendingProductsWidget: shows all pending products groups and their products
+  // PendingProductsWidget: shows all pending products (cart items) from groups with pendingProduct === true
   function PendingProductsWidget() {
-    const [pendingGroups, setPendingGroups] = useState<any[]>([]);
+    const [pendingProducts, setPendingProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
       const unsub = onSnapshot(collection(db, "pickup_groups"), (snap) => {
-        // Show all groups with status 'Pending Products', not deleted or Boleta Impresa, and with at least one product in carts
-        const groups = snap.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((g: any) => {
-            if (g.status !== "Pending Products") return false;
-            if (g.status === "deleted" || g.status === "Boleta Impresa") return false;
-            if (!Array.isArray(g.carts) || g.carts.length === 0) return false;
-            // At least one cart has at least one product
-            return g.carts.some((cart: any) => Array.isArray(cart.items) && cart.items.length > 0);
-          });
-        setPendingGroups(groups);
+        const products: any[] = [];
+        snap.docs.forEach((doc) => {
+          const g = { id: doc.id, ...(doc.data() as any) };
+          if (!g.pendingProduct) return;
+          if (g.status === "deleted" || g.status === "Boleta Impresa") return;
+          // NEW: If group is a new-style pending product (product info at group level)
+          if (g.status === "Pending Product" && g.productId && g.productName) {
+            products.push({
+              groupId: g.id,
+              clientName: g.clientName,
+              productName: g.productName,
+              quantity: g.quantity,
+              createdAt: g.createdAt,
+            });
+            return;
+          }
+          // OLD: If group has carts/items
+          if (Array.isArray(g.carts) && g.carts.length > 0) {
+            g.carts.forEach((cart: any) => {
+              if (Array.isArray(cart.items) && cart.items.length > 0) {
+                cart.items.forEach((item: any) => {
+                  products.push({
+                    groupId: g.id,
+                    clientName: g.clientName,
+                    productName: item.productName,
+                    quantity: item.quantity,
+                    cartId: cart.id,
+                  });
+                });
+              }
+            });
+          }
+        });
+        setPendingProducts(products);
         setLoading(false);
       });
       return () => unsub();
     }, []);
 
-    if (loading) return <div className="card p-3 mb-3">Loading pending products...</div>;
-    if (pendingGroups.length === 0) return <div className="card p-3 mb-3">No pending products.</div>;
+    if (loading)
+      return <div className="card p-3 mb-3">Loading pending products...</div>;
+    if (pendingProducts.length === 0)
+      return <div className="card p-3 mb-3">No pending products.</div>;
 
     return (
       <div className="card p-3 mb-3">
         <h5 className="mb-3">Pending Products (Conventional + Button)</h5>
-        {pendingGroups.map((group) => (
-          <div key={group.id} className="mb-2">
-            <div><b>Client:</b> {group.clientName}</div>
-            <div style={{ fontSize: 13, color: '#555' }}>
-              {Array.isArray(group.carts) && group.carts.length > 0 ? (
-                <ul className="mb-1">
-                  {group.carts.map((cart: any) =>
-                    cart.items.map((item: any, idx: number) => (
-                      <li key={cart.id + '-' + idx}>
-                        {item.productName} (x{item.quantity})
-                      </li>
-                    ))
-                  )}
-                </ul>
-              ) : (
-                <span>No products</span>
+        <ul className="mb-0">
+          {pendingProducts.map((item, idx) => (
+            <li key={item.groupId + "-" + (item.cartId || "group") + "-" + idx}>
+              <b>Client:</b> {item.clientName} &nbsp; <b>Product:</b> {item.productName} &nbsp; <b>Qty:</b> {item.quantity}
+              {item.createdAt && (
+                <span style={{ color: '#888', fontSize: '0.9em' }}> &nbsp; <b>Created:</b> {new Date(item.createdAt).toLocaleString()}</span>
               )}
-            </div>
-          </div>
-        ))}
+            </li>
+          ))}
+        </ul>
       </div>
     );
   }
@@ -642,34 +657,43 @@ function App() {
         elevation={2}
         sx={{
           background: {
-            xs: 'linear-gradient(90deg, var(--ku-red) 80%, var(--ku-yellow) 100%)',
-            md: 'linear-gradient(90deg, var(--ku-red) 70%, var(--ku-yellow) 100%)',
+            xs: "linear-gradient(90deg, var(--ku-red) 80%, var(--ku-yellow) 100%)",
+            md: "linear-gradient(90deg, var(--ku-red) 70%, var(--ku-yellow) 100%)",
           },
-          color: '#fff',
-          borderRadius: { xs: 0, md: '0 0 18px 18px' },
-          boxShadow: '0 4px 24px rgba(215,35,40,0.10)',
+          color: "#fff",
+          borderRadius: { xs: 0, md: "0 0 18px 18px" },
+          boxShadow: "0 4px 24px rgba(215,35,40,0.10)",
           px: { xs: 1, md: 4 },
-          backdropFilter: 'blur(8px)',
-          position: 'relative',
+          backdropFilter: "blur(8px)",
+          position: "relative",
         }}
       >
-        <Toolbar sx={{
-          minHeight: { xs: 48, md: 56 },
-          display: 'flex',
-          flexDirection: 'row',
-          flexWrap: 'nowrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 1,
-          overflowX: 'auto',
-          whiteSpace: 'nowrap',
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+        <Toolbar
+          sx={{
+            minHeight: { xs: 48, md: 56 },
+            display: "flex",
+            flexDirection: "row",
+            flexWrap: "nowrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+            overflowX: "auto",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              flexShrink: 0,
+            }}
+          >
             <IconButton
               edge="start"
               color="inherit"
               aria-label="menu"
-              sx={{ mr: 1, display: { xs: 'flex', md: 'none' } }}
+              sx={{ mr: 1, display: { xs: "flex", md: "none" } }}
               onClick={() => setDrawerOpen(true)}
             >
               <MenuIcon />
@@ -678,8 +702,14 @@ function App() {
               edge="start"
               color="inherit"
               aria-label="home"
-              sx={{ p: 0, mr: 1, borderRadius: 2, background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}
-              onClick={() => setActivePage('home')}
+              sx={{
+                p: 0,
+                mr: 1,
+                borderRadius: 2,
+                background: "#fff",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
+              }}
+              onClick={() => setActivePage("home")}
             >
               <Avatar
                 src={kingUniformsLogo}
@@ -687,8 +717,8 @@ function App() {
                 sx={{
                   width: { xs: 28, md: 36 },
                   height: { xs: 28, md: 36 },
-                  bgcolor: 'var(--ku-yellow)',
-                  border: '2px solid #fff',
+                  bgcolor: "var(--ku-yellow)",
+                  border: "2px solid #fff",
                 }}
               />
             </IconButton>
@@ -697,13 +727,13 @@ function App() {
               sx={{
                 fontWeight: 800,
                 letterSpacing: 1,
-                color: '#111', // Make King Uniforms black
+                color: "#111", // Make King Uniforms black
                 fontSize: { xs: 13, md: 18 },
-                textShadow: '0 2px 8px rgba(0,0,0,0.10)',
-                textTransform: 'uppercase',
+                textShadow: "0 2px 8px rgba(0,0,0,0.10)",
+                textTransform: "uppercase",
                 ml: 0.5,
-                display: { xs: 'none', sm: 'block' },
-                whiteSpace: 'nowrap',
+                display: { xs: "none", sm: "block" },
+                whiteSpace: "nowrap",
               }}
             >
               King Uniforms
@@ -711,13 +741,13 @@ function App() {
           </Box>
           <Box
             sx={{
-              display: { xs: 'none', md: 'flex' },
+              display: { xs: "none", md: "flex" },
               gap: 1,
-              alignItems: 'center',
+              alignItems: "center",
               flex: 1,
-              justifyContent: 'center',
-              overflowX: 'auto',
-              whiteSpace: 'nowrap',
+              justifyContent: "center",
+              overflowX: "auto",
+              whiteSpace: "nowrap",
             }}
           >
             {navLinks
@@ -725,24 +755,34 @@ function App() {
               .map((link) => (
                 <Button
                   key={link.page}
-                  color={activePage === link.page ? 'warning' : 'inherit'}
+                  color={activePage === link.page ? "warning" : "inherit"}
                   startIcon={link.icon}
                   sx={{
                     fontWeight: 600,
-                    color: activePage === link.page ? 'var(--ku-yellow)' : '#fff',
-                    bgcolor: activePage === link.page ? 'rgba(255,224,102,0.18)' : 'transparent',
+                    color:
+                      activePage === link.page ? "var(--ku-yellow)" : "#fff",
+                    bgcolor:
+                      activePage === link.page
+                        ? "rgba(255,224,102,0.18)"
+                        : "transparent",
                     borderRadius: 2,
                     px: 1.5,
                     fontSize: 13,
                     minWidth: 0,
-                    boxShadow: activePage === link.page ? '0 2px 8px rgba(250,198,27,0.10)' : 'none',
-                    transition: 'all 0.2s',
-                    borderBottom: activePage === link.page ? '2px solid var(--ku-yellow)' : '2px solid transparent',
-                    '&:hover': {
-                      bgcolor: 'var(--ku-yellow)',
-                      color: '#222',
+                    boxShadow:
+                      activePage === link.page
+                        ? "0 2px 8px rgba(250,198,27,0.10)"
+                        : "none",
+                    transition: "all 0.2s",
+                    borderBottom:
+                      activePage === link.page
+                        ? "2px solid var(--ku-yellow)"
+                        : "2px solid transparent",
+                    "&:hover": {
+                      bgcolor: "var(--ku-yellow)",
+                      color: "#222",
                     },
-                    whiteSpace: 'nowrap',
+                    whiteSpace: "nowrap",
                   }}
                   onClick={() => setActivePage(link.page)}
                 >
@@ -752,29 +792,39 @@ function App() {
           </Box>
           <Box
             sx={{
-              display: 'flex',
-              alignItems: 'center',
+              display: "flex",
+              alignItems: "center",
               gap: 1,
               flexShrink: 0,
-              justifyContent: { xs: 'flex-end', md: 'unset' },
-              whiteSpace: 'nowrap',
+              justifyContent: { xs: "flex-end", md: "unset" },
+              whiteSpace: "nowrap",
             }}
           >
             <Typography
               variant="body2"
               sx={{
-                color: '#fff',
+                color: "#fff",
                 mr: 1,
-                display: { xs: 'none', md: 'block' },
+                display: { xs: "none", md: "block" },
                 fontWeight: 500,
                 letterSpacing: 0.5,
                 fontSize: 13,
-                whiteSpace: 'nowrap',
+                whiteSpace: "nowrap",
               }}
             >
               Hello, {user.username} ({user.role})
             </Typography>
-            <IconButton color="inherit" onClick={logout} sx={{ ml: 1, bgcolor: 'rgba(255,255,255,0.10)', borderRadius: 2, width: 32, height: 32 }}>
+            <IconButton
+              color="inherit"
+              onClick={logout}
+              sx={{
+                ml: 1,
+                bgcolor: "rgba(255,255,255,0.10)",
+                borderRadius: 2,
+                width: 32,
+                height: 32,
+              }}
+            >
               <LogoutIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Box>
@@ -848,108 +898,153 @@ function App() {
               marginBottom: 24,
               zIndex: 1,
               position: "relative",
-              display: 'flex',
-              justifyContent: 'center',
+              display: "flex",
+              justifyContent: "center",
             }}
           >
             <div
               style={{
-                display: 'flex',
-                flexDirection: 'row',
-                flexWrap: 'wrap',
+                display: "flex",
+                flexDirection: "row",
+                flexWrap: "wrap",
                 gap: 16,
-                justifyContent: 'center',
-                alignItems: 'center',
+                justifyContent: "center",
+                alignItems: "center",
                 maxWidth: 600,
-                width: '100%',
+                width: "100%",
               }}
             >
               <button
-                className={`btn${activeSettingsTab === "clients" ? " btn-primary" : " btn-outline-primary"}`}
+                className={`btn${
+                  activeSettingsTab === "clients"
+                    ? " btn-primary"
+                    : " btn-outline-primary"
+                }`}
                 onClick={() => setActiveSettingsTab("clients")}
                 style={{
                   minWidth: 120,
-                  padding: '12px 20px',
+                  padding: "12px 20px",
                   borderRadius: 12,
                   fontWeight: 600,
                   fontSize: 16,
-                  boxShadow: activeSettingsTab === "clients" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
-                  background: activeSettingsTab === "clients" ? 'var(--ku-blue)' : '#fff',
-                  color: activeSettingsTab === "clients" ? '#fff' : '#0E62A0',
-                  border: '2px solid var(--ku-blue)',
-                  transition: 'all 0.2s',
+                  boxShadow:
+                    activeSettingsTab === "clients"
+                      ? "0 2px 8px rgba(14,98,160,0.08)"
+                      : "none",
+                  background:
+                    activeSettingsTab === "clients" ? "var(--ku-blue)" : "#fff",
+                  color: activeSettingsTab === "clients" ? "#fff" : "#0E62A0",
+                  border: "2px solid var(--ku-blue)",
+                  transition: "all 0.2s",
                 }}
               >
                 Clients
               </button>
               <button
-                className={`btn${activeSettingsTab === "products" ? " btn-primary" : " btn-outline-primary"}`}
+                className={`btn${
+                  activeSettingsTab === "products"
+                    ? " btn-primary"
+                    : " btn-outline-primary"
+                }`}
                 onClick={() => setActiveSettingsTab("products")}
                 style={{
                   minWidth: 120,
-                  padding: '12px 20px',
+                  padding: "12px 20px",
                   borderRadius: 12,
                   fontWeight: 600,
                   fontSize: 16,
-                  boxShadow: activeSettingsTab === "products" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
-                  background: activeSettingsTab === "products" ? 'var(--ku-blue)' : '#fff',
-                  color: activeSettingsTab === "products" ? '#fff' : '#0E62A0',
-                  border: '2px solid var(--ku-blue)',
-                  transition: 'all 0.2s',
+                  boxShadow:
+                    activeSettingsTab === "products"
+                      ? "0 2px 8px rgba(14,98,160,0.08)"
+                      : "none",
+                  background:
+                    activeSettingsTab === "products"
+                      ? "var(--ku-blue)"
+                      : "#fff",
+                  color: activeSettingsTab === "products" ? "#fff" : "#0E62A0",
+                  border: "2px solid var(--ku-blue)",
+                  transition: "all 0.2s",
                 }}
               >
                 Products
               </button>
               <button
-                className={`btn${activeSettingsTab === "drivers" ? " btn-primary" : " btn-outline-primary"}`}
+                className={`btn${
+                  activeSettingsTab === "drivers"
+                    ? " btn-primary"
+                    : " btn-outline-primary"
+                }`}
                 onClick={() => setActiveSettingsTab("drivers")}
                 style={{
                   minWidth: 120,
-                  padding: '12px 20px',
+                  padding: "12px 20px",
                   borderRadius: 12,
                   fontWeight: 600,
                   fontSize: 16,
-                  boxShadow: activeSettingsTab === "drivers" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
-                  background: activeSettingsTab === "drivers" ? 'var(--ku-blue)' : '#fff',
-                  color: activeSettingsTab === "drivers" ? '#fff' : '#0E62A0',
-                  border: '2px solid var(--ku-blue)',
-                  transition: 'all 0.2s',
+                  boxShadow:
+                    activeSettingsTab === "drivers"
+                      ? "0 2px 8px rgba(14,98,160,0.08)"
+                      : "none",
+                  background:
+                    activeSettingsTab === "drivers" ? "var(--ku-blue)" : "#fff",
+                  color: activeSettingsTab === "drivers" ? "#fff" : "#0E62A0",
+                  border: "2px solid var(--ku-blue)",
+                  transition: "all 0.2s",
                 }}
               >
                 Choferes
               </button>
               <button
-                className={`btn${activeSettingsTab === "users" ? " btn-primary" : " btn-outline-primary"}`}
+                className={`btn${
+                  activeSettingsTab === "users"
+                    ? " btn-primary"
+                    : " btn-outline-primary"
+                }`}
                 onClick={() => setActiveSettingsTab("users")}
                 style={{
                   minWidth: 120,
-                  padding: '12px 20px',
+                  padding: "12px 20px",
                   borderRadius: 12,
                   fontWeight: 600,
                   fontSize: 16,
-                  boxShadow: activeSettingsTab === "users" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
-                  background: activeSettingsTab === "users" ? 'var(--ku-blue)' : '#fff',
-                  color: activeSettingsTab === "users" ? '#fff' : '#0E62A0',
-                  border: '2px solid var(--ku-blue)',
-                  transition: 'all 0.2s',
+                  boxShadow:
+                    activeSettingsTab === "users"
+                      ? "0 2px 8px rgba(14,98,160,0.08)"
+                      : "none",
+                  background:
+                    activeSettingsTab === "users" ? "var(--ku-blue)" : "#fff",
+                  color: activeSettingsTab === "users" ? "#fff" : "#0E62A0",
+                  border: "2px solid var(--ku-blue)",
+                  transition: "all 0.2s",
                 }}
               >
                 Users
               </button>
               <button
-                className={`btn${activeSettingsTab === "loginContent" ? " btn-primary" : " btn-outline-primary"}`}
+                className={`btn${
+                  activeSettingsTab === "loginContent"
+                    ? " btn-primary"
+                    : " btn-outline-primary"
+                }`}
                 onClick={() => setActiveSettingsTab("loginContent")}
                 style={{
                   minWidth: 120,
-                  padding: '12px 20px',
+                  padding: "12px 20px",
                   borderRadius: 12,
                   fontWeight: 600,
                   fontSize: 16,
-                  boxShadow: activeSettingsTab === "loginContent" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
-                  background: activeSettingsTab === "loginContent" ? 'var(--ku-blue)' : '#fff',
-                  color: activeSettingsTab === "loginContent" ? '#fff' : '#0E62A0',
-                  border: '2px solid var(--ku-blue)',
-                  transition: 'all 0.2s',
+                  boxShadow:
+                    activeSettingsTab === "loginContent"
+                      ? "0 2px 8px rgba(14,98,160,0.08)"
+                      : "none",
+                  background:
+                    activeSettingsTab === "loginContent"
+                      ? "var(--ku-blue)"
+                      : "#fff",
+                  color:
+                    activeSettingsTab === "loginContent" ? "#fff" : "#0E62A0",
+                  border: "2px solid var(--ku-blue)",
+                  transition: "all 0.2s",
                 }}
               >
                 Login Content
@@ -994,17 +1089,30 @@ function App() {
                 <div className="card p-4 mb-4">
                   <h3 className="mb-3">Login Page Side Content</h3>
                   <div className="mb-3">
-                    <label className="form-label">Announcements / Message</label>
+                    <label className="form-label">
+                      Announcements / Message
+                    </label>
                     <textarea
                       className="form-control"
                       rows={6}
                       value={announcements}
-                      onChange={e => setAnnouncements(e.target.value)}
+                      onChange={(e) => setAnnouncements(e.target.value)}
                       placeholder="Enter announcements, birthdays, or any message to show on the login page...\nYou can use *markdown* for formatting, including bold, italics, lists, and links."
                     />
                     <div className="form-text">
-                      <b>Formatting tips:</b> You can use <a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noopener noreferrer">Markdown</a> for bold, italics, lists, and links.<br/>
-                      Example: <code>*Important*</code>, <code>**Bold**</code>, <code>- List item</code>, <code>[Link](https://example.com)</code>
+                      <b>Formatting tips:</b> You can use{" "}
+                      <a
+                        href="https://www.markdownguide.org/basic-syntax/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Markdown
+                      </a>{" "}
+                      for bold, italics, lists, and links.
+                      <br />
+                      Example: <code>*Important*</code>, <code>**Bold**</code>,{" "}
+                      <code>- List item</code>,{" "}
+                      <code>[Link](https://example.com)</code>
                     </div>
                   </div>
                   <div className="mb-3">
@@ -1012,14 +1120,18 @@ function App() {
                     <input
                       className="form-control"
                       type="text"
-                      value={announcementImage || ''}
-                      onChange={e => setAnnouncementImage(e.target.value)}
+                      value={announcementImage || ""}
+                      onChange={(e) => setAnnouncementImage(e.target.value)}
                       placeholder="Paste image URL for birthdays, etc."
                     />
                   </div>
                   {announcementImage && (
                     <div className="mb-3">
-                      <img src={announcementImage} alt="Announcement" style={{ maxWidth: 300, borderRadius: 8 }} />
+                      <img
+                        src={announcementImage}
+                        alt="Announcement"
+                        style={{ maxWidth: 300, borderRadius: 8 }}
+                      />
                     </div>
                   )}
                 </div>

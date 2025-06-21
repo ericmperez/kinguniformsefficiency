@@ -306,10 +306,16 @@ export const addPickupGroup = async (group: {
   endTime: Date | Timestamp;
   totalWeight: number;
   status: string;
+  carts?: any[];
+  entries?: any[];
 }) => {
   try {
+    // numCarts is the number of entries that belong to this group
+    const numCarts = Array.isArray(group.entries) ? group.entries.length : 0;
     const docRef = await addDoc(collection(db, "pickup_groups"), {
       ...group,
+      numCarts,
+      segregatedCarts: null,
       startTime: group.startTime instanceof Date ? Timestamp.fromDate(group.startTime) : group.startTime,
       endTime: group.endTime instanceof Date ? Timestamp.fromDate(group.endTime) : group.endTime,
     });

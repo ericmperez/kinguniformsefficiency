@@ -85,7 +85,10 @@ export default function PickupWashing({
       where("startTime", "<", Timestamp.fromDate(tomorrow))
     );
     const unsub = onSnapshot(q, (snap) => {
-      const fetched = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as any[];
+      const fetched = snap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as any[];
       // Filter out deleted groups (handle missing status)
       setGroups(fetched.filter((g) => (g.status || "") !== "deleted"));
     });
@@ -178,6 +181,10 @@ export default function PickupWashing({
         (e) => e.groupId === groupId
       );
       await updateGroupTotals(groupId!, updatedEntries);
+      // After updating group totals (on add, edit, or delete), also update numCarts in Firestore
+      await updateDoc(doc(db, "pickup_groups", groupId), {
+        numCarts: updatedEntries.length,
+      });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
       setClientId("");
@@ -197,10 +204,13 @@ export default function PickupWashing({
         const groupEntries = entries.filter((e) => e.groupId === group.id);
         const totalWeight = groupEntries.reduce((sum, e) => sum + e.weight, 0);
         // Find the latest timestamp in the group's entries, fallback to group.endTime/startTime
-        let latest = group.endTime ? new Date(group.endTime) : new Date(group.startTime);
+        let latest = group.endTime
+          ? new Date(group.endTime)
+          : new Date(group.startTime);
         if (groupEntries.length > 0) {
           const maxEntry = groupEntries.reduce((max, e) => {
-            const t = e.timestamp instanceof Date ? e.timestamp : new Date(e.timestamp);
+            const t =
+              e.timestamp instanceof Date ? e.timestamp : new Date(e.timestamp);
             return t > max ? t : max;
           }, latest);
           latest = maxEntry;
@@ -234,6 +244,10 @@ export default function PickupWashing({
         (e) => e.groupId === entry.groupId
       );
       await updateGroupTotals(entry.groupId, groupEntries);
+      // After updating group totals (on add, edit, or delete), also update numCarts in Firestore
+      await updateDoc(doc(db, "pickup_groups", entry.groupId), {
+        numCarts: groupEntries.length,
+      });
       setEditEntryId(null);
       setEditWeight("");
     } catch (err) {
@@ -255,6 +269,10 @@ export default function PickupWashing({
       // Update group totals
       const groupEntries = updatedEntries.filter((e) => e.groupId === group.id);
       await updateGroupTotals(group.id, groupEntries);
+      // After updating group totals (on add, edit, or delete), also update numCarts in Firestore
+      await updateDoc(doc(db, "pickup_groups", group.id), {
+        numCarts: groupEntries.length,
+      });
     } catch (err) {
       alert("Error al eliminar la entrada");
     }
@@ -309,7 +327,10 @@ export default function PickupWashing({
   const lastEntry = useMemo(() => {
     if (!entries || entries.length === 0) return null;
     // Sort by timestamp descending
-    return [...entries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+    return [...entries].sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )[0];
   }, [entries]);
 
   // Prepopulate client and driver from last entry on every open of the form
@@ -448,73 +469,184 @@ export default function PickupWashing({
       {groupedEntries.length > 0 && (
         <div className="d-flex flex-column gap-3">
           {groupedEntries.map((group, idx) => (
-            <div key={idx} className="card shadow" style={{ maxWidth: 500, margin: "0 auto", width: "100%" }}>
-              <div className="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between" style={{ background: "#FFB300", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-                <span style={{ fontSize: "1.2rem", fontWeight: 600, color: "#007bff" }}>{group.clientName}</span>
-                <span style={{ fontSize: "1.1rem", color: "#28a745" }}>{group.driverName}</span>
-                <span style={{ fontSize: "1.1rem", color: "#6c757d" }}>Carros: {group.entries.length}</span>
+            <div
+              key={idx}
+              className="card shadow"
+              style={{ maxWidth: 500, margin: "0 auto", width: "100%" }}
+            >
+              <div
+                className="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between"
+                style={{
+                  background: "#FFB300",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "1.2rem",
+                    fontWeight: 600,
+                    color: "#007bff",
+                  }}
+                >
+                  {group.clientName}
+                </span>
+                <span style={{ fontSize: "1.1rem", color: "#28a745" }}>
+                  {group.driverName}
+                </span>
+                <span style={{ fontSize: "1.1rem", color: "#6c757d" }}>
+                  Carros: {group.entries.length}
+                </span>
               </div>
               <div className="card-body p-2">
                 <div className="table-responsive">
                   <table className="table table-sm table-bordered mb-0">
                     <thead>
                       <tr>
-                        <th className="text-center">Peso (libras)</th>
+                        <th className="text-center">
+                          {group.status === "Conventional"
+                            ? "Peso total (libras)"
+                            : "Peso (libras)"}
+                        </th>
                         <th>Hora</th>
                         <th className="text-center">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {group.entries.map((entry: any, i: number) => {
-                        let timeString = "";
-                        if (entry.timestamp instanceof Date) {
-                          timeString = entry.timestamp.toLocaleTimeString();
-                        } else if (entry.timestamp && typeof entry.timestamp.toDate === "function") {
-                          timeString = entry.timestamp.toDate().toLocaleTimeString();
-                        } else {
-                          timeString = new Date(entry.timestamp).toLocaleTimeString();
-                        }
-                        return (
-                          <tr key={i}>
-                            <td className="text-center">
-                              {editEntryId === entry.id ? (
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm text-center"
-                                  value={editWeight}
-                                  onChange={(e) => setEditWeight(e.target.value)}
-                                  style={{ width: 80, display: "inline-block" }}
-                                  autoFocus
-                                />
-                              ) : (
-                                entry.weight
-                              )}
-                            </td>
-                            <td>{timeString}</td>
-                            <td>
-                              {editEntryId === entry.id ? (
-                                <div className="d-flex justify-content-end gap-2">
-                                  <button className="btn btn-success btn-sm" onClick={() => handleEditSave(entry)}>
-                                    Guardar
-                                  </button>
-                                  <button className="btn btn-secondary btn-sm" onClick={handleEditCancel}>
-                                    Cancelar
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="d-flex justify-content-end gap-2">
-                                  <button className="btn btn-outline-primary btn-sm" onClick={() => handleEditEntry(entry)}>
-                                    Editar
-                                  </button>
-                                  <button className="btn btn-outline-danger btn-sm" onClick={() => handleDeleteEntry(group, entry)}>
-                                    Eliminar
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {group.status === "Conventional"
+                        ? group.entries.map((entry: any, i: number) => {
+                            let timeString = "";
+                            if (entry.timestamp instanceof Date) {
+                              timeString = entry.timestamp.toLocaleTimeString();
+                            } else if (
+                              entry.timestamp &&
+                              typeof entry.timestamp.toDate === "function"
+                            ) {
+                              timeString = entry.timestamp
+                                .toDate()
+                                .toLocaleTimeString();
+                            } else {
+                              timeString = new Date(entry.timestamp).toLocaleTimeString();
+                            }
+                            return (
+                              <tr key={i}>
+                                <td className="text-center">
+                                  {editEntryId === entry.id ? (
+                                    <input
+                                      type="number"
+                                      className="form-control form-control-sm text-center"
+                                      value={editWeight}
+                                      onChange={(e) => setEditWeight(e.target.value)}
+                                      style={{ width: 80, display: "inline-block" }}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    entry.weight
+                                  )}
+                                </td>
+                                <td>{timeString}</td>
+                                <td>
+                                  {editEntryId === entry.id ? (
+                                    <div className="d-flex justify-content-end gap-2">
+                                      <button
+                                        className="btn btn-success btn-sm"
+                                        onClick={() => handleEditSave(entry)}
+                                      >
+                                        Guardar
+                                      </button>
+                                      <button
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={handleEditCancel}
+                                      >
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="d-flex justify-content-end gap-2">
+                                      <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={() => handleEditEntry(entry)}
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        className="btn btn-outline-danger btn-sm"
+                                        onClick={() => handleDeleteEntry(group, entry)}
+                                      >
+                                        Eliminar
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        : group.entries.map((entry: any, i: number) => {
+                            let timeString = "";
+                            if (entry.timestamp instanceof Date) {
+                              timeString = entry.timestamp.toLocaleTimeString();
+                            } else if (
+                              entry.timestamp &&
+                              typeof entry.timestamp.toDate === "function"
+                            ) {
+                              timeString = entry.timestamp
+                                .toDate()
+                                .toLocaleTimeString();
+                            } else {
+                              timeString = new Date(entry.timestamp).toLocaleTimeString();
+                            }
+                            return (
+                              <tr key={i}>
+                                <td className="text-center">
+                                  {editEntryId === entry.id ? (
+                                    <input
+                                      type="number"
+                                      className="form-control form-control-sm text-center"
+                                      value={editWeight}
+                                      onChange={(e) => setEditWeight(e.target.value)}
+                                      style={{ width: 80, display: "inline-block" }}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    entry.weight
+                                  )}
+                                </td>
+                                <td>{timeString}</td>
+                                <td>
+                                  {editEntryId === entry.id ? (
+                                    <div className="d-flex justify-content-end gap-2">
+                                      <button
+                                        className="btn btn-success btn-sm"
+                                        onClick={() => handleEditSave(entry)}
+                                      >
+                                        Guardar
+                                      </button>
+                                      <button
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={handleEditCancel}
+                                      >
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="d-flex justify-content-end gap-2">
+                                      <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={() => handleEditEntry(entry)}
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        className="btn btn-outline-danger btn-sm"
+                                        onClick={() => handleDeleteEntry(group, entry)}
+                                      >
+                                        Eliminar
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                     </tbody>
                   </table>
                 </div>

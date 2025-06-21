@@ -31,26 +31,27 @@ const Segregation: React.FC<SegregationProps> = ({
     setLoading(true);
     // Load ALL pickup_groups, not just today's
     import("../firebase").then(({ db }) => {
-      import("firebase/firestore").then(
-        ({ collection, onSnapshot, query }) => {
-          const q = query(collection(db, "pickup_groups"));
-          const unsub = onSnapshot(q, (snap) => {
-            const fetched = snap.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
-            setGroups(fetched);
-            setLoading(false);
-          });
-        }
-      );
+      import("firebase/firestore").then(({ collection, onSnapshot, query }) => {
+        const q = query(collection(db, "pickup_groups"));
+        const unsub = onSnapshot(q, (snap) => {
+          const fetched = snap.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          setGroups(fetched);
+          setLoading(false);
+        });
+      });
     });
     // No cleanup needed because this is a one-day query and component unmount will clear listeners
   }, [statusUpdating]);
 
   // Show only groups with status 'Segregation' and not 'Entregado' or 'deleted'
   const segregationGroups = groups.filter(
-    (g) => g.status === "Segregation" && g.status !== "Entregado" && g.status !== "deleted"
+    (g) =>
+      g.status === "Segregation" &&
+      g.status !== "Entregado" &&
+      g.status !== "deleted"
   );
 
   // Only set group status to 'Segregation' if it is in a pre-segregation state (e.g., 'Pickup Complete')
@@ -74,18 +75,16 @@ const Segregation: React.FC<SegregationProps> = ({
   const [entries, setEntries] = useState<any[]>([]);
   useEffect(() => {
     import("../firebase").then(({ db }) => {
-      import("firebase/firestore").then(
-        ({ collection, onSnapshot, query }) => {
-          const q = query(collection(db, "pickup_entries"));
-          const unsub = onSnapshot(q, (snap) => {
-            const fetched = snap.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
-            setEntries(fetched);
-          });
-        }
-      );
+      import("firebase/firestore").then(({ collection, onSnapshot, query }) => {
+        const q = query(collection(db, "pickup_entries"));
+        const unsub = onSnapshot(q, (snap) => {
+          const fetched = snap.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          setEntries(fetched);
+        });
+      });
     });
   }, []);
 
@@ -221,30 +220,36 @@ const Segregation: React.FC<SegregationProps> = ({
       : orderedGroups;
 
   // --- Pending Conventional Products Widget ---
-  const [pendingConventionalGroups, setPendingConventionalGroups] = useState<any[]>([]);
+  const [pendingConventionalGroups, setPendingConventionalGroups] = useState<
+    any[]
+  >([]);
   useEffect(() => {
-    // Listen for all pickup_groups with status 'Pending Products', washingType 'Conventional', not deleted or 'Boleta Impresa', and at least one product in carts
+    // Listen for all pickup_groups with pendingProduct === true, washingType 'Conventional', not deleted or 'Boleta Impresa', and at least one product in carts
     import("../firebase").then(({ db }) => {
-      import("firebase/firestore").then(({ collection, onSnapshot, query, where }) => {
-        const q = query(
-          collection(db, "pickup_groups"),
-          where("status", "==", "Pending Products"),
-          where("washingType", "==", "Conventional")
-        );
-        const unsub = onSnapshot(q, (snap) => {
-          const filtered = snap.docs
-            .map((doc) => ({ id: doc.id, ...(doc.data() as any) }))
-            .filter((g: any) =>
-              g.status === "Pending Products" &&
-              g.washingType === "Conventional" &&
-              g.status !== "deleted" &&
-              g.status !== "Boleta Impresa" &&
-              Array.isArray(g.carts) &&
-              g.carts.length > 0
-            );
-          setPendingConventionalGroups(filtered);
-        });
-      });
+      import("firebase/firestore").then(
+        ({ collection, onSnapshot, query, where }) => {
+          const q = query(
+            collection(db, "pickup_groups"),
+            where("pendingProduct", "==", true),
+            where("washingType", "==", "Conventional")
+          );
+          const unsub = onSnapshot(q, (snap) => {
+            const filtered = snap.docs
+              .map((doc) => ({ id: doc.id, ...(doc.data() as any) }))
+              .filter(
+                (g: any) =>
+                  g.pendingProduct === true &&
+                  g.washingType === "Conventional" &&
+                  g.status !== "deleted" &&
+                  g.status !== "Boleta Impresa" &&
+                  Array.isArray(g.carts) &&
+                  g.carts.length > 0
+              );
+            setPendingConventionalGroups(filtered);
+          });
+          return unsub;
+        }
+      );
     });
   }, []);
 
@@ -253,22 +258,60 @@ const Segregation: React.FC<SegregationProps> = ({
     <div className="container py-4">
       {/* Pending Conventional Products Widget */}
       {pendingConventionalGroups.length > 0 && (
-        <div className="card shadow p-3 mb-4 mx-auto" style={{ maxWidth: 900, background: '#fffbe6', border: '2px solid #ffc107' }}>
-          <h5 className="mb-3 text-center" style={{ color: '#b8860b', letterSpacing: 1 }}>
+        <div
+          className="card shadow p-3 mb-4 mx-auto"
+          style={{
+            maxWidth: 900,
+            background: "#fffbe6",
+            border: "2px solid #ffc107",
+          }}
+        >
+          <h5
+            className="mb-3 text-center"
+            style={{ color: "#b8860b", letterSpacing: 1 }}
+          >
             Pending Conventional Products (added via + button)
           </h5>
           <div className="d-flex flex-wrap gap-3 justify-content-center">
             {pendingConventionalGroups.map((group) => (
-              <div key={group.id} className="p-3 rounded shadow-sm bg-white border" style={{ minWidth: 180, maxWidth: 260 }}>
-                <div style={{ fontWeight: 700, color: '#007bff', fontSize: 18 }}>{group.clientName}</div>
-                <div style={{ fontSize: 14, color: '#333' }}>Weight: <strong>{typeof group.totalWeight === 'number' ? group.totalWeight.toFixed(2) : '?'}</strong> lbs</div>
-                <div style={{ fontSize: 14, color: '#333' }}>Carros: <strong>{Array.isArray(group.carts) ? group.carts.length : 0}</strong></div>
+              <div
+                key={group.id}
+                className="p-3 rounded shadow-sm bg-white border"
+                style={{ minWidth: 180, maxWidth: 260 }}
+              >
+                <div
+                  style={{ fontWeight: 700, color: "#007bff", fontSize: 18 }}
+                >
+                  {group.clientName}
+                </div>
+                <div style={{ fontSize: 14, color: "#333" }}>
+                  Weight:{" "}
+                  <strong>
+                    {typeof group.totalWeight === "number"
+                      ? group.totalWeight.toFixed(2)
+                      : "?"}
+                  </strong>{" "}
+                  lbs
+                </div>
+                <div style={{ fontSize: 14, color: "#333" }}>
+                  Carros:{" "}
+                  <strong>
+                    {Array.isArray(group.carts) ? group.carts.length : 0}
+                  </strong>
+                </div>
                 <div className="mt-2">
                   <div style={{ fontSize: 13, fontWeight: 600 }}>Products:</div>
-                  <ul className="mb-0" style={{ fontSize: 13, paddingLeft: 18 }}>
-                    {Array.isArray(group.carts) && group.carts.map((cart: any, idx: number) => (
-                      <li key={idx}>{cart.productName || cart.productId || 'Product'} x{cart.quantity || 1}</li>
-                    ))}
+                  <ul
+                    className="mb-0"
+                    style={{ fontSize: 13, paddingLeft: 18 }}
+                  >
+                    {Array.isArray(group.carts) &&
+                      group.carts.map((cart: any, idx: number) => (
+                        <li key={idx}>
+                          {cart.productName || cart.productId || "Product"} x
+                          {cart.quantity || 1}
+                        </li>
+                      ))}
                   </ul>
                 </div>
               </div>
@@ -296,7 +339,10 @@ const Segregation: React.FC<SegregationProps> = ({
               style={{ background: "#eaf2fb", border: "3px solid #007bff" }}
             >
               <div className="row w-100 g-2 align-items-center flex-nowrap flex-md-wrap">
-                <div className="col-12 col-md-auto d-flex align-items-center mb-2 mb-md-0" style={{ minWidth: 160 }}>
+                <div
+                  className="col-12 col-md-auto d-flex align-items-center mb-2 mb-md-0"
+                  style={{ minWidth: 160 }}
+                >
                   <span
                     style={{
                       fontSize: "2rem",
@@ -308,17 +354,32 @@ const Segregation: React.FC<SegregationProps> = ({
                     {displayGroups[0].clientName}
                   </span>
                 </div>
-                <div className="col-6 col-md-auto text-md-center mb-2 mb-md-0" style={{ minWidth: 120 }}>
+                <div
+                  className="col-6 col-md-auto text-md-center mb-2 mb-md-0"
+                  style={{ minWidth: 120 }}
+                >
                   <span style={{ fontSize: "1.1rem", color: "#333" }}>
-                    Weight: <strong>{typeof displayGroups[0].totalWeight === "number" ? displayGroups[0].totalWeight.toFixed(2) : "?"}</strong> lbs
+                    Weight:{" "}
+                    <strong>
+                      {typeof displayGroups[0].totalWeight === "number"
+                        ? displayGroups[0].totalWeight.toFixed(2)
+                        : "?"}
+                    </strong>{" "}
+                    lbs
                   </span>
                 </div>
-                <div className="col-6 col-md-auto text-md-center mb-2 mb-md-0" style={{ minWidth: 120 }}>
+                <div
+                  className="col-6 col-md-auto text-md-center mb-2 mb-md-0"
+                  style={{ minWidth: 120 }}
+                >
                   <span style={{ fontSize: "1.1rem", color: "#333" }}>
                     Carros: <strong>{getCartCount(displayGroups[0].id)}</strong>
                   </span>
                 </div>
-                <div className="col-12 col-md-auto d-flex flex-row gap-1 align-items-center justify-content-md-end ms-auto mb-2 mb-md-0" style={{ minWidth: 120 }}>
+                <div
+                  className="col-12 col-md-auto d-flex flex-row gap-1 align-items-center justify-content-md-end ms-auto mb-2 mb-md-0"
+                  style={{ minWidth: 120 }}
+                >
                   <button
                     className="btn btn-outline-secondary btn-sm"
                     title="Move up"
@@ -353,7 +414,15 @@ const Segregation: React.FC<SegregationProps> = ({
                     onClick={() =>
                       handleInputChange(
                         displayGroups[0].id,
-                        String(Math.max(0, parseInt(segregatedCounts[displayGroups[0].id] || "0", 10) - 1))
+                        String(
+                          Math.max(
+                            0,
+                            parseInt(
+                              segregatedCounts[displayGroups[0].id] || "0",
+                              10
+                            ) - 1
+                          )
+                        )
                       )
                     }
                     disabled={completingGroup === displayGroups[0].id}
@@ -365,10 +434,17 @@ const Segregation: React.FC<SegregationProps> = ({
                     type="number"
                     min={0}
                     className="form-control form-control-lg text-center"
-                    style={{ width: 100, fontSize: 24, fontWeight: 700, maxWidth: "100%" }}
+                    style={{
+                      width: 100,
+                      fontSize: 24,
+                      fontWeight: 700,
+                      maxWidth: "100%",
+                    }}
                     placeholder="# segregated"
                     value={segregatedCounts[displayGroups[0].id] || ""}
-                    onChange={(e) => handleInputChange(displayGroups[0].id, e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange(displayGroups[0].id, e.target.value)
+                    }
                     disabled={completingGroup === displayGroups[0].id}
                   />
                   <button
@@ -376,7 +452,12 @@ const Segregation: React.FC<SegregationProps> = ({
                     onClick={() =>
                       handleInputChange(
                         displayGroups[0].id,
-                        String(parseInt(segregatedCounts[displayGroups[0].id] || "0", 10) + 1)
+                        String(
+                          parseInt(
+                            segregatedCounts[displayGroups[0].id] || "0",
+                            10
+                          ) + 1
+                        )
                       )
                     }
                     disabled={completingGroup === displayGroups[0].id}
@@ -393,7 +474,9 @@ const Segregation: React.FC<SegregationProps> = ({
                     onClick={() => handleComplete(displayGroups[0].id)}
                     style={{ fontWeight: 700, fontSize: 20, minWidth: 120 }}
                   >
-                    {completingGroup === displayGroups[0].id ? "Saving..." : "Completed"}
+                    {completingGroup === displayGroups[0].id
+                      ? "Saving..."
+                      : "Completed"}
                   </button>
                 </div>
               </div>
@@ -402,16 +485,44 @@ const Segregation: React.FC<SegregationProps> = ({
           {/* All other groups: summarized in a single responsive row */}
           {displayGroups.length > 1 && (
             <div className="d-block mt-3">
-              <div className="d-flex flex-wrap flex-md-nowrap gap-2 justify-content-center align-items-center w-100" style={{ overflowX: "auto" }}>
+              <div
+                className="d-flex flex-wrap flex-md-nowrap gap-2 justify-content-center align-items-center w-100"
+                style={{ overflowX: "auto" }}
+              >
                 {displayGroups.slice(1).map((group, idx) => (
                   <div
                     key={group.id}
                     className="px-3 py-2 rounded shadow-sm bg-white border d-flex flex-column align-items-center"
-                    style={{ minWidth: 140, maxWidth: 180, marginBottom: 8, flex: 1 }}
+                    style={{
+                      minWidth: 140,
+                      maxWidth: 180,
+                      marginBottom: 8,
+                      flex: 1,
+                    }}
                   >
-                    <span style={{ fontWeight: 600, color: "#007bff", fontSize: 16, textAlign: "center", wordBreak: "break-word" }}>{group.clientName}</span>
-                    <span style={{ fontSize: 13, color: "#333" }}>Weight: <strong>{typeof group.totalWeight === "number" ? group.totalWeight.toFixed(2) : "?"}</strong> lbs</span>
-                    <span style={{ fontSize: 13, color: "#333" }}>Carros: <strong>{getCartCount(group.id)}</strong></span>
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        color: "#007bff",
+                        fontSize: 16,
+                        textAlign: "center",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {group.clientName}
+                    </span>
+                    <span style={{ fontSize: 13, color: "#333" }}>
+                      Weight:{" "}
+                      <strong>
+                        {typeof group.totalWeight === "number"
+                          ? group.totalWeight.toFixed(2)
+                          : "?"}
+                      </strong>{" "}
+                      lbs
+                    </span>
+                    <span style={{ fontSize: 13, color: "#333" }}>
+                      Carros: <strong>{getCartCount(group.id)}</strong>
+                    </span>
                     <div className="d-flex flex-row gap-1 align-items-center mt-2">
                       <button
                         className="btn btn-outline-secondary btn-sm"
@@ -448,39 +559,46 @@ const Segregation: React.FC<SegregationProps> = ({
         </div>
       )}
       {showLogModal && logGroup && (
-  <div
-    className="modal show"
-    style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-  >
-    <div className="modal-dialog">
-      <div className="modal-content">
-        <div className="modal-header">
-          <h5 className="modal-title">Group History Log</h5>
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setShowLogModal(false)}
-          ></button>
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Group History Log</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowLogModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {Array.isArray(logGroup.statusLog) &&
+                logGroup.statusLog.length > 0 ? (
+                  <ul className="list-group">
+                    {logGroup.statusLog.map((log: any, idx: number) => (
+                      <li key={idx} className="list-group-item">
+                        <b>Step:</b> {log.step} <br />
+                        <b>Time:</b>{" "}
+                        {log.timestamp
+                          ? new Date(log.timestamp).toLocaleString()
+                          : "-"}{" "}
+                        <br />
+                        <b>User:</b> {log.user || "-"}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-muted">
+                    No log history for this group.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="modal-body">
-          {Array.isArray(logGroup.statusLog) && logGroup.statusLog.length > 0 ? (
-            <ul className="list-group">
-              {logGroup.statusLog.map((log: any, idx: number) => (
-                <li key={idx} className="list-group-item">
-                  <b>Step:</b> {log.step} <br />
-                  <b>Time:</b> {log.timestamp ? new Date(log.timestamp).toLocaleString() : "-"} <br />
-                  <b>User:</b> {log.user || "-"}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="text-muted">No log history for this group.</div>
-          )}
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </div>
   );
 };
