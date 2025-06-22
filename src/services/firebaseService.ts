@@ -146,7 +146,7 @@ export const getUsers = async (): Promise<UserRecord[]> => {
   return querySnapshot.docs.map((doc) => {
     const data = doc.data();
     return {
-      id: doc.id, // Use Firestore doc.id as the user ID
+      id: data.id, // Use the 4-digit login code, not doc.id
       username: data.username,
       role: data.role,
       allowedComponents: data.allowedComponents || undefined,

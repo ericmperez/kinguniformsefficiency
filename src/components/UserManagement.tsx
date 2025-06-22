@@ -46,7 +46,6 @@ export default function UserManagement(props: UserManagementProps) {
   const [editDefaultPage, setEditDefaultPage] = useState<
     AppComponentKey | undefined
   >(undefined);
-  const { user } = require("./AuthContext").useAuth();
 
   useEffect(() => {
     if (!user) return;
@@ -232,7 +231,7 @@ export default function UserManagement(props: UserManagementProps) {
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id + '-' + u.username}>
-                    <td>{u.id}</td>
+                    <td>{u.id}</td> {/* Show the 4-digit login code, not the Firestore doc id */}
                     <td>
                       {editingId === u.id ? (
                         <input
