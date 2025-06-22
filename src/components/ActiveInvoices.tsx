@@ -315,7 +315,6 @@ export default function ActiveInvoices({
   const STATUS_STEPS = [
     { key: "Segregation", label: "Segregando" },
     { key: "Tunnel", label: "Tunnel/Conventional" },
-    { key: "procesandose", label: "Procesandose" },
     { key: "Empaque", label: "Empaque" },
     { key: "Entregado", label: "Lista para Entrega" },
   ];
@@ -478,7 +477,6 @@ export default function ActiveInvoices({
                           <option value="Segregation">Segregacion</option>
                           <option value="Tunnel">Tunnel</option>
                           <option value="Conventional">Conventional</option>
-                          <option value="procesandose">Procesandose</option>
                           <option value="Empaque">Empaque</option>
                           <option value="Entregado">Boleta Impresa</option>
                           <option value="deleted">Deleted</option>
@@ -628,7 +626,7 @@ export default function ActiveInvoices({
                       {String(idx + 1).padStart(4, "0")}
                       {hoveredInvoiceId === invoice.id && (
                         <span className="badge bg-info text-dark ms-2">
-                          {invoice.status}
+                          {invoice.status && invoice.status !== "procesandose" ? invoice.status : null}
                         </span>
                       )}
                     </h5>
