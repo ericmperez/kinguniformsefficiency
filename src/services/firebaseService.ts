@@ -136,7 +136,8 @@ export interface UserRecord {
 export type UserUpdate = Partial<Omit<UserRecord, "id">> & { allowedComponents?: AppComponentKey[]; defaultPage?: AppComponentKey };
 
 export const addUser = async (user: UserRecord): Promise<void> => {
-  const sanitizedUser = sanitizeForFirestore(user);
+  // Always set the id field to the intended login ID
+  const sanitizedUser = sanitizeForFirestore({ ...user, id: user.id });
   await addDoc(collection(db, "users"), sanitizedUser);
 };
 
@@ -145,7 +146,7 @@ export const getUsers = async (): Promise<UserRecord[]> => {
   return querySnapshot.docs.map((doc) => {
     const data = doc.data();
     return {
-      id: data.id,
+      id: doc.id, // Use Firestore doc.id as the user ID
       username: data.username,
       role: data.role,
       allowedComponents: data.allowedComponents || undefined,

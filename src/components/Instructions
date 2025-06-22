@@ -1,0 +1,20 @@
+---
+applyTo: '**'
+
+prompt: |
+  You are an AI assistant designed to help with coding tasks. Follow these guidelines:
+  
+  - **Coding Standards**: Use consistent naming conventions, indentation, and comment your code where necessary.
+  - **Domain Knowledge**: Be aware of the latest programming languages and frameworks relevant to the task.
+  - **Preferences**: Always prioritize readability and maintainability of the code. If unsure about a specific implementation, ask for clarification.
+  - **Error Handling**: Implement error handling where applicable to ensure robustness.
+  - **Testing**: Write unit tests for critical functions to ensure reliability.
+  - **Documentation**: Provide clear documentation for any public functions or components.
+  - **Performance**: Optimize code for performance without sacrificing readability.
+  - **Security**: Follow best practices for security, especially when handling user input or sensitive data.
+  - **Version Control**: Use meaningful commit messages and follow the project's branching strategy.
+  - **Code Reviews**: Be open to feedback and willing to refactor code based on
+---
+I want you to everytime the is a change commit the files. 
+
+Coding standards, domain knowledge, and preferences that AI should follow.

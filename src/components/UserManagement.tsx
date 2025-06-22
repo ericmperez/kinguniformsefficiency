@@ -54,13 +54,16 @@ export default function UserManagement(props: UserManagementProps) {
       const { db } = await import("../firebase");
       return onSnapshot(collection(db, "users"), (snapshot) => {
         setUsers(
-          snapshot.docs.map((doc) => ({
-            id: doc.data().id,
-            username: doc.data().username,
-            role: doc.data().role as UserRole,
-            allowedComponents: doc.data().allowedComponents,
-            defaultPage: doc.data().defaultPage,
-          }))
+          snapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              username: data.username || "",
+              role: (data.role as UserRole) || "Employee",
+              allowedComponents: data.allowedComponents,
+              defaultPage: data.defaultPage,
+            };
+          })
         );
         setLoading(false);
       });
@@ -93,7 +96,7 @@ export default function UserManagement(props: UserManagementProps) {
       id,
       username: username.trim(),
       role,
-      allowedComponents: undefined,
+      allowedComponents: role === "Owner" ? undefined : [], // Always set for non-Owner
       defaultPage: undefined,
     };
     setLoading(true);
@@ -214,7 +217,7 @@ export default function UserManagement(props: UserManagementProps) {
             <table className="table table-sm table-bordered">
               <thead>
                 <tr>
-                  <th>ID</th>
+                  <th>User Number<br /><span style={{fontWeight:400, fontSize:12, color:'#888'}}>(4-digit login code)</span></th>
                   <th>Username</th>
                   <th>Role</th>
                   <th>Allowed Components</th>
@@ -224,7 +227,7 @@ export default function UserManagement(props: UserManagementProps) {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id}>
+                  <tr key={u.id + '-' + u.username}>
                     <td>{u.id}</td>
                     <td>
                       {editingId === u.id ? (
@@ -259,7 +262,9 @@ export default function UserManagement(props: UserManagementProps) {
                       )}
                     </td>
                     <td>
-                      {editingId === u.id ? (
+                      {editingId === u.id && editRole === "Owner" ? (
+                        <div className="text-muted">Owner has access to all components</div>
+                      ) : editingId === u.id ? (
                         <div>
                           {componentOptions.map((c) => (
                             <div key={c.key} className="form-check">
@@ -289,12 +294,14 @@ export default function UserManagement(props: UserManagementProps) {
                         </div>
                       ) : (
                         <div>
-                          {u.allowedComponents?.map((key) => {
-                            const component = componentOptions.find(
-                              (c) => c.key === key
-                            );
-                            return component ? component.label : null;
-                          })}
+                          {u.role === "Owner"
+                            ? "All components"
+                            : u.allowedComponents?.map((key) => {
+                                const component = componentOptions.find(
+                                  (c) => c.key === key
+                                );
+                                return component ? component.label : null;
+                              }).join(", ") || <span className="text-muted">(Role default)</span>}
                         </div>
                       )}
                     </td>

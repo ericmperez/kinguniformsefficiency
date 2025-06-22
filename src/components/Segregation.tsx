@@ -6,8 +6,9 @@ import {
 } from "../services/firebaseService";
 import type { Client } from "../types";
 // Add Firestore imports
-import { doc, updateDoc, setDoc, getDoc, onSnapshot, collection, query, where } from "firebase/firestore";
+import { doc, updateDoc, setDoc, getDoc, onSnapshot, collection, query, where, Timestamp } from "firebase/firestore";
 import { db } from "../firebase";
+import './Segregation.css';
 
 interface SegregationProps {
   hideArrows?: boolean;
@@ -42,14 +43,8 @@ const Segregation: React.FC<SegregationProps> = ({
     // Optionally, add polling or a real-time listener for groups if needed
   }, [statusUpdating]);
 
-  // Show only groups with status 'Segregation' and not 'Entregado'
-  const segregationClientIds = clients
-    .filter((c) => c.segregation)
-    .map((c) => c.id);
-  const segregationGroups = groups.filter(
-    (g) =>
-      segregationClientIds.includes(g.clientId) && g.status === "Segregation"
-  );
+  // Show all groups with status 'Segregation', regardless of client.segregation
+  const segregationGroups = groups.filter((g) => g.status === "Segregation");
 
   // Only set group status to 'Segregation' if it is in a pre-segregation state (e.g., 'Pickup Complete')
   useEffect(() => {
@@ -144,18 +139,18 @@ const Segregation: React.FC<SegregationProps> = ({
   }, [segregationGroups, groupOrder, orderLoading]);
 
   // Move group up/down in the order and persist to Firestore, then update all screens immediately
-  const moveGroup = (groupId: string, direction: -1 | 1) => {
-    setGroupOrder((prev) => {
-      const idx = prev.indexOf(groupId);
-      if (idx < 0) return prev;
-      const newOrder = [...prev];
-      const swapIdx = idx + direction;
-      if (swapIdx < 0 || swapIdx >= newOrder.length) return prev;
-      [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
-      // Save to Firestore and trigger real-time update for all screens
-      setDoc(orderDocRef, { order: newOrder }, { merge: true });
-      return newOrder;
-    });
+  const [movingGroupId, setMovingGroupId] = useState<string | null>(null);
+
+  // Remove setGroupOrder from moveGroup, only update Firestore
+  const moveGroup = async (groupId: string, direction: -1 | 1) => {
+    // Always use the latest groupOrder from state
+    const idx = groupOrder.indexOf(groupId);
+    if (idx < 0) return;
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= groupOrder.length) return;
+    const newOrder = [...groupOrder];
+    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+    await setDoc(orderDocRef, { order: newOrder }, { merge: true });
   };
 
   // Listen for order changes in Firestore and update local state immediately
@@ -184,14 +179,13 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   };
 
-  const orderedGroups = groupOrder
-    .map((id) => segregationGroups.find((g) => g.id === id))
-    .filter(Boolean);
-  // If order is not loaded yet, fallback to default order
+  // Always use groupOrder to render, never fallback to segregationGroups if groupOrder is non-empty
   const displayGroups =
-    orderLoading || orderedGroups.length === 0
-      ? segregationGroups
-      : orderedGroups;
+    groupOrder.length > 0
+      ? groupOrder
+          .map((id) => segregationGroups.find((g) => g.id === id))
+          .filter(Boolean)
+      : segregationGroups;
 
   // --- Pending Conventional Products Widget ---
   const [pendingConventionalGroups, setPendingConventionalGroups] = useState<
@@ -252,8 +246,8 @@ const Segregation: React.FC<SegregationProps> = ({
     tomorrow.setDate(today.getDate() + 1);
     const q = query(
       collection(db, "pickup_groups"),
-      where("startTime", ">=", today.toISOString()),
-      where("startTime", "<", tomorrow.toISOString())
+      where("startTime", ">=", Timestamp.fromDate(today)),
+      where("startTime", "<", Timestamp.fromDate(tomorrow))
     );
     const unsub = onSnapshot(q, (snap) => {
       const fetchedGroups = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -336,106 +330,61 @@ const Segregation: React.FC<SegregationProps> = ({
           No groups for segregation today.
         </div>
       ) : (
-        <div className="card shadow p-4 mb-4 mx-auto" style={{ maxWidth: '100%', overflowX: 'visible' }}>
+        <div className="mb-4 mx-auto" style={{ maxWidth: '100%', overflowX: 'visible' }}>
           <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>
             Groups for Segregation
           </h5>
-          {/* First group: full card with controls */}
-          {displayGroups[0] && (
-            <div
-              key={displayGroups[0].id}
-              className="list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded border border-3 border-primary bg-info-subtle"
-              style={{ background: "#eaf2fb", border: "3px solid #007bff" }}
-            >
-              <div className="row w-100 g-2 align-items-center flex-nowrap flex-md-wrap">
-                <div
-                  className="col-12 col-md-auto d-flex align-items-center mb-2 mb-md-0"
-                  style={{ minWidth: 160 }}
-                >
-                  <span
-                    style={{
-                      fontSize: "2rem",
-                      fontWeight: 800,
-                      color: "#007bff",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {displayGroups[0].clientName}
-                  </span>
+          <div className="d-flex flex-column w-100">
+            {displayGroups.map((group, idx) => (
+              <div
+                key={group.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  width: '100%',
+                  minHeight: 64,
+                  borderBottom: '1.5px solid #e0e0e0',
+                  padding: '0.5rem 0',
+                  background: idx % 2 === 0 ? '#fff' : '#f7f7f7',
+                  fontSize: 18
+                }}
+              >
+                <div style={{ flex: 2, fontWeight: 700, color: '#007bff', fontSize: 22, wordBreak: 'break-word' }}>{group.clientName}</div>
+                <div style={{ flex: 1, textAlign: 'center', color: '#333' }}>
+                  Weight: <strong>{typeof group.totalWeight === 'number' ? group.totalWeight.toFixed(2) : '?'}</strong> lbs
                 </div>
-                <div
-                  className="col-6 col-md-auto text-md-center mb-2 mb-md-0"
-                  style={{ minWidth: 120 }}
-                >
-                  <span style={{ fontSize: "1.1rem", color: "#333" }}>
-                    Weight:{" "}
-                    <strong>
-                      {typeof displayGroups[0].totalWeight === "number"
-                        ? displayGroups[0].totalWeight.toFixed(2)
-                        : "?"}
-                    </strong>{" "}
-                    lbs
-                  </span>
+                <div style={{ flex: 1, textAlign: 'center', color: '#333' }}>
+                  Carros: <strong>{getCartCount(group.id)}</strong>
                 </div>
-                <div
-                  className="col-6 col-md-auto text-md-center mb-2 mb-md-0"
-                  style={{ minWidth: 120 }}
-                >
-                  <span style={{ fontSize: "1.1rem", color: "#333" }}>
-                    Carros: <strong>{getCartCount(displayGroups[0].id)}</strong>
-                  </span>
-                </div>
-                <div
-                  className="col-12 col-md-auto d-flex flex-row gap-1 align-items-center justify-content-md-end ms-auto mb-2 mb-md-0"
-                  style={{ minWidth: 120 }}
-                >
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <button
                     className="btn btn-outline-secondary btn-sm"
                     title="Move up"
-                    disabled={true}
+                    disabled={idx === 0}
+                    onClick={() => moveGroup(group.id, -1)}
                   >
                     <span aria-hidden="true">▲</span>
                   </button>
                   <button
                     className="btn btn-outline-secondary btn-sm"
                     title="Move down"
-                    disabled={displayGroups.length === 1}
-                    onClick={() => moveGroup(displayGroups[0].id, 1)}
+                    disabled={idx === displayGroups.length - 1}
+                    onClick={() => moveGroup(group.id, 1)}
                   >
                     <span aria-hidden="true">▼</span>
                   </button>
-                  <button
-                    className="btn btn-outline-info btn-sm ms-2"
-                    onClick={() => {
-                      setLogGroup(displayGroups[0]);
-                      setShowLogModal(true);
-                    }}
-                    title="View Group Log"
-                  >
-                    Log
-                  </button>
                 </div>
-              </div>
-              <div className="d-flex flex-column flex-md-row gap-3 align-items-center mt-3 mt-md-0 w-100">
-                <div className="d-flex flex-row gap-2 align-items-center justify-content-center flex-wrap w-100">
+                <div style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                   <button
                     className="btn btn-outline-secondary btn-lg"
                     onClick={() =>
                       handleInputChange(
-                        displayGroups[0].id,
-                        String(
-                          Math.max(
-                            0,
-                            parseInt(
-                              segregatedCounts[displayGroups[0].id] || "0",
-                              10
-                            ) - 1
-                          )
-                        )
+                        group.id,
+                        String(Math.max(0, parseInt(segregatedCounts[group.id] || '0', 10) - 1))
                       )
                     }
-                    disabled={completingGroup === displayGroups[0].id}
-                    style={{ minWidth: 48 }}
+                    disabled={completingGroup === group.id}
+                    style={{ minWidth: 40 }}
                   >
                     -
                   </button>
@@ -443,124 +392,40 @@ const Segregation: React.FC<SegregationProps> = ({
                     type="number"
                     min={0}
                     className="form-control form-control-lg text-center"
-                    style={{
-                      width: 100,
-                      fontSize: 24,
-                      fontWeight: 700,
-                      maxWidth: "100%",
-                    }}
+                    style={{ width: 80, fontSize: 20, fontWeight: 700, maxWidth: '100%' }}
                     placeholder="# segregated"
-                    value={segregatedCounts[displayGroups[0].id] || ""}
-                    onChange={(e) =>
-                      handleInputChange(displayGroups[0].id, e.target.value)
-                    }
-                    disabled={completingGroup === displayGroups[0].id}
+                    value={segregatedCounts[group.id] || ''}
+                    onChange={(e) => handleInputChange(group.id, e.target.value)}
+                    disabled={completingGroup === group.id}
                   />
                   <button
                     className="btn btn-outline-secondary btn-lg"
                     onClick={() =>
                       handleInputChange(
-                        displayGroups[0].id,
-                        String(
-                          parseInt(
-                            segregatedCounts[displayGroups[0].id] || "0",
-                            10
-                          ) + 1
-                        )
+                        group.id,
+                        String(parseInt(segregatedCounts[group.id] || '0', 10) + 1)
                       )
                     }
-                    disabled={completingGroup === displayGroups[0].id}
-                    style={{ minWidth: 48 }}
+                    disabled={completingGroup === group.id}
+                    style={{ minWidth: 40 }}
                   >
                     +
                   </button>
                   <button
-                    className="btn btn-success btn-lg ms-3"
+                    className="btn btn-success btn-lg ms-2"
                     disabled={
-                      completingGroup === displayGroups[0].id ||
-                      !segregatedCounts[displayGroups[0].id]
+                      completingGroup === group.id ||
+                      !segregatedCounts[group.id]
                     }
-                    onClick={() => handleComplete(displayGroups[0].id)}
-                    style={{ fontWeight: 700, fontSize: 20, minWidth: 120 }}
+                    onClick={() => handleComplete(group.id)}
+                    style={{ fontWeight: 700, fontSize: 18, minWidth: 100 }}
                   >
-                    {completingGroup === displayGroups[0].id
-                      ? "Saving..."
-                      : "Completed"}
+                    {completingGroup === group.id ? 'Saving...' : 'Completed'}
                   </button>
                 </div>
               </div>
-            </div>
-          )}
-          {/* All other groups: summarized in a single responsive row */}
-          {displayGroups.length > 1 && (
-            <div className="d-block mt-3">
-              <div
-                className="d-flex flex-wrap flex-md-nowrap gap-2 justify-content-center align-items-center w-100"
-                style={{ overflowX: "auto" }}
-              >
-                {displayGroups.slice(1).map((group, idx) => (
-                  <div
-                    key={group.id}
-                    className="px-3 py-2 rounded shadow-sm bg-white border d-flex flex-column align-items-center"
-                    style={{
-                      minWidth: 140,
-                      maxWidth: 180,
-                      marginBottom: 8,
-                      flex: 1,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        color: "#007bff",
-                        fontSize: 16,
-                        textAlign: "center",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {group.clientName}
-                    </span>
-                    <div className="d-flex flex-row gap-3" style={{ fontSize: '0.95rem', color: '#333', minWidth: 0, maxWidth: '100%' }}>
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Weight: <strong>{typeof group.totalWeight === 'number' ? group.totalWeight.toFixed(2) : '?'}</strong> lbs
-                      </span>
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Carros: <strong>{getCartCount(group.id)}</strong>
-                      </span>
-                    </div>
-                    <div className="d-flex flex-row gap-1 align-items-center mt-2">
-                      <button
-                        className="btn btn-outline-secondary btn-sm"
-                        title="Move up"
-                        disabled={idx === 0 && displayGroups.length === 2}
-                        onClick={() => moveGroup(group.id, -1)}
-                      >
-                        <span aria-hidden="true">▲</span>
-                      </button>
-                      <button
-                        className="btn btn-outline-secondary btn-sm"
-                        title="Move down"
-                        disabled={idx === displayGroups.length - 2}
-                        onClick={() => moveGroup(group.id, 1)}
-                      >
-                        <span aria-hidden="true">▼</span>
-                      </button>
-                      <button
-                        className="btn btn-outline-info btn-sm"
-                        onClick={() => {
-                          setLogGroup(group);
-                          setShowLogModal(true);
-                        }}
-                        title="View Group Log"
-                      >
-                        Log
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       )}
       {showLogModal && logGroup && (
