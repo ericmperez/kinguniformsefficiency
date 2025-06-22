@@ -72,13 +72,24 @@ export default function PickupWashing({
   const weightInputRef = useRef<HTMLInputElement>(null);
   const [showKeypad, setShowKeypad] = useState(false);
 
-  // Fetch today's groups on mount and on status update
+  // Fetch today's groups in real time
   useEffect(() => {
-    (async () => {
-      const fetchedGroups = await getTodayPickupGroups();
+    // Get today's date range in local time
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const q = query(
+      collection(db, "pickup_groups"),
+      where("startTime", ">=", today.toISOString()),
+      where("startTime", "<", tomorrow.toISOString())
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const fetchedGroups = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setGroups(fetchedGroups);
-    })();
-  }, [groupStatusUpdating]);
+    });
+    return () => unsub();
+  }, []);
 
   // Sort clients alphabetically by name
   const sortedClients = [...clients].sort((a, b) =>
