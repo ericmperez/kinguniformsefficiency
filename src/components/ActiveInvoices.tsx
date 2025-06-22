@@ -623,15 +623,35 @@ export default function ActiveInvoices({
                 <div className="card h-100">
                   <div className="card-body">
                     <h5 className="card-title">
-                      {String(idx + 1).padStart(4, "0")}
-                      {hoveredInvoiceId === invoice.id && (
-                        <span className="badge bg-info text-dark ms-2">
-                          {invoice.status && invoice.status !== "procesandose" ? invoice.status : null}
-                        </span>
-                      )}
+                      Invoice #{invoice.invoiceNumber ? String(invoice.invoiceNumber).padStart(4, "0") : String(idx + 1).padStart(4, "0")}
+                      {" - "}
+                      {clients.find((c) => c.id === invoice.clientId)?.name || invoice.clientName}
+                      {" - "}
+                      {(() => {
+                        // Prefer invoice.date, fallback to createdAt of first cart, else blank
+                        let dateStr = invoice.date;
+                        if (!dateStr && invoice.carts && invoice.carts.length > 0) {
+                          dateStr = invoice.carts[0].createdAt;
+                        }
+                        if (dateStr) {
+                          const d = new Date(dateStr);
+                          return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+                        }
+                        return "";
+                      })()}
                     </h5>
                     <p className="card-text">
-                      Client: {clients.find((c) => c.id === invoice.clientId)?.name}
+                      <strong>Carts:</strong>{" "}
+                      {invoice.carts && invoice.carts.length > 0 ? (
+                        invoice.carts.map((cart, cartIdx) => (
+                          <span key={cart.id || cartIdx}>
+                            {cart.name}
+                            {cartIdx < invoice.carts.length - 1 ? ", " : ""}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-muted">No carts</span>
+                      )}
                     </p>
                     <p className="card-text">
                       Products: {invoice.carts
@@ -639,12 +659,7 @@ export default function ActiveInvoices({
                         .map((item) => `${item.productName} (x${item.quantity})`)
                         .join(", ")}
                     </p>
-                    <p className="card-text">
-                      Total: ${invoice.carts
-                        .flatMap((cart) => cart.items)
-                        .reduce((total, item) => total + item.price * item.quantity, 0)
-                        .toFixed(2)}
-                    </p>
+                    {/* Removed price/total display */}
                   </div>
                   <div className="card-footer bg-transparent border-top-0">
                     <div className="d-flex justify-content-between">
@@ -785,20 +800,6 @@ export default function ActiveInvoices({
                     onChange={(e) => setQuantity(Number(e.target.value))}
                     min={1}
                   />
-                </div>
-                <div className="d-flex justify-content-end">
-                  <button
-                    className="btn btn-primary me-2"
-                    onClick={handleAddToCart}
-                  >
-                    Add to Cart
-                  </button>
-                  <button
-                    className="btn btn-success"
-                    onClick={handleCartAssign}
-                  >
-                    {isCreatingCart ? "Create Cart" : "Assign to Cart"}
-                  </button>
                 </div>
                 <div className="mt-4">
                   <h6>Or add products using the keypad:</h6>

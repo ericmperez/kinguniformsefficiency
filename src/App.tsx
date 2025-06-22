@@ -866,7 +866,7 @@ function App() {
         </Box>
       </Drawer>
       {/* Main content: only render components if user has permission */}
-      {activePage === "home" && canSee("ActiveInvoices") && (
+      {activePage === "home" && (
         <ActiveInvoices
           clients={clients}
           products={products}
@@ -1175,13 +1175,8 @@ function App() {
               </div>
             </div>
           </div>
-          <PendingProductsWidget />
+          {/* <PendingProductsWidget /> */}
           {/* ...existing home content... */}
-        </div>
-      )}
-      {(activePage === "home" || activePage === "ActiveInvoices") && (
-        <div className="container mt-4">
-          <PendingProductsWidget />
         </div>
       )}
     </div>
