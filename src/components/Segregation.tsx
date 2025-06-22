@@ -6,7 +6,7 @@ import {
 } from "../services/firebaseService";
 import type { Client } from "../types";
 // Add Firestore imports
-import { doc, updateDoc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, updateDoc, setDoc, getDoc, onSnapshot, collection, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface SegregationProps {
@@ -250,13 +250,11 @@ const Segregation: React.FC<SegregationProps> = ({
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
-    const q = window.firebase.firestore
-      ? window.firebase.firestore().collection("pickup_groups")
-      : query(
-          collection(db, "pickup_groups"),
-          where("startTime", ">=", today.toISOString()),
-          where("startTime", "<", tomorrow.toISOString())
-        );
+    const q = query(
+      collection(db, "pickup_groups"),
+      where("startTime", ">=", today.toISOString()),
+      where("startTime", "<", tomorrow.toISOString())
+    );
     const unsub = onSnapshot(q, (snap) => {
       const fetchedGroups = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setGroups(fetchedGroups);
