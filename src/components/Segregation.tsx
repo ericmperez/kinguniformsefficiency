@@ -28,24 +28,6 @@ const Segregation: React.FC<SegregationProps> = ({
   const [showLogModal, setShowLogModal] = useState(false);
 
   useEffect(() => {
-<<<<<<< HEAD
-    setLoading(true);
-    // Load ALL pickup_groups, not just today's
-    import("../firebase").then(({ db }) => {
-      import("firebase/firestore").then(({ collection, onSnapshot, query }) => {
-        const q = query(collection(db, "pickup_groups"));
-        const unsub = onSnapshot(q, (snap) => {
-          const fetched = snap.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          setGroups(fetched);
-          setLoading(false);
-        });
-      });
-    });
-    // No cleanup needed because this is a one-day query and component unmount will clear listeners
-=======
     const fetchData = async () => {
       setLoading(true);
       const [fetchedGroups, fetchedClients] = await Promise.all([
@@ -58,7 +40,6 @@ const Segregation: React.FC<SegregationProps> = ({
     };
     fetchData();
     // Optionally, add polling or a real-time listener for groups if needed
->>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
   }, [statusUpdating]);
 
   // Show only groups with status 'Segregation' and not 'Entregado'
@@ -67,13 +48,7 @@ const Segregation: React.FC<SegregationProps> = ({
     .map((c) => c.id);
   const segregationGroups = groups.filter(
     (g) =>
-<<<<<<< HEAD
-      g.status === "Segregation" &&
-      g.status !== "Entregado" &&
-      g.status !== "deleted"
-=======
       segregationClientIds.includes(g.clientId) && g.status === "Segregation"
->>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
   );
 
   // Only set group status to 'Segregation' if it is in a pre-segregation state (e.g., 'Pickup Complete')
@@ -209,29 +184,6 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   };
 
-  // Handler for complete button
-  const handleComplete = async (groupId: string) => {
-    setCompletingGroup(groupId);
-    const count = parseInt(segregatedCounts[groupId] || "");
-    if (isNaN(count) || count < 0) {
-      alert("Please enter a valid number of segregated carts.");
-      setCompletingGroup(null);
-      return;
-    }
-    const group = groups.find((g) => g.id === groupId);
-    const client = clients.find((c) => c.id === group?.clientId);
-    let nextStatus = "Tunnel";
-    if (client?.washingType === "Conventional") nextStatus = "Conventional";
-    await updatePickupGroupStatus(groupId, nextStatus);
-    const groupRef = doc(db, "pickup_groups", groupId);
-    await updateDoc(groupRef, { segregatedCarts: count });
-    setCompletingGroup(null);
-    setSegregatedCounts((prev) => ({ ...prev, [groupId]: "" }));
-    if (onGroupComplete) onGroupComplete();
-    // setGroups(prev => prev.filter(g => g.id !== groupId)); // Remove only after Firestore update
-  };
-
-  // Render groups in custom order
   const orderedGroups = groupOrder
     .map((id) => segregationGroups.find((g) => g.id === id))
     .filter(Boolean);
@@ -274,6 +226,22 @@ const Segregation: React.FC<SegregationProps> = ({
       );
     });
   }, []);
+
+  // Handler for completing segregation for a group
+  const handleComplete = async (groupId: string) => {
+    setCompletingGroup(groupId);
+    try {
+      // You may want to update the group status in Firestore
+      await updatePickupGroupStatus(groupId, "Segregation Complete");
+      setStatusUpdating(groupId); // Trigger reload
+      setSegregatedCounts((prev) => ({ ...prev, [groupId]: "" }));
+      if (onGroupComplete) onGroupComplete();
+    } catch (err) {
+      alert("Error completing segregation for this group");
+    } finally {
+      setCompletingGroup(null);
+    }
+  };
 
   // --- UI ---
   return (
@@ -353,7 +321,6 @@ const Segregation: React.FC<SegregationProps> = ({
           <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>
             Groups for Segregation
           </h5>
-<<<<<<< HEAD
           {/* First group: full card with controls */}
           {displayGroups[0] && (
             <div
@@ -530,55 +497,18 @@ const Segregation: React.FC<SegregationProps> = ({
                         fontSize: 16,
                         textAlign: "center",
                         wordBreak: "break-word",
-=======
-          <div className="list-group list-group-flush">
-            {displayGroups.map((group, idx) => (
-              <div
-                key={group.id}
-                className={`list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 py-3 mb-2 shadow-sm rounded${idx === 0 ? ' border border-3 border-primary bg-info-subtle' : ''}`}
-                style={{
-                  background: idx === 0 ? '#eaf2fb' : '#f8f9fa',
-                  border: idx === 0 ? '3px solid #007bff' : '1px solid #e3e3e3',
-                  flexWrap: 'wrap',
-                  minWidth: 0,
-                  wordBreak: 'break-word',
-                  maxWidth: '100%',
-                  overflowX: 'visible',
-                }}
-              >
-                <div className="d-flex flex-row justify-content-between align-items-center w-100" style={{ minWidth: 0, maxWidth: '100%' }}>
-                  {/* Left: Client info */}
-                  <div className="d-flex flex-column" style={{ minWidth: 0, maxWidth: '60%' }}>
-                    <span
-                      style={{
-                        fontSize: idx === 0 ? '1.1rem' : '1rem',
-                        fontWeight: idx === 0 ? 700 : 600,
-                        color: '#007bff',
-                        minWidth: 0,
-                        wordBreak: 'break-word',
-                        maxWidth: '100%',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        marginBottom: 2,
->>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
                       }}
                     >
                       {group.clientName}
                     </span>
-<<<<<<< HEAD
-                    <span style={{ fontSize: 13, color: "#333" }}>
-                      Weight:{" "}
-                      <strong>
-                        {typeof group.totalWeight === "number"
-                          ? group.totalWeight.toFixed(2)
-                          : "?"}
-                      </strong>{" "}
-                      lbs
-                    </span>
-                    <span style={{ fontSize: 13, color: "#333" }}>
-                      Carros: <strong>{getCartCount(group.id)}</strong>
-                    </span>
+                    <div className="d-flex flex-row gap-3" style={{ fontSize: '0.95rem', color: '#333', minWidth: 0, maxWidth: '100%' }}>
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Weight: <strong>{typeof group.totalWeight === 'number' ? group.totalWeight.toFixed(2) : '?'}</strong> lbs
+                      </span>
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Carros: <strong>{getCartCount(group.id)}</strong>
+                      </span>
+                    </div>
                     <div className="d-flex flex-row gap-1 align-items-center mt-2">
                       <button
                         className="btn btn-outline-secondary btn-sm"
@@ -648,97 +578,8 @@ const Segregation: React.FC<SegregationProps> = ({
                 ) : (
                   <div className="text-muted">
                     No log history for this group.
-=======
-                    <div className="d-flex flex-row gap-3" style={{ fontSize: '0.95rem', color: '#333', minWidth: 0, maxWidth: '100%' }}>
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Weight: <strong>{typeof group.totalWeight === 'number' ? group.totalWeight.toFixed(2) : '?'}</strong> lbs
-                      </span>
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Carros: <strong>{getCartCount(group.id)}</strong>
-                      </span>
-                    </div>
->>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
                   </div>
-                  {/* Right: Controls */}
-                  <div className="d-flex flex-row align-items-center gap-2 justify-content-end" style={{ minWidth: 0, maxWidth: '40%', flexWrap: 'nowrap' }}>
-                    <button
-                      className="btn btn-outline-secondary btn-sm"
-                      title="Move up"
-                      disabled={idx === 0}
-                      onClick={() => moveGroup(group.id, -1)}
-                      style={{ whiteSpace: 'nowrap' }}
-                    >
-                      <span aria-hidden="true">▲</span>
-                    </button>
-                    <button
-                      className="btn btn-outline-secondary btn-sm"
-                      title="Move down"
-                      disabled={idx === displayGroups.length - 1}
-                      onClick={() => moveGroup(group.id, 1)}
-                      style={{ whiteSpace: 'nowrap' }}
-                    >
-                      <span aria-hidden="true">▼</span>
-                    </button>
-                    {idx === 0 && (
-                      <>
-                        <button
-                          className="btn btn-outline-secondary btn-sm ms-2"
-                          onClick={() =>
-                            handleInputChange(
-                              group.id,
-                              String(
-                                Math.max(
-                                  0,
-                                  parseInt(segregatedCounts[group.id] || '0', 10) - 1
-                                )
-                              )
-                            )
-                          }
-                          disabled={completingGroup === group.id}
-                          style={{ whiteSpace: 'nowrap' }}
-                        >
-                          -
-                        </button>
-                        <input
-                          type="number"
-                          min={0}
-                          className="form-control form-control-sm text-center"
-                          style={{ width: 60, fontSize: 16, fontWeight: 600, minWidth: 0, maxWidth: '100%' }}
-                          placeholder="# segregated"
-                          value={segregatedCounts[group.id] || ''}
-                          onChange={(e) => handleInputChange(group.id, e.target.value)}
-                          disabled={completingGroup === group.id}
-                        />
-                        <button
-                          className="btn btn-outline-secondary btn-sm"
-                          onClick={() =>
-                            handleInputChange(
-                              group.id,
-                              String(
-                                parseInt(segregatedCounts[group.id] || '0', 10) + 1
-                              )
-                            )
-                          }
-                          disabled={completingGroup === group.id}
-                          style={{ whiteSpace: 'nowrap' }}
-                        >
-                          +
-                        </button>
-                        <button
-                          className="btn btn-success btn-sm ms-2"
-                          disabled={
-                            completingGroup === group.id ||
-                            !segregatedCounts[group.id]
-                          }
-                          onClick={() => handleComplete(group.id)}
-                          style={{ fontWeight: 600, fontSize: 15, whiteSpace: 'nowrap' }}
-                        >
-                          {completingGroup === group.id ? 'Saving...' : 'Completed'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>

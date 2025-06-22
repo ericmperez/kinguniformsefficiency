@@ -74,34 +74,11 @@ export default function PickupWashing({
 
   // Fetch today's groups on mount and on status update
   useEffect(() => {
-<<<<<<< HEAD
-    // Get today's date range in local time
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const q = query(
-      collection(db, "pickup_groups"),
-      where("startTime", ">=", Timestamp.fromDate(today)),
-      where("startTime", "<", Timestamp.fromDate(tomorrow))
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const fetched = snap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as any[];
-      // Filter out deleted groups (handle missing status)
-      setGroups(fetched.filter((g) => (g.status || "") !== "deleted"));
-    });
-    return () => unsub();
-  }, []);
-=======
     (async () => {
       const fetchedGroups = await getTodayPickupGroups();
       setGroups(fetchedGroups);
     })();
   }, [groupStatusUpdating]);
->>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
 
   // Sort clients alphabetically by name
   const sortedClients = [...clients].sort((a, b) =>
@@ -480,197 +457,16 @@ export default function PickupWashing({
         >
           <h5 className="mb-3">Entradas recientes agrupadas</h5>
           {groupedEntries.map((group, idx) => (
-<<<<<<< HEAD
-            <div
-              key={idx}
-              className="card shadow"
-              style={{ maxWidth: 500, margin: "0 auto", width: "100%" }}
-            >
-              <div
-                className="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between"
-                style={{
-                  background: "#FFB300",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "1.2rem",
-                    fontWeight: 600,
-=======
             <div key={idx} className="mb-4">
               <div className="mb-2">
                 <span
                   style={{
                     fontSize: "1.5rem",
                     fontWeight: "bold",
->>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
                     color: "#007bff",
                   }}
                 >
                   {group.clientName}
-<<<<<<< HEAD
-                </span>
-                <span style={{ fontSize: "1.1rem", color: "#28a745" }}>
-                  {group.driverName}
-                </span>
-                <span style={{ fontSize: "1.1rem", color: "#6c757d" }}>
-                  Carros: {group.entries.length}
-                </span>
-              </div>
-              <div className="card-body p-2">
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered mb-0">
-                    <thead>
-                      <tr>
-                        <th className="text-center">
-                          {group.status === "Conventional"
-                            ? "Peso total (libras)"
-                            : "Peso (libras)"}
-                        </th>
-                        <th>Hora</th>
-                        <th className="text-center">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.status === "Conventional"
-                        ? group.entries.map((entry: any, i: number) => {
-                            let timeString = "";
-                            if (entry.timestamp instanceof Date) {
-                              timeString = entry.timestamp.toLocaleTimeString();
-                            } else if (
-                              entry.timestamp &&
-                              typeof entry.timestamp.toDate === "function"
-                            ) {
-                              timeString = entry.timestamp
-                                .toDate()
-                                .toLocaleTimeString();
-                            } else {
-                              timeString = new Date(entry.timestamp).toLocaleTimeString();
-                            }
-                            return (
-                              <tr key={i}>
-                                <td className="text-center">
-                                  {editEntryId === entry.id ? (
-                                    <input
-                                      type="number"
-                                      className="form-control form-control-sm text-center"
-                                      value={editWeight}
-                                      onChange={(e) => setEditWeight(e.target.value)}
-                                      style={{ width: 80, display: "inline-block" }}
-                                      autoFocus
-                                    />
-                                  ) : (
-                                    entry.weight
-                                  )}
-                                </td>
-                                <td>{timeString}</td>
-                                <td>
-                                  {editEntryId === entry.id ? (
-                                    <div className="d-flex justify-content-end gap-2">
-                                      <button
-                                        className="btn btn-success btn-sm"
-                                        onClick={() => handleEditSave(entry)}
-                                      >
-                                        Guardar
-                                      </button>
-                                      <button
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={handleEditCancel}
-                                      >
-                                        Cancelar
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="d-flex justify-content-end gap-2">
-                                      <button
-                                        className="btn btn-outline-primary btn-sm"
-                                        onClick={() => handleEditEntry(entry)}
-                                      >
-                                        Editar
-                                      </button>
-                                      <button
-                                        className="btn btn-outline-danger btn-sm"
-                                        onClick={() => handleDeleteEntry(group, entry)}
-                                      >
-                                        Eliminar
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })
-                        : group.entries.map((entry: any, i: number) => {
-                            let timeString = "";
-                            if (entry.timestamp instanceof Date) {
-                              timeString = entry.timestamp.toLocaleTimeString();
-                            } else if (
-                              entry.timestamp &&
-                              typeof entry.timestamp.toDate === "function"
-                            ) {
-                              timeString = entry.timestamp
-                                .toDate()
-                                .toLocaleTimeString();
-                            } else {
-                              timeString = new Date(entry.timestamp).toLocaleTimeString();
-                            }
-                            return (
-                              <tr key={i}>
-                                <td className="text-center">
-                                  {editEntryId === entry.id ? (
-                                    <input
-                                      type="number"
-                                      className="form-control form-control-sm text-center"
-                                      value={editWeight}
-                                      onChange={(e) => setEditWeight(e.target.value)}
-                                      style={{ width: 80, display: "inline-block" }}
-                                      autoFocus
-                                    />
-                                  ) : (
-                                    entry.weight
-                                  )}
-                                </td>
-                                <td>{timeString}</td>
-                                <td>
-                                  {editEntryId === entry.id ? (
-                                    <div className="d-flex justify-content-end gap-2">
-                                      <button
-                                        className="btn btn-success btn-sm"
-                                        onClick={() => handleEditSave(entry)}
-                                      >
-                                        Guardar
-                                      </button>
-                                      <button
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={handleEditCancel}
-                                      >
-                                        Cancelar
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="d-flex justify-content-end gap-2">
-                                      <button
-                                        className="btn btn-outline-primary btn-sm"
-                                        onClick={() => handleEditEntry(entry)}
-                                      >
-                                        Editar
-                                      </button>
-                                      <button
-                                        className="btn btn-outline-danger btn-sm"
-                                        onClick={() => handleDeleteEntry(group, entry)}
-                                      >
-                                        Eliminar
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                    </tbody>
-                  </table>
-=======
                 </span>{" "}
                 &nbsp;|&nbsp;
                 <span
@@ -789,7 +585,6 @@ export default function PickupWashing({
                   }}
                 >
                   Peso total: {Math.round(group.totalWeight)} lbs
->>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
                 </div>
               </div>
             </div>
