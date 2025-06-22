@@ -6,9 +6,19 @@ import {
 } from "../services/firebaseService";
 import type { Client } from "../types";
 // Add Firestore imports
-import { doc, updateDoc, setDoc, getDoc, onSnapshot, collection, query, where, Timestamp } from "firebase/firestore";
+import {
+  doc,
+  updateDoc,
+  setDoc,
+  getDoc,
+  onSnapshot,
+  collection,
+  query,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 import { db } from "../firebase";
-import './Segregation.css';
+import "./Segregation.css";
 
 interface SegregationProps {
   hideArrows?: boolean;
@@ -43,8 +53,12 @@ const Segregation: React.FC<SegregationProps> = ({
     // Optionally, add polling or a real-time listener for groups if needed
   }, [statusUpdating]);
 
-  // Show all groups with status 'Segregation', regardless of client.segregation
-  const segregationGroups = groups.filter((g) => g.status === "Segregation");
+  // Show all groups with status 'Segregacion' or 'Segregation' (case-insensitive)
+  const segregationGroups = groups.filter(
+    (g) =>
+      typeof g.status === "string" &&
+      ["segregacion", "segregation"].includes(g.status.toLowerCase())
+  );
 
   // Only set group status to 'Segregation' if it is in a pre-segregation state (e.g., 'Pickup Complete')
   useEffect(() => {
@@ -55,7 +69,7 @@ const Segregation: React.FC<SegregationProps> = ({
         if (
           client &&
           client.segregation &&
-          (group.status === "Recibido" || group.status === undefined)
+          (group.status === undefined)
         ) {
           updatePickupGroupStatus(group.id, "Segregation");
         }
@@ -225,9 +239,17 @@ const Segregation: React.FC<SegregationProps> = ({
   const handleComplete = async (groupId: string) => {
     setCompletingGroup(groupId);
     try {
-      // You may want to update the group status in Firestore
-      await updatePickupGroupStatus(groupId, "Segregation Complete");
-      setStatusUpdating(groupId); // Trigger reload
+      const group = groups.find((g) => g.id === groupId);
+      const client = clients.find((c) => c.id === group?.clientId);
+      const segregatedCount = parseInt(segregatedCounts[groupId] || "0", 10);
+      // Always set status to Tunnel or Conventional only
+      let newStatus = "Conventional";
+      if (client?.washingType === "Tunnel") newStatus = "Tunnel";
+      await updateDoc(doc(db, "pickup_groups", groupId), {
+        segregatedCarts: segregatedCount,
+        status: newStatus,
+      });
+      setStatusUpdating(groupId);
       setSegregatedCounts((prev) => ({ ...prev, [groupId]: "" }));
       if (onGroupComplete) onGroupComplete();
     } catch (err) {
@@ -250,7 +272,10 @@ const Segregation: React.FC<SegregationProps> = ({
       where("startTime", "<", Timestamp.fromDate(tomorrow))
     );
     const unsub = onSnapshot(q, (snap) => {
-      const fetchedGroups = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const fetchedGroups = snap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       setGroups(fetchedGroups);
     });
     return () => unsub();
@@ -330,7 +355,10 @@ const Segregation: React.FC<SegregationProps> = ({
           No groups for segregation today.
         </div>
       ) : (
-        <div className="mb-4 mx-auto" style={{ maxWidth: '100%', overflowX: 'visible' }}>
+        <div
+          className="mb-4 mx-auto"
+          style={{ maxWidth: "100%", overflowX: "visible" }}
+        >
           <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>
             Groups for Segregation
           </h5>
@@ -339,24 +367,48 @@ const Segregation: React.FC<SegregationProps> = ({
               <div
                 key={group.id}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  width: '100%',
+                  display: "flex",
+                  alignItems: "center",
+                  width: "100%",
                   minHeight: 64,
-                  borderBottom: '1.5px solid #e0e0e0',
-                  padding: '0.5rem 0',
-                  background: idx % 2 === 0 ? '#fff' : '#f7f7f7',
-                  fontSize: 18
+                  borderBottom: "1.5px solid #e0e0e0",
+                  padding: "0.5rem 0",
+                  background: idx % 2 === 0 ? "#fff" : "#f7f7f7",
+                  fontSize: 18,
                 }}
               >
-                <div style={{ flex: 2, fontWeight: 700, color: '#007bff', fontSize: 22, wordBreak: 'break-word' }}>{group.clientName}</div>
-                <div style={{ flex: 1, textAlign: 'center', color: '#333' }}>
-                  Weight: <strong>{typeof group.totalWeight === 'number' ? group.totalWeight.toFixed(2) : '?'}</strong> lbs
+                <div
+                  style={{
+                    flex: 2,
+                    fontWeight: 700,
+                    color: "#007bff",
+                    fontSize: 22,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {group.clientName}
                 </div>
-                <div style={{ flex: 1, textAlign: 'center', color: '#333' }}>
+                <div style={{ flex: 1, textAlign: "center", color: "#333" }}>
+                  Weight:{" "}
+                  <strong>
+                    {typeof group.totalWeight === "number"
+                      ? group.totalWeight.toFixed(2)
+                      : "?"}
+                  </strong>{" "}
+                  lbs
+                </div>
+                <div style={{ flex: 1, textAlign: "center", color: "#333" }}>
                   Carros: <strong>{getCartCount(group.id)}</strong>
                 </div>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                  }}
+                >
                   <button
                     className="btn btn-outline-secondary btn-sm"
                     title="Move up"
@@ -374,13 +426,26 @@ const Segregation: React.FC<SegregationProps> = ({
                     <span aria-hidden="true">▼</span>
                   </button>
                 </div>
-                <div style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                <div
+                  style={{
+                    flex: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                  }}
+                >
                   <button
                     className="btn btn-outline-secondary btn-lg"
                     onClick={() =>
                       handleInputChange(
                         group.id,
-                        String(Math.max(0, parseInt(segregatedCounts[group.id] || '0', 10) - 1))
+                        String(
+                          Math.max(
+                            0,
+                            parseInt(segregatedCounts[group.id] || "0", 10) - 1
+                          )
+                        )
                       )
                     }
                     disabled={completingGroup === group.id}
@@ -392,10 +457,17 @@ const Segregation: React.FC<SegregationProps> = ({
                     type="number"
                     min={0}
                     className="form-control form-control-lg text-center"
-                    style={{ width: 80, fontSize: 20, fontWeight: 700, maxWidth: '100%' }}
+                    style={{
+                      width: 80,
+                      fontSize: 20,
+                      fontWeight: 700,
+                      maxWidth: "100%",
+                    }}
                     placeholder="# segregated"
-                    value={segregatedCounts[group.id] || ''}
-                    onChange={(e) => handleInputChange(group.id, e.target.value)}
+                    value={segregatedCounts[group.id] || ""}
+                    onChange={(e) =>
+                      handleInputChange(group.id, e.target.value)
+                    }
                     disabled={completingGroup === group.id}
                   />
                   <button
@@ -403,7 +475,9 @@ const Segregation: React.FC<SegregationProps> = ({
                     onClick={() =>
                       handleInputChange(
                         group.id,
-                        String(parseInt(segregatedCounts[group.id] || '0', 10) + 1)
+                        String(
+                          parseInt(segregatedCounts[group.id] || "0", 10) + 1
+                        )
                       )
                     }
                     disabled={completingGroup === group.id}
@@ -420,7 +494,7 @@ const Segregation: React.FC<SegregationProps> = ({
                     onClick={() => handleComplete(group.id)}
                     style={{ fontWeight: 700, fontSize: 18, minWidth: 100 }}
                   >
-                    {completingGroup === group.id ? 'Saving...' : 'Completed'}
+                    {completingGroup === group.id ? "Saving..." : "Completed"}
                   </button>
                 </div>
               </div>

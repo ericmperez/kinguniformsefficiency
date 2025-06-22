@@ -85,7 +85,10 @@ export default function PickupWashing({
       where("startTime", "<", tomorrow.toISOString())
     );
     const unsub = onSnapshot(q, (snap) => {
-      const fetchedGroups = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const fetchedGroups = snap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       setGroups(fetchedGroups);
     });
     return () => unsub();
@@ -137,10 +140,8 @@ export default function PickupWashing({
     let groupData: PickupGroup | null = null;
     if (!groupId) {
       // Create new group
-      let initialStatus = "Recibido";
-      if (client.segregation) {
-        initialStatus = "Segregation";
-      } else if (client.washingType === "Tunnel") {
+      let initialStatus = "Segregation";
+      if (client.washingType === "Tunnel") {
         initialStatus = "Tunnel";
       } else if (client.washingType === "Conventional") {
         initialStatus = "Conventional";

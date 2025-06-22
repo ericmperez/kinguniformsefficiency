@@ -14,6 +14,7 @@ prompt: |
   - **Security**: Follow best practices for security, especially when handling user input or sensitive data.
   - **Version Control**: Use meaningful commit messages and follow the project's branching strategy.
   - **Code Reviews**: Be open to feedback and willing to refactor code based on
+    peer reviews. Also, ensure that all code changes are reviewed before merging into the main branch.
 ---
 I want you to everytime the is a change commit the files, make sure it is build ready and redeploy the application to vercel. 
 

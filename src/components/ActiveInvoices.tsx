@@ -1,5 +1,12 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Client, Product, Invoice, CartItem, Cart, LaundryCart } from "../types";
+import {
+  Client,
+  Product,
+  Invoice,
+  CartItem,
+  Cart,
+  LaundryCart,
+} from "../types";
 import InvoiceForm from "./InvoiceForm";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
 import LaundryCartModal from "./LaundryCartModal";
@@ -127,22 +134,32 @@ export default function ActiveInvoices({
 
   // --- Cart Selection Modal State ---
   const [showCartSelectModal, setShowCartSelectModal] = useState(false);
-  const [cartSelectInvoiceId, setCartSelectInvoiceId] = useState<string | null>(null);
+  const [cartSelectInvoiceId, setCartSelectInvoiceId] = useState<string | null>(
+    null
+  );
   const [cartSelectCarts, setCartSelectCarts] = useState<Cart[]>([]);
 
   // Handler for adding product to cart (move to component scope)
   const handleAddProductToCart = () => {
-    if (!selectedProduct || !selectedInvoiceId || !selectedCartId || quantity < 1) return;
-    const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+    if (
+      !selectedProduct ||
+      !selectedInvoiceId ||
+      !selectedCartId ||
+      quantity < 1
+    )
+      return;
+    const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
     if (!invoice) return;
-    const cartIdx = invoice.carts.findIndex(c => c.id === selectedCartId);
+    const cartIdx = invoice.carts.findIndex((c) => c.id === selectedCartId);
     if (cartIdx === -1) return;
     const cart = { ...invoice.carts[cartIdx] };
-    const existingIdx = cart.items.findIndex(item => item.productId === selectedProduct);
+    const existingIdx = cart.items.findIndex(
+      (item) => item.productId === selectedProduct
+    );
     if (existingIdx > -1) {
       cart.items[existingIdx].quantity += quantity;
     } else {
-      const product = products.find(p => p.id === selectedProduct);
+      const product = products.find((p) => p.id === selectedProduct);
       if (!product) return;
       cart.items.push({
         productId: product.id,
@@ -506,7 +523,7 @@ export default function ActiveInvoices({
                           }
                           style={{ minWidth: 120 }}
                         >
-                          <option value="Recibido">Recibido</option>
+                          {/* <option value="Recibido">Recibido</option> */}
                           <option value="Segregation">Segregacion</option>
                           <option value="Tunnel">Tunnel</option>
                           <option value="Conventional">Conventional</option>
@@ -656,19 +673,31 @@ export default function ActiveInvoices({
                 <div className="card h-100">
                   <div className="card-body">
                     <h5 className="card-title">
-                      Invoice #{invoice.invoiceNumber ? String(invoice.invoiceNumber).padStart(4, "0") : String(idx + 1).padStart(4, "0")}
+                      Invoice #
+                      {invoice.invoiceNumber
+                        ? String(invoice.invoiceNumber).padStart(4, "0")
+                        : String(idx + 1).padStart(4, "0")}
                       {" - "}
-                      {clients.find((c) => c.id === invoice.clientId)?.name || invoice.clientName}
+                      {clients.find((c) => c.id === invoice.clientId)?.name ||
+                        invoice.clientName}
                       {" - "}
                       {(() => {
                         // Prefer invoice.date, fallback to createdAt of first cart, else blank
                         let dateStr = invoice.date;
-                        if (!dateStr && invoice.carts && invoice.carts.length > 0) {
+                        if (
+                          !dateStr &&
+                          invoice.carts &&
+                          invoice.carts.length > 0
+                        ) {
                           dateStr = invoice.carts[0].createdAt;
                         }
                         if (dateStr) {
                           const d = new Date(dateStr);
-                          return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+                          return d.toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          });
                         }
                         return "";
                       })()}
@@ -687,9 +716,12 @@ export default function ActiveInvoices({
                       )}
                     </p>
                     <p className="card-text">
-                      Products: {invoice.carts
+                      Products:{" "}
+                      {invoice.carts
                         .flatMap((cart) => cart.items)
-                        .map((item) => `${item.productName} (x${item.quantity})`)
+                        .map(
+                          (item) => `${item.productName} (x${item.quantity})`
+                        )
                         .join(", ")}
                     </p>
                     {/* Removed price/total display */}
@@ -818,20 +850,42 @@ export default function ActiveInvoices({
                     slidesToShow={3}
                     slidesToScroll={1}
                     arrows={true}
-                    responsive={[{ breakpoint: 768, settings: { slidesToShow: 2 } }, { breakpoint: 480, settings: { slidesToShow: 1 } }]}
+                    responsive={[
+                      { breakpoint: 768, settings: { slidesToShow: 2 } },
+                      { breakpoint: 480, settings: { slidesToShow: 1 } },
+                    ]}
                   >
                     {products.map((product, idx) => (
                       <div key={product.id || idx} style={{ padding: 8 }}>
                         <div
-                          className={`card h-100 shadow-sm product-slider-card${selectedProduct === product.id ? " border-primary" : " border-light"}`}
-                          style={{ cursor: "pointer", borderWidth: 2, minHeight: 120 }}
+                          className={`card h-100 shadow-sm product-slider-card${
+                            selectedProduct === product.id
+                              ? " border-primary"
+                              : " border-light"
+                          }`}
+                          style={{
+                            cursor: "pointer",
+                            borderWidth: 2,
+                            minHeight: 120,
+                          }}
                           onClick={() => setSelectedProduct(product.id)}
                         >
                           {product.imageUrl && (
-                            <img src={product.imageUrl} alt={product.name} style={{ width: "100%", height: 80, objectFit: "cover", borderRadius: 6 }} />
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              style={{
+                                width: "100%",
+                                height: 80,
+                                objectFit: "cover",
+                                borderRadius: 6,
+                              }}
+                            />
                           )}
                           <div className="card-body p-2 text-center">
-                            <div className="fw-bold" style={{ fontSize: 15 }}>{product.name}</div>
+                            <div className="fw-bold" style={{ fontSize: 15 }}>
+                              {product.name}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -847,12 +901,15 @@ export default function ActiveInvoices({
                         type="number"
                         className="form-control"
                         value={quantity}
-                        onChange={e => setQuantity(Number(e.target.value))}
+                        onChange={(e) => setQuantity(Number(e.target.value))}
                         min={1}
                         style={{ width: 100 }}
                       />
                     </div>
-                    <button className="btn btn-primary mb-1" onClick={handleAddProductToCart}>
+                    <button
+                      className="btn btn-primary mb-1"
+                      onClick={handleAddProductToCart}
+                    >
                       Add to Cart
                     </button>
                   </div>
@@ -1198,9 +1255,12 @@ export default function ActiveInvoices({
                         await import("../firebase").then(({ db }) =>
                           import("firebase/firestore").then(
                             ({ doc, updateDoc }) =>
-                              updateDoc(doc(db, "pickup_groups", pendingGroup.id), {
-                                status: "Pending Products",
-                              })
+                              updateDoc(
+                                doc(db, "pickup_groups", pendingGroup.id),
+                                {
+                                  status: "Pending Products",
+                                }
+                              )
                           )
                         );
                         pendingGroup.status = "Pending Products";
@@ -1421,13 +1481,18 @@ export default function ActiveInvoices({
                           (g.status === "Conventional" || g.status === "Tunnel")
                       );
                       if (!group) {
-                        setAddToGroupError("No group found for this client today.");
+                        setAddToGroupError(
+                          "No group found for this client today."
+                        );
                         setAddToGroupLoading(false);
                         return;
                       }
                       // Find or create cart
-                      let carts = Array.isArray(group.carts) ? [...group.carts] : [];
-                      let cartId = carts.length > 0 ? carts[0].id : Date.now().toString();
+                      let carts = Array.isArray(group.carts)
+                        ? [...group.carts]
+                        : [];
+                      let cartId =
+                        carts.length > 0 ? carts[0].id : Date.now().toString();
                       let cartIdx = carts.findIndex((c) => c.id === cartId);
                       if (cartIdx === -1) {
                         carts.push({
@@ -1439,7 +1504,9 @@ export default function ActiveInvoices({
                         });
                         cartIdx = carts.length - 1;
                       }
-                      const product = products.find((p) => p.id === addToGroupProductId);
+                      const product = products.find(
+                        (p) => p.id === addToGroupProductId
+                      );
                       if (!product) throw new Error("Product not found");
                       let cart = { ...carts[cartIdx] };
                       // Add product with the selected mode
@@ -1458,7 +1525,9 @@ export default function ActiveInvoices({
                         item.quantity = addToGroupValue;
                       }
                       // If product already exists, update quantity
-                      const existingIdx = cart.items.findIndex((i: any) => i.productId === product.id);
+                      const existingIdx = cart.items.findIndex(
+                        (i: any) => i.productId === product.id
+                      );
                       if (existingIdx > -1) {
                         cart.items[existingIdx].quantity += item.quantity;
                       } else {
@@ -1498,7 +1567,9 @@ export default function ActiveInvoices({
           carts={cartSelectCarts.map(cartToLaundryCart)}
           onAddCart={async (cartName) => {
             const newCart = await handleCartCreate(cartName);
-            return newCart ? cartToLaundryCart(newCart) : { id: '', name: '', isActive: true };
+            return newCart
+              ? cartToLaundryCart(newCart)
+              : { id: "", name: "", isActive: true };
           }}
         />
       )}
