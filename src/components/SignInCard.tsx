@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useAuth } from './AuthContext';
 
-export default function SignInCard({ noCard }: { noCard?: boolean } = {}) {
+export default function SignInCard({ noCard, headingProps }: { noCard?: boolean, headingProps?: React.HTMLAttributes<HTMLHeadingElement> } = {}) {
   const { login } = useAuth();
   const [id, setId] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
@@ -18,7 +18,7 @@ export default function SignInCard({ noCard }: { noCard?: boolean } = {}) {
     setLoading(false);
   };
 
-  const headingStyle: React.CSSProperties = {
+  const headingStyle: React.CSSProperties = headingProps?.style || {
     fontSize: 32,
     fontWeight: 800,
     letterSpacing: 1,
@@ -32,7 +32,7 @@ export default function SignInCard({ noCard }: { noCard?: boolean } = {}) {
   const content = (
     <>
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <h2 style={headingStyle}>King Uniforms APP</h2>
+        <h2 {...headingProps} style={headingStyle}>King Uniforms APP</h2>
         <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 340 }}>
           {/* Keypad for numeric login */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>

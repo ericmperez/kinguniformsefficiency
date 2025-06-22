@@ -921,6 +921,7 @@ function App() {
         </Box>
       </Drawer>
       {/* Main content: only render components if user has permission */}
+<<<<<<< HEAD
       {activePage === "home" && (
         <ActiveInvoices
           clients={clients}
@@ -957,8 +958,38 @@ function App() {
               justifyContent: "center",
             }}
           >
+=======
+      <div className="app-main-content" style={{ marginLeft: 220, padding: 24, minHeight: '100vh' }}>
+        {activePage === "home" && canSee("ActiveInvoices") && (
+          <ActiveInvoices
+            clients={clients}
+            products={products}
+            invoices={invoices}
+            onAddInvoice={handleAddInvoice}
+            onDeleteInvoice={handleDeleteInvoice}
+            onUpdateInvoice={handleUpdateInvoice}
+            selectedInvoiceId={selectedInvoiceId}
+            setSelectedInvoiceId={setSelectedInvoiceId}
+          />
+        )}
+        {activePage === "entradas" && canSee("PickupWashing") && (
+          <PickupWashing clients={clients} drivers={drivers} />
+        )}
+        {activePage === "washing" && canSee("Washing") && (
+          <Washing setSelectedInvoiceId={setSelectedInvoiceId} />
+        )}
+        {activePage === "segregation" && canSee("Segregation") && <Segregation />}
+        {activePage === "reports" && canSee("Report") && <Report />}
+        {activePage === "settings" && canManageUsers && (
+          <>
+            {/* Settings Nav Bar - always visible below main navbar */}
+            <div style={{ height: 56 }} />
+            {/* Spacer to push submenu below navbar */}
+>>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
             <div
+              className="mb-3"
               style={{
+<<<<<<< HEAD
                 display: "flex",
                 flexDirection: "row",
                 flexWrap: "wrap",
@@ -1201,41 +1232,238 @@ function App() {
           <MissingRequiredItemsSection clients={clients} products={products} invoices={invoices} />
           <div className="row justify-content-center mb-4">
             <div className="col-12 col-md-6 col-lg-4">
+=======
+                marginTop: 0,
+                marginBottom: 24,
+                zIndex: 1,
+                position: "relative",
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
+>>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
               <div
-                className="card shadow text-center"
                 style={{
-                  background: "#fffbe6",
-                  border: "1px solid #ffe066",
+                  display: 'flex',
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 16,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  maxWidth: 600,
+                  width: '100%',
                 }}
               >
-                <div className="card-body">
-                  <h5
-                    className="card-title mb-2"
-                    style={{
-                      color: "#FFB300",
-                      fontWeight: 700,
-                      letterSpacing: 1,
-                    }}
-                  >
-                    Total Pounds Entered Today
-                  </h5>
-                  <div
-                    style={{
-                      fontSize: 36,
-                      fontWeight: 700,
-                      color: "#333",
-                    }}
-                  >
-                    {todayTotalLbs.toLocaleString()} lbs
+                <button
+                  className={`btn${activeSettingsTab === "clients" ? " btn-primary" : " btn-outline-primary"}`}
+                  onClick={() => setActiveSettingsTab("clients")}
+                  style={{
+                    minWidth: 120,
+                    padding: '12px 20px',
+                    borderRadius: 12,
+                    fontWeight: 600,
+                    fontSize: 16,
+                    boxShadow: activeSettingsTab === "clients" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                    background: activeSettingsTab === "clients" ? 'var(--ku-blue)' : '#fff',
+                    color: activeSettingsTab === "clients" ? '#fff' : '#0E62A0',
+                    border: '2px solid var(--ku-blue)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Clients
+                </button>
+                <button
+                  className={`btn${activeSettingsTab === "products" ? " btn-primary" : " btn-outline-primary"}`}
+                  onClick={() => setActiveSettingsTab("products")}
+                  style={{
+                    minWidth: 120,
+                    padding: '12px 20px',
+                    borderRadius: 12,
+                    fontWeight: 600,
+                    fontSize: 16,
+                    boxShadow: activeSettingsTab === "products" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                    background: activeSettingsTab === "products" ? 'var(--ku-blue)' : '#fff',
+                    color: activeSettingsTab === "products" ? '#fff' : '#0E62A0',
+                    border: '2px solid var(--ku-blue)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Products
+                </button>
+                <button
+                  className={`btn${activeSettingsTab === "drivers" ? " btn-primary" : " btn-outline-primary"}`}
+                  onClick={() => setActiveSettingsTab("drivers")}
+                  style={{
+                    minWidth: 120,
+                    padding: '12px 20px',
+                    borderRadius: 12,
+                    fontWeight: 600,
+                    fontSize: 16,
+                    boxShadow: activeSettingsTab === "drivers" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                    background: activeSettingsTab === "drivers" ? 'var(--ku-blue)' : '#fff',
+                    color: activeSettingsTab === "drivers" ? '#fff' : '#0E62A0',
+                    border: '2px solid var(--ku-blue)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Choferes
+                </button>
+                <button
+                  className={`btn${activeSettingsTab === "users" ? " btn-primary" : " btn-outline-primary"}`}
+                  onClick={() => setActiveSettingsTab("users")}
+                  style={{
+                    minWidth: 120,
+                    padding: '12px 20px',
+                    borderRadius: 12,
+                    fontWeight: 600,
+                    fontSize: 16,
+                    boxShadow: activeSettingsTab === "users" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                    background: activeSettingsTab === "users" ? 'var(--ku-blue)' : '#fff',
+                    color: activeSettingsTab === "users" ? '#fff' : '#0E62A0',
+                    border: '2px solid var(--ku-blue)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Users
+                </button>
+                <button
+                  className={`btn${activeSettingsTab === "loginContent" ? " btn-primary" : " btn-outline-primary"}`}
+                  onClick={() => setActiveSettingsTab("loginContent")}
+                  style={{
+                    minWidth: 120,
+                    padding: '12px 20px',
+                    borderRadius: 12,
+                    fontWeight: 600,
+                    fontSize: 16,
+                    boxShadow: activeSettingsTab === "loginContent" ? '0 2px 8px rgba(14,98,160,0.08)' : 'none',
+                    background: activeSettingsTab === "loginContent" ? 'var(--ku-blue)' : '#fff',
+                    color: activeSettingsTab === "loginContent" ? '#fff' : '#0E62A0',
+                    border: '2px solid var(--ku-blue)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  Login Content
+                </button>
+              </div>
+            </div>
+            {/* Show only one form at a time */}
+            <div className="row">
+              {activeSettingsTab === "clients" && canManageClients && (
+                <div className="col-md-12">
+                  <ClientForm
+                    clients={clients}
+                    products={products}
+                    onAddClient={handleAddClient}
+                    onUpdateClient={handleUpdateClient}
+                    onDeleteClient={handleDeleteClient}
+                  />
+                </div>
+              )}
+              {activeSettingsTab === "products" && canManageProducts && (
+                <div className="col-md-12">
+                  <ProductForm
+                    products={products}
+                    onAddProduct={handleAddProduct}
+                    onUpdateProduct={handleUpdateProduct}
+                    onDeleteProduct={handleDeleteProduct}
+                  />
+                </div>
+              )}
+              {activeSettingsTab === "drivers" && (
+                <div className="col-md-12">
+                  <DriverManagement drivers={drivers} />
+                </div>
+              )}
+              {activeSettingsTab === "users" && canManageUsers && (
+                <div className="col-md-12">
+                  <UserManagement />
+                </div>
+              )}
+              {activeSettingsTab === "loginContent" && (
+                <div className="col-md-12">
+                  <div className="card p-4 mb-4">
+                    <h3 className="mb-3">Login Page Side Content</h3>
+                    <div className="mb-3">
+                      <label className="form-label">Announcements / Message</label>
+                      <textarea
+                        className="form-control"
+                        rows={6}
+                        value={announcements}
+                        onChange={e => setAnnouncements(e.target.value)}
+                        placeholder="Enter announcements, birthdays, or any message to show on the login page...\nYou can use *markdown* for formatting, including bold, italics, lists, and links."
+                      />
+                      <div className="form-text">
+                        <b>Formatting tips:</b> You can use <a href="https://www.markdownguide.org/basic-syntax/" target="_blank" rel="noopener noreferrer">Markdown</a> for bold, italics, lists, and links.<br/>
+                        Example: <code>*Important*</code>, <code>**Bold**</code>, <code>- List item</code>, <code>[Link](https://example.com)</code>
+                      </div>
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Image (URL)</label>
+                      <input
+                        className="form-control"
+                        type="text"
+                        value={announcementImage || ''}
+                        onChange={e => setAnnouncementImage(e.target.value)}
+                        placeholder="Paste image URL for birthdays, etc."
+                      />
+                    </div>
+                    {announcementImage && (
+                      <div className="mb-3">
+                        <img src={announcementImage} alt="Announcement" style={{ maxWidth: 300, borderRadius: 8 }} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+        {activePage === "home" && (
+          <div className="container py-4">
+            <div className="row justify-content-center mb-4">
+              <div className="col-12 col-md-6 col-lg-4">
+                <div
+                  className="card shadow text-center"
+                  style={{
+                    background: "#fffbe6",
+                    border: "1px solid #ffe066",
+                  }}
+                >
+                  <div className="card-body">
+                    <h5
+                      className="card-title mb-2"
+                      style={{
+                        color: "#FFB300",
+                        fontWeight: 700,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      Total Pounds Entered Today
+                    </h5>
+                    <div
+                      style={{
+                        fontSize: 36,
+                        fontWeight: 700,
+                        color: "#333",
+                      }}
+                    >
+                      {todayTotalLbs.toLocaleString()} lbs
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+            {/* ...existing home content... */}
           </div>
+<<<<<<< HEAD
           {/* <PendingProductsWidget /> */}
           {/* ...existing home content... */}
         </div>
       )}
+=======
+        )}
+      </div>
+>>>>>>> e8c254f90e74c24ec0816bd1a8f68f6dd1a3f051
     </div>
   );
 }
