@@ -32,6 +32,7 @@ import type {
   Invoice,
 } from "./types";
 import { Client, Product } from "./types";
+import { Cart, CartItem } from "./types";
 import { useAuth } from "./components/AuthContext";
 import LocalLoginForm from "./components/LocalLoginForm";
 import UserManagement from "./components/UserManagement";
@@ -649,6 +650,60 @@ function App() {
     );
   }
 
+  // --- COMPONENT: MissingRequiredItemsSection ---
+  type MissingRequiredItemsSectionProps = {
+    clients: Client[];
+    products: Product[];
+    invoices: Invoice[];
+  };
+
+  function MissingRequiredItemsSection({ clients, products, invoices }: MissingRequiredItemsSectionProps) {
+    // Build a map of productId to productName for display
+    const productMap: Record<string, string> = Object.fromEntries(products.map((p: Product) => [p.id, p.name]));
+    // Find all clients with an active invoice
+    const clientActiveInvoices: Record<string, Invoice> = {};
+    invoices.forEach((inv: Invoice) => {
+      if (!clientActiveInvoices[inv.clientId]) {
+        clientActiveInvoices[inv.clientId] = inv;
+      }
+    });
+    // For each client, check which required products are missing from their invoice carts
+    const missingItems: { clientName: string; productName: string }[] = [];
+    clients.forEach((client: Client) => {
+      const invoice = clientActiveInvoices[client.id];
+      if (!invoice) return;
+      // Gather all productIds present in any cart for this invoice
+      const presentProductIds = new Set<string>();
+      invoice.carts.forEach((cart: Cart) => {
+        cart.items.forEach((item: CartItem) => {
+          presentProductIds.add(item.productId);
+        });
+      });
+      // For each required product, if not present, add to missing list
+      (client.selectedProducts || []).forEach((productId: string) => {
+        if (!presentProductIds.has(productId)) {
+          missingItems.push({
+            clientName: client.name,
+            productName: productMap[productId] || productId,
+          });
+        }
+      });
+    });
+    if (missingItems.length === 0) return null;
+    return (
+      <div className="card p-3 mb-4 border-danger">
+        <h5 className="mb-3 text-danger">Required Items Missing from Invoices</h5>
+        <ul className="mb-0">
+          {missingItems.map((item, idx) => (
+            <li key={item.clientName + "-" + item.productName + "-" + idx}>
+              <b>Client:</b> {item.clientName} &nbsp; <b>Product:</b> {item.productName}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <AppBar
@@ -1142,6 +1197,8 @@ function App() {
       )}
       {activePage === "home" && (
         <div className="container py-4">
+          {/* --- Missing Required Items Section --- */}
+          <MissingRequiredItemsSection clients={clients} products={products} invoices={invoices} />
           <div className="row justify-content-center mb-4">
             <div className="col-12 col-md-6 col-lg-4">
               <div

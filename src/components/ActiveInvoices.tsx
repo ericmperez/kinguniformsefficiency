@@ -7,6 +7,9 @@ import {
   getAllPickupGroups,
   updatePickupGroupStatus,
 } from "../services/firebaseService";
+import Slider from "react-slick";
+import "slick-carousel/slick/slick.css";
+import "slick-carousel/slick/slick-theme.css";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -126,6 +129,36 @@ export default function ActiveInvoices({
   const [showCartSelectModal, setShowCartSelectModal] = useState(false);
   const [cartSelectInvoiceId, setCartSelectInvoiceId] = useState<string | null>(null);
   const [cartSelectCarts, setCartSelectCarts] = useState<Cart[]>([]);
+
+  // Handler for adding product to cart (move to component scope)
+  const handleAddProductToCart = () => {
+    if (!selectedProduct || !selectedInvoiceId || !selectedCartId || quantity < 1) return;
+    const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+    if (!invoice) return;
+    const cartIdx = invoice.carts.findIndex(c => c.id === selectedCartId);
+    if (cartIdx === -1) return;
+    const cart = { ...invoice.carts[cartIdx] };
+    const existingIdx = cart.items.findIndex(item => item.productId === selectedProduct);
+    if (existingIdx > -1) {
+      cart.items[existingIdx].quantity += quantity;
+    } else {
+      const product = products.find(p => p.id === selectedProduct);
+      if (!product) return;
+      cart.items.push({
+        productId: product.id,
+        productName: product.name,
+        quantity,
+        price: product.price,
+        addedBy: currentUser,
+        addedAt: new Date().toISOString(),
+      });
+    }
+    const updatedCarts = [...invoice.carts];
+    updatedCarts[cartIdx] = cart;
+    onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
+    setQuantity(1);
+    setSelectedProduct("");
+  };
 
   // Placeholder for current user. Replace with actual user logic as needed.
   const currentUser = "Current User";
@@ -778,19 +811,52 @@ export default function ActiveInvoices({
                 })()}
                 <div className="mb-3">
                   <label className="form-label">Select Product</label>
-                  <select
-                    className="form-select"
-                    value={selectedProduct}
-                    onChange={(e) => setSelectedProduct(e.target.value)}
+                  <Slider
+                    dots={false}
+                    infinite={false}
+                    speed={500}
+                    slidesToShow={3}
+                    slidesToScroll={1}
+                    arrows={true}
+                    responsive={[{ breakpoint: 768, settings: { slidesToShow: 2 } }, { breakpoint: 480, settings: { slidesToShow: 1 } }]}
                   >
-                    <option value="">-- Select a product --</option>
                     {products.map((product, idx) => (
-                      <option key={product.id || idx} value={product.id}>
-                        {product.name} - ${product.price.toFixed(2)}
-                      </option>
+                      <div key={product.id || idx} style={{ padding: 8 }}>
+                        <div
+                          className={`card h-100 shadow-sm product-slider-card${selectedProduct === product.id ? " border-primary" : " border-light"}`}
+                          style={{ cursor: "pointer", borderWidth: 2, minHeight: 120 }}
+                          onClick={() => setSelectedProduct(product.id)}
+                        >
+                          {product.imageUrl && (
+                            <img src={product.imageUrl} alt={product.name} style={{ width: "100%", height: 80, objectFit: "cover", borderRadius: 6 }} />
+                          )}
+                          <div className="card-body p-2 text-center">
+                            <div className="fw-bold" style={{ fontSize: 15 }}>{product.name}</div>
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </select>
+                  </Slider>
                 </div>
+                {/* Quantity input and Add button, shown only if a product is selected */}
+                {selectedProduct && (
+                  <div className="mb-3 d-flex align-items-end gap-3">
+                    <div>
+                      <label className="form-label">Quantity</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={quantity}
+                        onChange={e => setQuantity(Number(e.target.value))}
+                        min={1}
+                        style={{ width: 100 }}
+                      />
+                    </div>
+                    <button className="btn btn-primary mb-1" onClick={handleAddProductToCart}>
+                      Add to Cart
+                    </button>
+                  </div>
+                )}
                 <div className="mb-3">
                   <label className="form-label">Quantity</label>
                   <input
