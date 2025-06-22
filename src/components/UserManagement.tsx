@@ -38,6 +38,7 @@ export default function UserManagement(props: UserManagementProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editId, setEditId] = useState("");
   const [editUsername, setEditUsername] = useState("");
   const [editRole, setEditRole] = useState<UserRole>("Employee");
   const [editAllowedComponents, setEditAllowedComponents] = useState<
@@ -57,16 +58,18 @@ export default function UserManagement(props: UserManagementProps) {
       const { db } = await import("../firebase");
       unsub = onSnapshot(collection(db, "users"), (snapshot) => {
         setUsers(
-          snapshot.docs.map((doc) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              username: data.username || "",
-              role: (data.role as UserRole) || "Employee",
-              allowedComponents: data.allowedComponents,
-              defaultPage: data.defaultPage,
-            };
-          })
+          snapshot.docs
+            .map((doc) => {
+              const data = doc.data();
+              return {
+                id: typeof data.id === 'string' ? data.id : '', // Only use the 4-digit code if present
+                username: data.username || "",
+                role: (data.role as UserRole) || "Employee",
+                allowedComponents: data.allowedComponents,
+                defaultPage: data.defaultPage,
+              };
+            })
+            .filter((user) => /^\d{4}$/.test(user.id)) // Only show users with a valid 4-digit code
         );
         setLoading(false);
       });
@@ -118,6 +121,7 @@ export default function UserManagement(props: UserManagementProps) {
 
   const handleEdit = (user: UserRecord) => {
     setEditingId(user.id);
+    setEditId(user.id);
     setEditUsername(user.username);
     setEditRole(user.role);
     setEditAllowedComponents(user.allowedComponents || []);
@@ -126,6 +130,7 @@ export default function UserManagement(props: UserManagementProps) {
 
   const handleEditCancel = () => {
     setEditingId(null);
+    setEditId("");
     setEditUsername("");
     setEditRole("Employee");
     setEditAllowedComponents([]);
@@ -133,18 +138,27 @@ export default function UserManagement(props: UserManagementProps) {
     setError(null);
   };
 
-  const handleEditSave = async (id: string) => {
+  const handleEditSave = async (oldId: string) => {
     setError(null);
+    if (!/^\d{4}$/.test(editId)) {
+      setError("ID must be a 4-digit number");
+      return;
+    }
     if (!editUsername.trim()) {
       setError("Username is required");
       return;
     }
-    if (users.some((u) => u.username === editUsername.trim() && u.id !== id)) {
+    if (users.some((u) => u.id === editId && u.id !== oldId)) {
+      setError("ID already exists");
+      return;
+    }
+    if (users.some((u) => u.username === editUsername.trim() && u.id !== oldId)) {
       setError("Username already exists");
       return;
     }
     setLoading(true);
-    await updateUser(id, {
+    await updateUser(oldId, {
+      id: editId,
       username: editUsername.trim(),
       role: editRole,
       allowedComponents:
@@ -152,6 +166,7 @@ export default function UserManagement(props: UserManagementProps) {
       defaultPage: editDefaultPage,
     });
     setEditingId(null);
+    setEditId("");
     setEditUsername("");
     setEditRole("Employee");
     setEditAllowedComponents([]);
@@ -231,7 +246,14 @@ export default function UserManagement(props: UserManagementProps) {
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id + '-' + u.username}>
-                    <td>{u.id}</td> {/* Show the 4-digit login code, not the Firestore doc id */}
+                    <td>
+                      {/* Always show the 4-digit code, or a warning if missing */}
+                      {u.id && /^\d{4}$/.test(u.id) ? (
+                        u.id
+                      ) : (
+                        <span className="text-danger">(No 4-digit code)</span>
+                      )}
+                    </td>
                     <td>
                       {editingId === u.id ? (
                         <input

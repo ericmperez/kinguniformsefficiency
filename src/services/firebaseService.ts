@@ -133,7 +133,7 @@ export interface UserRecord {
   role: string;
 }
 
-export type UserUpdate = Partial<Omit<UserRecord, "id">> & { allowedComponents?: AppComponentKey[]; defaultPage?: AppComponentKey };
+export type UserUpdate = Partial<UserRecord> & { allowedComponents?: AppComponentKey[]; defaultPage?: AppComponentKey };
 
 export const addUser = async (user: UserRecord): Promise<void> => {
   // Always set the id field to the intended login ID
@@ -163,8 +163,8 @@ export const deleteUser = async (id: string): Promise<void> => {
   }
 };
 
-export const updateUser = async (id: string, updates: UserUpdate): Promise<void> => {
-  const q = query(collection(db, "users"), where("id", "==", id));
+export const updateUser = async (oldId: string, updates: UserUpdate): Promise<void> => {
+  const q = query(collection(db, "users"), where("id", "==", oldId));
   const querySnapshot = await getDocs(q);
   const sanitizedUpdates = sanitizeForFirestore(updates);
   for (const docSnap of querySnapshot.docs) {
