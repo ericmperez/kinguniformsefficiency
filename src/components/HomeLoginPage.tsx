@@ -129,23 +129,30 @@ const HomeLoginPage: React.FC = () => {
               Iniciar Sesión
             </h3>
             <div style={{ marginBottom: 16 }}>
-              <input
-                type="password"
-                placeholder="Password (numbers only)"
-                style={{
-                  width: "100%",
-                  padding: 10,
+              {/* Keypad for numeric login */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{
+                  fontSize: 28,
+                  letterSpacing: 6,
+                  fontWeight: 700,
+                  marginBottom: 10,
+                  minHeight: 36,
+                  textAlign: 'center',
+                  border: '1px solid #ccc',
                   borderRadius: 6,
-                  border: "1px solid #ccc",
-                  fontSize: 18,
-                }}
-                inputMode="numeric"
-                pattern="\\d*"
-                value={password}
-                onChange={(e) => setPassword(e.target.value.replace(/\D/g, ""))}
-                autoFocus
-                required
-              />
+                  width: 180,
+                  background: '#f8f9fa',
+                  padding: 6
+                }}>{password || <span style={{ color: '#bbb' }}>Enter Number</span>}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 56px)', gap: 8 }}>
+                  {[1,2,3,4,5,6,7,8,9].map(n => (
+                    <button type="button" key={n} style={{ fontSize: 22, padding: 0, height: 48, width: 56, borderRadius: 8, border: '1px solid #ccc', background: '#fff' }} onClick={() => setPassword(p => (p + n).slice(0, 8))}>{n}</button>
+                  ))}
+                  <button type="button" style={{ fontSize: 22, height: 48, width: 56, borderRadius: 8, border: '1px solid #ccc', background: '#fff' }} onClick={() => setPassword(p => p.slice(0, -1))}>&larr;</button>
+                  <button type="button" style={{ fontSize: 22, height: 48, width: 56, borderRadius: 8, border: '1px solid #ccc', background: '#fff' }} onClick={() => setPassword(p => (p + '0').slice(0, 8))}>0</button>
+                  <button type="button" style={{ fontSize: 22, height: 48, width: 56, borderRadius: 8, border: '1px solid #ccc', background: '#fff' }} onClick={() => setPassword("")}>C</button>
+                </div>
+              </div>
             </div>
             <button
               type="submit"
