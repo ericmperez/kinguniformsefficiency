@@ -40,7 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       const { collection, onSnapshot } = await import("firebase/firestore");
       const { db } = await import("../firebase");
-<<<<<<< HEAD
+HEAD
+ HEAD
       return onSnapshot(collection(db, "users"), (snapshot) => {
         setUsers(
           snapshot.docs.map((doc) => ({
@@ -48,10 +49,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ...doc.data(),
           }))
         );
-=======
+      unsub = onSnapshot(collection(db, "users"), (snapshot) => {
+        setUsers(snapshot.docs.map((doc) => doc.data())); c7ab29d (fixed error)
       unsub = onSnapshot(collection(db, "users"), (snapshot) => {
         setUsers(snapshot.docs.map((doc) => doc.data()));
->>>>>>> c7ab29d (fixed error)
+      return onSnapshot(collection(db, "users"), (snapshot) => {
+        setUsers(
+          snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+        );
+e149ae750b9fc4f74adfc50f264aadd7960370ce
+ 22ca882 (New Fixed)
       });
     })();
     return () => {
