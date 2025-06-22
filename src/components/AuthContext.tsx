@@ -33,19 +33,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(getStoredUser());
   const [users, setUsers] = useState<any[]>([]); // Store all users in state
 
-  // Real-time Firestore listener for users
+  // Real-time Firestore listener for users (only if authenticated)
   React.useEffect(() => {
-    const unsub = (async () => {
+    if (!user) return; // Only subscribe if logged in
+    let unsub: (() => void) | undefined;
+    (async () => {
       const { collection, onSnapshot } = await import("firebase/firestore");
       const { db } = await import("../firebase");
-      return onSnapshot(collection(db, "users"), (snapshot) => {
+      unsub = onSnapshot(collection(db, "users"), (snapshot) => {
         setUsers(snapshot.docs.map((doc) => doc.data()));
       });
     })();
     return () => {
-      unsub.then && unsub.then((u) => u && u());
+      if (unsub) unsub();
     };
-  }, []);
+  }, [user]);
 
   const login = async (id: string) => {
     if (!/^\d{4}$/.test(id)) return false;

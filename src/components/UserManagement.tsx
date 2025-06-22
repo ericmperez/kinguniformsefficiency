@@ -45,14 +45,17 @@ export default function UserManagement(props: UserManagementProps) {
   const [editDefaultPage, setEditDefaultPage] = useState<
     AppComponentKey | undefined
   >(undefined);
+  const { user } = require("./AuthContext").useAuth();
 
   useEffect(() => {
+    if (!user) return;
     setLoading(true);
     // Real-time Firestore listener for users
-    const unsub = (async () => {
+    let unsub: (() => void) | undefined;
+    (async () => {
       const { collection, onSnapshot } = await import("firebase/firestore");
       const { db } = await import("../firebase");
-      return onSnapshot(collection(db, "users"), (snapshot) => {
+      unsub = onSnapshot(collection(db, "users"), (snapshot) => {
         setUsers(
           snapshot.docs.map((doc) => ({
             id: doc.data().id,
@@ -66,9 +69,9 @@ export default function UserManagement(props: UserManagementProps) {
       });
     })();
     return () => {
-      unsub.then && unsub.then((u) => u && u());
+      if (unsub) unsub();
     };
-  }, []);
+  }, [user]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
