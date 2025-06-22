@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { UserRole } from "./AuthContext";
+import { UserRole, useAuth } from "./AuthContext";
 import {
   addUser,
   deleteUser,
@@ -30,6 +30,7 @@ const componentOptions: { key: AppComponentKey; label: string }[] = [
 ];
 
 export default function UserManagement(props: UserManagementProps) {
+  const { user } = useAuth(); // Get current logged-in user
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [username, setUsername] = useState("");
   const [id, setId] = useState("");
@@ -57,13 +58,16 @@ export default function UserManagement(props: UserManagementProps) {
       const { db } = await import("../firebase");
       unsub = onSnapshot(collection(db, "users"), (snapshot) => {
         setUsers(
-          snapshot.docs.map((doc) => ({
-            id: doc.data().id,
-            username: doc.data().username,
-            role: doc.data().role as UserRole,
-            allowedComponents: doc.data().allowedComponents,
-            defaultPage: doc.data().defaultPage,
-          }))
+          snapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              username: data.username || "",
+              role: (data.role as UserRole) || "Employee",
+              allowedComponents: data.allowedComponents,
+              defaultPage: data.defaultPage,
+            };
+          })
         );
         setLoading(false);
       });
@@ -96,7 +100,7 @@ export default function UserManagement(props: UserManagementProps) {
       id,
       username: username.trim(),
       role,
-      allowedComponents: undefined,
+      allowedComponents: role === "Owner" ? undefined : [], // Always set for non-Owner
       defaultPage: undefined,
     };
     setLoading(true);
@@ -217,7 +221,7 @@ export default function UserManagement(props: UserManagementProps) {
             <table className="table table-sm table-bordered">
               <thead>
                 <tr>
-                  <th>ID</th>
+                  <th>User Number<br /><span style={{fontWeight:400, fontSize:12, color:'#888'}}>(4-digit login code)</span></th>
                   <th>Username</th>
                   <th>Role</th>
                   <th>Allowed Components</th>
@@ -227,7 +231,7 @@ export default function UserManagement(props: UserManagementProps) {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id}>
+                  <tr key={u.id + '-' + u.username}>
                     <td>{u.id}</td>
                     <td>
                       {editingId === u.id ? (
@@ -246,15 +250,11 @@ export default function UserManagement(props: UserManagementProps) {
                         <select
                           className="form-control form-control-sm"
                           value={editRole}
-                          onChange={(e) =>
-                            setEditRole(e.target.value as UserRole)
-                          }
+                          onChange={(e) => setEditRole(e.target.value as UserRole)}
                           disabled={loading}
                         >
                           {roles.map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
+                            <option key={r} value={r}>{r}</option>
                           ))}
                         </select>
                       ) : (
@@ -262,7 +262,9 @@ export default function UserManagement(props: UserManagementProps) {
                       )}
                     </td>
                     <td>
-                      {editingId === u.id ? (
+                      {editingId === u.id && editRole === "Owner" ? (
+                        <div className="text-muted">Owner has access to all components</div>
+                      ) : editingId === u.id ? (
                         <div>
                           {componentOptions.map((c) => (
                             <div key={c.key} className="form-check">
@@ -281,23 +283,18 @@ export default function UserManagement(props: UserManagementProps) {
                                 id={`component-${c.key}`}
                                 disabled={loading}
                               />
-                              <label
-                                className="form-check-label"
-                                htmlFor={`component-${c.key}`}
-                              >
-                                {c.label}
-                              </label>
+                              <label className="form-check-label" htmlFor={`component-${c.key}`}>{c.label}</label>
                             </div>
                           ))}
                         </div>
                       ) : (
                         <div>
-                          {u.allowedComponents?.map((key) => {
-                            const component = componentOptions.find(
-                              (c) => c.key === key
-                            );
-                            return component ? component.label : null;
-                          })}
+                          {u.role === "Owner"
+                            ? "All components"
+                            : u.allowedComponents?.map((key) => {
+                                const component = componentOptions.find((c) => c.key === key);
+                                return component ? component.label : null;
+                              }).join(", ") || <span className="text-muted">(Role default)</span>}
                         </div>
                       )}
                     </td>
@@ -306,29 +303,19 @@ export default function UserManagement(props: UserManagementProps) {
                         <select
                           className="form-select form-select-sm"
                           value={editDefaultPage || ""}
-                          onChange={(e) =>
-                            setEditDefaultPage(
-                              e.target.value as AppComponentKey
-                            )
-                          }
+                          onChange={(e) => setEditDefaultPage(e.target.value as AppComponentKey)}
                           disabled={loading}
                         >
                           <option value="">(Use role default)</option>
                           {componentOptions.map((c) => (
-                            <option key={c.key} value={c.key}>
-                              {c.label}
-                            </option>
+                            <option key={c.key} value={c.key}>{c.label}</option>
                           ))}
                         </select>
                       ) : (
                         <span>
-                          {u.defaultPage ? (
-                            componentOptions.find(
-                              (c) => c.key === u.defaultPage
-                            )?.label || u.defaultPage
-                          ) : (
-                            <span className="text-muted">(Role default)</span>
-                          )}
+                          {u.defaultPage
+                            ? componentOptions.find((c) => c.key === u.defaultPage)?.label || u.defaultPage
+                            : <span className="text-muted">(Role default)</span>}
                         </span>
                       )}
                     </td>
@@ -352,17 +339,18 @@ export default function UserManagement(props: UserManagementProps) {
                         </>
                       ) : (
                         <>
+                          {/* Prevent editing/deleting the currently logged-in user for safety */}
                           <button
                             className="btn btn-warning btn-sm me-1"
                             onClick={() => handleEdit(u)}
-                            disabled={loading}
+                            disabled={Boolean(loading) || (user?.id === u.id)}
                           >
                             Edit
                           </button>
                           <button
                             className="btn btn-danger btn-sm"
                             onClick={() => handleDelete(u.id)}
-                            disabled={loading}
+                            disabled={Boolean(loading) || (user?.id === u.id)}
                           >
                             Delete
                           </button>

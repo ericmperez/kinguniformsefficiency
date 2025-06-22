@@ -40,8 +40,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       const { collection, onSnapshot } = await import("firebase/firestore");
       const { db } = await import("../firebase");
+<<<<<<< HEAD
       unsub = onSnapshot(collection(db, "users"), (snapshot) => {
         setUsers(snapshot.docs.map((doc) => doc.data()));
+=======
+      return onSnapshot(collection(db, "users"), (snapshot) => {
+        setUsers(
+          snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+        );
+>>>>>>> e149ae750b9fc4f74adfc50f264aadd7960370ce
       });
     })();
     return () => {

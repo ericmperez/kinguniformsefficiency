@@ -1,0 +1,13 @@
+.segregation-group-card {
+  min-width: 260px;
+  max-width: 320px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+@media (max-width: 600px) {
+  .segregation-group-card {
+    min-width: 90vw;
+    max-width: 98vw;
+  }
+}

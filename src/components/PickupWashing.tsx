@@ -72,7 +72,7 @@ export default function PickupWashing({
   const weightInputRef = useRef<HTMLInputElement>(null);
   const [showKeypad, setShowKeypad] = useState(false);
 
-  // Fetch today's groups in real-time and update instantly on any change
+  // Fetch today's groups in real time
   useEffect(() => {
     // Get today's date range in local time
     const today = new Date();
@@ -81,13 +81,12 @@ export default function PickupWashing({
     tomorrow.setDate(today.getDate() + 1);
     const q = query(
       collection(db, "pickup_groups"),
-      where("startTime", ">=", Timestamp.fromDate(today)),
-      where("startTime", "<", Timestamp.fromDate(tomorrow))
+      where("startTime", ">=", today.toISOString()),
+      where("startTime", "<", tomorrow.toISOString())
     );
     const unsub = onSnapshot(q, (snap) => {
-      const fetched = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as any[];
-      // Filter out deleted groups (handle missing status)
-      setGroups(fetched.filter((g) => (g.status || "") !== "deleted"));
+      const fetchedGroups = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setGroups(fetchedGroups);
     });
     return () => unsub();
   }, []);
@@ -178,10 +177,15 @@ export default function PickupWashing({
         (e) => e.groupId === groupId
       );
       await updateGroupTotals(groupId!, updatedEntries);
+      // After updating group totals (on add, edit, or delete), also update numCarts in Firestore
+      await updateDoc(doc(db, "pickup_groups", groupId), {
+        numCarts: updatedEntries.length,
+      });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
-      setClientId("");
-      setDriverId("");
+      // Do not clear clientId or driverId so they remain prepopulated
+      // setClientId("");
+      // setDriverId("");
       setWeight("");
       setShowKeypad(false); // Hide keypad on submit
     } catch (err) {
@@ -197,10 +201,13 @@ export default function PickupWashing({
         const groupEntries = entries.filter((e) => e.groupId === group.id);
         const totalWeight = groupEntries.reduce((sum, e) => sum + e.weight, 0);
         // Find the latest timestamp in the group's entries, fallback to group.endTime/startTime
-        let latest = group.endTime ? new Date(group.endTime) : new Date(group.startTime);
+        let latest = group.endTime
+          ? new Date(group.endTime)
+          : new Date(group.startTime);
         if (groupEntries.length > 0) {
           const maxEntry = groupEntries.reduce((max, e) => {
-            const t = e.timestamp instanceof Date ? e.timestamp : new Date(e.timestamp);
+            const t =
+              e.timestamp instanceof Date ? e.timestamp : new Date(e.timestamp);
             return t > max ? t : max;
           }, latest);
           latest = maxEntry;
@@ -234,6 +241,10 @@ export default function PickupWashing({
         (e) => e.groupId === entry.groupId
       );
       await updateGroupTotals(entry.groupId, groupEntries);
+      // After updating group totals (on add, edit, or delete), also update numCarts in Firestore
+      await updateDoc(doc(db, "pickup_groups", entry.groupId), {
+        numCarts: groupEntries.length,
+      });
       setEditEntryId(null);
       setEditWeight("");
     } catch (err) {
@@ -255,6 +266,10 @@ export default function PickupWashing({
       // Update group totals
       const groupEntries = updatedEntries.filter((e) => e.groupId === group.id);
       await updateGroupTotals(group.id, groupEntries);
+      // After updating group totals (on add, edit, or delete), also update numCarts in Firestore
+      await updateDoc(doc(db, "pickup_groups", group.id), {
+        numCarts: groupEntries.length,
+      });
     } catch (err) {
       alert("Error al eliminar la entrada");
     }
@@ -309,17 +324,19 @@ export default function PickupWashing({
   const lastEntry = useMemo(() => {
     if (!entries || entries.length === 0) return null;
     // Sort by timestamp descending
-    return [...entries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+    return [...entries].sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )[0];
   }, [entries]);
 
-  // Prepopulate client and driver from last entry on every open of the form
+  // Prepopulate client and driver from last entry if empty
   useEffect(() => {
     if (lastEntry) {
-      setClientId(lastEntry.clientId);
-      setDriverId(lastEntry.driverId);
+      if (!clientId) setClientId(lastEntry.clientId);
+      if (!driverId) setDriverId(lastEntry.driverId);
     }
-    // Only run when success (form submit) changes to true
-  }, [success]);
+  }, [lastEntry]);
 
   // Keypad input handler
   const handleKeypadInput = (val: string) => {
@@ -446,81 +463,141 @@ export default function PickupWashing({
       </form>
       {/* Grouped entries table */}
       {groupedEntries.length > 0 && (
-        <div className="d-flex flex-column gap-3">
+        <div
+          className="card p-3 mb-4"
+          style={{ maxWidth: 700, margin: "0 auto" }}
+        >
+          <h5 className="mb-3">Entradas recientes agrupadas</h5>
           {groupedEntries.map((group, idx) => (
-            <div key={idx} className="card shadow" style={{ maxWidth: 500, margin: "0 auto", width: "100%" }}>
-              <div className="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between" style={{ background: "#FFB300", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-                <span style={{ fontSize: "1.2rem", fontWeight: 600, color: "#007bff" }}>{group.clientName}</span>
-                <span style={{ fontSize: "1.1rem", color: "#28a745" }}>{group.driverName}</span>
-                <span style={{ fontSize: "1.1rem", color: "#6c757d" }}>Carros: {group.entries.length}</span>
+            <div key={idx} className="mb-4">
+              <div className="mb-2">
+                <span
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "bold",
+                    color: "#007bff",
+                  }}
+                >
+                  {group.clientName}
+                </span>{" "}
+                &nbsp;|&nbsp;
+                <span
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "bold",
+                    color: "#28a745",
+                  }}
+                >
+                  {group.driverName}
+                </span>{" "}
+                &nbsp;|&nbsp;
+                <span
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "bold",
+                    color: "#6c757d",
+                  }}
+                >
+                  Carros: {group.entries.length}
+                </span>
               </div>
-              <div className="card-body p-2">
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered mb-0">
-                    <thead>
-                      <tr>
-                        <th className="text-center">Peso (libras)</th>
-                        <th>Hora</th>
-                        <th className="text-center">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.entries.map((entry: any, i: number) => {
-                        let timeString = "";
-                        if (entry.timestamp instanceof Date) {
-                          timeString = entry.timestamp.toLocaleTimeString();
-                        } else if (entry.timestamp && typeof entry.timestamp.toDate === "function") {
-                          timeString = entry.timestamp.toDate().toLocaleTimeString();
-                        } else {
-                          timeString = new Date(entry.timestamp).toLocaleTimeString();
-                        }
-                        return (
-                          <tr key={i}>
-                            <td className="text-center">
-                              {editEntryId === entry.id ? (
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm text-center"
-                                  value={editWeight}
-                                  onChange={(e) => setEditWeight(e.target.value)}
-                                  style={{ width: 80, display: "inline-block" }}
-                                  autoFocus
-                                />
-                              ) : (
-                                entry.weight
-                              )}
-                            </td>
-                            <td>{timeString}</td>
-                            <td>
-                              {editEntryId === entry.id ? (
-                                <div className="d-flex justify-content-end gap-2">
-                                  <button className="btn btn-success btn-sm" onClick={() => handleEditSave(entry)}>
-                                    Guardar
-                                  </button>
-                                  <button className="btn btn-secondary btn-sm" onClick={handleEditCancel}>
-                                    Cancelar
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="d-flex justify-content-end gap-2">
-                                  <button className="btn btn-outline-primary btn-sm" onClick={() => handleEditEntry(entry)}>
-                                    Editar
-                                  </button>
-                                  <button className="btn btn-outline-danger btn-sm" onClick={() => handleDeleteEntry(group, entry)}>
-                                    Eliminar
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              <div className="table-responsive">
+                <table className="table table-sm table-bordered">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Peso (libras)</th>
+                      <th>Hora</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.entries.map((entry: PickupEntry, i: number) => {
+                      let timeString = "";
+                      if (entry.timestamp instanceof Date) {
+                        timeString = entry.timestamp.toLocaleTimeString();
+                      } else if (
+                        entry.timestamp &&
+                        typeof entry.timestamp.toDate === "function"
+                      ) {
+                        timeString = entry.timestamp
+                          .toDate()
+                          .toLocaleTimeString();
+                      } else {
+                        timeString = new Date(
+                          entry.timestamp as any
+                        ).toLocaleTimeString();
+                      }
+                      return (
+                        <tr key={i}>
+                          <td>{i + 1}</td>
+                          <td>
+                            {editEntryId === entry.id ? (
+                              <input
+                                type="number"
+                                className="form-control form-control-sm"
+                                value={editWeight}
+                                onChange={(e) => setEditWeight(e.target.value)}
+                                style={{ width: 80, display: "inline-block" }}
+                                autoFocus
+                              />
+                            ) : (
+                              entry.weight
+                            )}
+                          </td>
+                          <td>{timeString}</td>
+                          <td>
+                            {editEntryId === entry.id ? (
+                              <>
+                                <button
+                                  className="btn btn-success btn-sm me-2"
+                                  onClick={() => handleEditSave(entry)}
+                                >
+                                  Guardar
+                                </button>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={handleEditCancel}
+                                >
+                                  Cancelar
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  className="btn btn-outline-primary btn-sm me-2"
+                                  onClick={() => handleEditEntry(entry)}
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  className="btn btn-outline-danger btn-sm"
+                                  onClick={() =>
+                                    handleDeleteEntry(group, entry)
+                                  }
+                                >
+                                  Eliminar
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div
+                  style={{
+                    width: "100%",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    background: "#f8f9fa",
+                    padding: "8px 12px",
+                    borderTop: "1px solid #dee2e6",
+                  }}
+                >
+                  Peso total: {Math.round(group.totalWeight)} lbs
                 </div>
-              </div>
-              <div className="card-footer text-end bg-light fw-bold">
-                Peso total: {Math.round(group.totalWeight)} lbs
               </div>
             </div>
           ))}

@@ -136,7 +136,8 @@ export interface UserRecord {
 export type UserUpdate = Partial<Omit<UserRecord, "id">> & { allowedComponents?: AppComponentKey[]; defaultPage?: AppComponentKey };
 
 export const addUser = async (user: UserRecord): Promise<void> => {
-  const sanitizedUser = sanitizeForFirestore(user);
+  // Always set the id field to the intended login ID
+  const sanitizedUser = sanitizeForFirestore({ ...user, id: user.id });
   await addDoc(collection(db, "users"), sanitizedUser);
 };
 
@@ -145,7 +146,7 @@ export const getUsers = async (): Promise<UserRecord[]> => {
   return querySnapshot.docs.map((doc) => {
     const data = doc.data();
     return {
-      id: data.id,
+      id: doc.id, // Use Firestore doc.id as the user ID
       username: data.username,
       role: data.role,
       allowedComponents: data.allowedComponents || undefined,
@@ -306,10 +307,16 @@ export const addPickupGroup = async (group: {
   endTime: Date | Timestamp;
   totalWeight: number;
   status: string;
+  carts?: any[];
+  entries?: any[];
 }) => {
   try {
+    // numCarts is the number of entries that belong to this group
+    const numCarts = Array.isArray(group.entries) ? group.entries.length : 0;
     const docRef = await addDoc(collection(db, "pickup_groups"), {
       ...group,
+      numCarts,
+      segregatedCarts: null,
       startTime: group.startTime instanceof Date ? Timestamp.fromDate(group.startTime) : group.startTime,
       endTime: group.endTime instanceof Date ? Timestamp.fromDate(group.endTime) : group.endTime,
     });

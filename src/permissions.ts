@@ -52,6 +52,7 @@ export function canUserSeeComponent(
   user: { role: Role; allowedComponents?: AppComponentKey[] },
   component: AppComponentKey
 ): boolean {
+  if (user.role === 'Owner') return true; // Owner always sees all
   if (user.allowedComponents) {
     return user.allowedComponents.includes(component);
   }
