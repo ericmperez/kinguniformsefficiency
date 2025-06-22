@@ -183,8 +183,9 @@ export default function PickupWashing({
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
-      setClientId("");
-      setDriverId("");
+      // Do not clear clientId or driverId so they remain prepopulated
+      // setClientId("");
+      // setDriverId("");
       setWeight("");
       setShowKeypad(false); // Hide keypad on submit
     } catch (err) {

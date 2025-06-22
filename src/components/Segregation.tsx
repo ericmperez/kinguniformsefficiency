@@ -243,6 +243,27 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   };
 
+  // Real-time listener for today's pickup_groups (for totalWeight, numCarts, etc.)
+  useEffect(() => {
+    // Get today's date range in local time
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const q = window.firebase.firestore
+      ? window.firebase.firestore().collection("pickup_groups")
+      : query(
+          collection(db, "pickup_groups"),
+          where("startTime", ">=", today.toISOString()),
+          where("startTime", "<", tomorrow.toISOString())
+        );
+    const unsub = onSnapshot(q, (snap) => {
+      const fetchedGroups = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setGroups(fetchedGroups);
+    });
+    return () => unsub();
+  }, []);
+
   // --- UI ---
   return (
     <div className="container py-4">
