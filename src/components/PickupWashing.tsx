@@ -134,7 +134,10 @@ export default function PickupWashing({
     // Find the most recent entry for this client and driver
     const recentEntry = entries
       .filter((e) => e.clientId === client.id && e.driverId === driver.id)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+      .sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      )[0];
     let groupId = null;
     if (recentEntry && new Date(recentEntry.timestamp) >= oneHourAgo) {
       groupId = recentEntry.groupId;
