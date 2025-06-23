@@ -45,6 +45,13 @@ export interface Invoice {
   totalWeight?: number; // Add totalWeight for tunnel invoices
   status?: string; // Add status for invoice status tracking
   invoiceNumber?: number; // Optional invoiceNumber property for sequential numbering
+  locked?: boolean; // If true, invoice is locked and not editable
+  verified?: boolean; // If true, invoice is verified
+  verifiedBy?: string; // User ID who verified
+  verifiedAt?: string; // Timestamp of verification
+  verifiedProducts?: { [cartId: string]: string[] }; // Product IDs checked per cart
+  lockedBy?: string; // User ID or username who closed the invoice
+  lockedAt?: string; // Timestamp when invoice was closed
 }
 
 export interface LaundryCart {

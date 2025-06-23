@@ -138,7 +138,7 @@ export default function PickupWashing({
         (a, b) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       )[0];
-    let groupId = null;
+    let groupId: string | null = null;
     if (recentEntry && new Date(recentEntry.timestamp) >= oneHourAgo) {
       groupId = recentEntry.groupId;
     }

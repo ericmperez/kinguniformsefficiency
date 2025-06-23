@@ -18,13 +18,34 @@ export default function LaundryCartModal({
 }: LaundryCartModalProps) {
   const [newCartName, setNewCartName] = useState("");
   const [showNewCartForm, setShowNewCartForm] = useState(false);
+  const [showKeypad, setShowKeypad] = useState(false);
+  const [cartNameError, setCartNameError] = useState("");
+
+  // Keypad input handler for cart name
+  const handleKeypadInput = (val: string) => {
+    setNewCartName((prev) => {
+      if (val === "C") return "";
+      if (val === "←") return prev.slice(0, -1);
+      if (val === "_") return prev + " "; // Space
+      return prev + val;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCartName.trim()) return;
-
+    setCartNameError("");
+    const trimmedName = newCartName.trim();
+    if (!trimmedName) return;
+    // Check for duplicate name (case-insensitive)
+    const duplicate = carts.some(
+      (c) => c.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (duplicate) {
+      setCartNameError("A cart with this name already exists. Please choose a unique name.");
+      return;
+    }
     try {
-      const newCart = await onAddCart(newCartName.trim());
+      const newCart = await onAddCart(trimmedName);
       await onSelect(newCart);
       setNewCartName("");
       setShowNewCartForm(false);
@@ -79,14 +100,71 @@ export default function LaundryCartModal({
                   <label htmlFor="cartName" className="form-label">
                     Cart Name
                   </label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    id="cartName"
-                    value={newCartName}
-                    onChange={(e) => setNewCartName(e.target.value)}
-                    required
-                  />
+                  <div className="d-flex gap-2 align-items-center">
+                    <input
+                      type="text"
+                      className="form-control"
+                      id="cartName"
+                      value={newCartName}
+                      onChange={(e) => {
+                        setNewCartName(e.target.value);
+                        setCartNameError("");
+                      }}
+                      required
+                      readOnly={showKeypad}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary btn-sm"
+                      onClick={() => setShowKeypad((v) => !v)}
+                    >
+                      {showKeypad ? "Hide Keypad" : "Show Keypad"}
+                    </button>
+                  </div>
+                  {cartNameError && (
+                    <div className="text-danger mt-1" style={{ fontSize: 14 }}>{cartNameError}</div>
+                  )}
+                  {showKeypad && (
+                    <div className="mt-3">
+                      <div className="d-flex flex-wrap gap-2 mb-2">
+                        {[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'].map((key) => (
+                          <button
+                            key={key}
+                            type="button"
+                            className="btn btn-outline-dark mb-1"
+                            style={{ width: 40, height: 40, fontSize: 18 }}
+                            onClick={() => handleKeypadInput(key)}
+                          >
+                            {key}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          className="btn btn-warning mb-1"
+                          style={{ width: 40, height: 40, fontSize: 18 }}
+                          onClick={() => handleKeypadInput("_")}
+                        >
+                          _
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-danger mb-1"
+                          style={{ width: 40, height: 40, fontSize: 18 }}
+                          onClick={() => handleKeypadInput("C")}
+                        >
+                          C
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary mb-1"
+                          style={{ width: 40, height: 40, fontSize: 18 }}
+                          onClick={() => handleKeypadInput("←")}
+                        >
+                          &larr;
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="d-flex gap-2">
                   <button
@@ -110,4 +188,4 @@ export default function LaundryCartModal({
       </div>
     </div>
   );
-} 
+}
