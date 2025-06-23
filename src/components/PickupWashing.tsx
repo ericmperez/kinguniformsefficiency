@@ -81,8 +81,8 @@ export default function PickupWashing({
     tomorrow.setDate(today.getDate() + 1);
     const q = query(
       collection(db, "pickup_groups"),
-      where("startTime", ">=", today.toISOString()),
-      where("startTime", "<", tomorrow.toISOString())
+      where("startTime", ">=", Timestamp.fromDate(today)),
+      where("startTime", "<", Timestamp.fromDate(tomorrow))
     );
     const unsub = onSnapshot(q, (snap) => {
       const fetchedGroups = snap.docs.map((doc) => ({
