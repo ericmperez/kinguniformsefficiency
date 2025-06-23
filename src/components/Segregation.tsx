@@ -151,15 +151,19 @@ const Segregation: React.FC<SegregationProps> = ({
   // Move group up/down in the order and persist to Firestore, then update all screens immediately
   const [movingGroupId, setMovingGroupId] = useState<string | null>(null);
 
-  // Remove setGroupOrder from moveGroup, only update Firestore
+  // Optimistically update local groupOrder before persisting to Firestore
   const moveGroup = async (groupId: string, direction: -1 | 1) => {
-    // Always use the latest groupOrder from state
-    const idx = groupOrder.indexOf(groupId);
-    if (idx < 0) return;
+    let idx = groupOrder.indexOf(groupId);
+    let newOrder = [...groupOrder];
+    // If group is not in order, append it
+    if (idx === -1) {
+      newOrder.push(groupId);
+      idx = newOrder.length - 1;
+    }
     const swapIdx = idx + direction;
-    if (swapIdx < 0 || swapIdx >= groupOrder.length) return;
-    const newOrder = [...groupOrder];
+    if (swapIdx < 0 || swapIdx >= newOrder.length) return;
     [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+    setGroupOrder(newOrder); // Optimistic UI update
     await setDoc(orderDocRef, { order: newOrder }, { merge: true });
   };
 
@@ -269,8 +273,24 @@ const Segregation: React.FC<SegregationProps> = ({
   }, []);
 
   // --- UI ---
+  // Highlight the top group (first in displayGroups) in a big bold box at the top
+  const topGroup = displayGroups[0];
+
   return (
     <div className="container py-4">
+      {/* Top group highlight */}
+      {topGroup && (
+        <div
+          className="mb-4 p-4 shadow-lg rounded border border-3 border-primary bg-white text-center"
+          style={{ fontSize: 28, fontWeight: 900, color: '#007bff', letterSpacing: 1 }}
+        >
+          {topGroup.clientName}
+          <div style={{ fontSize: 18, fontWeight: 600, color: '#333', marginTop: 8 }}>
+            Libras: <strong>{typeof topGroup.totalWeight === 'number' ? topGroup.totalWeight.toFixed(2) : '?'} lbs</strong> &nbsp; | &nbsp;
+            Carros: <strong>{getCartCount(topGroup.id)}</strong>
+          </div>
+        </div>
+      )}
       {/* Pending Conventional Products Widget */}
       {pendingConventionalGroups.length > 0 && (
         <div
@@ -505,26 +525,48 @@ const Segregation: React.FC<SegregationProps> = ({
                 ></button>
               </div>
               <div className="modal-body">
-                {Array.isArray(logGroup.statusLog) &&
-                logGroup.statusLog.length > 0 ? (
-                  <ul className="list-group">
-                    {logGroup.statusLog.map((log: any, idx: number) => (
-                      <li key={idx} className="list-group-item">
-                        <b>Step:</b> {log.step} <br />
-                        <b>Time:</b>{" "}
-                        {log.timestamp
-                          ? new Date(log.timestamp).toLocaleString()
-                          : "-"}{" "}
-                        <br />
-                        <b>User:</b> {log.user || "-"}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="text-muted">
-                    No log history for this group.
-                  </div>
-                )}
+                {Array.isArray(logGroup.history) &&
+                  logGroup.history.map((entry, idx) => (
+                    <div
+                      key={idx}
+                      className="d-flex flex-column mb-3"
+                      style={{ fontSize: 14 }}
+                    >
+                      <div>
+                        <strong>{entry.action}</strong> by{" "}
+                        {entry.user || "System"}{" "}
+                        <span className="text-muted">
+                          {new Date(entry.timestamp?.seconds * 1000).toLocaleString()}
+                        </span>
+                      </div>
+                      {entry.changes && (
+                        <div className="ms-3">
+                          Changes:{" "}
+                          {Object.entries(entry.changes).map(
+                            ([key, value], i) => (
+                              <div key={i}>
+                                {key}:{" "}
+                                <strong>
+                                  {typeof value === "object"
+                                    ? JSON.stringify(value)
+                                    : value}
+                                </strong>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowLogModal(false)}
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

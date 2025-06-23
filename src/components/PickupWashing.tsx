@@ -130,13 +130,15 @@ export default function PickupWashing({
     if (!client || !driver || !weight) return;
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60000);
-    let group = groups.find(
-      (g) =>
-        g.clientId === client.id &&
-        g.driverId === driver.id &&
-        new Date(g.endTime) >= oneHourAgo
-    );
-    let groupId = group ? group.id : null;
+
+    // Find the most recent entry for this client and driver
+    const recentEntry = entries
+      .filter((e) => e.clientId === client.id && e.driverId === driver.id)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+    let groupId = null;
+    if (recentEntry && new Date(recentEntry.timestamp) >= oneHourAgo) {
+      groupId = recentEntry.groupId;
+    }
     let groupData: PickupGroup | null = null;
     if (!groupId) {
       // Create new group
@@ -196,7 +198,7 @@ export default function PickupWashing({
     }
   };
 
-  // Group entries by groupId (using Firestore groups)
+  // Grouped entries by groupId (using Firestore groups)
   const groupedEntries = useMemo(() => {
     // Sort groups by most recent (latest endTime or startTime) first
     return groups
