@@ -66,11 +66,7 @@ const Segregation: React.FC<SegregationProps> = ({
       groups.forEach((group) => {
         const client = clients.find((c) => c.id === group.clientId);
         // Only set to 'Segregation' if client needs segregation and group is in a pre-segregation state
-        if (
-          client &&
-          client.segregation &&
-          (group.status === undefined)
-        ) {
+        if (client && client.segregation && group.status === undefined) {
           updatePickupGroupStatus(group.id, "Segregation");
         }
       });
@@ -193,13 +189,13 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   };
 
-  // Always use groupOrder to render, never fallback to segregationGroups if groupOrder is non-empty
-  const displayGroups =
-    groupOrder.length > 0
-      ? groupOrder
-          .map((id) => segregationGroups.find((g) => g.id === id))
-          .filter(Boolean)
-      : segregationGroups;
+  // Always use groupOrder to render, but append any new segregationGroups not in groupOrder
+  const displayGroups = [
+    ...groupOrder
+      .map((id) => segregationGroups.find((g) => g.id === id))
+      .filter(Boolean),
+    ...segregationGroups.filter((g) => !groupOrder.includes(g.id)),
+  ];
 
   // --- Pending Conventional Products Widget ---
   const [pendingConventionalGroups, setPendingConventionalGroups] = useState<
@@ -259,18 +255,9 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   };
 
-  // Real-time listener for today's pickup_groups (for totalWeight, numCarts, etc.)
+  // Real-time listener for all pickup_groups (no date filter)
   useEffect(() => {
-    // Get today's date range in local time
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const q = query(
-      collection(db, "pickup_groups"),
-      where("startTime", ">=", Timestamp.fromDate(today)),
-      where("startTime", "<", Timestamp.fromDate(tomorrow))
-    );
+    const q = collection(db, "pickup_groups");
     const unsub = onSnapshot(q, (snap) => {
       const fetchedGroups = snap.docs.map((doc) => ({
         id: doc.id,
