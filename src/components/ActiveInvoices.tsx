@@ -155,7 +155,11 @@ export default function ActiveInvoices({
 
   // Handler to lock invoice
   const handleLockInvoice = async (invoiceId: string) => {
-    await onUpdateInvoice(invoiceId, { locked: true });
+    await onUpdateInvoice(invoiceId, {
+      locked: true,
+      lockedBy: user?.username || user?.id || "",
+      lockedAt: new Date().toISOString(),
+    });
   };
 
   // Handler to unlock invoice (owner only)
@@ -878,6 +882,29 @@ export default function ActiveInvoices({
                         })()}
                       </div>
                     )}
+                    {invoice.locked && invoice.lockedBy && (
+                      <div className="alert alert-warning py-1 mb-2" style={{ fontSize: 14 }}>
+                        <b>Boleta Cerrada</b> por {invoice.lockedBy}
+                      </div>
+                    )}
+                    <div className="mb-2">
+                      <label className="form-label" style={{ fontWeight: 600 }}>Nota Pública</label>
+                      {invoice.locked ? (
+                        <div className="alert alert-info py-1 mb-2" style={{ fontSize: 24, fontWeight: 700, whiteSpace: 'pre-line' }}>
+                          {invoice.note ? invoice.note : <span className="text-muted">Sin nota</span>}
+                        </div>
+                      ) : (
+                        <textarea
+                          className="form-control mb-2"
+                          rows={2}
+                          value={invoice.note || ""}
+                          placeholder="Escribe una nota visible para todos..."
+                          onChange={e => onUpdateInvoice(invoice.id, { note: e.target.value })}
+                          disabled={!!invoice.locked}
+                          style={{ fontSize: 24, fontWeight: 700 }}
+                        />
+                      )}
+                    </div>
                   </div>
                   <div className="card-footer bg-transparent border-top-0">
                     <div className="d-flex justify-content-between">
@@ -1214,8 +1241,9 @@ export default function ActiveInvoices({
                     type="number"
                     className="form-control"
                     value={keypadQuantity}
-                    onChange={(e) => setKeypadQuantity(Number(e.target.value))}
+                    onChange={e => setKeypadQuantity(Number(e.target.value))}
                     min={1}
+                    autoFocus
                   />
                 </div>
               </div>

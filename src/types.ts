@@ -52,6 +52,7 @@ export interface Invoice {
   verifiedProducts?: { [cartId: string]: string[] }; // Product IDs checked per cart
   lockedBy?: string; // User ID or username who closed the invoice
   lockedAt?: string; // Timestamp when invoice was closed
+  note?: string; // Public note for all users to see
 }
 
 export interface LaundryCart {

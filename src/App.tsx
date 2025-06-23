@@ -75,8 +75,10 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import GroupWorkIcon from "@mui/icons-material/GroupWork";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import kingUniformsLogo from "./assets/King Uniforms Logo.jpeg";
 import SignInSide from "./components/SignInSide";
+import RutasPorCamion from "./components/RutasPorCamion";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -579,6 +581,12 @@ function App() {
       page: "settings" as const,
       icon: <SettingsIcon />,
       visible: canManageUsers,
+    },
+    {
+      label: "Rutas por Camión",
+      page: "rutasPorCamion" as const,
+      icon: <LocalShippingIcon />,
+      visible: true, // Adjust permission if needed
     },
   ];
 
@@ -1237,6 +1245,7 @@ function App() {
           {/* ...existing home content... */}
         </div>
       )}
+      {activePage === "rutasPorCamion" && <RutasPorCamion />}
     </div>
   );
 }
