@@ -141,10 +141,12 @@ export default function PickupWashing({
     if (!groupId) {
       // Create new group
       let initialStatus = "Segregation";
-      if (client.washingType === "Tunnel") {
-        initialStatus = "Tunnel";
-      } else if (client.washingType === "Conventional") {
-        initialStatus = "Conventional";
+      if (!client.segregation) {
+        if (client.washingType === "Tunnel") {
+          initialStatus = "Tunnel";
+        } else if (client.washingType === "Conventional") {
+          initialStatus = "Conventional";
+        }
       }
       const groupData = {
         clientId: client.id,
