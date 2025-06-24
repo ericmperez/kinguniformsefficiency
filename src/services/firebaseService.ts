@@ -371,4 +371,42 @@ export const getAllPickupGroups = async () => {
   });
 };
 
+// Add a manual conventional product entry
+export const addManualConventionalProduct = async (entry: {
+  clientId: string;
+  clientName: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  type: 'lbs' | 'qty' | 'cart';
+  createdAt?: Date;
+}) => {
+  const { clientId, clientName, productId, productName, quantity, type, createdAt } = entry;
+  const docData = {
+    clientId,
+    clientName,
+    productId,
+    productName,
+    quantity,
+    type,
+    createdAt: createdAt ? createdAt : new Date(),
+  };
+  return await addDoc(collection(db, 'manual_conventional_products'), docData);
+};
+
+// Get all manual conventional products for a given date (defaults to today)
+export const getManualConventionalProductsForDate = async (date: Date = new Date()) => {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 1);
+  const q = query(
+    collection(db, 'manual_conventional_products'),
+    where('createdAt', '>=', start),
+    where('createdAt', '<', end)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
 export { uploadBytes, getDownloadURL };

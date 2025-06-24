@@ -13,11 +13,14 @@ import LaundryCartModal from "./LaundryCartModal";
 import {
   getAllPickupGroups,
   updatePickupGroupStatus,
+  getManualConventionalProductsForDate,
 } from "../services/firebaseService";
+import { updateDoc, doc } from "firebase/firestore";
 import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 import { AuthContext, useAuth } from "./AuthContext";
+import { db } from "../firebase";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -472,6 +475,29 @@ export default function ActiveInvoices({
       }
     }
 
+    // If trying to set to delivered, require all manual products present
+    if ((newStatus === "Entregado" || newStatus === "Boleta Impresa") && group) {
+      const invoice = invoices.find((inv) => inv.clientId === group.clientId);
+      if (invoice && !invoiceHasAllRequiredManualProducts(invoice)) {
+        alert("You must add all required manual products to the invoice before delivering.");
+        return;
+      }
+      if (invoice) {
+        // Mark all manual products as invoiced and delivered
+        const required = getRequiredManualProductsForInvoice(invoice);
+        for (const mp of required) {
+          await updateDoc(doc(db, 'manual_conventional_products', mp.id), { invoiceId: invoice.id, delivered: true });
+        }
+        setManualProducts((prev) =>
+          prev.map((p) =>
+            required.some((mp) => mp.id === p.id)
+              ? { ...p, invoiceId: invoice.id, delivered: true }
+              : p
+          )
+        );
+      }
+    }
+
     setPickupGroups((prev) =>
       prev.map((g) =>
         g.id === groupId ? { ...g, status: normalizedStatus } : g
@@ -576,6 +602,60 @@ export default function ActiveInvoices({
   // Add at the top-level of the component:
   const [showNoteInput, setShowNoteInput] = useState<{ [invoiceId: string]: boolean }>({});
 
+  // --- Manual Conventional Products State ---
+  const [manualProducts, setManualProducts] = useState<any[]>([]);
+  const [manualProductsLoading, setManualProductsLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    getManualConventionalProductsForDate(new Date()).then((products) => {
+      if (mounted) {
+        setManualProducts(products);
+        setManualProductsLoading(false);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Helper: get washed manual products for a client that are not yet invoiced
+  const getPendingManualProductsForClient = (clientId: string) =>
+    manualProducts.filter(
+      (mp) => mp.clientId === clientId && mp.washed && !mp.invoiceId
+    );
+
+  // When adding a manual product to an invoice, set its invoiceId in Firestore
+  const handleAddManualProductToInvoice = async (manualProductId: string, invoiceId: string) => {
+    await updateDoc(doc(db, 'manual_conventional_products', manualProductId), { invoiceId });
+    setManualProducts((prev) =>
+      prev.map((p) => (p.id === manualProductId ? { ...p, invoiceId } : p))
+    );
+  };
+
+  // Helper: for a given invoice, get required manual products (washed, not delivered, for this client)
+  const getRequiredManualProductsForInvoice = (invoice: Invoice) =>
+    manualProducts.filter(
+      (mp) =>
+        mp.clientId === invoice.clientId &&
+        mp.washed &&
+        !mp.delivered
+    );
+
+  // Helper: check if all required manual products are present in the invoice carts
+  const invoiceHasAllRequiredManualProducts = (invoice: Invoice) => {
+    const required = getRequiredManualProductsForInvoice(invoice);
+    if (required.length === 0) return true;
+    // Flatten all cart items in the invoice
+    const allItems = (invoice.carts || []).flatMap((cart) => cart.items || []);
+    return required.every((mp) =>
+      allItems.some(
+        (item) =>
+          item.productId === mp.productId && Number(item.quantity) >= Number(mp.quantity)
+      )
+    );
+  };
+
   return (
     <div className="container-fluid py-4">
       {/* --- GROUP OVERVIEW --- */}
@@ -637,6 +717,14 @@ export default function ActiveInvoices({
                         )} ${d.getDate()}`;
                       })()
                     : "-";
+                  // Find manual products for this client
+                  const clientManualProducts = manualProducts.filter(
+                    (mp) => mp.clientId === group.clientId
+                  );
+                  // In the invoice card rendering, find the invoice for this group/client
+                  const invoice = invoices.find((inv) => inv.clientId === group.clientId);
+                  const requiredProducts = invoice ? getRequiredManualProductsForInvoice(invoice) : [];
+                  const hasAllRequired = invoice ? invoiceHasAllRequiredManualProducts(invoice) : true;
                   return (
                     <tr
                       key={group.id || groupIdx}
@@ -648,6 +736,38 @@ export default function ActiveInvoices({
                         <span style={{ fontSize: 20, fontWeight: 700 }}>
                           {group.clientName}
                         </span>
+                        {/* Manual Conventional Products for this client (today) */}
+                        {clientManualProducts.length > 0 && (
+                          <div style={{ marginTop: 6 }}>
+                            <span
+                              className="badge bg-warning text-dark"
+                              style={{ fontSize: 13, fontWeight: 600 }}
+                            >
+                              Manual Products:
+                            </span>
+                            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                              {clientManualProducts.map((mp, idx) => (
+                                <li key={mp.id || idx}>
+                                  <b>{mp.productName}</b> &nbsp; x{mp.quantity} &nbsp;
+                                  <span style={{ color: '#888' }}>({mp.type})</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {/* Required products alert */}
+                        {getRequiredManualProductsForInvoice(group).length > 0 && (
+                          <div className="alert alert-warning p-2 mt-2 mb-0" style={{ fontSize: 13, borderRadius: 8 }}>
+                            <b>Required Products:</b>
+                            <ul style={{ margin: 0, paddingLeft: 18 }}>
+                              {getRequiredManualProductsForInvoice(group).map((mp, idx) => (
+                                <li key={mp.id || idx}>
+                                  <b>{mp.productName}</b> x{mp.quantity} <span style={{ color: '#888' }}>({mp.type})</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </td>
                       <td>{createdDate}</td>
                       <td>
@@ -1958,6 +2078,7 @@ export default function ActiveInvoices({
           if (!invoice) return null;
           return (
             <div
+
               className="modal show"
               style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
             >

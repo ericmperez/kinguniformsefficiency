@@ -23,6 +23,7 @@ import {
   uploadImage,
   assignCartToInvoice,
   getUsers,
+  getManualConventionalProductsForDate,
 } from "./services/firebaseService";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "./firebase";
@@ -707,6 +708,44 @@ function App() {
     );
   }
 
+  function ManualConventionalProductsWidget() {
+    const [manualProducts, setManualProducts] = React.useState<any[]>([]);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+      let mounted = true;
+      getManualConventionalProductsForDate(new Date()).then((products) => {
+        if (mounted) {
+          setManualProducts(products);
+          setLoading(false);
+        }
+      });
+      return () => {
+        mounted = false;
+      };
+    }, []);
+
+    if (loading) return <div className="card p-3 mb-3">Loading manual products...</div>;
+    if (manualProducts.length === 0)
+      return <div className="card p-3 mb-3">No manual products added today.</div>;
+
+    return (
+      <div className="card p-3 mb-3">
+        <h5 className="mb-3">Manual Products Added (Conventional + Button)</h5>
+        <ul className="mb-0">
+          {manualProducts.map((item, idx) => (
+            <li key={item.id || idx}>
+              <b>Client:</b> {item.clientName} &nbsp; <b>Product:</b> {item.productName} &nbsp; <b>Qty:</b> {item.quantity} &nbsp; <b>Type:</b> {item.type}
+              {item.createdAt && (
+                <span style={{ color: '#888', fontSize: '0.9em' }}> &nbsp; <b>Created:</b> {new Date(item.createdAt.seconds ? item.createdAt.seconds * 1000 : item.createdAt).toLocaleString()}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <AppBar
@@ -1268,6 +1307,7 @@ function App() {
               </div>
             </div>
           </div>
+          <ManualConventionalProductsWidget />
           {/* <PendingProductsWidget /> */}
           {/* ...existing home content... */}
         </div>

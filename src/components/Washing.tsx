@@ -10,6 +10,8 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import type { Client, Product } from "../types";
+import { addManualConventionalProduct } from "../services/firebaseService";
+import { getManualConventionalProductsForDate } from "../services/firebaseService";
 
 interface WashingProps {
   setSelectedInvoiceId?: (id: string | null) => void;
@@ -57,6 +59,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   const [conventionalAddMode, setConventionalAddMode] = useState<
     "cart" | "quantity" | "pounds"
   >("cart");
+
+  // State for manual conventional products
+  const [manualConventionalProducts, setManualConventionalProducts] = useState<any[]>([]);
+  const [manualProductsLoading, setManualProductsLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
@@ -277,95 +283,21 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         setConventionalModalLoading(false);
         return;
       }
-      // 1. Find or create group for this client
-      let group = groups.find(
-        (g) =>
-          g.clientId === selectedConventionalClientId &&
-          g.status === "Conventional" &&
-          getWashingType(g.clientId) === "Conventional"
-      );
-      let groupId = group ? group.id : null;
-      if (!group) {
-        // Create new group
-        const client = clients.find(
-          (c) => c.id === selectedConventionalClientId
-        );
-        if (!client) throw new Error("Client not found");
-        const now = new Date();
-        const groupData = {
-          clientId: client.id,
-          clientName: client.name,
-          startTime: now,
-          endTime: now,
-          totalWeight: 0,
-          status: "Conventional",
-          carts: [],
-        };
-        const groupRef = await addDoc(
-          collection(db, "pickup_groups"),
-          groupData
-        );
-        groupId = groupRef.id;
-        group = { ...groupData, id: groupId };
-        setGroups((prev) => [...prev, group]);
-      }
-      // 2. Get or create cart(s) and add product
-      let carts = Array.isArray(group.carts) ? [...group.carts] : [];
-      const product = products.find(
-        (p) => p.id === selectedConventionalProductId
-      );
+      // Find client and product
+      const client = clients.find((c) => c.id === selectedConventionalClientId);
+      const product = products.find((p) => p.id === selectedConventionalProductId);
+      if (!client) throw new Error("Client not found");
       if (!product) throw new Error("Product not found");
-      if (conventionalAddMode === "cart") {
-        // Add N carts, each with 1 of the selected product
-        for (let i = 0; i < conventionalProductQty; i++) {
-          const cartId = Date.now().toString() + "-" + i;
-          const newCart = {
-            id: cartId,
-            name: `Cart ${carts.length + 1}`,
-            items: [
-              {
-                productId: product.id,
-                productName: product.name,
-                quantity: 1,
-                price: product.price,
-                addedBy: "WashingPage",
-                addedAt: new Date().toISOString(),
-              },
-            ],
-            total: 0,
-            createdAt: new Date().toISOString(),
-          };
-          carts.push(newCart);
-        }
-      } else {
-        // For quantity or pounds, create a new cart entry
-        const cartId = Date.now().toString();
-        const newCart = {
-          id: cartId,
-          name: `${
-            conventionalAddMode === "quantity" ? "Qty" : "Lbs"
-          } Cart - ${new Date().toLocaleTimeString()}`,
-          items: [
-            {
-              productId: product.id,
-              productName: product.name,
-              quantity: conventionalProductQty,
-              price: product.price,
-              addedBy: "WashingPage",
-              addedAt: new Date().toISOString(),
-            },
-          ],
-          total: 0,
-          createdAt: new Date().toISOString(),
-        };
-        carts.push(newCart);
-      }
-      // 3. Update group in Firestore
-      await updateDoc(doc(db, "pickup_groups", groupId), { carts });
-      // 4. Update local state
-      setGroups((prev) =>
-        prev.map((g) => (g.id === groupId ? { ...g, carts } : g))
-      );
+      // Save manual product entry
+      await addManualConventionalProduct({
+        clientId: client.id,
+        clientName: client.name,
+        productId: product.id,
+        productName: product.name,
+        quantity: conventionalProductQty,
+        type: conventionalAddMode === "cart" ? "cart" : conventionalAddMode === "quantity" ? "qty" : "lbs",
+        createdAt: new Date(),
+      });
       setShowAddConventionalModal(false);
       setSelectedConventionalClientId("");
       setSelectedConventionalCartId("");
@@ -373,8 +305,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       setConventionalProductQty(1);
       setConventionalModalError("");
       setConventionalModalLoading(false);
+      // Optionally show a toast or success message
+      alert("Manual product added successfully!");
     } catch (err: any) {
-      setConventionalModalError(err.message || "Error adding product to cart");
+      setConventionalModalError(err.message || "Error adding manual product");
       setConventionalModalLoading(false);
     }
   };
@@ -464,6 +398,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       // Optionally, show error and revert UI if needed
       // For now, do nothing (UI stays in sync with Firestore on next snapshot)
     }
+  };
+
+  // Fetch manual conventional products for today
+  useEffect(() => {
+    let mounted = true;
+    getManualConventionalProductsForDate(new Date()).then((products) => {
+      if (mounted) {
+        setManualConventionalProducts(products.filter((p: any) => !p.washed));
+        setManualProductsLoading(false);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Handler to mark manual product as washed (but keep in list until invoiced)
+  const handleMarkManualProductWashed = async (id: string) => {
+    await updateDoc(doc(db, 'manual_conventional_products', id), { washed: true });
+    setManualConventionalProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, washed: true } : p))
+    );
   };
 
   return (
@@ -838,10 +794,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
           </div>
         )}
         {activeTab === "conventional" && (
-          <div
-            className="card shadow p-4 mb-4 mx-auto"
-            style={{ maxWidth: 600 }}
-          >
+          <div className="card shadow p-4 mb-4 mx-auto" style={{ maxWidth: 600 }}>
             <div className="d-flex justify-content-between align-items-center mb-4">
               <h5 className="text-center mb-0" style={{ letterSpacing: 1 }}>
                 Groups for Conventional Washing
@@ -861,6 +814,38 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                 +
               </button>
             </div>
+            {manualProductsLoading ? (
+              <div className="text-center py-2">Loading manual products...</div>
+            ) : manualConventionalProducts.length > 0 && (
+              <div className="list-group mb-3">
+                {manualConventionalProducts.filter(p => !p.invoiceId).map((item) => (
+                  <div
+                    key={item.id}
+                    className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-2 mb-1 shadow-sm rounded bg-warning bg-opacity-25"
+                    style={{ border: "1px solid #ffe066" }}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 600, color: '#b8860b' }}>{item.clientName}</span>
+                      <span style={{ marginLeft: 8 }}><b>{item.productName}</b> x{item.quantity} <span style={{ color: '#888' }}>({item.type})</span></span>
+                      {item.washed && (
+                        <span className="badge bg-success ms-2">Washed</span>
+                      )}
+                    </div>
+                    {!item.washed && (
+                      <button
+                        className="btn btn-outline-success btn-sm"
+                        onClick={() => handleMarkManualProductWashed(item.id)}
+                      >
+                        Mark as Washed
+                      </button>
+                    )}
+                    {item.washed && (
+                      <span className="text-muted ms-2">Pending Invoice</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             {loading ? (
               <div className="text-center py-5">Loading...</div>
             ) : conventionalGroups.length === 0 ? (
