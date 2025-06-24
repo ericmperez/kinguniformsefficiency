@@ -71,6 +71,7 @@ export default function PickupWashing({
   );
   const weightInputRef = useRef<HTMLInputElement>(null);
   const [showKeypad, setShowKeypad] = useState(false);
+  const [showFullScreenSuccess, setShowFullScreenSuccess] = useState(false);
 
   // Fetch today's groups in real time
   useEffect(() => {
@@ -96,6 +97,11 @@ export default function PickupWashing({
 
   // Sort clients alphabetically by name
   const sortedClients = [...clients].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+
+  // Sort drivers alphabetically by name
+  const sortedDrivers = [...drivers].sort((a, b) =>
     a.name.localeCompare(b.name)
   );
 
@@ -190,10 +196,10 @@ export default function PickupWashing({
         numCarts: updatedEntries.length,
       });
       setSuccess(true);
+      setShowFullScreenSuccess(true); // Show full-screen confirmation
+      setTimeout(() => setShowFullScreenSuccess(false), 5000); // Hide after 5 seconds
       setTimeout(() => setSuccess(false), 2000);
       // Do not clear clientId or driverId so they remain prepopulated
-      // setClientId("");
-      // setDriverId("");
       setWeight("");
       setShowKeypad(false); // Hide keypad on submit
     } catch (err) {
@@ -360,6 +366,33 @@ export default function PickupWashing({
 
   return (
     <div className="container py-4">
+      {/* Full-screen confirmation overlay */}
+      {showFullScreenSuccess && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(40,167,69,0.97)",
+            color: "#fff",
+            zIndex: 9999,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "2.5rem",
+            fontWeight: 700,
+            letterSpacing: 1,
+            textAlign: "center",
+            transition: "opacity 0.3s",
+          }}
+        >
+          <div style={{ fontSize: "4rem", marginBottom: 24 }}>✔️</div>
+          ¡Entrada registrada exitosamente!
+        </div>
+      )}
       <h2 className="mb-4 text-center">Entradas Representantes de Servicios</h2>
       <form
         className="card p-4 mb-4"
@@ -391,7 +424,7 @@ export default function PickupWashing({
             required
           >
             <option value="">Seleccione un chofer</option>
-            {drivers.map((d) => (
+            {sortedDrivers.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
               </option>
