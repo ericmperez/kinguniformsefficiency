@@ -15,23 +15,28 @@ export default function InvoiceForm({
   onAddInvoice,
 }: InvoiceFormProps) {
   const [selectedClient, setSelectedClient] = useState<string>("");
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Sort clients alphabetically by name
+  const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name));
+
+  const handleClientClick = (clientId: string) => {
+    setSelectedClient(clientId);
+    setShowConfirm(true);
+  };
+
+  const handleConfirm = async () => {
     if (!selectedClient) return;
-
     const client = clients.find((c) => c.id === selectedClient);
     if (!client) return;
-
     const newInvoice: Omit<Invoice, "id"> = {
       clientId: client.id,
       clientName: client.name,
       date: new Date().toISOString(),
       products: [],
       total: 0,
-      carts: [], // Fix: add empty carts array
+      carts: [],
     };
-
     try {
       await onAddInvoice(newInvoice);
       onClose();
@@ -54,25 +59,23 @@ export default function InvoiceForm({
               aria-label="Close"
             ></button>
           </div>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={(e) => e.preventDefault()}>
             <div className="modal-body">
               <div className="mb-3">
                 <label className="form-label">Client</label>
                 <div className="row g-3">
-                  {clients.map((client) => (
+                  {sortedClients.map((client) => (
                     <div key={client.id} className="col-6 col-md-4">
                       <div
                         className={`card h-100 shadow-sm position-relative client-card-select ${
-                          selectedClient === client.id
-                            ? "border-primary"
-                            : "border-light"
+                          selectedClient === client.id ? "border-primary" : "border-light"
                         }`}
                         style={{
                           cursor: "pointer",
                           minHeight: 100,
                           borderWidth: 2,
                         }}
-                        onClick={() => setSelectedClient(client.id)}
+                        onClick={() => handleClientClick(client.id)}
                       >
                         <div className="card-body d-flex flex-column align-items-center justify-content-center p-2">
                           {client.imageUrl ? (
@@ -106,7 +109,7 @@ export default function InvoiceForm({
                             {client.name}
                           </span>
                         </div>
-                        {selectedClient === client.id && (
+                        {selectedClient === client.id && showConfirm && (
                           <span
                             className="position-absolute top-0 end-0 m-2 badge bg-primary"
                             style={{ zIndex: 2 }}
@@ -120,21 +123,27 @@ export default function InvoiceForm({
                 </div>
               </div>
             </div>
-            <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={onClose}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary">
-                Create Invoice
-              </button>
-            </div>
           </form>
         </div>
       </div>
+      {showConfirm && selectedClient && (
+        <div className="modal show d-block" tabIndex={-1} style={{ background: "rgba(0,0,0,0.3)" }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirm Client</h5>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to create an invoice for <b>{clients.find(c => c.id === selectedClient)?.name}</b>?</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowConfirm(false)}>Cancel</button>
+                <button className="btn btn-primary" onClick={handleConfirm}>Yes, Create Invoice</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

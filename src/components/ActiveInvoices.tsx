@@ -148,7 +148,9 @@ export default function ActiveInvoices({
 
   // --- Verification State ---
   const [verifyInvoiceId, setVerifyInvoiceId] = useState<string | null>(null);
-  const [verifyChecks, setVerifyChecks] = useState<{ [cartId: string]: { [productId: string]: boolean } }>({});
+  const [verifyChecks, setVerifyChecks] = useState<{
+    [cartId: string]: { [productId: string]: boolean };
+  }>({});
   const [showVerifyIdModal, setShowVerifyIdModal] = useState(false);
   const [verifyIdInput, setVerifyIdInput] = useState("");
   const [verifyIdError, setVerifyIdError] = useState("");
@@ -183,7 +185,7 @@ export default function ActiveInvoices({
 
   // Open verification modal
   const handleVerifyInvoice = (invoiceId: string) => {
-    const invoice = invoices.find(inv => inv.id === invoiceId);
+    const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (!invoice) return;
     // Build initial check state
     const checks: { [cartId: string]: { [productId: string]: boolean } } = {};
@@ -199,7 +201,7 @@ export default function ActiveInvoices({
 
   // Toggle check for a product
   const toggleVerifyCheck = (cartId: string, productId: string) => {
-    setVerifyChecks(prev => ({
+    setVerifyChecks((prev) => ({
       ...prev,
       [cartId]: {
         ...prev[cartId],
@@ -210,7 +212,7 @@ export default function ActiveInvoices({
 
   // Check if all products are checked
   const allVerified = () => {
-    return Object.values(verifyChecks).every(cartChecks =>
+    return Object.values(verifyChecks).every((cartChecks) =>
       Object.values(cartChecks).every(Boolean)
     );
   };
@@ -250,7 +252,14 @@ export default function ActiveInvoices({
 
   // Handler for adding product to cart (move to component scope)
   const handleAddProductToCart = () => {
-    if (!selectedProduct || !selectedInvoiceId || quantity === "" || isNaN(Number(quantity)) || Number(quantity) < 1) return;
+    if (
+      !selectedProduct ||
+      !selectedInvoiceId ||
+      quantity === "" ||
+      isNaN(Number(quantity)) ||
+      Number(quantity) < 1
+    )
+      return;
     const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
     if (!invoice) return;
     // Find or create the cart for this invoice by name (case-insensitive, trimmed)
@@ -274,7 +283,9 @@ export default function ActiveInvoices({
       cart = { ...invoice.carts[cartIdx] };
     }
     // Add or update product in the cart
-    const existingIdx = cart.items.findIndex((item) => item.productId === selectedProduct);
+    const existingIdx = cart.items.findIndex(
+      (item) => item.productId === selectedProduct
+    );
     if (existingIdx > -1) {
       cart.items[existingIdx].quantity += Number(quantity);
     } else {
@@ -560,6 +571,8 @@ export default function ActiveInvoices({
   //   (g) => g.pendingProduct === true
   // );
 
+  const [selectedCartModalId, setSelectedCartModalId] = useState<string>("");
+
   return (
     <div className="container-fluid py-4">
       {/* --- GROUP OVERVIEW --- */}
@@ -796,57 +809,91 @@ export default function ActiveInvoices({
                 onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
                 onMouseLeave={() => setHoveredInvoiceId(null)}
               >
-                <div className="card h-100" style={invoice.locked ? { opacity: 0.7, pointerEvents: 'auto', border: '2px solid #d9534f' } : {}}>
+                <div
+                  className="card h-100"
+                  style={
+                    invoice.locked
+                      ? {
+                          opacity: 0.7,
+                          pointerEvents: "auto",
+                          border: "2px solid #d9534f",
+                        }
+                      : {}
+                  }
+                >
                   <div className="card-body">
-                    <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>
-                      {clients.find((c) => c.id === invoice.clientId)?.name || invoice.clientName}
+                    <div
+                      style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}
+                    >
+                      {clients.find((c) => c.id === invoice.clientId)?.name ||
+                        invoice.clientName}
                     </div>
-                    <div style={{ fontSize: 14, color: '#888', marginBottom: 8 }}>
-                      Invoice #{invoice.invoiceNumber ? String(invoice.invoiceNumber).padStart(4, "0") : String(idx + 1).padStart(4, "0")}
+                    <div style={{ fontSize: 14, color: "#888", marginBottom: 8 }}>
+                      Invoice #
+                      {invoice.invoiceNumber
+                        ? String(invoice.invoiceNumber).padStart(4, "0")
+                        : String(idx + 1).padStart(4, "0")}
                     </div>
                     <p className="card-text">
                       <strong>Carts:</strong>{" "}
                       {invoice.carts && invoice.carts.length > 0 ? (
-                        invoice.carts.map((cart, cartIdx) => (
-                          <span key={cart.id || cartIdx}>
-                            {cart.name}
-                            {cartIdx < invoice.carts.length - 1 ? ", " : ""}
-                          </span>
-                        ))
+                        <span className="d-flex flex-wrap gap-2 mt-1">
+                          {invoice.carts.map((cart) => (
+                            <span
+                              key={cart.id}
+                              className="badge rounded-pill bg-light text-dark"
+                              style={{
+                                fontSize: 16,
+                                padding: "8px 16px",
+                                border: "1px solid #ccc",
+                              }}
+                            >
+                              {cart.name}
+                            </span>
+                          ))}
+                        </span>
                       ) : (
                         <span className="text-muted">No carts</span>
                       )}
                     </p>
-                    <p className="card-text">
-                      Products:{" "}
-                      {invoice.carts
-                        .flatMap((cart) => cart.items)
-                        .map(
-                          (item) => `${item.productName} (x${item.quantity})`
-                        )
-                        .join(", ")}
-                    </p>
+                    {/* Removed products list section */}
                     {/* Removed price/total display */}
                     {invoice.carts && invoice.carts.length > 0 ? (
                       invoice.carts.map((cart, cartIdx) => (
-                        <div key={cart.id || cartIdx} className="mb-3 border rounded p-2">
+                        <div
+                          key={cart.id || cartIdx}
+                          className="mb-3 border rounded p-2"
+                        >
                           <div className="fw-bold mb-2">{cart.name}</div>
                           {cart.items.length === 0 ? (
-                            <div className="text-muted">No products in cart.</div>
+                            <div className="text-muted">
+                              No products in cart.
+                            </div>
                           ) : (
                             <div>
                               {cart.items.map((item, itemIdx) => (
-                                <div key={item.productId || itemIdx} className="d-flex justify-content-between align-items-center py-1">
+                                <div
+                                  key={item.productId || itemIdx}
+                                  className="d-flex justify-content-between align-items-center py-1"
+                                >
                                   <div>
                                     {item.productName} (x{item.quantity})
                                   </div>
-                                  <div style={{ fontSize: 12, color: '#888' }}>
-                                    {item.addedBy ? `By: ${item.addedBy}` : ''}
+                                  <div style={{ fontSize: 12, color: "#888" }}>
+                                    {item.addedBy ? `By: ${item.addedBy}` : ""}
                                   </div>
                                 </div>
                               ))}
-                              <div className="mt-2 text-end fw-bold" style={{ fontSize: 15 }}>
-                                Total: {cart.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}
+                              <div
+                                className="mt-2 text-end fw-bold"
+                                style={{ fontSize: 15 }}
+                              >
+                                Total:{" "}
+                                {cart.items.reduce(
+                                  (sum, item) =>
+                                    sum + (Number(item.quantity) || 0),
+                                  0
+                                )}
                               </div>
                             </div>
                           )}
@@ -856,42 +903,74 @@ export default function ActiveInvoices({
                       <div className="text-muted">No carts</div>
                     )}
                     {invoice.locked && (
-                      <div className="alert alert-danger py-1 mb-2" style={{ fontSize: 14 }}>
+                      <div
+                        className="alert alert-danger py-1 mb-2"
+                        style={{ fontSize: 14 }}
+                      >
                         <b>Boleta Cerrada</b> – No editable
                       </div>
                     )}
                     {invoice.verified && (
-                      <div className="alert alert-success py-1 mb-2" style={{ fontSize: 14 }}>
-                        <b>Verificado</b> por {(() => {
+                      <div
+                        className="alert alert-success py-1 mb-2"
+                        style={{ fontSize: 14 }}
+                      >
+                        <b>Verificado</b> por{" "}
+                        {(() => {
                           // Try to find the user by ID in context or user list
                           if (invoice.verifiedBy) {
                             // If current user matches, show their username
-                            if (user && user.id === invoice.verifiedBy) return user.username;
+                            if (user && user.id === invoice.verifiedBy)
+                              return user.username;
                             // Otherwise, try to find in user list if available
-                            if (typeof window !== 'undefined' && window.localStorage) {
+                            if (
+                              typeof window !== "undefined" &&
+                              window.localStorage
+                            ) {
                               try {
-                                const users = JSON.parse(localStorage.getItem('users') || '[]');
-                                const found = users.find((u: any) => u.id === invoice.verifiedBy);
-                                if (found && found.username) return found.username;
+                                const users = JSON.parse(
+                                  localStorage.getItem("users") || "[]"
+                                );
+                                const found = users.find(
+                                  (u: any) => u.id === invoice.verifiedBy
+                                );
+                                if (found && found.username)
+                                  return found.username;
                               } catch {}
                             }
                             // Fallback to ID if username not found
                             return invoice.verifiedBy;
                           }
-                          return '';
+                          return "";
                         })()}
                       </div>
                     )}
                     {invoice.locked && invoice.lockedBy && (
-                      <div className="alert alert-warning py-1 mb-2" style={{ fontSize: 14 }}>
+                      <div
+                        className="alert alert-warning py-1 mb-2"
+                        style={{ fontSize: 14 }}
+                      >
                         <b>Boleta Cerrada</b> por {invoice.lockedBy}
                       </div>
                     )}
                     <div className="mb-2">
-                      <label className="form-label" style={{ fontWeight: 600 }}>Nota Pública</label>
+                      <label className="form-label" style={{ fontWeight: 600 }}>
+                        Nota Pública
+                      </label>
                       {invoice.locked ? (
-                        <div className="alert alert-info py-1 mb-2" style={{ fontSize: 24, fontWeight: 700, whiteSpace: 'pre-line' }}>
-                          {invoice.note ? invoice.note : <span className="text-muted">Sin nota</span>}
+                        <div
+                          className="alert alert-info py-1 mb-2"
+                          style={{
+                            fontSize: 24,
+                            fontWeight: 700,
+                            whiteSpace: "pre-line",
+                          }}
+                        >
+                          {invoice.note ? (
+                            invoice.note
+                          ) : (
+                            <span className="text-muted">Sin nota</span>
+                          )}
                         </div>
                       ) : (
                         <textarea
@@ -899,7 +978,11 @@ export default function ActiveInvoices({
                           rows={2}
                           value={invoice.note || ""}
                           placeholder="Escribe una nota visible para todos..."
-                          onChange={e => onUpdateInvoice(invoice.id, { note: e.target.value })}
+                          onChange={(e) =>
+                            onUpdateInvoice(invoice.id, {
+                              note: e.target.value,
+                            })
+                          }
                           disabled={!!invoice.locked}
                           style={{ fontSize: 24, fontWeight: 700 }}
                         />
@@ -946,22 +1029,23 @@ export default function ActiveInvoices({
                           Verificar Boleta
                         </button>
                       )}
-                      {(invoice.locked || invoice.verified) && user?.role === "Owner" && (
-                        <button
-                          className="btn btn-sm btn-outline-secondary ms-2"
-                          onClick={async () => {
-                            await onUpdateInvoice(invoice.id, {
-                              locked: false,
-                              verified: false,
-                              verifiedBy: undefined,
-                              verifiedAt: undefined,
-                              verifiedProducts: undefined,
-                            });
-                          }}
-                        >
-                          Abrir Boleta
-                        </button>
-                      )}
+                      {(invoice.locked || invoice.verified) &&
+                        user?.role === "Owner" && (
+                          <button
+                            className="btn btn-sm btn-outline-secondary ms-2"
+                            onClick={async () => {
+                              await onUpdateInvoice(invoice.id, {
+                                locked: false,
+                                verified: false,
+                                verifiedBy: undefined,
+                                verifiedAt: undefined,
+                                verifiedProducts: undefined,
+                              });
+                            }}
+                          >
+                            Abrir Boleta
+                          </button>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -1017,40 +1101,67 @@ export default function ActiveInvoices({
                     (inv) => inv.id === selectedInvoiceId
                   );
                   if (!invoice) return null;
+                  // Default selected cart to first if not set or if cart was deleted
+                  const carts = invoice.carts || [];
+                  let selectedId = selectedCartModalId;
+                  if (!selectedId || !carts.some((c) => c.id === selectedId)) {
+                    selectedId = carts[0]?.id || "";
+                    if (selectedId !== selectedCartModalId) setSelectedCartModalId(selectedId);
+                  }
+                  // Pills for each cart
                   return (
                     <>
-                      {invoice.carts.map((cart, cartIdx) => (
-                        <div
-                          key={cart.id || cartIdx}
-                          className="mb-3 border rounded p-2"
-                        >
-                          <div className="fw-bold mb-2">{cart.name}</div>
-                          {cart.items.length === 0 ? (
-                            <div className="text-muted">
-                              No products in cart.
-                            </div>
-                          ) : (
-                            <div>
-                              {cart.items.map((item, itemIdx) => (
+                      <div className="mb-3 d-flex flex-wrap gap-2">
+                        {carts.map((cart) => (
+                          <button
+                            key={cart.id}
+                            className={`badge rounded-pill ${selectedId === cart.id ? "bg-primary text-white" : "bg-light text-dark"}`}
+                            style={{ fontSize: 18, padding: "10px 20px", border: selectedId === cart.id ? "2px solid #0d6efd" : "1px solid #ccc", cursor: "pointer" }}
+                            onClick={() => setSelectedCartModalId(cart.id)}
+                          >
+                            {cart.name}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Show only the selected cart's details */}
+                      {(() => {
+                        const cart = carts.find((c) => c.id === selectedId);
+                        if (!cart) return <div className="text-muted">No cart selected.</div>;
+                        return (
+                          <div className="mb-3 border rounded p-2">
+                            <div className="fw-bold mb-2">{cart.name}</div>
+                            {cart.items.length === 0 ? (
+                              <div className="text-muted">No products in cart.</div>
+                            ) : (
+                              <div>
+                                {cart.items.map((item, itemIdx) => (
+                                  <div
+                                    key={item.productId || itemIdx}
+                                    className="d-flex justify-content-between align-items-center py-1"
+                                  >
+                                    <div>
+                                      {item.productName} (x{item.quantity})
+                                    </div>
+                                    <div style={{ fontSize: 12, color: "#888" }}>
+                                      {item.addedBy ? `By: ${item.addedBy}` : ""}
+                                    </div>
+                                  </div>
+                                ))}
                                 <div
-                                  key={item.productId || itemIdx}
-                                  className="d-flex justify-content-between align-items-center py-1"
+                                  className="mt-2 text-end fw-bold"
+                                  style={{ fontSize: 15 }}
                                 >
-                                  <div>
-                                    {item.productName} (x{item.quantity})
-                                  </div>
-                                  <div style={{ fontSize: 12, color: '#888' }}>
-                                    {item.addedBy ? `By: ${item.addedBy}` : ''}
-                                  </div>
+                                  Total:{" "}
+                                  {cart.items.reduce(
+                                    (sum, item) => sum + (Number(item.quantity) || 0),
+                                    0
+                                  )}
                                 </div>
-                              ))}
-                              <div className="mt-2 text-end fw-bold" style={{ fontSize: 15 }}>
-                                Total: {cart.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            )}
+                          </div>
+                        );
+                      })()}
                     </>
                   );
                 })()}
@@ -1146,13 +1257,17 @@ export default function ActiveInvoices({
                         </div>
                         <div className="modal-body">
                           <div className="d-flex flex-wrap gap-2 mb-3">
-                            {[...'1234567890'].map((key) => (
+                            {[..."1234567890"].map((key) => (
                               <button
                                 key={key}
                                 type="button"
                                 className="btn btn-outline-dark mb-1"
                                 style={{ width: 60, height: 48, fontSize: 22 }}
-                                onClick={() => setQuantity((prev) => prev === "" ? key : prev + key)}
+                                onClick={() =>
+                                  setQuantity((prev) =>
+                                    prev === "" ? key : prev + key
+                                  )
+                                }
                               >
                                 {key}
                               </button>
@@ -1169,7 +1284,9 @@ export default function ActiveInvoices({
                               type="button"
                               className="btn btn-secondary mb-1"
                               style={{ width: 60, height: 48, fontSize: 22 }}
-                              onClick={() => setQuantity((prev) => prev.slice(0, -1))}
+                              onClick={() =>
+                                setQuantity((prev) => prev.slice(0, -1))
+                              }
                             >
                               &larr;
                             </button>
@@ -1241,7 +1358,7 @@ export default function ActiveInvoices({
                     type="number"
                     className="form-control"
                     value={keypadQuantity}
-                    onChange={e => setKeypadQuantity(Number(e.target.value))}
+                    onChange={(e) => setKeypadQuantity(Number(e.target.value))}
                     min={1}
                     autoFocus
                   />
@@ -1814,34 +1931,54 @@ export default function ActiveInvoices({
           carts={cartSelectCarts.map(cartToLaundryCart)}
           onAddCart={async (cartName) => {
             const newCart = await handleCartCreate(cartName);
-            return newCart ? cartToLaundryCart(newCart) : { id: "", name: "", isActive: true };
+            return newCart
+              ? cartToLaundryCart(newCart)
+              : { id: "", name: "", isActive: true };
           }}
         />
       )}
 
       {/* Modal for owner unlock */}
       {unlockInvoiceId && (
-        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Desbloquear Boleta</h5>
-                <button type="button" className="btn-close" onClick={() => setUnlockInvoiceId(null)}></button>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setUnlockInvoiceId(null)}
+                ></button>
               </div>
               <div className="modal-body">
-                <label className="form-label">Ingrese su ID de propietario</label>
+                <label className="form-label">
+                  Ingrese su ID de propietario
+                </label>
                 <input
                   type="password"
                   className="form-control mb-2"
                   value={unlockInput}
-                  onChange={e => setUnlockInput(e.target.value)}
+                  onChange={(e) => setUnlockInput(e.target.value)}
                   autoFocus
                 />
-                {unlockError && <div className="alert alert-danger py-1">{unlockError}</div>}
+                {unlockError && (
+                  <div className="alert alert-danger py-1">{unlockError}</div>
+                )}
               </div>
               <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setUnlockInvoiceId(null)}>Cancelar</button>
-                <button className="btn btn-success" onClick={confirmUnlock}>Desbloquear</button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setUnlockInvoiceId(null)}
+                >
+                  Cancelar
+                </button>
+                <button className="btn btn-success" onClick={confirmUnlock}>
+                  Desbloquear
+                </button>
               </div>
             </div>
           </div>
@@ -1849,63 +1986,100 @@ export default function ActiveInvoices({
       )}
 
       {/* --- Verification Modal --- */}
-      {verifyInvoiceId && (() => {
-        const invoice = invoices.find(inv => inv.id === verifyInvoiceId);
-        if (!invoice) return null;
-        return (
-          <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
-            <div className="modal-dialog modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Verificar Productos de la Boleta</h5>
-                  <button type="button" className="btn-close" onClick={() => setVerifyInvoiceId(null)}></button>
-                </div>
-                <div className="modal-body">
-                  {invoice.carts.map(cart => (
-                    <div key={cart.id} className="mb-3">
-                      <div className="fw-bold mb-1">{cart.name}</div>
-                      {cart.items.length === 0 ? (
-                        <div className="text-muted">No hay productos en este carrito.</div>
-                      ) : (
-                        <ul className="list-group">
-                          {cart.items.map(item => (
-                            <li key={item.productId} className="list-group-item d-flex align-items-center justify-content-between">
-                              <div className="d-flex align-items-center">
-                                <input
-                                  type="checkbox"
-                                  className="form-check-input me-2"
-                                  checked={!!verifyChecks[cart.id]?.[item.productId]}
-                                  onChange={() => toggleVerifyCheck(cart.id, item.productId)}
-                                />
-                                <span>{item.productName}</span>
-                              </div>
-                              <span className="fw-bold">x{item.quantity}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setVerifyInvoiceId(null)}>Cancelar</button>
-                  <button className="btn btn-success" onClick={handleVerifyDone} disabled={!allVerified()}>
-                    Done
-                  </button>
+      {verifyInvoiceId &&
+        (() => {
+          const invoice = invoices.find((inv) => inv.id === verifyInvoiceId);
+          if (!invoice) return null;
+          return (
+            <div
+              className="modal show"
+              style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+            >
+              <div className="modal-dialog modal-lg">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title">
+                      Verificar Productos de la Boleta
+                    </h5>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => setVerifyInvoiceId(null)}
+                    ></button>
+                  </div>
+                  <div className="modal-body">
+                    {invoice.carts.map((cart) => (
+                      <div key={cart.id} className="mb-3">
+                        <div className="fw-bold mb-1">{cart.name}</div>
+                        {cart.items.length === 0 ? (
+                          <div className="text-muted">
+                            No hay productos en este carrito.
+                          </div>
+                        ) : (
+                          <ul className="list-group">
+                            {cart.items.map((item) => (
+                              <li
+                                key={item.productId}
+                                className="list-group-item d-flex align-items-center justify-content-between"
+                              >
+                                <div className="d-flex align-items-center">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input me-2"
+                                    checked={
+                                      !!verifyChecks[cart.id]?.[item.productId]
+                                    }
+                                    onChange={() =>
+                                      toggleVerifyCheck(cart.id, item.productId)
+                                    }
+                                  />
+                                  <span>{item.productName}</span>
+                                </div>
+                                <span className="fw-bold">
+                                  x{item.quantity}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="modal-footer">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setVerifyInvoiceId(null)}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      className="btn btn-success"
+                      onClick={handleVerifyDone}
+                      disabled={!allVerified()}
+                    >
+                      Done
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
       {/* --- Verify ID Modal --- */}
       {showVerifyIdModal && (
-        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Confirmar Verificación</h5>
-                <button type="button" className="btn-close" onClick={() => setShowVerifyIdModal(false)}></button>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowVerifyIdModal(false)}
+                ></button>
               </div>
               <div className="modal-body">
                 <label className="form-label">Ingrese su ID de usuario</label>
@@ -1913,14 +2087,23 @@ export default function ActiveInvoices({
                   type="password"
                   className="form-control mb-2"
                   value={verifyIdInput}
-                  onChange={e => setVerifyIdInput(e.target.value)}
+                  onChange={(e) => setVerifyIdInput(e.target.value)}
                   autoFocus
                 />
-                {verifyIdError && <div className="alert alert-danger py-1">{verifyIdError}</div>}
+                {verifyIdError && (
+                  <div className="alert alert-danger py-1">{verifyIdError}</div>
+                )}
               </div>
               <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowVerifyIdModal(false)}>Cancelar</button>
-                <button className="btn btn-success" onClick={confirmVerifyId}>Confirmar</button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowVerifyIdModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button className="btn btn-success" onClick={confirmVerifyId}>
+                  Confirmar
+                </button>
               </div>
             </div>
           </div>
