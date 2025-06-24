@@ -173,7 +173,7 @@ function App() {
     localStorage.getItem("loginAnnouncementImage") || null
   );
   const [activeSettingsTab, setActiveSettingsTab] = useState<
-    "clients" | "products" | "users" | "drivers" | "loginContent"
+    "clients" | "products" | "users" | "drivers" | "loginContent" | "rutas"
   >("clients");
 
   // Helper: check if current user can see a component (per-user or fallback to role)
@@ -582,12 +582,7 @@ function App() {
       icon: <SettingsIcon />,
       visible: canManageUsers,
     },
-    {
-      label: "Rutas por Camión",
-      page: "rutasPorCamion" as const,
-      icon: <LocalShippingIcon />,
-      visible: true, // Adjust permission if needed
-    },
+    // Removed 'Rutas por Camión' from navLinks
   ];
 
   // PendingProductsWidget: shows all pending products (cart items) from groups with pendingProduct === true
@@ -1113,6 +1108,32 @@ function App() {
               >
                 Login Content
               </button>
+              <button
+                className={`btn${
+                  activeSettingsTab === "rutas"
+                    ? " btn-primary"
+                    : " btn-outline-primary"
+                }`}
+                onClick={() => setActiveSettingsTab("rutas")}
+                style={{
+                  minWidth: 120,
+                  padding: "12px 20px",
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  boxShadow:
+                    activeSettingsTab === "rutas"
+                      ? "0 2px 8px rgba(14,98,160,0.08)"
+                      : "none",
+                  background:
+                    activeSettingsTab === "rutas" ? "var(--ku-blue)" : "#fff",
+                  color: activeSettingsTab === "rutas" ? "#fff" : "#0E62A0",
+                  border: "2px solid var(--ku-blue)",
+                  transition: "all 0.2s",
+                }}
+              >
+                Rutas de Camiones
+              </button>
             </div>
           </div>
           {/* Show only one form at a time */}
@@ -1201,6 +1222,12 @@ function App() {
                 </div>
               </div>
             )}
+            {activeSettingsTab === "rutas" && (
+              <div className="col-md-12">
+                {/* Rutas de Camiones UI */}
+                <RutasPorCamion />
+              </div>
+            )}
           </div>
         </>
       )}
@@ -1245,7 +1272,7 @@ function App() {
           {/* ...existing home content... */}
         </div>
       )}
-      {activePage === "rutasPorCamion" && <RutasPorCamion />}
+      {/* Removed rendering for activePage === "rutasPorCamion" */}
     </div>
   );
 }
