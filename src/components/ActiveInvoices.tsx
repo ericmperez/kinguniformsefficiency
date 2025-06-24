@@ -1210,13 +1210,7 @@ export default function ActiveInvoices({
                     (inv) => inv.id === selectedInvoiceId
                   );
                   if (!invoice) return null;
-                  // Default selected cart to first if not set or if cart was deleted
                   const carts = invoice.carts || [];
-                  let selectedId = selectedCartModalId;
-                  if (!selectedId || !carts.some((c) => c.id === selectedId)) {
-                    selectedId = carts[0]?.id || "";
-                    if (selectedId !== selectedCartModalId) setSelectedCartModalId(selectedId);
-                  }
                   // Pills for each cart
                   return (
                     <>
@@ -1224,132 +1218,81 @@ export default function ActiveInvoices({
                         {carts.map((cart) => (
                           <button
                             key={cart.id}
-                            className={`badge rounded-pill ${selectedId === cart.id ? "bg-primary text-white" : "bg-light text-dark"}`}
-                            style={{ fontSize: 18, padding: "10px 20px", border: selectedId === cart.id ? "2px solid #0d6efd" : "1px solid #ccc", cursor: "pointer" }}
+                            className={`badge rounded-pill ${selectedCartModalId === cart.id ? "bg-primary text-white" : "bg-light text-dark"}`}
+                            style={{ fontSize: 18, padding: "10px 20px", border: selectedCartModalId === cart.id ? "2px solid #0d6efd" : "1px solid #ccc", cursor: "pointer" }}
                             onClick={() => setSelectedCartModalId(cart.id)}
                           >
                             {cart.name}
                           </button>
                         ))}
                       </div>
-                      {/* Show only the selected cart's details */}
-                      {(() => {
-                        const cart = carts.find((c) => c.id === selectedId);
-                        if (!cart) return <div className="text-muted">No cart selected.</div>;
-                        return (
-                          <div className="mb-3 border rounded p-2">
-                            <div className="fw-bold mb-2">{cart.name}</div>
-                            {cart.items.length === 0 ? (
-                              <div className="text-muted">No products in cart.</div>
-                            ) : (
-                              <div>
-                                {cart.items.map((item, itemIdx) => (
-                                  <div
-                                    key={item.productId || itemIdx}
-                                    className="d-flex justify-content-between align-items-center py-1"
-                                  >
-                                    <div>
-                                      {item.productName} (x{item.quantity})
-                                    </div>
-                                    <div style={{ fontSize: 12, color: "#888" }}>
-                                      {item.addedBy ? `By: ${item.addedBy}` : ""}
+                      {/* Vertically scrollable product cards */}
+                      <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                        {(() => {
+                          // Find the client for the current invoice
+                          const client = clients.find(c => c.id === invoice.clientId);
+                          const allowedProductIds = client?.selectedProducts || [];
+                          // For each allowed product, show a card
+                          return products
+                            .filter(product => allowedProductIds.includes(product.id))
+                            .map((product) => {
+                              // Find all instances of this product in all carts
+                              const instances = carts.flatMap(cart =>
+                                cart.items
+                                  .filter(item => item.productId === product.id)
+                                  .map(item => ({ ...item, cartName: cart.name }))
+                              );
+                              return (
+                                <div
+                                  key={product.id}
+                                  className="card mb-3 shadow-sm"
+                                  style={{ cursor: "pointer", minHeight: 120, borderWidth: 2, borderColor: selectedProduct === product.id ? "#0d6efd" : "#eee" }}
+                                  onClick={() => {
+                                    setProductForKeypad(product);
+                                    setShowProductKeypad(true);
+                                    setKeypadQuantity(1);
+                                  }}
+                                >
+                                  <div className="row g-0 align-items-center">
+                                    {product.imageUrl && (
+                                      <div className="col-auto">
+                                        <img
+                                          src={product.imageUrl}
+                                          alt={product.name}
+                                          style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 8, margin: 12 }}
+                                        />
+                                      </div>
+                                    )}
+                                    <div className="col">
+                                      <div className="card-body py-2 px-3">
+                                        <div className="fw-bold" style={{ fontSize: 18 }}>{product.name}</div>
+                                        {instances.length === 0 ? (
+                                          <div className="text-muted">Not added yet</div>
+                                        ) : (
+                                          <ul className="mb-0" style={{ listStyle: "none", paddingLeft: 0 }}>
+                                            {instances.map((item, idx) => (
+                                              <li key={idx} className="d-flex justify-content-between align-items-center small">
+                                                <span>
+                                                  <b>Qty:</b> {item.quantity} <span className="text-secondary">({item.cartName})</span>
+                                                </span>
+                                                <span className="text-muted">{item.addedBy ? `By: ${item.addedBy}` : ""}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
-                                ))}
-                                <div
-                                  className="mt-2 text-end fw-bold"
-                                  style={{ fontSize: 15 }}
-                                >
-                                  Total:{" "}
-                                  {cart.items.reduce(
-                                    (sum, item) => sum + (Number(item.quantity) || 0),
-                                    0
-                                  )}
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
+                              );
+                            });
+                        })()}
+                      </div>
                     </>
                   );
                 })()}
-                {/* Product selection: make horizontally swipeable */}
-                <div className="mb-3">
-                  <label className="form-label">Select Product</label>
-                  <Slider
-                    dots={false}
-                    infinite={false}
-                    speed={500}
-                    slidesToShow={3}
-                    slidesToScroll={1}
-                    arrows={true}
-                    responsive={[
-                      { breakpoint: 768, settings: { slidesToShow: 2 } },
-                      { breakpoint: 480, settings: { slidesToShow: 1 } },
-                    ]}
-                  >
-                    {products.map((product, idx) => (
-                      <div key={product.id || idx} style={{ padding: 8 }}>
-                        <div
-                          className={`card h-100 shadow-sm product-slider-card${
-                            selectedProduct === product.id
-                              ? " border-primary"
-                              : " border-light"
-                          }`}
-                          style={{
-                            cursor: "pointer",
-                            borderWidth: 2,
-                            minHeight: 120,
-                          }}
-                          onClick={() => setSelectedProduct(product.id)}
-                        >
-                          {product.imageUrl && (
-                            <img
-                              src={product.imageUrl}
-                              alt={product.name}
-                              style={{
-                                width: "100%",
-                                height: 80,
-                                objectFit: "cover",
-                                borderRadius: 6,
-                              }}
-                            />
-                          )}
-                          <div className="card-body p-2 text-center">
-                            <div className="fw-bold" style={{ fontSize: 15 }}>
-                              {product.name}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </Slider>
-                </div>
-
-                {/* Quantity input with keypad modal */}
-                <div className="mb-3 d-flex align-items-end gap-3">
-                  <div>
-                    <label className="form-label">Quantity</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={quantity}
-                      readOnly
-                      style={{ width: 100, cursor: "pointer" }}
-                      onClick={() => setShowProductKeypad(true)}
-                    />
-                  </div>
-                  <button
-                    className="btn btn-primary mb-1"
-                    onClick={handleAddProductToCart}
-                  >
-                    Add to Cart
-                  </button>
-                </div>
-
-                {/* Keypad modal for quantity input */}
-                {showProductKeypad && (
+                {/* Keypad modal for quantity input (replaces old slider logic) */}
+                {showProductKeypad && productForKeypad && (
                   <div
                     className="modal show"
                     style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
@@ -1357,7 +1300,9 @@ export default function ActiveInvoices({
                     <div className="modal-dialog">
                       <div className="modal-content">
                         <div className="modal-header">
-                          <h5 className="modal-title">Enter Quantity</h5>
+                          <h5 className="modal-title">
+                            Add {productForKeypad.name} to Cart
+                          </h5>
                           <button
                             type="button"
                             className="btn-close"
@@ -1365,40 +1310,16 @@ export default function ActiveInvoices({
                           ></button>
                         </div>
                         <div className="modal-body">
-                          <div className="d-flex flex-wrap gap-2 mb-3">
-                            {[..."1234567890"].map((key) => (
-                              <button
-                                key={key}
-                                type="button"
-                                className="btn btn-outline-dark mb-1"
-                                style={{ width: 60, height: 48, fontSize: 22 }}
-                                onClick={() =>
-                                  setQuantity((prev) =>
-                                    prev === "" ? key : prev + key
-                                  )
-                                }
-                              >
-                                {key}
-                              </button>
-                            ))}
-                            <button
-                              type="button"
-                              className="btn btn-danger mb-1"
-                              style={{ width: 60, height: 48, fontSize: 22 }}
-                              onClick={() => setQuantity("")}
-                            >
-                              C
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-secondary mb-1"
-                              style={{ width: 60, height: 48, fontSize: 22 }}
-                              onClick={() =>
-                                setQuantity((prev) => prev.slice(0, -1))
-                              }
-                            >
-                              &larr;
-                            </button>
+                          <div className="mb-3">
+                            <label className="form-label">Quantity</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              value={keypadQuantity}
+                              onChange={(e) => setKeypadQuantity(Number(e.target.value))}
+                              min={1}
+                              autoFocus
+                            />
                           </div>
                         </div>
                         <div className="modal-footer">
@@ -1408,17 +1329,38 @@ export default function ActiveInvoices({
                           >
                             Cancel
                           </button>
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => setShowProductKeypad(false)}
-                          >
-                            OK
+                          <button className="btn btn-primary" onClick={handleKeypadAdd}>
+                            Add to Cart
                           </button>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
+                {/* Global total by carts */}
+                <div className="mt-4 border-top pt-3">
+                  <h6>Totals by Cart</h6>
+                  <ul className="mb-2" style={{ listStyle: "none", paddingLeft: 0 }}>
+                    {(() => {
+                      const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                      if (!invoice) return null;
+                      const carts = invoice.carts || [];
+                      return carts.map(cart => (
+                        <li key={cart.id} className="d-flex justify-content-between">
+                          <span>{cart.name}</span>
+                          <span className="fw-bold">{cart.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}</span>
+                        </li>
+                      ));
+                    })()}
+                  </ul>
+                  <div className="fw-bold text-end">
+                    Global Total: {(() => {
+                      const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                      if (!invoice) return 0;
+                      return (invoice.carts || []).reduce((sum, cart) => sum + cart.items.reduce((s, item) => s + (Number(item.quantity) || 0), 0), 0);
+                    })()}
+                  </div>
+                </div>
               </div>
               <div className="modal-footer">
                 <button
@@ -1579,11 +1521,17 @@ export default function ActiveInvoices({
                     onChange={(e) => setSelectedAddProductId(e.target.value)}
                   >
                     <option value="">-- Select a product --</option>
-                    {products.map((product, prodIdx) => (
-                      <option key={product.id || prodIdx} value={product.id}>
-                        {product.name}
-                      </option>
-                    ))}
+                    {(() => {
+                      const client = clients.find(c => c.id === addProductGroup?.clientId);
+                      const allowedProductIds = client?.selectedProducts || [];
+                      return products
+                        .filter(product => allowedProductIds.includes(product.id))
+                        .map((product, prodIdx) => (
+                          <option key={product.id || prodIdx} value={product.id}>
+                            {product.name}
+                          </option>
+                        ));
+                    })()}
                   </select>
                 </div>
                 <div className="mb-3">
@@ -1851,11 +1799,17 @@ export default function ActiveInvoices({
                     onChange={(e) => setAddToGroupProductId(e.target.value)}
                   >
                     <option value="">-- Select a product --</option>
-                    {products.map((product, prodIdx) => (
-                      <option key={product.id || prodIdx} value={product.id}>
-                        {product.name}
-                      </option>
-                    ))}
+                    {(() => {
+                      const client = clients.find(c => c.id === addToGroupClientId);
+                      const allowedProductIds = client?.selectedProducts || [];
+                      return products
+                        .filter(product => allowedProductIds.includes(product.id))
+                        .map((product, prodIdx) => (
+                          <option key={product.id || prodIdx} value={product.id}>
+                            {product.name}
+                          </option>
+                        ));
+                    })()}
                   </select>
                 </div>
                 <div className="mb-3">
