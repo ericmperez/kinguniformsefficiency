@@ -411,4 +411,9 @@ export const getManualConventionalProductsForDate = async (date: Date = new Date
   return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
+// Delete a manual conventional product by ID
+export const deleteManualConventionalProduct = async (manualProductId: string) => {
+  await deleteDoc(doc(db, 'manual_conventional_products', manualProductId));
+};
+
 export { uploadBytes, getDownloadURL };

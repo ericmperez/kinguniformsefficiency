@@ -14,6 +14,7 @@ import {
   getAllPickupGroups,
   updatePickupGroupStatus,
   getManualConventionalProductsForDate,
+  deleteManualConventionalProduct,
 } from "../services/firebaseService";
 import { updateDoc, doc } from "firebase/firestore";
 import Slider from "react-slick";
@@ -550,6 +551,12 @@ export default function ActiveInvoices({
     await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
   };
 
+  // Delete a manual product and update state
+  const handleDeleteManualProduct = async (manualProductId: string) => {
+    await deleteManualConventionalProduct(manualProductId);
+    setManualProducts((prev) => prev.filter((p) => p.id !== manualProductId));
+  };
+
   // Archive logic: show all groups except those with status 'Entregado' (Boleta Impresa) whose endTime/startTime is before today
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -958,8 +965,38 @@ export default function ActiveInvoices({
                         <span className="text-muted">No carts</span>
                       )}
                     </p>
-                    {/* Removed products list section */}
-                    {/* Removed price/total display */}
+                    {/* --- Manual Products for this Invoice --- */}
+                    {(() => {
+                      const manualForInvoice = manualProducts.filter(
+                        (mp) => mp.invoiceId === invoice.id
+                      );
+                      if (manualForInvoice.length === 0) return null;
+                      return (
+                        <div className="mb-2">
+                          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>Manual Products</div>
+                          <ul className="list-group mb-2">
+                            {manualForInvoice.map((mp) => (
+                              <li key={mp.id} className="list-group-item d-flex justify-content-between align-items-center py-2">
+                                <span>
+                                  <b>{mp.productName}</b> x{mp.quantity} <span className="text-muted">({mp.type})</span>
+                                  {mp.washed && <span className="badge bg-success ms-2">Washed</span>}
+                                  {mp.delivered && <span className="badge bg-secondary ms-2">Delivered</span>}
+                                  {!mp.washed && <span className="badge bg-warning text-dark ms-2">Pending</span>}
+                                </span>
+                                <button
+                                  className="btn btn-sm btn-outline-danger"
+                                  title="Delete manual product"
+                                  onClick={() => handleDeleteManualProduct(mp.id)}
+                                  disabled={!!invoice.locked}
+                                >
+                                  Delete
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })()}
                     {invoice.locked && (
                       <div
                         className="alert alert-danger py-1 mb-2"
@@ -2011,7 +2048,7 @@ export default function ActiveInvoices({
                 <div className="modal-content">
                   <div className="modal-header">
                     <h5 className="modal-title">
-                      Verificar Productos de la Boleta
+                     Verificar Productos de la Boleta
                     </h5>
                     <button
                       type="button"
