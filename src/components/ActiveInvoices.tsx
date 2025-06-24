@@ -249,6 +249,11 @@ export default function ActiveInvoices({
       verifiedAt: new Date().toISOString(),
       verifiedProducts,
     });
+    // Open print modal for this invoice
+    const invoice = invoices.find(inv => inv.id === verifyInvoiceId);
+    if (invoice) {
+      openPrintInvoice({ ...invoice, verified: true, verifiedBy: user?.id, verifiedAt: new Date().toISOString(), verifiedProducts });
+    }
     setShowVerifyIdModal(false);
     setVerifyInvoiceId(null);
     setVerifyChecks({});
@@ -470,7 +475,7 @@ export default function ActiveInvoices({
           await updateDoc(doc(db, 'manual_conventional_products', mp.id), { invoiceId: invoice.id, delivered: true });
         }
         setManualProducts((prev) =>
-          prev.map((p) =>
+          prev.map((p) => 
             required.some((mp) => mp.id === p.id)
               ? { ...p, invoiceId: invoice.id, delivered: true }
               : p
@@ -641,6 +646,48 @@ export default function ActiveInvoices({
       )
     );
   };
+
+  // Add at the top-level of the component (before return):
+  const [cartProductSelections, setCartProductSelections] = React.useState<{
+    [cartId: string]: { productId: string; qty: number; adding: boolean };
+  }>({});
+
+  // Add at the top-level of the component:
+  const [showPrintInvoiceModal, setShowPrintInvoiceModal] = React.useState(false);
+  const [printInvoiceData, setPrintInvoiceData] = React.useState<any>(null);
+  const [printDate, setPrintDate] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [printVerifiedBy, setPrintVerifiedBy] = React.useState("");
+  const [printQuantities, setPrintQuantities] = React.useState<{ [productId: string]: number }>({});
+
+  // Helper to open print modal after verification
+  function openPrintInvoice(invoice: Invoice) {
+    // Build global product summary
+    const carts = invoice.carts || [];
+    const productMap: { [productId: string]: { name: string; total: number; carts: string[] } } = {};
+    carts.forEach(cart => {
+      cart.items.forEach(item => {
+        if (!productMap[item.productId]) {
+          productMap[item.productId] = { name: item.productName, total: 0, carts: [] };
+        }
+        productMap[item.productId].total += Number(item.quantity) || 0;
+        if (!productMap[item.productId].carts.includes(cart.name)) {
+          productMap[item.productId].carts.push(cart.name);
+        }
+      });
+    });
+    setPrintInvoiceData({
+      invoiceId: invoice.id,
+      clientName: invoice.clientName,
+      carts,
+      productMap,
+      verifiedBy: invoice.verifiedBy || user?.username || "",
+      date: new Date().toISOString().slice(0, 10),
+    });
+    setPrintVerifiedBy(invoice.verifiedBy || user?.username || "");
+    setPrintDate(new Date().toISOString().slice(0, 10));
+    setPrintQuantities(Object.fromEntries(Object.entries(productMap).map(([pid, p]) => [pid, p.total])));
+    setShowPrintInvoiceModal(true);
+  }
 
   return (
     <div className="container-fluid py-4">
@@ -1172,6 +1219,14 @@ export default function ActiveInvoices({
                             Abrir Boleta
                           </button>
                         )}
+                      {invoice.verified && (
+                        <button
+                          className="btn btn-sm btn-success ms-2"
+                          onClick={() => openPrintInvoice(invoice)}
+                        >
+                          Print
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1235,6 +1290,41 @@ export default function ActiveInvoices({
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  );
+                })()}
+                {/* Cart summary by product for each cart */}
+                {(() => {
+                  const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                  if (!invoice) return null;
+                  const carts = invoice.carts || [];
+                  if (carts.length === 0) return null;
+                  return (
+                    <div className="mb-4">
+                      <h6 className="mb-2">Summary by Product (per Cart)</h6>
+                      {carts.map(cart => {
+                        if (!cart.items || cart.items.length === 0) return null;
+                        // Aggregate product quantities in this cart
+                        const productTotals: { [productId: string]: { name: string; qty: number } } = {};
+                        cart.items.forEach(item => {
+                          if (!productTotals[item.productId]) {
+                            productTotals[item.productId] = { name: item.productName, qty: 0 };
+                          }
+                          productTotals[item.productId].qty += Number(item.quantity) || 0;
+                        });
+                        return (
+                          <div key={cart.id} className="mb-2">
+                            <div className="fw-bold">{cart.name}</div>
+                            <ul className="mb-1" style={{ fontSize: 15, paddingLeft: 18 }}>
+                              {Object.values(productTotals).map((prod, idx) => (
+                                <li key={prod.name + idx}>
+                                  <span>{prod.name}</span>: <b>{prod.qty}</b>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })()}
@@ -1328,14 +1418,8 @@ export default function ActiveInvoices({
                   <ul className="mb-2" style={{ listStyle: "none", paddingLeft: 0 }}>
                     {(() => {
                       const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
-                      if (!invoice) return null;
-                      const carts = invoice.carts || [];
-                      return carts.map(cart => (
-                        <li key={cart.id} className="d-flex justify-content-between">
-                          <span>{cart.name}</span>
-                          <span className="fw-bold">{cart.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}</span>
-                        </li>
-                      ));
+                      if (!invoice) return 0;
+                      return (invoice.carts || []).reduce((sum, cart) => sum + cart.items.reduce((s, item) => s + (Number(item.quantity) || 0), 0), 0);
                     })()}
                   </ul>
                   <div className="fw-bold text-end">
@@ -1346,6 +1430,99 @@ export default function ActiveInvoices({
                     })()}
                   </div>
                 </div>
+                {/* Add Product to Each Cart */}
+                {(() => {
+                  const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                  if (!invoice) return null;
+                  const carts = invoice.carts || [];
+                  if (carts.length === 0) return null;
+                  return (
+                    <div className="mb-4">
+                      <h6 className="mb-2">Add Product to Each Cart</h6>
+                      {carts.map(cart => {
+                        const selection = cartProductSelections[cart.id] || { productId: "", qty: 1, adding: false };
+                        const allowedProductIds = (clients.find(c => c.id === invoice.clientId)?.selectedProducts) || [];
+                        return (
+                          <div key={cart.id} className="mb-2 p-2 border rounded bg-light">
+                            <div className="fw-bold mb-1">{cart.name}</div>
+                            <div className="d-flex flex-row align-items-center gap-2 mb-2">
+                              <select
+                                className="form-select form-select-sm"
+                                style={{ maxWidth: 180 }}
+                                value={selection.productId}
+                                onChange={e => setCartProductSelections(prev => ({
+                                  ...prev,
+                                  [cart.id]: { ...selection, productId: e.target.value }
+                                }))}
+                              >
+                                <option value="">Select product</option>
+                                {products.filter(p => allowedProductIds.includes(p.id)).map(p => (
+                                  <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                              </select>
+                              <input
+                                type="number"
+                                className="form-control form-control-sm"
+                                style={{ width: 80 }}
+                                min={1}
+                                value={selection.qty}
+                                onChange={e => setCartProductSelections(prev => ({
+                                  ...prev,
+                                  [cart.id]: { ...selection, qty: Number(e.target.value) }
+                                }))}
+                              />
+                              <button
+                                className="btn btn-primary btn-sm"
+                                disabled={!selection.productId || selection.qty < 1 || selection.adding}
+                                onClick={async () => {
+                                  setCartProductSelections(prev => ({
+                                    ...prev,
+                                    [cart.id]: { ...selection, adding: true }
+                                  }));
+                                  const product = products.find(p => p.id === selection.productId);
+                                  if (!product) return;
+                                  // Add or update product in cart
+                                  const updatedCarts = invoice.carts.map(c => {
+                                    if (c.id !== cart.id) return c;
+                                    const existingIdx = c.items.findIndex(item => item.productId === product.id);
+                                    let newItems;
+                                    if (existingIdx > -1) {
+                                      newItems = c.items.map((item, idx) =>
+                                        idx === existingIdx
+                                          ? { ...item, quantity: (Number(item.quantity) || 0) + selection.qty }
+                                          : item
+                                      );
+                                    } else {
+                                      newItems = [
+                                        ...c.items,
+                                        {
+                                          productId: product.id,
+                                          productName: product.name,
+                                          quantity: selection.qty,
+                                          price: product.price,
+                                          addedBy: user?.username || "Unknown",
+                                          addedAt: new Date().toISOString(),
+                                        },
+                                      ];
+                                    }
+                                    return { ...c, items: newItems };
+                                  });
+                                  await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+                                  setCartProductSelections(prev => ({
+                                    ...prev,
+                                    [cart.id]: { productId: "", qty: 1, adding: false }
+                                  }));
+                                }}
+                              >
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
               <div className="modal-footer">
                 <button
@@ -2153,6 +2330,131 @@ export default function ActiveInvoices({
                 <button className="btn btn-success" onClick={confirmVerifyId}>
                   Confirmar
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print Invoice Modal */}
+      {showPrintInvoiceModal && printInvoiceData && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog" style={{ maxWidth: 700 }}>
+            <div className="modal-content print-modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Print Invoice #{printInvoiceData.invoiceId?.slice(-4)}</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowPrintInvoiceModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body print-area" style={{ minHeight: 350, padding: 32 }}>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 22 }}>{printInvoiceData.clientName}</div>
+                    <div style={{ fontSize: 15, color: '#888' }}>Invoice #{printInvoiceData.invoiceId?.slice(-4)}</div>
+                  </div>
+                  <div>
+                    <label className="form-label mb-1" style={{ fontWeight: 600 }}>Date</label>
+                    <input
+                      type="date"
+                      className="form-control form-control-sm"
+                      style={{ width: 150 }}
+                      value={printDate}
+                      onChange={e => setPrintDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label mb-1" style={{ fontWeight: 600 }}>Verified by</label>
+                  <input
+                    type="text"
+                    className="form-control form-control-sm"
+                    style={{ width: 220 }}
+                    value={printVerifiedBy}
+                    onChange={e => setPrintVerifiedBy(e.target.value)}
+                  />
+                </div>
+                <div className="mb-4">
+                  <table className="table table-bordered print-table" style={{ fontSize: 17, marginBottom: 0 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40%' }}>Product</th>
+                        <th style={{ width: '20%' }}>Total Qty</th>
+                        <th style={{ width: '30%' }}>Carts</th>
+                        <th style={{ width: '10%' }}>Edit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(printInvoiceData.productMap).map(([productId, prodRaw]) => {
+                        const prod = prodRaw as { name: string; total: number; carts: string[] };
+                        return (
+                          <tr key={productId}>
+                            <td>{prod.name}</td>
+                            <td>
+                              <input
+                                type="number"
+                                min={0}
+                                className="form-control form-control-sm"
+                                style={{ width: 80 }}
+                                value={printQuantities[productId] || 0}
+                                onChange={e => setPrintQuantities(q => ({ ...q, [productId]: Number(e.target.value) }))}
+                              />
+                            </td>
+                            <td style={{ fontSize: 15 }}>{prod.carts.join(", ")}</td>
+                            <td></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="d-flex justify-content-end mt-4">
+                  <button
+                    className="btn btn-success"
+                    onClick={() => {
+                      // Print only the modal content
+                      const printContents = document.querySelector('.print-area')?.innerHTML;
+                      const printWindow = window.open('', '', 'width=850,height=600');
+                      if (printWindow && printContents) {
+                        printWindow.document.write(`
+                          <html>
+                          <head>
+                            <title>Print Invoice</title>
+                            <style>
+                              @media print {
+                                body { margin: 0; font-size: 16px; }
+                                .print-table th, .print-table td { padding: 8px 12px; }
+                                .print-table { width: 100%; border-collapse: collapse; }
+                                .print-table th, .print-table td { border: 1px solid #333; }
+                                .print-modal-content { box-shadow: none !important; border: none !important; }
+                              }
+                              @page { size: 8.5in 5in; margin: 0.5in; }
+                            </style>
+                          </head>
+                          <body>
+                            <div style="width: 100%; max-width: 8.5in; min-height: 5in;">
+                              ${printContents}
+                            </div>
+                          </body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                        printWindow.focus();
+                        setTimeout(() => {
+                          printWindow.print();
+                          printWindow.close();
+                        }, 300);
+                      }
+                    }}
+                  >
+                    Print
+                  </button>
+                </div>
               </div>
             </div>
           </div>
