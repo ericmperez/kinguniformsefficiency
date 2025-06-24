@@ -515,8 +515,8 @@ function App() {
   }, []);
 
   if (!user) {
-    // Use the new SignInSide as the login page
-    return <SignInSide />;
+    // Use the new LocalLoginForm as the login page
+    return <LocalLoginForm />;
   }
 
   if (showWelcome) {
