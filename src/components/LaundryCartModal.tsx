@@ -26,7 +26,6 @@ export default function LaundryCartModal({
     setNewCartName((prev) => {
       if (val === "C") return "";
       if (val === "←") return prev.slice(0, -1);
-      if (val === "_") return prev + " "; // Space
       return prev + val;
     });
   };
@@ -112,11 +111,14 @@ export default function LaundryCartModal({
                       }}
                       required
                       readOnly={showKeypad}
+                      onFocus={() => setShowKeypad(true)} // Show keypad on focus
+                      style={{ fontSize: 24, height: 56 }} // Make input larger for touch
                     />
                     <button
                       type="button"
                       className="btn btn-outline-secondary btn-sm"
                       onClick={() => setShowKeypad((v) => !v)}
+                      style={{ height: 56 }}
                     >
                       {showKeypad ? "Hide Keypad" : "Show Keypad"}
                     </button>
@@ -126,13 +128,13 @@ export default function LaundryCartModal({
                   )}
                   {showKeypad && (
                     <div className="mt-3">
-                      <div className="d-flex flex-wrap gap-2 mb-2">
-                        {[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'].map((key) => (
+                      <div className="d-flex flex-wrap gap-3 mb-2 justify-content-center" style={{ maxWidth: 420, margin: "0 auto" }}>
+                        {[...'0123456789'].map((key) => (
                           <button
                             key={key}
                             type="button"
-                            className="btn btn-outline-dark mb-1"
-                            style={{ width: 40, height: 40, fontSize: 18 }}
+                            className="btn btn-outline-dark mb-2"
+                            style={{ width: 64, height: 64, fontSize: 32, borderRadius: 16 }}
                             onClick={() => handleKeypadInput(key)}
                           >
                             {key}
@@ -140,24 +142,16 @@ export default function LaundryCartModal({
                         ))}
                         <button
                           type="button"
-                          className="btn btn-warning mb-1"
-                          style={{ width: 40, height: 40, fontSize: 18 }}
-                          onClick={() => handleKeypadInput("_")}
-                        >
-                          _
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-danger mb-1"
-                          style={{ width: 40, height: 40, fontSize: 18 }}
+                          className="btn btn-danger mb-2"
+                          style={{ width: 64, height: 64, fontSize: 32, borderRadius: 16 }}
                           onClick={() => handleKeypadInput("C")}
                         >
                           C
                         </button>
                         <button
                           type="button"
-                          className="btn btn-secondary mb-1"
-                          style={{ width: 40, height: 40, fontSize: 18 }}
+                          className="btn btn-secondary mb-2"
+                          style={{ width: 64, height: 64, fontSize: 32, borderRadius: 16 }}
                           onClick={() => handleKeypadInput("←")}
                         >
                           &larr;

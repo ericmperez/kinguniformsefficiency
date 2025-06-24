@@ -573,6 +573,9 @@ export default function ActiveInvoices({
 
   const [selectedCartModalId, setSelectedCartModalId] = useState<string>("");
 
+  // Add at the top-level of the component:
+  const [showNoteInput, setShowNoteInput] = useState<{ [invoiceId: string]: boolean }>({});
+
   return (
     <div className="container-fluid py-4">
       {/* --- GROUP OVERVIEW --- */}
@@ -858,50 +861,6 @@ export default function ActiveInvoices({
                     </p>
                     {/* Removed products list section */}
                     {/* Removed price/total display */}
-                    {invoice.carts && invoice.carts.length > 0 ? (
-                      invoice.carts.map((cart, cartIdx) => (
-                        <div
-                          key={cart.id || cartIdx}
-                          className="mb-3 border rounded p-2"
-                        >
-                          <div className="fw-bold mb-2">{cart.name}</div>
-                          {cart.items.length === 0 ? (
-                            <div className="text-muted">
-                              No products in cart.
-                            </div>
-                          ) : (
-                            <div>
-                              {cart.items.map((item, itemIdx) => (
-                                <div
-                                  key={item.productId || itemIdx}
-                                  className="d-flex justify-content-between align-items-center py-1"
-                                >
-                                  <div>
-                                    {item.productName} (x{item.quantity})
-                                  </div>
-                                  <div style={{ fontSize: 12, color: "#888" }}>
-                                    {item.addedBy ? `By: ${item.addedBy}` : ""}
-                                  </div>
-                                </div>
-                              ))}
-                              <div
-                                className="mt-2 text-end fw-bold"
-                                style={{ fontSize: 15 }}
-                              >
-                                Total:{" "}
-                                {cart.items.reduce(
-                                  (sum, item) =>
-                                    sum + (Number(item.quantity) || 0),
-                                  0
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-muted">No carts</div>
-                    )}
                     {invoice.locked && (
                       <div
                         className="alert alert-danger py-1 mb-2"
@@ -954,25 +913,20 @@ export default function ActiveInvoices({
                       </div>
                     )}
                     <div className="mb-2">
-                      <label className="form-label" style={{ fontWeight: 600 }}>
+                      <label className="form-label" style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
                         Nota Pública
-                      </label>
-                      {invoice.locked ? (
-                        <div
-                          className="alert alert-info py-1 mb-2"
-                          style={{
-                            fontSize: 24,
-                            fontWeight: 700,
-                            whiteSpace: "pre-line",
-                          }}
+                        <span
+                          style={{ cursor: "pointer", color: "#f0ad4e", fontSize: 22, display: "inline-flex", alignItems: "center" }}
+                          title="Agregar o editar nota pública"
+                          onClick={() => setShowNoteInput((prev) => ({ ...prev, [invoice.id]: !prev[invoice.id] }))}
                         >
-                          {invoice.note ? (
-                            invoice.note
-                          ) : (
-                            <span className="text-muted">Sin nota</span>
-                          )}
-                        </div>
-                      ) : (
+                          {/* Alert icon (Bootstrap or emoji fallback) */}
+                          <svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.707c.89 0 1.438-.99.982-1.767L8.982 1.566zm-1.196.93a.13.13 0 0 1 .228 0l6.853 11.667a.13.13 0 0 1-.114.197H1.147a.13.13 0 0 1-.114-.197L7.886 2.497zM8 5c-.535 0-.954.462-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+      </svg>
+                        </span>
+                      </label>
+                      {showNoteInput[invoice.id] && !invoice.locked ? (
                         <textarea
                           className="form-control mb-2"
                           rows={2}
@@ -985,7 +939,19 @@ export default function ActiveInvoices({
                           }
                           disabled={!!invoice.locked}
                           style={{ fontSize: 24, fontWeight: 700 }}
+                          autoFocus
                         />
+                      ) : (
+                        <div
+                          className="alert alert-info py-1 mb-2"
+                          style={{ fontSize: 24, fontWeight: 700, whiteSpace: "pre-line", minHeight: 38 }}
+                        >
+                          {invoice.note ? (
+                            invoice.note
+                          ) : (
+                            <span className="text-muted">Sin nota</span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
