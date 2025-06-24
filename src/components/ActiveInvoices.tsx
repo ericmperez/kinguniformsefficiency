@@ -633,12 +633,11 @@ export default function ActiveInvoices({
     );
   };
 
-  // Helper: for a given invoice, get required manual products (washed, not delivered, for this client)
+  // Helper: for a given invoice, get required manual products (ALL manual, not delivered, for this client)
   const getRequiredManualProductsForInvoice = (invoice: Invoice) =>
     manualProducts.filter(
       (mp) =>
         mp.clientId === invoice.clientId &&
-        mp.washed &&
         !mp.delivered
     );
 
@@ -1092,12 +1091,36 @@ export default function ActiveInvoices({
                         Delete
                       </button>
                       {!invoice.locked ? (
-                        <button
-                          className="btn btn-sm btn-warning ms-2"
-                          onClick={() => handleLockInvoice(invoice.id)}
-                        >
-                          Cerrar Boleta
-                        </button>
+                        <>
+                          <button
+                            className="btn btn-sm btn-warning ms-2"
+                            onClick={() => handleLockInvoice(invoice.id)}
+                            disabled={!invoiceHasAllRequiredManualProducts(invoice)}
+                          >
+                            Cerrar Boleta
+                          </button>
+                          {!invoiceHasAllRequiredManualProducts(invoice) && (() => {
+                            // Find missing required manual products
+                            const required = getRequiredManualProductsForInvoice(invoice);
+                            // Flatten all cart items in the invoice
+                            const allItems = (invoice.carts || []).flatMap((cart) => cart.items || []);
+                            const missing = required.filter(mp =>
+                              !allItems.some(item => item.productId === mp.productId && Number(item.quantity) >= Number(mp.quantity))
+                            );
+                            if (missing.length === 0) return null;
+                            return (
+                              <div className="alert alert-danger mt-2 mb-0" style={{ fontSize: 14, borderRadius: 8 }}>
+                                Debe agregar los siguientes productos manuales a la boleta:<ul style={{ margin: 0, paddingLeft: 18 }}>
+                                  {missing.map((mp, idx) => (
+                                    <li key={mp.id || idx}>
+                                      <b>{mp.productName}</b> x{mp.quantity} <span style={{ color: '#888' }}>({mp.type})</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            );
+                          })()}
+                        </>
                       ) : user?.role === "Owner" ? (
                         <button
                           className="btn btn-sm btn-success ms-2"
