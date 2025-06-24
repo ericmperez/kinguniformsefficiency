@@ -18,6 +18,7 @@ import {
   query,
   where,
   Timestamp,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -123,7 +124,7 @@ export default function PickupWashing({
     );
     await updateDoc(doc(db, "pickup_groups", groupId), {
       totalWeight,
-      endTime: endTimeDate.toISOString(),
+      endTime: endTimeDate instanceof Timestamp ? endTimeDate : Timestamp.fromDate(new Date(endTimeDate)),
     });
   };
 
@@ -364,6 +365,24 @@ export default function PickupWashing({
     if (weightInputRef.current) weightInputRef.current.focus();
   };
 
+  // Add this handler below other handlers
+  const handleDeleteGroup = async (groupId: string) => {
+    if (!window.confirm("¿Eliminar todo el grupo y todas sus entradas? Esta acción no se puede deshacer.")) return;
+    try {
+      // Delete all pickup_entries for this group
+      const entriesSnap = await getDocs(query(collection(db, "pickup_entries"), where("groupId", "==", groupId)));
+      const batchDeletes = entriesSnap.docs.map(docSnap => deleteDoc(doc(db, "pickup_entries", docSnap.id)));
+      await Promise.all(batchDeletes);
+      // Delete the group itself
+      await deleteDoc(doc(db, "pickup_groups", groupId));
+      // Remove from UI state
+      setGroups(prev => prev.filter(g => g.id !== groupId));
+      setEntries(prev => prev.filter(e => e.groupId !== groupId));
+    } catch (err) {
+      alert("Error al eliminar el grupo");
+    }
+  };
+
   return (
     <div className="container py-4">
       {/* Full-screen confirmation overlay */}
@@ -511,36 +530,44 @@ export default function PickupWashing({
           <h5 className="mb-3">Entradas recientes agrupadas</h5>
           {groupedEntries.map((group, idx) => (
             <div key={idx} className="mb-4">
-              <div className="mb-2">
-                <span
-                  style={{
-                    fontSize: "1.5rem",
-                    fontWeight: "bold",
-                    color: "#007bff",
-                  }}
+              <div className="mb-2 d-flex align-items-center justify-content-between">
+                <div>
+                  <span
+                    style={{
+                      fontSize: "1.5rem",
+                      fontWeight: "bold",
+                      color: "#007bff",
+                    }}
+                  >
+                    {group.clientName}
+                  </span>{" "}
+                  &nbsp;|&nbsp;
+                  <span
+                    style={{
+                      fontSize: "1.5rem",
+                      fontWeight: "bold",
+                      color: "#28a745",
+                    }}
+                  >
+                    {group.driverName}
+                  </span>{" "}
+                  &nbsp;|&nbsp;
+                  <span
+                    style={{
+                      fontSize: "1.5rem",
+                      fontWeight: "bold",
+                      color: "#6c757d",
+                    }}
+                  >
+                    Carros: {group.entries.length}
+                  </span>
+                </div>
+                <button
+                  className="btn btn-danger btn-sm ms-2"
+                  onClick={() => handleDeleteGroup(group.id)}
                 >
-                  {group.clientName}
-                </span>{" "}
-                &nbsp;|&nbsp;
-                <span
-                  style={{
-                    fontSize: "1.5rem",
-                    fontWeight: "bold",
-                    color: "#28a745",
-                  }}
-                >
-                  {group.driverName}
-                </span>{" "}
-                &nbsp;|&nbsp;
-                <span
-                  style={{
-                    fontSize: "1.5rem",
-                    fontWeight: "bold",
-                    color: "#6c757d",
-                  }}
-                >
-                  Carros: {group.entries.length}
-                </span>
+                  Eliminar Grupo
+                </button>
               </div>
               <div className="table-responsive">
                 <table className="table table-sm table-bordered">

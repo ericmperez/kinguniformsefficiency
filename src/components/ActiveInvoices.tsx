@@ -391,58 +391,38 @@ export default function ActiveInvoices({
     setShowProductKeypad(true);
   };
 
+  // --- Product Keypad Add Handler ---
   const handleKeypadAdd = async () => {
-    if (productForKeypad && keypadQuantity > 0) {
-      setCartItems((prev) => {
-        const existing = prev.find(
-          (item) => item.productId === productForKeypad.id
-        );
-        let newCartItems;
-        if (existing) {
-          newCartItems = prev.map((item) =>
-            item.productId === productForKeypad.id
-              ? {
-                  ...item,
-                  quantity: item.quantity + keypadQuantity,
-                  addedAt: new Date().toISOString(),
-                }
-              : item
-          );
-        } else {
-          newCartItems = [
-            ...prev,
-            {
-              productId: productForKeypad.id,
-              productName: productForKeypad.name,
-              quantity: keypadQuantity,
-              price: productForKeypad.price,
-              addedBy: user?.username || "Unknown",
-              addedAt: new Date().toISOString(),
-            },
-          ];
-        }
-        // Persist to Firebase instantly
-        if (selectedInvoiceId && newCartName.trim()) {
-          const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
-          const cartIndex = invoice?.carts.findIndex(
-            (c) => c.name === newCartName.trim()
-          );
-          if (cartIndex !== undefined && cartIndex > -1 && invoice) {
-            const updatedCarts = [...invoice.carts];
-            updatedCarts[cartIndex] = {
-              ...updatedCarts[cartIndex],
-              items: newCartItems.map(sanitizeCartItem),
-              total: 0, // Total calculation removed
-            };
-            onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
-          }
-        }
-        return newCartItems;
-      });
-      setShowProductKeypad(false);
-      setProductForKeypad(null);
-      setKeypadQuantity(1);
+    if (!productForKeypad || keypadQuantity < 1 || !selectedInvoiceId) return;
+    // Find the invoice and the selected cart
+    const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
+    if (!invoice) return;
+    let cartIdx = invoice.carts.findIndex((c) => c.id === selectedCartModalId);
+    if (cartIdx === -1) {
+      // If no cart selected, default to first cart
+      cartIdx = 0;
     }
+    if (cartIdx === -1) return; // No carts at all
+    const cart = { ...invoice.carts[cartIdx] };
+    // Always push a new entry (do not merge with existing)
+    cart.items = [
+      ...cart.items,
+      {
+        productId: productForKeypad.id,
+        productName: productForKeypad.name,
+        quantity: keypadQuantity,
+        price: productForKeypad.price,
+        addedBy: user?.username || "Unknown",
+        addedAt: new Date().toISOString(),
+      },
+    ];
+    // Update the cart in the invoice
+    const updatedCarts = [...invoice.carts];
+    updatedCarts[cartIdx] = cart;
+    await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
+    setShowProductKeypad(false);
+    setProductForKeypad(null);
+    setKeypadQuantity(1);
   };
 
   const handleStatusChange = async (groupId: string, newStatus: string) => {
@@ -1190,108 +1170,76 @@ export default function ActiveInvoices({
                 ></button>
               </div>
               <div className="modal-body">
-                {/* Show total weight if present on invoice */}
+                {/* Cart log at the top */}
                 {(() => {
-                  const invoice = invoices.find(
-                    (inv) => inv.id === selectedInvoiceId
-                  );
-                  if (invoice && typeof invoice.totalWeight === "number") {
-                    return (
-                      <div className="alert alert-info mb-3">
-                        <strong>Total Weight:</strong>{" "}
-                        {invoice.totalWeight.toFixed(2)} lbs
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-                {(() => {
-                  const invoice = invoices.find(
-                    (inv) => inv.id === selectedInvoiceId
-                  );
+                  const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
                   if (!invoice) return null;
                   const carts = invoice.carts || [];
-                  // Pills for each cart
+                  const allItems = carts.flatMap(cart =>
+                    cart.items.map(item => ({
+                      ...item,
+                      cartName: cart.name
+                    }))
+                  );
+                  if (allItems.length === 0) return <div className="text-muted mb-3">No products in any cart yet.</div>;
                   return (
-                    <>
-                      <div className="mb-3 d-flex flex-wrap gap-2">
-                        {carts.map((cart) => (
-                          <button
-                            key={cart.id}
-                            className={`badge rounded-pill ${selectedCartModalId === cart.id ? "bg-primary text-white" : "bg-light text-dark"}`}
-                            style={{ fontSize: 18, padding: "10px 20px", border: selectedCartModalId === cart.id ? "2px solid #0d6efd" : "1px solid #ccc", cursor: "pointer" }}
-                            onClick={() => setSelectedCartModalId(cart.id)}
-                          >
-                            {cart.name}
-                          </button>
+                    <div className="mb-3">
+                      <h6 className="mb-2">Cart Log</h6>
+                      <ul className="list-group mb-0">
+                        {allItems.map((item, idx) => (
+                          <li key={item.productId + '-' + idx} className="list-group-item d-flex justify-content-between align-items-center py-2">
+                            <span>
+                              <b>{item.productName}</b> <span className="text-secondary">({item.cartName})</span>
+                            </span>
+                            <span>
+                              <b>Qty:</b> {item.quantity} &nbsp;
+                              <span className="text-muted">{item.addedBy ? `By: ${item.addedBy}` : ""}</span>
+                            </span>
+                          </li>
                         ))}
-                      </div>
-                      {/* Vertically scrollable product cards */}
-                      <div style={{ maxHeight: 400, overflowY: "auto" }}>
-                        {(() => {
-                          // Find the client for the current invoice
-                          const client = clients.find(c => c.id === invoice.clientId);
-                          const allowedProductIds = client?.selectedProducts || [];
-                          // For each allowed product, show a card
-                          return products
-                            .filter(product => allowedProductIds.includes(product.id))
-                            .map((product) => {
-                              // Find all instances of this product in all carts
-                              const instances = carts.flatMap(cart =>
-                                cart.items
-                                  .filter(item => item.productId === product.id)
-                                  .map(item => ({ ...item, cartName: cart.name }))
-                              );
-                              return (
-                                <div
-                                  key={product.id}
-                                  className="card mb-3 shadow-sm"
-                                  style={{ cursor: "pointer", minHeight: 120, borderWidth: 2, borderColor: selectedProduct === product.id ? "#0d6efd" : "#eee" }}
-                                  onClick={() => {
-                                    setProductForKeypad(product);
-                                    setShowProductKeypad(true);
-                                    setKeypadQuantity(1);
-                                  }}
-                                >
-                                  <div className="row g-0 align-items-center">
-                                    {product.imageUrl && (
-                                      <div className="col-auto">
-                                        <img
-                                          src={product.imageUrl}
-                                          alt={product.name}
-                                          style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 8, margin: 12 }}
-                                        />
-                                      </div>
-                                    )}
-                                    <div className="col">
-                                      <div className="card-body py-2 px-3">
-                                        <div className="fw-bold" style={{ fontSize: 18 }}>{product.name}</div>
-                                        {instances.length === 0 ? (
-                                          <div className="text-muted">Not added yet</div>
-                                        ) : (
-                                          <ul className="mb-0" style={{ listStyle: "none", paddingLeft: 0 }}>
-                                            {instances.map((item, idx) => (
-                                              <li key={idx} className="d-flex justify-content-between align-items-center small">
-                                                <span>
-                                                  <b>Qty:</b> {item.quantity} <span className="text-secondary">({item.cartName})</span>
-                                                </span>
-                                                <span className="text-muted">{item.addedBy ? `By: ${item.addedBy}` : ""}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            });
-                        })()}
-                      </div>
-                    </>
+                      </ul>
+                    </div>
                   );
                 })()}
-                {/* Keypad modal for quantity input (replaces old slider logic) */}
+                {/* Product cards in 3 columns */}
+                <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                  <div className="row g-3">
+                    {(() => {
+                      const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                      if (!invoice) return null;
+                      const carts = invoice.carts || [];
+                      const client = clients.find(c => c.id === invoice.clientId);
+                      const allowedProductIds = client?.selectedProducts || [];
+                      return products
+                        .filter(product => allowedProductIds.includes(product.id))
+                        .map((product) => (
+                          <div key={product.id} className="col-12 col-md-4">
+                            <div
+                              className={`card mb-2 shadow-sm h-100${selectedProduct === product.id ? " border-primary" : " border-light"}`}
+                              style={{ cursor: "pointer", minHeight: 120, borderWidth: 2 }}
+                              onClick={() => {
+                                setProductForKeypad(product);
+                                setShowProductKeypad(true);
+                                setKeypadQuantity(1);
+                              }}
+                            >
+                              {product.imageUrl && (
+                                <img
+                                  src={product.imageUrl}
+                                  alt={product.name}
+                                  style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8 }}
+                                />
+                              )}
+                              <div className="card-body py-2 px-3 text-center">
+                                <div className="fw-bold" style={{ fontSize: 18 }}>{product.name}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ));
+                    })()}
+                  </div>
+                </div>
+                {/* Keypad modal for quantity input */}
                 {showProductKeypad && productForKeypad && (
                   <div
                     className="modal show"
@@ -2073,7 +2021,7 @@ export default function ActiveInvoices({
                   </div>
                   <div className="modal-body">
                     {invoice.carts.map((cart) => (
-                      <div key={cart.id} className="mb-3">
+                                           <div key={cart.id} className="mb-3">
                         <div className="fw-bold mb-1">{cart.name}</div>
                         {cart.items.length === 0 ? (
                           <div className="text-muted">

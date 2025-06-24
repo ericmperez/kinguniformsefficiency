@@ -266,13 +266,15 @@ export const addPickupEntry = async (entry: {
   timestamp: Date | Timestamp;
 }) => {
   try {
-    const docRef = await addDoc(collection(db, "pickup_entries"), {
+    const docToSend = {
       ...entry,
       timestamp: entry.timestamp instanceof Date ? Timestamp.fromDate(entry.timestamp) : entry.timestamp,
-    });
+    };
+    console.log("[addPickupEntry] Writing to Firestore:", docToSend);
+    const docRef = await addDoc(collection(db, "pickup_entries"), docToSend);
     return docRef;
   } catch (error) {
-    console.error("Error adding pickup entry:", error);
+    console.error("Error adding pickup entry:", error, entry);
     throw error;
   }
 };
@@ -317,8 +319,8 @@ export const addPickupGroup = async (group: {
       ...group,
       numCarts,
       segregatedCarts: null,
-      startTime: group.startTime instanceof Date ? Timestamp.fromDate(group.startTime) : group.startTime,
-      endTime: group.endTime instanceof Date ? Timestamp.fromDate(group.endTime) : group.endTime,
+      startTime: group.startTime instanceof Timestamp ? group.startTime : Timestamp.fromDate(new Date(group.startTime)),
+      endTime: group.endTime instanceof Timestamp ? group.endTime : Timestamp.fromDate(new Date(group.endTime)),
     });
     return docRef;
   } catch (error) {
@@ -389,7 +391,7 @@ export const addManualConventionalProduct = async (entry: {
     productName,
     quantity,
     type,
-    createdAt: createdAt ? createdAt : new Date(),
+    createdAt: createdAt instanceof Timestamp ? createdAt : Timestamp.fromDate(createdAt ? new Date(createdAt) : new Date()),
   };
   return await addDoc(collection(db, 'manual_conventional_products'), docData);
 };
