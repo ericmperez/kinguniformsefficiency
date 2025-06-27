@@ -38,10 +38,6 @@ const Segregation: React.FC<SegregationProps> = ({
   const [logGroup, setLogGroup] = useState<any | null>(null);
   const [showLogModal, setShowLogModal] = useState(false);
 
-  // State for red alert overlay
-  const [showRedAlert, setShowRedAlert] = useState<null | string>(null); // groupId or null
-  const redAlertTimerRef = React.useRef<NodeJS.Timeout | null>(null);
-
   // Fetch clients only once on mount
   useEffect(() => {
     const fetchClients = async () => {
@@ -287,92 +283,12 @@ const Segregation: React.FC<SegregationProps> = ({
     return () => unsub();
   }, []);
 
-  // Watch for mismatches between segregatedCounts and cart count
-  useEffect(() => {
-    let mismatchGroupId: string | null = null;
-    for (const group of segregationGroups) {
-      const inputVal = parseInt(segregatedCounts[group.id] || "", 10);
-      const cartCount = getCartCount(group.id);
-      if (
-        segregatedCounts[group.id] !== undefined &&
-        segregatedCounts[group.id] !== "" &&
-        inputVal !== cartCount
-      ) {
-        mismatchGroupId = group.id;
-        break;
-      }
-    }
-    if (mismatchGroupId) {
-      setShowRedAlert(mismatchGroupId);
-    } else {
-      setShowRedAlert(null);
-    }
-  }, [segregatedCounts, segregationGroups, entries]);
-
-  // Effect to auto-hide the alert after 5 seconds when it appears
-  useEffect(() => {
-    if (showRedAlert) {
-      if (redAlertTimerRef.current) clearTimeout(redAlertTimerRef.current);
-      redAlertTimerRef.current = setTimeout(() => {
-        setShowRedAlert(null);
-      }, 5000);
-      return () => {
-        if (redAlertTimerRef.current) {
-          clearTimeout(redAlertTimerRef.current);
-          redAlertTimerRef.current = null;
-        }
-      };
-    }
-  }, [showRedAlert]);
-
   // --- UI ---
   // Highlight the top group (first in displayGroups) in a big bold box at the top
   const topGroup = displayGroups[0];
 
   return (
     <div className="container py-4">
-      {/* Full-screen red alert overlay */}
-      {showRedAlert && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            background: "rgba(215, 35, 40, 0.97)",
-            color: "#fff",
-            zIndex: 9999,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 38,
-            fontWeight: 900,
-            letterSpacing: 2,
-            textAlign: "center",
-            transition: "opacity 0.3s",
-          }}
-        >
-          <div>
-            🚨 <br />
-            <span style={{ fontSize: 48 }}>¡ATENCIÓN!</span>
-          </div>
-          <div style={{ fontSize: 28, marginTop: 24 }}>
-            El número de carros segregados <br />
-            <span style={{ color: "#fff", fontWeight: 700 }}>
-              NO COINCIDE
-            </span> <br />
-            con el número de carros reales para este grupo.
-          </div>
-          <div style={{ fontSize: 22, marginTop: 32 }}>
-            Por favor, verifica y corrige el valor.<br />
-            <span style={{ fontSize: 18, marginTop: 12, display: "block" }}>
-              (El mensaje desaparecerá cuando los valores coincidan)
-            </span>
-          </div>
-        </div>
-      )}
       {/* Top group highlight */}
       {topGroup && (
         <div

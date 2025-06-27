@@ -315,10 +315,22 @@ export const addPickupGroup = async (group: {
   try {
     // numCarts is the number of entries that belong to this group
     const numCarts = Array.isArray(group.entries) ? group.entries.length : 0;
+    // Fetch client to check segregation and washingType
+    let segregatedCarts: number | null = null;
+    try {
+      const clientSnap = await getDoc(doc(db, "clients", group.clientId));
+      const client = clientSnap.exists() ? clientSnap.data() : null;
+      if (client && client.segregation === false && client.washingType === "Tunnel") {
+        segregatedCarts = numCarts;
+      }
+    } catch (e) {
+      // If client fetch fails, fallback to null
+      segregatedCarts = null;
+    }
     const docRef = await addDoc(collection(db, "pickup_groups"), {
       ...group,
       numCarts,
-      segregatedCarts: null,
+      segregatedCarts,
       startTime: group.startTime instanceof Timestamp ? group.startTime : Timestamp.fromDate(new Date(group.startTime)),
       endTime: group.endTime instanceof Timestamp ? group.endTime : Timestamp.fromDate(new Date(group.endTime)),
     });
@@ -416,4 +428,48 @@ export const deleteManualConventionalProduct = async (manualProductId: string) =
   await deleteDoc(doc(db, 'manual_conventional_products', manualProductId));
 };
 
-export { uploadBytes, getDownloadURL };
+// --- AUTO-FIX SEGREGATED CARTS FOR TUNNEL CLIENTS (RUN ONCE ON APP START) ---
+(async function autoFixSegregatedCartsForTunnelClients() {
+  try {
+    const groupsSnap = await getDocs(collection(db, 'pickup_groups'));
+    for (const groupDoc of groupsSnap.docs) {
+      const group = groupDoc.data();
+      if (!group.clientId) continue;
+      const clientSnap = await getDoc(doc(db, 'clients', group.clientId));
+      if (!clientSnap.exists()) continue;
+      const client = clientSnap.data();
+      if (
+        client.washingType === 'Tunnel' &&
+        client.segregation === false &&
+        typeof group.numCarts === 'number' &&
+        group.segregatedCarts !== group.numCarts
+      ) {
+        await updateDoc(doc(db, 'pickup_groups', groupDoc.id), {
+          segregatedCarts: group.numCarts,
+        });
+      }
+    }
+  } catch (e) {
+    // Silent fail
+  }
+})();
+
+// Call this after adding/removing carts for a group
+export const updateSegregatedCartsIfTunnelNoSeg = async (groupId: string) => {
+  const groupSnap = await getDoc(doc(db, 'pickup_groups', groupId));
+  if (!groupSnap.exists()) return;
+  const group = groupSnap.data();
+  if (!group.clientId) return;
+  const clientSnap = await getDoc(doc(db, 'clients', group.clientId));
+  if (!clientSnap.exists()) return;
+  const client = clientSnap.data();
+  if (
+    client.washingType === 'Tunnel' &&
+    client.segregation === false &&
+    Array.isArray(group.carts)
+  ) {
+    await updateDoc(doc(db, 'pickup_groups', groupId), {
+      segregatedCarts: group.carts.length,
+    });
+  }
+};
