@@ -10,9 +10,15 @@ Switch to a clean, modern light theme:
 :root {
   --ku-yellow: #FAC61B;
   --ku-red: #D72328;
-  --ku-light: #EEEDED;
+  --ku-light: #F7F7F9;
   --ku-blue: #0E62A0;
+  --ku-dark: #222;
+  --ku-shadow: 0 4px 24px rgba(14, 98, 160, 0.10);
+  --ku-radius: 18px;
+  --ku-font: 'Inter', 'Segoe UI', Arial, sans-serif;
 }
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
 
 /* Example usage for backgrounds, buttons, and text */
 .ku-bg-yellow { background: var(--ku-yellow) !important; }
@@ -27,49 +33,75 @@ Switch to a clean, modern light theme:
 
 .ku-btn-yellow {
   background: var(--ku-yellow) !important;
-  color: #222 !important;
+  color: var(--ku-dark) !important;
   border: none;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(250, 198, 27, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(14, 98, 160, 0.10);
   font-weight: 600;
+  padding: 0.85em 2.2em;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.18s;
+  outline: none;
 }
 .ku-btn-yellow:hover {
   background: #ffe066 !important;
+  color: var(--ku-dark) !important;
+  transform: translateY(-1px) scale(1.03);
 }
 .ku-btn-red {
   background: var(--ku-red) !important;
   color: #fff !important;
   border: none;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(215, 35, 40, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(14, 98, 160, 0.10);
   font-weight: 600;
+  padding: 0.85em 2.2em;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.18s;
+  outline: none;
 }
 .ku-btn-red:hover {
   background: #b71c1c !important;
+  color: #fff !important;
+  transform: translateY(-1px) scale(1.03);
 }
 .ku-btn-blue {
   background: var(--ku-blue) !important;
   color: #fff !important;
   border: none;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(14, 98, 160, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(14, 98, 160, 0.10);
   font-weight: 600;
+  padding: 0.85em 2.2em;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.18s;
+  outline: none;
 }
 .ku-btn-blue:hover {
   background: #084c7c !important;
+  color: #fff !important;
+  transform: translateY(-1px) scale(1.03);
 }
 
 body, #root, .app {
   background: #fff !important;
-  color: #111 !important;
+  color: var(--ku-dark) !important;
+  font-family: var(--ku-font);
+  font-size: 17px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
 }
 
 .section, .active-invoices, .invoice-form, .settings-section, .client-card, .product-card, .card {
   background: var(--ku-light) !important;
-  color: #111 !important;
-  border-radius: 14px;
-  box-shadow: 0 2px 12px rgba(14, 98, 160, 0.04);
-  margin-bottom: 2rem;
+  color: var(--ku-dark) !important;
+  border-radius: var(--ku-radius);
+  box-shadow: var(--ku-shadow);
+  margin-bottom: 2.5rem;
+  padding: 2.2rem 2rem 1.5rem 2rem;
+  border: none;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.section:hover, .card:hover {
+  box-shadow: 0 8px 32px rgba(14, 98, 160, 0.16);
+  transform: translateY(-2px) scale(1.01);
 }
 
 .card.border-primary, .client-card.border-primary, .product-card.border-primary {
@@ -77,33 +109,41 @@ body, #root, .app {
 }
 
 .app-title, h1, h2, h3, h4, h5 {
-  color: #111 !important;
+  color: var(--ku-dark) !important;
+  font-family: var(--ku-font);
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
+  margin-bottom: 1.2rem;
 }
 
 .navbar, .main-nav, .settings-nav {
   background: var(--ku-red) !important;
-  color: #111 !important;
-  border-radius: 0 0 10px 10px;
-  box-shadow: 0 2px 8px rgba(215, 35, 40, 0.04);
+  color: #fff !important;
+  border-radius: 0 0 var(--ku-radius) var(--ku-radius);
+  box-shadow: 0 2px 12px rgba(215, 35, 40, 0.08);
+  padding: 1.1rem 2.5rem;
+  font-size: 1.15rem;
 }
 
 .nav-link, .main-nav button, .settings-nav button {
-  color: #111 !important;
+  color: #fff !important;
   background: transparent;
-  border-radius: 6px;
-  transition: background 0.2s, color 0.2s;
+  border-radius: 8px;
+  padding: 0.5em 1.2em;
+  margin: 0 0.3em;
+  font-weight: 600;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
 }
 
 .nav-link:hover, .main-nav button:hover, .settings-nav button:hover {
   background: var(--ku-yellow) !important;
-  color: #111 !important;
+  color: var(--ku-dark) !important;
+  box-shadow: 0 2px 8px rgba(250, 198, 27, 0.10);
 }
 
 .main-nav button.active, .settings-nav button.active {
   background: var(--ku-yellow) !important;
-  color: #111 !important;
+  color: var(--ku-dark) !important;
 }
 
 /* Divider for sections */
@@ -111,7 +151,7 @@ body, #root, .app {
   height: 2px;
   background: linear-gradient(90deg, var(--ku-yellow), var(--ku-blue));
   border: none;
-  margin: 2rem 0;
+  margin: 2.5rem 0;
   border-radius: 2px;
 }
 
@@ -131,32 +171,54 @@ body, #root, .app {
 .badge.bg-primary {
   background-color: var(--ku-blue) !important;
   color: #fff !important;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.4em 1em;
+  font-size: 1em;
 }
 .badge.bg-success {
   background-color: var(--ku-yellow) !important;
-  color: #222 !important;
+  color: var(--ku-dark) !important;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.4em 1em;
+  font-size: 1em;
 }
 .badge.bg-warning {
   background-color: var(--ku-red) !important;
   color: #fff !important;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.4em 1em;
+  font-size: 1em;
 }
 
 /* Cart label badge pop */
 .cart-label .badge {
   background: var(--ku-yellow) !important;
-  color: #222 !important;
+  color: var(--ku-dark) !important;
   font-weight: 700;
   border: 1.5px solid var(--ku-blue);
+  border-radius: 8px;
 }
 
 /* Inputs: more contrast */
 input, select, textarea {
+  font-family: var(--ku-font);
+  font-size: 1.08rem;
+  border-radius: 8px;
+  border: 1.5px solid #e0e0e0;
+  padding: 0.7em 1em;
   background: #fff;
-  color: #111;
-  border: 2px solid #e0e0e0;
+  color: var(--ku-dark);
+  margin-bottom: 1.2rem;
+  transition: border 0.18s, box-shadow 0.18s;
+  box-shadow: 0 1px 4px rgba(14, 98, 160, 0.04);
 }
 input:focus, select:focus, textarea:focus {
-  border-color: var(--ku-yellow);
+  border: 1.5px solid var(--ku-blue);
+  box-shadow: 0 2px 8px rgba(14, 98, 160, 0.10);
+  outline: none;
 }
 
 /* Modal: more contrast */
@@ -165,5 +227,16 @@ input:focus, select:focus, textarea:focus {
   color: #111 !important;
 }
 
-/* Remove legacy color overrides */
-/* ...existing code... */
+::-webkit-scrollbar {
+  width: 10px;
+  background: var(--ku-light);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ku-yellow);
+  border-radius: 8px;
+}
+
+/* Utility classes for spacing */
+.mt-4 { margin-top: 2.5rem !important; }
+.mb-4 { margin-bottom: 2.5rem !important; }
+.p-4 { padding: 2rem !important; }

@@ -586,6 +586,17 @@ function App() {
     // Removed 'Rutas por Camión' from navLinks
   ];
 
+  // Home page cards config
+  const homePages = [
+    { label: "Entradas", page: "entradas", color: "#FAC61B", icon: <ListAltIcon style={{ fontSize: 38, color: '#FAC61B' }} /> },
+    { label: "Segregation", page: "segregation", color: "#0E62A0", icon: <GroupWorkIcon style={{ fontSize: 38, color: '#0E62A0' }} /> },
+    { label: "Washing", page: "washing", color: "#D72328", icon: <LocalLaundryServiceIcon style={{ fontSize: 38, color: '#D72328' }} /> },
+    { label: "Reports", page: "reports", color: "#0E62A0", icon: <AssessmentIcon style={{ fontSize: 38, color: '#0E62A0' }} /> },
+    { label: "Settings", page: "settings", color: "#FAC61B", icon: <SettingsIcon style={{ fontSize: 38, color: '#FAC61B' }} /> },
+    { label: "Supervisor", page: "supervisor", color: "#D72328", icon: <AccountCircle style={{ fontSize: 38, color: '#D72328' }} /> },
+    // Add more pages as needed
+  ];
+
   // PendingProductsWidget: shows all pending products (cart items) from groups with pendingProduct === true
   function PendingProductsWidget() {
     const [pendingProducts, setPendingProducts] = useState<any[]>([]);
@@ -1271,45 +1282,54 @@ function App() {
         </>
       )}
       {activePage === "home" && (
-        <div className="container py-4">
-          {/* --- Missing Required Items Section --- */}
-          <MissingRequiredItemsSection clients={clients} products={products} invoices={invoices} />
-          <div className="row justify-content-center mb-4">
-            <div className="col-12 col-md-6 col-lg-4">
-              <div
-                className="card shadow text-center"
-                style={{
-                  background: "#fffbe6",
-                  border: "1px solid #ffe066",
-                }}
-              >
-                <div className="card-body">
-                  <h5
-                    className="card-title mb-2"
-                    style={{
-                      color: "#FFB300",
-                      fontWeight: 700,
-                      letterSpacing: 1,
-                    }}
-                  >
-                    Total Pounds Entered Today
-                  </h5>
-                  <div
-                    style={{
-                      fontSize: 36,
-                      fontWeight: 700,
-                      color: "#333",
-                    }}
-                  >
-                    {todayTotalLbs.toLocaleString()} lbs
-                  </div>
+        <div className="container py-5">
+          <h2 className="mb-4 text-center" style={{ fontWeight: 800, letterSpacing: 1 }}>Welcome, {user.username}!</h2>
+          <div className="row justify-content-center g-4">
+            {homePages.filter(p => navLinks.find(l => l.page === p.page && l.visible) || p.page === "supervisor").map((p) => (
+              <div key={p.page} className="col-12 col-sm-6 col-md-4 col-lg-3 d-flex align-items-stretch">
+                <div
+                  className="card shadow text-center w-100 home-page-card"
+                  style={{
+                    border: `2.5px solid ${p.color}`,
+                    borderRadius: 18,
+                    padding: '2.5rem 1.5rem',
+                    cursor: 'pointer',
+                    transition: 'box-shadow 0.18s, transform 0.18s',
+                    boxShadow: '0 4px 24px rgba(14,98,160,0.10)',
+                    background: '#fff',
+                    minHeight: 180,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onClick={() => setActivePage(p.page as typeof activePage)}
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter') setActivePage(p.page as typeof activePage); }}
+                >
+                  <div style={{ marginBottom: 18 }}>{p.icon}</div>
+                  <div style={{ fontWeight: 700, fontSize: 22, color: p.color, letterSpacing: 1 }}>{p.label}</div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
-          <ManualConventionalProductsWidget />
-          {/* <PendingProductsWidget /> */}
-          {/* ...existing home content... */}
+        </div>
+      )}
+      {/* Supervisor page: show the client groups/status bars section here */}
+      {activePage === "supervisor" && (
+        <div className="container py-5">
+          <h2 className="mb-4 text-center" style={{ fontWeight: 800, letterSpacing: 1 }}>Supervisor Overview</h2>
+          {/* --- Client Groups Overview (moved from home) --- */}
+          <ActiveInvoices
+            clients={clients}
+            products={products}
+            invoices={invoices}
+            onAddInvoice={handleAddInvoice}
+            onDeleteInvoice={handleDeleteInvoice}
+            onUpdateInvoice={handleUpdateInvoice}
+            selectedInvoiceId={selectedInvoiceId}
+            setSelectedInvoiceId={setSelectedInvoiceId}
+          />
         </div>
       )}
       {/* Removed rendering for activePage === "rutasPorCamion" */}
