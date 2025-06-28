@@ -733,6 +733,19 @@ export default function ActiveInvoices({
   const [showInvoiceDetailsModal, setShowInvoiceDetailsModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
+  // Add Ready state to invoice
+  const [readyInvoices, setReadyInvoices] = useState<{ [id: string]: boolean }>({});
+
+  // Handler for Ready button
+  const handleReadyClick = async (invoiceId: string) => {
+    setReadyInvoices((prev) => ({ ...prev, [invoiceId]: true }));
+    // Optionally, persist this status in backend:
+    const invoice = invoices.find((inv) => inv.id === invoiceId);
+    if (invoice) {
+      await onUpdateInvoice(invoiceId, { status: 'ready' });
+    }
+  };
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
@@ -753,7 +766,6 @@ export default function ActiveInvoices({
           </div>
         ) : (
           invoices
-            .slice()
             .sort((a, b) => {
               if (a.invoiceNumber && b.invoiceNumber) {
                 return a.invoiceNumber - b.invoiceNumber;
@@ -766,6 +778,7 @@ export default function ActiveInvoices({
             .map((invoice, idx) => {
               const client = clients.find((c) => c.id === invoice.clientId);
               const avatarSrc = getClientAvatarUrl(client || {});
+              const isReady = invoice.status === 'ready' || readyInvoices[invoice.id];
               return (
                 <div
                   key={invoice.id}
@@ -777,33 +790,29 @@ export default function ActiveInvoices({
                     className="modern-invoice-card shadow-lg"
                     style={{
                       borderRadius: 24,
-                      background:
-                        "linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)",
-                      color: "#222",
-                      boxShadow: "0 8px 32px 0 rgba(0,0,0,0.10)",
-                      border: "none",
-                      position: "relative",
+                      background: isReady
+                        ? 'linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)' // yellow
+                        : 'linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)',
+                      color: '#222',
+                      boxShadow: '0 8px 32px 0 rgba(0,0,0,0.10)',
+                      border: 'none',
+                      position: 'relative',
                       minHeight: 380,
                       maxWidth: 340,
-                      margin: "60px auto 0 auto",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "flex-start",
-                      fontFamily: "Inter, Segoe UI, Arial, sans-serif",
-                      padding: "2.5rem 1.5rem 1.5rem 1.5rem",
-                      transition: "transform 0.18s, box-shadow 0.18s",
-                      transform:
-                        hoveredInvoiceId === invoice.id
-                          ? "translateY(-4px) scale(1.02)"
-                          : "none",
-                      overflow: "visible",
+                      margin: '60px auto 0 auto',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'flex-start',
+                      fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
+                      padding: '2.5rem 1.5rem 1.5rem 1.5rem',
+                      transition: 'background 0.3s',
                     }}
                     onClick={() => handleInvoiceClick(invoice.id)}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
+                      if (e.key === 'Enter' || e.key === ' ') {
                         handleInvoiceClick(invoice.id);
                       }
                     }}
@@ -924,6 +933,19 @@ export default function ActiveInvoices({
                           Locked
                         </button>
                       ) : null}
+                    </div>
+                    <div style={{ marginTop: 16, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                      <button
+                        className="btn btn-warning fw-bold"
+                        style={{ fontSize: 18, width: '80%' }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleReadyClick(invoice.id);
+                        }}
+                        disabled={isReady}
+                      >
+                        {isReady ? 'Ready!' : 'Mark as Ready'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1999,10 +2021,35 @@ export default function ActiveInvoices({
           }}
           carts={cartSelectCarts.map(cartToLaundryCart)}
           onAddCart={async (cartName) => {
-            const newCart = await handleCartCreate(cartName);
-            return newCart
-              ? cartToLaundryCart(newCart)
-              : { id: "", name: "", isActive: true };
+            const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
+            if (!invoice) return;
+            // Handle delete cart
+            if (cartName.startsWith("__delete__")) {
+              const cartId = cartName.replace("__delete__", "");
+              const updatedCarts = invoice.carts.filter((c) => c.id !== cartId);
+              await onUpdateInvoice(selectedInvoice.id, { carts: updatedCarts });
+              return;
+            }
+            // Handle edit cart name
+            if (cartName.startsWith("__edit__")) {
+              const [_, cartId, ...nameParts] = cartName.split("__");
+              const newName = nameParts.join("__");
+              const updatedCarts = invoice.carts.map((c) =>
+                c.id === cartId ? { ...c, name: newName } : c
+              );
+              await onUpdateInvoice(selectedInvoice.id, { carts: updatedCarts });
+              return;
+            }
+            // Prevent duplicate cart names
+            if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) return;
+            const newCart = {
+              id: Date.now().toString(),
+              name: cartName,
+              items: [],
+              total: 0,
+              createdAt: new Date().toISOString(),
+            };
+            await onUpdateInvoice(selectedInvoice.id, { carts: [...invoice.carts, newCart] });
           }}
         />
       )}
@@ -2183,7 +2230,7 @@ export default function ActiveInvoices({
       {showPrintInvoiceModal && printInvoiceData && (
         <div
           className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0.3)" }}
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
         >
           <div className="modal-dialog" style={{ maxWidth: 700 }}>
             <div className="modal-content print-modal-content">
@@ -2348,6 +2395,69 @@ export default function ActiveInvoices({
       {showInvoiceDetailsModal && selectedInvoice && (
         <InvoiceDetailsModal
           invoice={selectedInvoice}
+          client={clients.find((c) => c.id === selectedInvoice.clientId)}
+          products={products}
+          onAddCart={async (cartName) => {
+            if (!selectedInvoice) return;
+            const invoice = invoices.find((inv) => inv.id === selectedInvoice.id);
+            if (!invoice) return;
+            // Handle delete cart
+            if (cartName.startsWith("__delete__")) {
+              const cartId = cartName.replace("__delete__", "");
+              const updatedCarts = invoice.carts.filter((c) => c.id !== cartId);
+              await onUpdateInvoice(selectedInvoice.id, { carts: updatedCarts });
+              return;
+            }
+            // Handle edit cart name
+            if (cartName.startsWith("__edit__")) {
+              const [_, cartId, ...nameParts] = cartName.split("__");
+              const newName = nameParts.join("__");
+              const updatedCarts = invoice.carts.map((c) =>
+                c.id === cartId ? { ...c, name: newName } : c
+              );
+              await onUpdateInvoice(selectedInvoice.id, { carts: updatedCarts });
+              return;
+            }
+            // Prevent duplicate cart names
+            if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) return;
+            const newCart = {
+              id: Date.now().toString(),
+              name: cartName,
+              items: [],
+              total: 0,
+              createdAt: new Date().toISOString(),
+            };
+            await onUpdateInvoice(selectedInvoice.id, { carts: [...invoice.carts, newCart] });
+          }}
+          onAddProductToCart={async (cartId, productId, quantity) => {
+            const invoice = invoices.find((inv) => inv.id === selectedInvoice.id);
+            if (!invoice) return;
+            const carts = invoice.carts.map(cart => {
+              if (cart.id !== cartId) return cart;
+              const product = products.find(p => p.id === productId);
+              if (!product) return cart;
+              // Check if product already exists in cart
+              const existingIdx = cart.items.findIndex(item => item.productId === productId);
+              let newItems;
+              if (existingIdx > -1) {
+                newItems = cart.items.map((item, idx) => idx === existingIdx ? { ...item, quantity: item.quantity + quantity } : item);
+              } else {
+                newItems = [
+                  ...cart.items,
+                  {
+                    productId: product.id,
+                    productName: product.name,
+                    quantity,
+                    price: product.price,
+                    addedBy: user?.username || "Unknown",
+                    addedAt: new Date().toISOString(),
+                  },
+                ];
+              }
+              return { ...cart, items: newItems };
+            });
+            await onUpdateInvoice(selectedInvoice.id, { carts });
+          }}
           onClose={() => setShowInvoiceDetailsModal(false)}
         />
       )}
