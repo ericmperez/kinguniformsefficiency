@@ -50,6 +50,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import Report from "./components/Report";
+import ReportsPage from "./components/ReportsPage";
 import React from "react";
 import { canUserSeeComponent, AppComponentKey } from "./permissions";
 import AppBar from "@mui/material/AppBar";
@@ -1048,7 +1049,7 @@ function App() {
         <Washing setSelectedInvoiceId={setSelectedInvoiceId} />
       )}
       {activePage === "segregation" && canSee("Segregation") && <Segregation />}
-      {activePage === "reports" && canSee("Report") && <Report />}
+      {activePage === "reports" && <ReportsPage />}
       {activePage === "settings" && canManageUsers && (
         <>
           {/* Settings Nav Bar - always visible below main navbar */}

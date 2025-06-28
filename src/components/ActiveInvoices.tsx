@@ -750,6 +750,10 @@ export default function ActiveInvoices({
     }
   };
 
+  // Shipped modal state
+  const [showShippedModal, setShowShippedModal] = useState<string | null>(null);
+  const [shippedTruckNumber, setShippedTruckNumber] = useState("");
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
@@ -980,6 +984,31 @@ export default function ActiveInvoices({
                         title={invoice.verified ? "Verified" : "Verify"}
                       >
                         <i className="bi bi-check-lg" style={{ color: invoice.verified ? '#22c55e' : '#166534', fontSize: 22 }} />
+                      </button>
+                      {/* Shipped button */}
+                      <button
+                        className="btn btn-info btn-sm"
+                        style={{
+                          fontSize: 16,
+                          width: 44,
+                          height: 44,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                          border: "none",
+                        }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          setShowShippedModal(invoice.id);
+                          setShippedTruckNumber("");
+                        }}
+                        disabled={invoice.status === 'done'}
+                        title={invoice.status === 'done' ? "Shipped" : "Mark as Shipped"}
+                      >
+                        <i className="bi bi-truck" style={{ color: '#0ea5e9', fontSize: 22 }} />
                       </button>
                     </div>
                   </div>
@@ -2037,6 +2066,57 @@ export default function ActiveInvoices({
                   }}
                 >
                   Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Shipped Modal */}
+      {showShippedModal && (
+        <div className="modal show" style={{ display: 'block', background: 'rgba(0,0,0,0.3)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Enter Truck Number</h5>
+                <button type="button" className="btn-close" onClick={() => setShowShippedModal(null)}></button>
+              </div>
+              <div className="modal-body">
+                <input
+                  type="number"
+                  className="form-control"
+                  placeholder="Truck Number"
+                  value={shippedTruckNumber}
+                  onChange={e => setShippedTruckNumber(e.target.value.replace(/[^0-9]/g, ""))}
+                  min={1}
+                  autoFocus
+                />
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowShippedModal(null)}>Cancel</button>
+                <button
+                  className="btn btn-info"
+                  disabled={!shippedTruckNumber}
+                  onClick={async () => {
+                    // Update invoice and group status to done, store truck number
+                    const invoice = invoices.find(inv => inv.id === showShippedModal);
+                    if (!invoice) return;
+                    await onUpdateInvoice(invoice.id, { status: 'done', truckNumber: shippedTruckNumber });
+                    // Update group status if invoice has pickupGroupId
+                    if (invoice.pickupGroupId) {
+                      try {
+                        const { updatePickupGroupStatus } = await import("../services/firebaseService");
+                        await updatePickupGroupStatus(invoice.pickupGroupId, 'done');
+                      } catch (e) {
+                        // Optionally handle error
+                        console.error('Failed to update group status:', e);
+                      }
+                    }
+                    setShowShippedModal(null);
+                  }}
+                >
+                  Mark as Shipped
                 </button>
               </div>
             </div>

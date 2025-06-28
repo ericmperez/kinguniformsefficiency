@@ -53,6 +53,8 @@ export interface Invoice {
   lockedBy?: string; // User ID or username who closed the invoice
   lockedAt?: string; // Timestamp when invoice was closed
   note?: string; // Public note for all users to see
+  truckNumber?: string; // Add truck number for shipped invoices
+  pickupGroupId?: string; // Link to pickup group if present
 }
 
 export interface LaundryCart {
