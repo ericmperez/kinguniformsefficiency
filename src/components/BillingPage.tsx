@@ -25,7 +25,8 @@ const BillingPage: React.FC = () => {
   const [fuelChargePercent, setFuelChargePercent] = useState('');
 
   // State for surcharge
-  const [surcharge, setSurcharge] = useState<string>("");
+  const [surchargeEnabled, setSurchargeEnabled] = useState(false);
+  const [surchargePercent, setSurchargePercent] = useState("");
 
   // Get selected client object
   const selectedClient = clients.find(c => c.id === selectedClientId);
@@ -117,7 +118,8 @@ const BillingPage: React.FC = () => {
   // Load surcharge for selected client
   useEffect(() => {
     if (!selectedClient) {
-      setSurcharge("");
+      setSurchargeEnabled(false);
+      setSurchargePercent("");
       return;
     }
     (async () => {
@@ -126,9 +128,11 @@ const BillingPage: React.FC = () => {
       const docRef = doc(db, "client_minimum_billing", selectedClient.id);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        setSurcharge(snap.data().surcharge !== undefined ? String(snap.data().surcharge) : "");
+        setSurchargeEnabled(!!snap.data().surchargeEnabled);
+        setSurchargePercent(snap.data().surchargePercent !== undefined ? String(snap.data().surchargePercent) : "");
       } else {
-        setSurcharge("");
+        setSurchargeEnabled(false);
+        setSurchargePercent("");
       }
     })();
   }, [selectedClientId]);
@@ -167,7 +171,8 @@ const BillingPage: React.FC = () => {
           serviceChargePercent: serviceChargePercent ? Number(serviceChargePercent) : 0,
           fuelChargeEnabled,
           fuelChargePercent: fuelChargePercent ? Number(fuelChargePercent) : 0,
-          surcharge: surcharge ? Number(surcharge) : 0,
+          surchargeEnabled,
+          surchargePercent: surchargePercent ? Number(surchargePercent) : 0,
           updatedAt: new Date().toISOString(),
         }
       );
@@ -185,6 +190,25 @@ const BillingPage: React.FC = () => {
 
   return (
     <div className="container py-4">
+      {/* Client Dropdown Filter - moved to top */}
+      <div className="mb-4" style={{ maxWidth: 350 }}>
+        <label className="form-label">Select Client</label>
+        <select
+          className="form-select"
+          value={selectedClientId}
+          onChange={e => setSelectedClientId(e.target.value)}
+        >
+          <option value="">All Clients</option>
+          {clients
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(client => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+        </select>
+      </div>
       <h2>Billing Section</h2>
       {/* Per-Product Price Table for Selected Client */}
       {selectedClient && (
@@ -236,16 +260,31 @@ const BillingPage: React.FC = () => {
             />
           </div>
           {/* Surcharge input */}
-          <div className="mb-3" style={{ maxWidth: 300 }}>
-            <label className="form-label">Surcharge</label>
-            <input
-              type="number"
-              className="form-control"
-              min={0}
-              value={surcharge}
-              onChange={e => setSurcharge(e.target.value)}
-              placeholder="Enter surcharge value"
-            />
+          <div className="mb-3" style={{ maxWidth: 500 }}>
+            <div className="form-check">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="surcharge"
+                checked={surchargeEnabled}
+                onChange={() => setSurchargeEnabled(v => !v)}
+              />
+              <label className="form-check-label" htmlFor="surcharge">
+                Surcharge
+              </label>
+              <input
+                type="number"
+                className="form-control d-inline-block ms-2"
+                style={{ width: 100 }}
+                min={0}
+                max={100}
+                value={surchargePercent}
+                onChange={e => setSurchargePercent(e.target.value)}
+                placeholder="%"
+                disabled={!surchargeEnabled}
+              />
+              <span className="ms-2">%</span>
+            </div>
           </div>
           {/* Service and Fuel Charge Options */}
           <div className="mb-3" style={{ maxWidth: 500 }}>
@@ -311,25 +350,6 @@ const BillingPage: React.FC = () => {
           )}
         </div>
       )}
-      {/* Client Dropdown Filter */}
-      <div className="mb-4" style={{ maxWidth: 350 }}>
-        <label className="form-label">Select Client</label>
-        <select
-          className="form-select"
-          value={selectedClientId}
-          onChange={e => setSelectedClientId(e.target.value)}
-        >
-          <option value="">All Clients</option>
-          {clients
-            .slice()
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .map(client => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
-        </select>
-      </div>
       {/* Completed Invoices Table */}
       {(() => {
         // Filter/group invoices by selected client
@@ -421,13 +441,16 @@ const BillingPage: React.FC = () => {
                       // Calculate charges
                       let serviceCharge = 0;
                       let fuelCharge = 0;
+                      let surchargeValue = 0;
                       if (serviceChargeEnabled && serviceChargePercent && Number(serviceChargePercent) > 0) {
                         serviceCharge = displaySubtotal * (Number(serviceChargePercent) / 100);
                       }
                       if (fuelChargeEnabled && fuelChargePercent && Number(fuelChargePercent) > 0) {
                         fuelCharge = displaySubtotal * (Number(fuelChargePercent) / 100);
                       }
-                      let surchargeValue = surcharge ? Number(surcharge) : 0;
+                      if (surchargeEnabled && surchargePercent && Number(surchargePercent) > 0) {
+                        surchargeValue = displaySubtotal * (Number(surchargePercent) / 100);
+                      }
                       return (
                         <tr key={inv.id} className={missingPrice ? 'table-danger' : ''}>
                           <td>{inv.invoiceNumber || inv.id}</td>

@@ -180,7 +180,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
             <div className="mb-3">
               <label className="form-label">Selected Products</label>
               <div className="row g-3">
-                {products.map((product) => (
+                {[...products].sort((a, b) => a.name.localeCompare(b.name)).map((product) => (
                   <div key={product.id} className="col-6 col-md-4 col-lg-3">
                     <label
                       className={`card h-100 shadow-sm position-relative product-checkbox-card ${
@@ -555,7 +555,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   <div className="mb-3">
                     <label className="form-label">Selected Products</label>
                     <div className="row g-3">
-                      {products.map((product) => (
+                      {[...products].sort((a, b) => a.name.localeCompare(b.name)).map((product) => (
                         <div
                           key={product.id}
                           className="col-6 col-md-4 col-lg-3"
