@@ -18,7 +18,9 @@ export default function InvoiceForm({
   const [showConfirm, setShowConfirm] = useState(false);
 
   // Sort clients alphabetically by name
-  const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedClients = [...clients].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
 
   const handleClientClick = (clientId: string) => {
     setSelectedClient(clientId);
@@ -68,7 +70,9 @@ export default function InvoiceForm({
                     <div key={client.id} className="col-6 col-md-4">
                       <div
                         className={`card h-100 shadow-sm position-relative client-card-select ${
-                          selectedClient === client.id ? "border-primary" : "border-light"
+                          selectedClient === client.id
+                            ? "border-primary"
+                            : "border-light"
                         }`}
                         style={{
                           cursor: "pointer",
@@ -127,18 +131,32 @@ export default function InvoiceForm({
         </div>
       </div>
       {showConfirm && selectedClient && (
-        <div className="modal show d-block" tabIndex={-1} style={{ background: "rgba(0,0,0,0.3)" }}>
+        <div
+          className="modal show d-block"
+          tabIndex={-1}
+          style={{ background: "rgba(0,0,0,0.3)" }}
+        >
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Confirm Client</h5>
               </div>
               <div className="modal-body">
-                <p>Are you sure you want to create an invoice for <b>{clients.find(c => c.id === selectedClient)?.name}</b>?</p>
+                <p>
+                  Are you sure you want to create an invoice for{" "}
+                  <b>{clients.find((c) => c.id === selectedClient)?.name}</b>?
+                </p>
               </div>
               <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowConfirm(false)}>Cancel</button>
-                <button className="btn btn-primary" onClick={handleConfirm}>Yes, Create Invoice</button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowConfirm(false)}
+                >
+                  Cancel
+                </button>
+                <button className="btn btn-primary" onClick={handleConfirm}>
+                  Yes, Create Invoice
+                </button>
               </div>
             </div>
           </div>

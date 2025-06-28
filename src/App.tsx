@@ -589,11 +589,38 @@ function App() {
 
   // Home page cards config
   const homePages = [
-    { label: "Entradas", page: "entradas", color: "#FAC61B", icon: <ListAltIcon style={{ fontSize: 38, color: '#FAC61B' }} /> },
-    { label: "Segregation", page: "segregation", color: "#0E62A0", icon: <GroupWorkIcon style={{ fontSize: 38, color: '#0E62A0' }} /> },
-    { label: "Washing", page: "washing", color: "#D72328", icon: <LocalLaundryServiceIcon style={{ fontSize: 38, color: '#D72328' }} /> },
-    { label: "Reports", page: "reports", color: "#0E62A0", icon: <AssessmentIcon style={{ fontSize: 38, color: '#0E62A0' }} /> },
-    { label: "Settings", page: "settings", color: "#FAC61B", icon: <SettingsIcon style={{ fontSize: 38, color: '#FAC61B' }} /> },
+    {
+      label: "Entradas",
+      page: "entradas",
+      color: "#FAC61B",
+      icon: <ListAltIcon style={{ fontSize: 38, color: "#FAC61B" }} />,
+    },
+    {
+      label: "Segregation",
+      page: "segregation",
+      color: "#0E62A0",
+      icon: <GroupWorkIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
+    },
+    {
+      label: "Washing",
+      page: "washing",
+      color: "#D72328",
+      icon: (
+        <LocalLaundryServiceIcon style={{ fontSize: 38, color: "#D72328" }} />
+      ),
+    },
+    {
+      label: "Reports",
+      page: "reports",
+      color: "#0E62A0",
+      icon: <AssessmentIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
+    },
+    {
+      label: "Settings",
+      page: "settings",
+      color: "#FAC61B",
+      icon: <SettingsIcon style={{ fontSize: 38, color: "#FAC61B" }} />,
+    },
     // Add more pages as needed
   ];
 
@@ -654,9 +681,14 @@ function App() {
         <ul className="mb-0">
           {pendingProducts.map((item, idx) => (
             <li key={item.groupId + "-" + (item.cartId || "group") + "-" + idx}>
-              <b>Client:</b> {item.clientName} &nbsp; <b>Product:</b> {item.productName} &nbsp; <b>Qty:</b> {item.quantity}
+              <b>Client:</b> {item.clientName} &nbsp; <b>Product:</b>{" "}
+              {item.productName} &nbsp; <b>Qty:</b> {item.quantity}
               {item.createdAt && (
-                <span style={{ color: '#888', fontSize: '0.9em' }}> &nbsp; <b>Created:</b> {new Date(item.createdAt).toLocaleString()}</span>
+                <span style={{ color: "#888", fontSize: "0.9em" }}>
+                  {" "}
+                  &nbsp; <b>Created:</b>{" "}
+                  {new Date(item.createdAt).toLocaleString()}
+                </span>
               )}
             </li>
           ))}
@@ -672,9 +704,15 @@ function App() {
     invoices: Invoice[];
   };
 
-  function MissingRequiredItemsSection({ clients, products, invoices }: MissingRequiredItemsSectionProps) {
+  function MissingRequiredItemsSection({
+    clients,
+    products,
+    invoices,
+  }: MissingRequiredItemsSectionProps) {
     // Build a map of productId to productName for display
-    const productMap: Record<string, string> = Object.fromEntries(products.map((p: Product) => [p.id, p.name]));
+    const productMap: Record<string, string> = Object.fromEntries(
+      products.map((p: Product) => [p.id, p.name])
+    );
     // Find all clients with an active invoice
     const clientActiveInvoices: Record<string, Invoice> = {};
     invoices.forEach((inv: Invoice) => {
@@ -707,11 +745,14 @@ function App() {
     if (missingItems.length === 0) return null;
     return (
       <div className="card p-3 mb-4 border-danger">
-        <h5 className="mb-3 text-danger">Required Items Missing from Invoices</h5>
+        <h5 className="mb-3 text-danger">
+          Required Items Missing from Invoices
+        </h5>
         <ul className="mb-0">
           {missingItems.map((item, idx) => (
             <li key={item.clientName + "-" + item.productName + "-" + idx}>
-              <b>Client:</b> {item.clientName} &nbsp; <b>Product:</b> {item.productName}
+              <b>Client:</b> {item.clientName} &nbsp; <b>Product:</b>{" "}
+              {item.productName}
             </li>
           ))}
         </ul>
@@ -736,9 +777,12 @@ function App() {
       };
     }, []);
 
-    if (loading) return <div className="card p-3 mb-3">Loading manual products...</div>;
+    if (loading)
+      return <div className="card p-3 mb-3">Loading manual products...</div>;
     if (manualProducts.length === 0)
-      return <div className="card p-3 mb-3">No manual products added today.</div>;
+      return (
+        <div className="card p-3 mb-3">No manual products added today.</div>
+      );
 
     return (
       <div className="card p-3 mb-3">
@@ -746,9 +790,19 @@ function App() {
         <ul className="mb-0">
           {manualProducts.map((item, idx) => (
             <li key={item.id || idx}>
-              <b>Client:</b> {item.clientName} &nbsp; <b>Product:</b> {item.productName} &nbsp; <b>Qty:</b> {item.quantity} &nbsp; <b>Type:</b> {item.type}
+              <b>Client:</b> {item.clientName} &nbsp; <b>Product:</b>{" "}
+              {item.productName} &nbsp; <b>Qty:</b> {item.quantity} &nbsp;{" "}
+              <b>Type:</b> {item.type}
               {item.createdAt && (
-                <span style={{ color: '#888', fontSize: '0.9em' }}> &nbsp; <b>Created:</b> {new Date(item.createdAt.seconds ? item.createdAt.seconds * 1000 : item.createdAt).toLocaleString()}</span>
+                <span style={{ color: "#888", fontSize: "0.9em" }}>
+                  {" "}
+                  &nbsp; <b>Created:</b>{" "}
+                  {new Date(
+                    item.createdAt.seconds
+                      ? item.createdAt.seconds * 1000
+                      : item.createdAt
+                  ).toLocaleString()}
+                </span>
               )}
             </li>
           ))}
@@ -1284,7 +1338,11 @@ function App() {
       {activePage === "home" && (
         <div className="container py-5">
           {/* --- Missing Required Items Section --- */}
-          <MissingRequiredItemsSection clients={clients} products={products} invoices={invoices} />
+          <MissingRequiredItemsSection
+            clients={clients}
+            products={products}
+            invoices={invoices}
+          />
           <div className="row justify-content-center mb-4">
             <div className="col-12 col-md-6 col-lg-4">
               <div
@@ -1321,33 +1379,52 @@ function App() {
           <ManualConventionalProductsWidget />
           {/* <PendingProductsWidget /> */}
           <div className="row justify-content-center g-4">
-            {homePages.filter(p => navLinks.find(l => l.page === p.page && l.visible)).map((p) => (
-              <div key={p.page} className="col-12 col-sm-6 col-md-4 col-lg-3 d-flex align-items-stretch">
+            {homePages
+              .filter((p) =>
+                navLinks.find((l) => l.page === p.page && l.visible)
+              )
+              .map((p) => (
                 <div
-                  className="card shadow text-center w-100 home-page-card"
-                  style={{
-                    border: `2.5px solid ${p.color}`,
-                    borderRadius: 18,
-                    padding: '2.5rem 1.5rem',
-                    cursor: 'pointer',
-                    transition: 'box-shadow 0.18s, transform 0.18s',
-                    boxShadow: '0 4px 24px rgba(14,98,160,0.10)',
-                    background: '#fff',
-                    minHeight: 180,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  onClick={() => setActivePage(p.page as typeof activePage)}
-                  tabIndex={0}
-                  onKeyDown={e => { if (e.key === 'Enter') setActivePage(p.page as typeof activePage); }}
+                  key={p.page}
+                  className="col-12 col-sm-6 col-md-4 col-lg-3 d-flex align-items-stretch"
                 >
-                  <div style={{ marginBottom: 18 }}>{p.icon}</div>
-                  <div style={{ fontWeight: 700, fontSize: 22, color: p.color, letterSpacing: 1 }}>{p.label}</div>
+                  <div
+                    className="card shadow text-center w-100 home-page-card"
+                    style={{
+                      border: `2.5px solid ${p.color}`,
+                      borderRadius: 18,
+                      padding: "2.5rem 1.5rem",
+                      cursor: "pointer",
+                      transition: "box-shadow 0.18s, transform 0.18s",
+                      boxShadow: "0 4px 24px rgba(14,98,160,0.10)",
+                      background: "#fff",
+                      minHeight: 180,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onClick={() => setActivePage(p.page as typeof activePage)}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter")
+                        setActivePage(p.page as typeof activePage);
+                    }}
+                  >
+                    <div style={{ marginBottom: 18 }}>{p.icon}</div>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 22,
+                        color: p.color,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      {p.label}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
           {/* --- Global Activity Log at the bottom --- */}
           <div className="row justify-content-center mt-5">

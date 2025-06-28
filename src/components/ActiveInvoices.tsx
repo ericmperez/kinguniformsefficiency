@@ -250,9 +250,15 @@ export default function ActiveInvoices({
       verifiedProducts,
     });
     // Open print modal for this invoice
-    const invoice = invoices.find(inv => inv.id === verifyInvoiceId);
+    const invoice = invoices.find((inv) => inv.id === verifyInvoiceId);
     if (invoice) {
-      openPrintInvoice({ ...invoice, verified: true, verifiedBy: user?.id, verifiedAt: new Date().toISOString(), verifiedProducts });
+      openPrintInvoice({
+        ...invoice,
+        verified: true,
+        verifiedBy: user?.id,
+        verifiedAt: new Date().toISOString(),
+        verifiedProducts,
+      });
     }
     setShowVerifyIdModal(false);
     setVerifyInvoiceId(null);
@@ -462,20 +468,28 @@ export default function ActiveInvoices({
     }
 
     // If trying to set to delivered, require all manual products present
-    if ((newStatus === "Entregado" || newStatus === "Boleta Impresa") && group) {
+    if (
+      (newStatus === "Entregado" || newStatus === "Boleta Impresa") &&
+      group
+    ) {
       const invoice = invoices.find((inv) => inv.clientId === group.clientId);
       if (invoice && !invoiceHasAllRequiredManualProducts(invoice)) {
-        alert("You must add all required manual products to the invoice before delivering.");
+        alert(
+          "You must add all required manual products to the invoice before delivering."
+        );
         return;
       }
       if (invoice) {
         // Mark all manual products as invoiced and delivered
         const required = getRequiredManualProductsForInvoice(invoice);
         for (const mp of required) {
-          await updateDoc(doc(db, 'manual_conventional_products', mp.id), { invoiceId: invoice.id, delivered: true });
+          await updateDoc(doc(db, "manual_conventional_products", mp.id), {
+            invoiceId: invoice.id,
+            delivered: true,
+          });
         }
         setManualProducts((prev) =>
-          prev.map((p) => 
+          prev.map((p) =>
             required.some((mp) => mp.id === p.id)
               ? { ...p, invoiceId: invoice.id, delivered: true }
               : p
@@ -592,7 +606,9 @@ export default function ActiveInvoices({
   const [selectedCartModalId, setSelectedCartModalId] = useState<string>("");
 
   // Add at the top-level of the component:
-  const [showNoteInput, setShowNoteInput] = useState<{ [invoiceId: string]: boolean }>({});
+  const [showNoteInput, setShowNoteInput] = useState<{
+    [invoiceId: string]: boolean;
+  }>({});
 
   // --- Manual Conventional Products State ---
   const [manualProducts, setManualProducts] = useState<any[]>([]);
@@ -618,8 +634,13 @@ export default function ActiveInvoices({
     );
 
   // When adding a manual product to an invoice, set its invoiceId in Firestore
-  const handleAddManualProductToInvoice = async (manualProductId: string, invoiceId: string) => {
-    await updateDoc(doc(db, 'manual_conventional_products', manualProductId), { invoiceId });
+  const handleAddManualProductToInvoice = async (
+    manualProductId: string,
+    invoiceId: string
+  ) => {
+    await updateDoc(doc(db, "manual_conventional_products", manualProductId), {
+      invoiceId,
+    });
     setManualProducts((prev) =>
       prev.map((p) => (p.id === manualProductId ? { ...p, invoiceId } : p))
     );
@@ -628,9 +649,7 @@ export default function ActiveInvoices({
   // Helper: for a given invoice, get required manual products (ALL manual, not delivered, for this client)
   const getRequiredManualProductsForInvoice = (invoice: Invoice) =>
     manualProducts.filter(
-      (mp) =>
-        mp.clientId === invoice.clientId &&
-        !mp.delivered
+      (mp) => mp.clientId === invoice.clientId && !mp.delivered
     );
 
   // Helper: check if all required manual products are present in the invoice carts
@@ -642,7 +661,8 @@ export default function ActiveInvoices({
     return required.every((mp) =>
       allItems.some(
         (item) =>
-          item.productId === mp.productId && Number(item.quantity) >= Number(mp.quantity)
+          item.productId === mp.productId &&
+          Number(item.quantity) >= Number(mp.quantity)
       )
     );
   };
@@ -653,21 +673,32 @@ export default function ActiveInvoices({
   }>({});
 
   // Add at the top-level of the component:
-  const [showPrintInvoiceModal, setShowPrintInvoiceModal] = React.useState(false);
+  const [showPrintInvoiceModal, setShowPrintInvoiceModal] =
+    React.useState(false);
   const [printInvoiceData, setPrintInvoiceData] = React.useState<any>(null);
-  const [printDate, setPrintDate] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [printDate, setPrintDate] = React.useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
   const [printVerifiedBy, setPrintVerifiedBy] = React.useState("");
-  const [printQuantities, setPrintQuantities] = React.useState<{ [productId: string]: number }>({});
+  const [printQuantities, setPrintQuantities] = React.useState<{
+    [productId: string]: number;
+  }>({});
 
   // Helper to open print modal after verification
   function openPrintInvoice(invoice: Invoice) {
     // Build global product summary
     const carts = invoice.carts || [];
-    const productMap: { [productId: string]: { name: string; total: number; carts: string[] } } = {};
-    carts.forEach(cart => {
-      cart.items.forEach(item => {
+    const productMap: {
+      [productId: string]: { name: string; total: number; carts: string[] };
+    } = {};
+    carts.forEach((cart) => {
+      cart.items.forEach((item) => {
         if (!productMap[item.productId]) {
-          productMap[item.productId] = { name: item.productName, total: 0, carts: [] };
+          productMap[item.productId] = {
+            name: item.productName,
+            total: 0,
+            carts: [],
+          };
         }
         productMap[item.productId].total += Number(item.quantity) || 0;
         if (!productMap[item.productId].carts.includes(cart.name)) {
@@ -685,7 +716,11 @@ export default function ActiveInvoices({
     });
     setPrintVerifiedBy(invoice.verifiedBy || user?.username || "");
     setPrintDate(new Date().toISOString().slice(0, 10));
-    setPrintQuantities(Object.fromEntries(Object.entries(productMap).map(([pid, p]) => [pid, p.total])));
+    setPrintQuantities(
+      Object.fromEntries(
+        Object.entries(productMap).map(([pid, p]) => [pid, p.total])
+      )
+    );
     setShowPrintInvoiceModal(true);
   }
 
@@ -730,30 +765,55 @@ export default function ActiveInvoices({
                   className="modern-invoice-card shadow-lg"
                   style={{
                     borderRadius: 20,
-                    background: '#fff',
-                    color: '#111',
-                    boxShadow: '0 4px 24px 0 rgba(0,0,0,0.07)',
-                    border: '1.5px solid #e0e0e0',
-                    position: 'relative',
+                    background: "#fff",
+                    color: "#111",
+                    boxShadow: "0 4px 24px 0 rgba(0,0,0,0.07)",
+                    border: "1.5px solid #e0e0e0",
+                    position: "relative",
                     minHeight: 320,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
-                    transition: 'transform 0.18s, box-shadow 0.18s',
-                    transform: hoveredInvoiceId === invoice.id ? 'translateY(-4px) scale(1.02)' : 'none',
-                    overflow: 'hidden',
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+                    transition: "transform 0.18s, box-shadow 0.18s",
+                    transform:
+                      hoveredInvoiceId === invoice.id
+                        ? "translateY(-4px) scale(1.02)"
+                        : "none",
+                    overflow: "hidden",
                   }}
                 >
                   <div className="card-body p-4" style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, fontSize: 24, marginBottom: 6, color: 'var(--ku-blue)' }}>
-                      {clients.find((c) => c.id === invoice.clientId)?.name || invoice.clientName}
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        fontSize: 24,
+                        marginBottom: 6,
+                        color: "var(--ku-blue)",
+                      }}
+                    >
+                      {clients.find((c) => c.id === invoice.clientId)?.name ||
+                        invoice.clientName}
                     </div>
-                    <div style={{ fontSize: 15, color: '#888', marginBottom: 12, letterSpacing: 1 }}>
-                      Invoice #{invoice.invoiceNumber ? String(invoice.invoiceNumber).padStart(4, '0') : String(idx + 1).padStart(4, '0')}
+                    <div
+                      style={{
+                        fontSize: 15,
+                        color: "#888",
+                        marginBottom: 12,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      Invoice #
+                      {invoice.invoiceNumber
+                        ? String(invoice.invoiceNumber).padStart(4, "0")
+                        : String(idx + 1).padStart(4, "0")}
                     </div>
                     <div style={{ marginBottom: 14 }}>
-                      <span style={{ fontWeight: 600, color: '#222', fontSize: 16 }}>Carts:</span>{' '}
+                      <span
+                        style={{ fontWeight: 600, color: "#222", fontSize: 16 }}
+                      >
+                        Carts:
+                      </span>{" "}
                       {invoice.carts && invoice.carts.length > 0 ? (
                         <span className="d-flex flex-wrap gap-2 mt-1">
                           {invoice.carts.map((cart) => (
@@ -762,10 +822,10 @@ export default function ActiveInvoices({
                               className="badge rounded-pill"
                               style={{
                                 fontSize: 15,
-                                padding: '8px 18px',
-                                background: 'var(--ku-light)',
-                                color: 'var(--ku-blue)',
-                                border: '1.5px solid var(--ku-blue)',
+                                padding: "8px 18px",
+                                background: "var(--ku-light)",
+                                color: "var(--ku-blue)",
+                                border: "1.5px solid var(--ku-blue)",
                                 fontWeight: 700,
                                 letterSpacing: 0.5,
                               }}
@@ -786,20 +846,54 @@ export default function ActiveInvoices({
                       if (manualForInvoice.length === 0) return null;
                       return (
                         <div className="mb-2">
-                          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2, color: 'var(--ku-red)' }}>Manual Products</div>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: 15,
+                              marginBottom: 2,
+                              color: "var(--ku-red)",
+                            }}
+                          >
+                            Manual Products
+                          </div>
                           <ul className="list-group mb-2">
                             {manualForInvoice.map((mp) => (
-                              <li key={mp.id} className="list-group-item d-flex justify-content-between align-items-center py-2" style={{ background: 'rgba(250,198,27,0.08)', border: 'none', fontSize: 14 }}>
+                              <li
+                                key={mp.id}
+                                className="list-group-item d-flex justify-content-between align-items-center py-2"
+                                style={{
+                                  background: "rgba(250,198,27,0.08)",
+                                  border: "none",
+                                  fontSize: 14,
+                                }}
+                              >
                                 <span>
-                                  <b>{mp.productName}</b> x{mp.quantity} <span className="text-muted">({mp.type})</span>
-                                  {mp.washed && <span className="badge bg-success ms-2">Washed</span>}
-                                  {mp.delivered && <span className="badge bg-secondary ms-2">Delivered</span>}
-                                  {!mp.washed && <span className="badge bg-warning text-dark ms-2">Pending</span>}
+                                  <b>{mp.productName}</b> x{mp.quantity}{" "}
+                                  <span className="text-muted">
+                                    ({mp.type})
+                                  </span>
+                                  {mp.washed && (
+                                    <span className="badge bg-success ms-2">
+                                      Washed
+                                    </span>
+                                  )}
+                                  {mp.delivered && (
+                                    <span className="badge bg-secondary ms-2">
+                                      Delivered
+                                    </span>
+                                  )}
+                                  {!mp.washed && (
+                                    <span className="badge bg-warning text-dark ms-2">
+                                      Pending
+                                    </span>
+                                  )}
                                 </span>
                                 <button
                                   className="btn btn-sm btn-outline-danger"
                                   title="Delete manual product"
-                                  onClick={() => handleDeleteManualProduct(mp.id)}
+                                  onClick={() =>
+                                    handleDeleteManualProduct(mp.id)
+                                  }
                                   disabled={!!invoice.locked}
                                 >
                                   Delete
@@ -812,15 +906,41 @@ export default function ActiveInvoices({
                     })()}
                     {/* Public Note */}
                     <div className="mb-2">
-                      <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ku-yellow)' }}>
+                      <label
+                        className="form-label"
+                        style={{
+                          fontWeight: 600,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          color: "var(--ku-yellow)",
+                        }}
+                      >
                         Nota Pública
                         <span
-                          style={{ cursor: 'pointer', color: '#f0ad4e', fontSize: 22, display: 'inline-flex', alignItems: 'center' }}
+                          style={{
+                            cursor: "pointer",
+                            color: "#f0ad4e",
+                            fontSize: 22,
+                            display: "inline-flex",
+                            alignItems: "center",
+                          }}
                           title="Agregar o editar nota pública"
-                          onClick={() => setShowNoteInput((prev) => ({ ...prev, [invoice.id]: !prev[invoice.id] }))}
+                          onClick={() =>
+                            setShowNoteInput((prev) => ({
+                              ...prev,
+                              [invoice.id]: !prev[invoice.id],
+                            }))
+                          }
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.707c.89 0 1.438-.99.982-1.767L8.982 1.566zm-1.196.93a.13.13 0 0 1 .228 0l6.853 11.667a.13.13 0 0 1-.114.197H1.147a.13.13 0 0 1-.114-.197L7.886 2.497zM8 5c-.535 0-.954.462-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="1.2em"
+                            height="1.2em"
+                            fill="currentColor"
+                            viewBox="0 0 16 16"
+                          >
+                            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.707c.89 0 1.438-.99.982-1.767L8.982 1.566zm-1.196.93a.13.13 0 0 1 .228 0l6.853 11.667a.13.13 0 0 1-.114.197H1.147a.13.13 0 0 1-.114-.197L7.886 2.497zM8 5c-.535 0-.954.462-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" />
                           </svg>
                         </span>
                       </label>
@@ -828,17 +948,33 @@ export default function ActiveInvoices({
                         <textarea
                           className="form-control mb-2"
                           rows={2}
-                          value={invoice.note || ''}
+                          value={invoice.note || ""}
                           placeholder="Escribe una nota visible para todos..."
-                          onChange={(e) => onUpdateInvoice(invoice.id, { note: e.target.value })}
+                          onChange={(e) =>
+                            onUpdateInvoice(invoice.id, {
+                              note: e.target.value,
+                            })
+                          }
                           disabled={!!invoice.locked}
-                          style={{ fontSize: 20, fontWeight: 700, borderRadius: 12, background: 'rgba(255,255,255,0.7)' }}
+                          style={{
+                            fontSize: 20,
+                            fontWeight: 700,
+                            borderRadius: 12,
+                            background: "rgba(255,255,255,0.7)",
+                          }}
                           autoFocus
                         />
                       ) : (
                         <div
                           className="alert alert-info py-1 mb-2"
-                          style={{ fontSize: 20, fontWeight: 700, whiteSpace: 'pre-line', minHeight: 38, borderRadius: 12, background: 'rgba(250,198,27,0.08)' }}
+                          style={{
+                            fontSize: 20,
+                            fontWeight: 700,
+                            whiteSpace: "pre-line",
+                            minHeight: 38,
+                            borderRadius: 12,
+                            background: "rgba(250,198,27,0.08)",
+                          }}
                         >
                           {invoice.note ? (
                             invoice.note
@@ -851,76 +987,143 @@ export default function ActiveInvoices({
                     {/* Status Badges */}
                     <div className="d-flex flex-wrap gap-2 mb-2">
                       {invoice.locked && (
-                        <span className="badge" style={{ background: 'var(--ku-red)', color: '#fff', fontWeight: 700, fontSize: 14 }}>Boleta Cerrada</span>
+                        <span
+                          className="badge"
+                          style={{
+                            background: "var(--ku-red)",
+                            color: "#fff",
+                            fontWeight: 700,
+                            fontSize: 14,
+                          }}
+                        >
+                          Boleta Cerrada
+                        </span>
                       )}
                       {invoice.verified && (
-                        <span className="badge" style={{ background: 'var(--ku-yellow)', color: 'var(--ku-dark)', fontWeight: 700, fontSize: 14 }}>Verificado</span>
+                        <span
+                          className="badge"
+                          style={{
+                            background: "var(--ku-yellow)",
+                            color: "var(--ku-dark)",
+                            fontWeight: 700,
+                            fontSize: 14,
+                          }}
+                        >
+                          Verificado
+                        </span>
                       )}
                     </div>
                   </div>
-                  <div className="card-footer bg-transparent border-top-0 p-3"
-  style={{
-    borderRadius: '0 0 28px 28px',
-    background: 'rgba(255,255,255,0.5)',
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    rowGap: 10,
-    minHeight: 60,
-  }}
->
-  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, flex: 1, justifyContent: 'flex-start', alignItems: 'center' }}>
-    <button
-      className="btn btn-outline-primary ku-btn-blue"
-      onClick={() => handleInvoiceClick(invoice.id)}
-      disabled={!!invoice.locked}
-      style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 110, flex: '1 1 120px', maxWidth: 180 }}
-    >
-      View / Edit
-    </button>
-    <button
-      className="btn btn-outline-danger ku-btn-red"
-      onClick={() => handleDeleteClick(invoice)}
-      disabled={!!invoice.locked}
-      style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 110, flex: '1 1 120px', maxWidth: 180 }}
-    >
-      Delete
-    </button>
-    {!invoice.locked ? (
-      <>
-        <button
-          className="btn ku-btn-yellow"
-          onClick={() => handleLockInvoice(invoice.id)}
-          disabled={!invoiceHasAllRequiredManualProducts(invoice)}
-          style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 140, flex: '1 1 140px', maxWidth: 200 }}
-        >
-          Cerrar Boleta
-        </button>
-        {/* ...missing products alert stays below, not in button row... */}
-      </>
-    ) : user?.role === 'Owner' ? (
-      <button
-        className="btn btn-success ku-btn-blue"
-        onClick={() => handleUnlockInvoice(invoice.id)}
-        style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 140, flex: '1 1 140px', maxWidth: 200 }}
-      >
-        Desbloquear
-      </button>
-    ) : null}
-    {invoice.locked && !invoice.verified && (
-      <button
-        className="btn btn-info ku-btn-yellow"
-        onClick={() => handleVerifyInvoice(invoice.id)}
-        disabled={!!verifyInvoiceId}
-        style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 140, flex: '1 1 140px', maxWidth: 200 }}
-      >
-        Verificar
-      </button>
-    )}
-  </div>
-</div>
+                  <div
+                    className="card-footer bg-transparent border-top-0 p-3"
+                    style={{
+                      borderRadius: "0 0 28px 28px",
+                      background: "rgba(255,255,255,0.5)",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 10,
+                      rowGap: 10,
+                      minHeight: 60,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        flex: 1,
+                        justifyContent: "flex-start",
+                        alignItems: "center",
+                      }}
+                    >
+                      <button
+                        className="btn btn-outline-primary ku-btn-blue"
+                        onClick={() => handleInvoiceClick(invoice.id)}
+                        disabled={!!invoice.locked}
+                        style={{
+                          borderRadius: 10,
+                          fontWeight: 700,
+                          fontSize: 16,
+                          minWidth: 110,
+                          flex: "1 1 120px",
+                          maxWidth: 180,
+                        }}
+                      >
+                        View / Edit
+                      </button>
+                      <button
+                        className="btn btn-outline-danger ku-btn-red"
+                        onClick={() => handleDeleteClick(invoice)}
+                        disabled={!!invoice.locked}
+                        style={{
+                          borderRadius: 10,
+                          fontWeight: 700,
+                          fontSize: 16,
+                          minWidth: 110,
+                          flex: "1 1 120px",
+                          maxWidth: 180,
+                        }}
+                      >
+                        Delete
+                      </button>
+                      {!invoice.locked ? (
+                        <>
+                          <button
+                            className="btn ku-btn-yellow"
+                            onClick={() => handleLockInvoice(invoice.id)}
+                            disabled={
+                              !invoiceHasAllRequiredManualProducts(invoice)
+                            }
+                            style={{
+                              borderRadius: 10,
+                              fontWeight: 700,
+                              fontSize: 16,
+                              minWidth: 140,
+                              flex: "1 1 140px",
+                              maxWidth: 200,
+                            }}
+                          >
+                            Cerrar Boleta
+                          </button>
+                          {/* ...missing products alert stays below, not in button row... */}
+                        </>
+                      ) : user?.role === "Owner" ? (
+                        <button
+                          className="btn btn-success ku-btn-blue"
+                          onClick={() => handleUnlockInvoice(invoice.id)}
+                          style={{
+                            borderRadius: 10,
+                            fontWeight: 700,
+                            fontSize: 16,
+                            minWidth: 140,
+                            flex: "1 1 140px",
+                            maxWidth: 200,
+                          }}
+                        >
+                          Desbloquear
+                        </button>
+                      ) : null}
+                      {invoice.locked && !invoice.verified && (
+                        <button
+                          className="btn btn-info ku-btn-yellow"
+                          onClick={() => handleVerifyInvoice(invoice.id)}
+                          disabled={!!verifyInvoiceId}
+                          style={{
+                            borderRadius: 10,
+                            fontWeight: 700,
+                            fontSize: 16,
+                            minWidth: 140,
+                            flex: "1 1 140px",
+                            maxWidth: 200,
+                          }}
+                        >
+                          Verificar
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))
@@ -956,28 +1159,43 @@ export default function ActiveInvoices({
               <div className="modal-body">
                 {/* Cart log at the top */}
                 {(() => {
-                  const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                  const invoice = invoices.find(
+                    (inv) => inv.id === selectedInvoiceId
+                  );
                   if (!invoice) return null;
                   const carts = invoice.carts || [];
-                  const allItems = carts.flatMap(cart =>
-                    cart.items.map(item => ({
+                  const allItems = carts.flatMap((cart) =>
+                    cart.items.map((item) => ({
                       ...item,
-                      cartName: cart.name
+                      cartName: cart.name,
                     }))
                   );
-                  if (allItems.length === 0) return <div className="text-muted mb-3">No products in any cart yet.</div>;
+                  if (allItems.length === 0)
+                    return (
+                      <div className="text-muted mb-3">
+                        No products in any cart yet.
+                      </div>
+                    );
                   return (
                     <div className="mb-3">
                       <h6 className="mb-2">Cart Log</h6>
                       <ul className="list-group mb-0">
                         {allItems.map((item, idx) => (
-                          <li key={item.productId + '-' + idx} className="list-group-item d-flex justify-content-between align-items-center py-2">
+                          <li
+                            key={item.productId + "-" + idx}
+                            className="list-group-item d-flex justify-content-between align-items-center py-2"
+                          >
                             <span>
-                              <b>{item.productName}</b> <span className="text-secondary">({item.cartName})</span>
+                              <b>{item.productName}</b>{" "}
+                              <span className="text-secondary">
+                                ({item.cartName})
+                              </span>
                             </span>
                             <span>
                               <b>Qty:</b> {item.quantity} &nbsp;
-                              <span className="text-muted">{item.addedBy ? `By: ${item.addedBy}` : ""}</span>
+                              <span className="text-muted">
+                                {item.addedBy ? `By: ${item.addedBy}` : ""}
+                              </span>
                             </span>
                           </li>
                         ))}
@@ -987,27 +1205,38 @@ export default function ActiveInvoices({
                 })()}
                 {/* Cart summary by product for each cart */}
                 {(() => {
-                  const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                  const invoice = invoices.find(
+                    (inv) => inv.id === selectedInvoiceId
+                  );
                   if (!invoice) return null;
                   const carts = invoice.carts || [];
                   if (carts.length === 0) return null;
                   return (
                     <div className="mb-4">
                       <h6 className="mb-2">Summary by Product (per Cart)</h6>
-                      {carts.map(cart => {
+                      {carts.map((cart) => {
                         if (!cart.items || cart.items.length === 0) return null;
                         // Aggregate product quantities in this cart
-                        const productTotals: { [productId: string]: { name: string; qty: number } } = {};
-                        cart.items.forEach(item => {
+                        const productTotals: {
+                          [productId: string]: { name: string; qty: number };
+                        } = {};
+                        cart.items.forEach((item) => {
                           if (!productTotals[item.productId]) {
-                            productTotals[item.productId] = { name: item.productName, qty: 0 };
+                            productTotals[item.productId] = {
+                              name: item.productName,
+                              qty: 0,
+                            };
                           }
-                          productTotals[item.productId].qty += Number(item.quantity) || 0;
+                          productTotals[item.productId].qty +=
+                            Number(item.quantity) || 0;
                         });
                         return (
                           <div key={cart.id} className="mb-2">
                             <div className="fw-bold">{cart.name}</div>
-                            <ul className="mb-1" style={{ fontSize: 15, paddingLeft: 18 }}>
+                            <ul
+                              className="mb-1"
+                              style={{ fontSize: 15, paddingLeft: 18 }}
+                            >
                               {Object.values(productTotals).map((prod, idx) => (
                                 <li key={prod.name + idx}>
                                   <span>{prod.name}</span>: <b>{prod.qty}</b>
@@ -1024,18 +1253,32 @@ export default function ActiveInvoices({
                 <div style={{ maxHeight: 400, overflowY: "auto" }}>
                   <div className="row g-3">
                     {(() => {
-                      const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                      const invoice = invoices.find(
+                        (inv) => inv.id === selectedInvoiceId
+                      );
                       if (!invoice) return null;
                       const carts = invoice.carts || [];
-                      const client = clients.find(c => c.id === invoice.clientId);
+                      const client = clients.find(
+                        (c) => c.id === invoice.clientId
+                      );
                       const allowedProductIds = client?.selectedProducts || [];
                       return products
-                        .filter(product => allowedProductIds.includes(product.id))
+                        .filter((product) =>
+                          allowedProductIds.includes(product.id)
+                        )
                         .map((product) => (
                           <div key={product.id} className="col-12 col-md-4">
                             <div
-                              className={`card mb-2 shadow-sm h-100${selectedProduct === product.id ? " border-primary" : " border-light"}`}
-                              style={{ cursor: "pointer", minHeight: 120, borderWidth: 2 }}
+                              className={`card mb-2 shadow-sm h-100${
+                                selectedProduct === product.id
+                                  ? " border-primary"
+                                  : " border-light"
+                              }`}
+                              style={{
+                                cursor: "pointer",
+                                minHeight: 120,
+                                borderWidth: 2,
+                              }}
                               onClick={() => {
                                 setProductForKeypad(product);
                                 setShowProductKeypad(true);
@@ -1046,11 +1289,21 @@ export default function ActiveInvoices({
                                 <img
                                   src={product.imageUrl}
                                   alt={product.name}
-                                  style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8 }}
+                                  style={{
+                                    width: "100%",
+                                    height: 90,
+                                    objectFit: "cover",
+                                    borderRadius: 8,
+                                  }}
                                 />
                               )}
                               <div className="card-body py-2 px-3 text-center">
-                                <div className="fw-bold" style={{ fontSize: 18 }}>{product.name}</div>
+                                <div
+                                  className="fw-bold"
+                                  style={{ fontSize: 18 }}
+                                >
+                                  {product.name}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1083,7 +1336,9 @@ export default function ActiveInvoices({
                               type="number"
                               className="form-control"
                               value={keypadQuantity}
-                              onChange={(e) => setKeypadQuantity(Number(e.target.value))}
+                              onChange={(e) =>
+                                setKeypadQuantity(Number(e.target.value))
+                              }
                               min={1}
                               autoFocus
                             />
@@ -1096,7 +1351,10 @@ export default function ActiveInvoices({
                           >
                             Cancel
                           </button>
-                          <button className="btn btn-primary" onClick={handleKeypadAdd}>
+                          <button
+                            className="btn btn-primary"
+                            onClick={handleKeypadAdd}
+                          >
                             Add to Cart
                           </button>
                         </div>
@@ -1107,50 +1365,96 @@ export default function ActiveInvoices({
                 {/* Global total by carts */}
                 <div className="mt-4 border-top pt-3">
                   <h6>Totals by Cart</h6>
-                  <ul className="mb-2" style={{ listStyle: "none", paddingLeft: 0 }}>
+                  <ul
+                    className="mb-2"
+                    style={{ listStyle: "none", paddingLeft: 0 }}
+                  >
                     {(() => {
-                      const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                      const invoice = invoices.find(
+                        (inv) => inv.id === selectedInvoiceId
+                      );
                       if (!invoice) return 0;
-                      return (invoice.carts || []).reduce((sum, cart) => sum + cart.items.reduce((s, item) => s + (Number(item.quantity) || 0), 0), 0);
+                      return (invoice.carts || []).reduce(
+                        (sum, cart) =>
+                          sum +
+                          cart.items.reduce(
+                            (s, item) => s + (Number(item.quantity) || 0),
+                            0
+                          ),
+                        0
+                      );
                     })()}
                   </ul>
                   <div className="fw-bold text-end">
-                    Global Total: {(() => {
-                      const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                    Global Total:{" "}
+                    {(() => {
+                      const invoice = invoices.find(
+                        (inv) => inv.id === selectedInvoiceId
+                      );
                       if (!invoice) return 0;
-                      return (invoice.carts || []).reduce((sum, cart) => sum + cart.items.reduce((s, item) => s + (Number(item.quantity) || 0), 0), 0);
+                      return (invoice.carts || []).reduce(
+                        (sum, cart) =>
+                          sum +
+                          cart.items.reduce(
+                            (s, item) => s + (Number(item.quantity) || 0),
+                            0
+                          ),
+                        0
+                      );
                     })()}
                   </div>
                 </div>
                 {/* Add Product to Each Cart */}
                 {(() => {
-                  const invoice = invoices.find(inv => inv.id === selectedInvoiceId);
+                  const invoice = invoices.find(
+                    (inv) => inv.id === selectedInvoiceId
+                  );
                   if (!invoice) return null;
                   const carts = invoice.carts || [];
                   if (carts.length === 0) return null;
                   return (
                     <div className="mb-4">
                       <h6 className="mb-2">Add Product to Each Cart</h6>
-                      {carts.map(cart => {
-                        const selection = cartProductSelections[cart.id] || { productId: "", qty: 1, adding: false };
-                        const allowedProductIds = (clients.find(c => c.id === invoice.clientId)?.selectedProducts) || [];
+                      {carts.map((cart) => {
+                        const selection = cartProductSelections[cart.id] || {
+                          productId: "",
+                          qty: 1,
+                          adding: false,
+                        };
+                        const allowedProductIds =
+                          clients.find((c) => c.id === invoice.clientId)
+                            ?.selectedProducts || [];
                         return (
-                          <div key={cart.id} className="mb-2 p-2 border rounded bg-light">
+                          <div
+                            key={cart.id}
+                            className="mb-2 p-2 border rounded bg-light"
+                          >
                             <div className="fw-bold mb-1">{cart.name}</div>
                             <div className="d-flex flex-row align-items-center gap-2 mb-2">
                               <select
                                 className="form-select form-select-sm"
                                 style={{ maxWidth: 180 }}
                                 value={selection.productId}
-                                onChange={e => setCartProductSelections(prev => ({
-                                  ...prev,
-                                  [cart.id]: { ...selection, productId: e.target.value }
-                                }))}
+                                onChange={(e) =>
+                                  setCartProductSelections((prev) => ({
+                                    ...prev,
+                                    [cart.id]: {
+                                      ...selection,
+                                      productId: e.target.value,
+                                    },
+                                  }))
+                                }
                               >
                                 <option value="">Select product</option>
-                                {products.filter(p => allowedProductIds.includes(p.id)).map(p => (
-                                  <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
+                                {products
+                                  .filter((p) =>
+                                    allowedProductIds.includes(p.id)
+                                  )
+                                  .map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.name}
+                                    </option>
+                                  ))}
                               </select>
                               <input
                                 type="number"
@@ -1158,51 +1462,78 @@ export default function ActiveInvoices({
                                 style={{ width: 80 }}
                                 min={1}
                                 value={selection.qty}
-                                onChange={e => setCartProductSelections(prev => ({
-                                  ...prev,
-                                  [cart.id]: { ...selection, qty: Number(e.target.value) }
-                                }))}
+                                onChange={(e) =>
+                                  setCartProductSelections((prev) => ({
+                                    ...prev,
+                                    [cart.id]: {
+                                      ...selection,
+                                      qty: Number(e.target.value),
+                                    },
+                                  }))
+                                }
                               />
                               <button
                                 className="btn btn-primary btn-sm"
-                                disabled={!selection.productId || selection.qty < 1 || selection.adding}
+                                disabled={
+                                  !selection.productId ||
+                                  selection.qty < 1 ||
+                                  selection.adding
+                                }
                                 onClick={async () => {
-                                  setCartProductSelections(prev => ({
+                                  setCartProductSelections((prev) => ({
                                     ...prev,
-                                    [cart.id]: { ...selection, adding: true }
+                                    [cart.id]: { ...selection, adding: true },
                                   }));
-                                  const product = products.find(p => p.id === selection.productId);
+                                  const product = products.find(
+                                    (p) => p.id === selection.productId
+                                  );
                                   if (!product) return;
                                   // Add or update product in cart
-                                  const updatedCarts = invoice.carts.map(c => {
-                                    if (c.id !== cart.id) return c;
-                                    const existingIdx = c.items.findIndex(item => item.productId === product.id);
-                                    let newItems;
-                                    if (existingIdx > -1) {
-                                      newItems = c.items.map((item, idx) =>
-                                        idx === existingIdx
-                                          ? { ...item, quantity: (Number(item.quantity) || 0) + selection.qty }
-                                          : item
+                                  const updatedCarts = invoice.carts.map(
+                                    (c) => {
+                                      if (c.id !== cart.id) return c;
+                                      const existingIdx = c.items.findIndex(
+                                        (item) => item.productId === product.id
                                       );
-                                    } else {
-                                      newItems = [
-                                        ...c.items,
-                                        {
-                                          productId: product.id,
-                                          productName: product.name,
-                                          quantity: selection.qty,
-                                          price: product.price,
-                                          addedBy: user?.username || "Unknown",
-                                          addedAt: new Date().toISOString(),
-                                        },
-                                      ];
+                                      let newItems;
+                                      if (existingIdx > -1) {
+                                        newItems = c.items.map((item, idx) =>
+                                          idx === existingIdx
+                                            ? {
+                                                ...item,
+                                                quantity:
+                                                  (Number(item.quantity) || 0) +
+                                                  selection.qty,
+                                              }
+                                            : item
+                                        );
+                                      } else {
+                                        newItems = [
+                                          ...c.items,
+                                          {
+                                            productId: product.id,
+                                            productName: product.name,
+                                            quantity: selection.qty,
+                                            price: product.price,
+                                            addedBy:
+                                              user?.username || "Unknown",
+                                            addedAt: new Date().toISOString(),
+                                          },
+                                        ];
+                                      }
+                                      return { ...c, items: newItems };
                                     }
-                                    return { ...c, items: newItems };
+                                  );
+                                  await onUpdateInvoice(invoice.id, {
+                                    carts: updatedCarts,
                                   });
-                                  await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-                                  setCartProductSelections(prev => ({
+                                  setCartProductSelections((prev) => ({
                                     ...prev,
-                                    [cart.id]: { productId: "", qty: 1, adding: false }
+                                    [cart.id]: {
+                                      productId: "",
+                                      qty: 1,
+                                      adding: false,
+                                    },
                                   }));
                                 }}
                               >
@@ -1376,12 +1707,19 @@ export default function ActiveInvoices({
                   >
                     <option value="">-- Select a product --</option>
                     {(() => {
-                      const client = clients.find(c => c.id === addProductGroup?.clientId);
+                      const client = clients.find(
+                        (c) => c.id === addProductGroup?.clientId
+                      );
                       const allowedProductIds = client?.selectedProducts || [];
                       return products
-                        .filter(product => allowedProductIds.includes(product.id))
+                        .filter((product) =>
+                          allowedProductIds.includes(product.id)
+                        )
                         .map((product, prodIdx) => (
-                          <option key={product.id || prodIdx} value={product.id}>
+                          <option
+                            key={product.id || prodIdx}
+                            value={product.id}
+                          >
                             {product.name}
                           </option>
                         ));
@@ -1654,12 +1992,19 @@ export default function ActiveInvoices({
                   >
                     <option value="">-- Select a product --</option>
                     {(() => {
-                      const client = clients.find(c => c.id === addToGroupClientId);
+                      const client = clients.find(
+                        (c) => c.id === addToGroupClientId
+                      );
                       const allowedProductIds = client?.selectedProducts || [];
                       return products
-                        .filter(product => allowedProductIds.includes(product.id))
+                        .filter((product) =>
+                          allowedProductIds.includes(product.id)
+                        )
                         .map((product, prodIdx) => (
-                          <option key={product.id || prodIdx} value={product.id}>
+                          <option
+                            key={product.id || prodIdx}
+                            value={product.id}
+                          >
                             {product.name}
                           </option>
                         ));
@@ -1722,7 +2067,9 @@ export default function ActiveInvoices({
                       className="form-control"
                       min={1}
                       value={addToGroupValue}
-                      onChange={(e) => setAddToGroupValue(Number(e.target.value))}
+                      onChange={(e) =>
+                        setAddToGroupValue(Number(e.target.value))
+                      }
                     />
                   </div>
                 )}
@@ -1886,7 +2233,7 @@ export default function ActiveInvoices({
                   <div className="alert alert-danger py-1">{unlockError}</div>
                 )}
               </div>
-                           <div className="modal-footer">
+              <div className="modal-footer">
                 <button
                   className="btn btn-secondary"
                   onClick={() => setUnlockInvoiceId(null)}
@@ -1909,7 +2256,6 @@ export default function ActiveInvoices({
           if (!invoice) return null;
           return (
             <div
-
               className="modal show"
               style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
             >
@@ -1917,7 +2263,7 @@ export default function ActiveInvoices({
                 <div className="modal-content">
                   <div className="modal-header">
                     <h5 className="modal-title">
-                     Verificar Productos de la Boleta
+                      Verificar Productos de la Boleta
                     </h5>
                     <button
                       type="button"
@@ -1927,7 +2273,7 @@ export default function ActiveInvoices({
                   </div>
                   <div className="modal-body">
                     {invoice.carts.map((cart) => (
-                                           <div key={cart.id} className="mb-3">
+                      <div key={cart.id} className="mb-3">
                         <div className="fw-bold mb-1">{cart.name}</div>
                         {cart.items.length === 0 ? (
                           <div className="text-muted">
@@ -2037,71 +2383,106 @@ export default function ActiveInvoices({
           <div className="modal-dialog" style={{ maxWidth: 700 }}>
             <div className="modal-content print-modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Print Invoice #{printInvoiceData.invoiceId?.slice(-4)}</h5>
+                <h5 className="modal-title">
+                  Print Invoice #{printInvoiceData.invoiceId?.slice(-4)}
+                </h5>
                 <button
                   type="button"
                   className="btn-close"
                   onClick={() => setShowPrintInvoiceModal(false)}
                 ></button>
               </div>
-              <div className="modal-body print-area" style={{ minHeight: 350, padding: 32 }}>
+              <div
+                className="modal-body print-area"
+                style={{ minHeight: 350, padding: 32 }}
+              >
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 22 }}>{printInvoiceData.clientName}</div>
-                    <div style={{ fontSize: 15, color: '#888' }}>Invoice #{printInvoiceData.invoiceId?.slice(-4)}</div>
+                    <div style={{ fontWeight: 700, fontSize: 22 }}>
+                      {printInvoiceData.clientName}
+                    </div>
+                    <div style={{ fontSize: 15, color: "#888" }}>
+                      Invoice #{printInvoiceData.invoiceId?.slice(-4)}
+                    </div>
                   </div>
                   <div>
-                    <label className="form-label mb-1" style={{ fontWeight: 600 }}>Date</label>
+                    <label
+                      className="form-label mb-1"
+                      style={{ fontWeight: 600 }}
+                    >
+                      Date
+                    </label>
                     <input
                       type="date"
                       className="form-control form-control-sm"
                       style={{ width: 150 }}
                       value={printDate}
-                      onChange={e => setPrintDate(e.target.value)}
+                      onChange={(e) => setPrintDate(e.target.value)}
                     />
                   </div>
                 </div>
                 <div className="mb-3">
-                  <label className="form-label mb-1" style={{ fontWeight: 600 }}>Verified by</label>
+                  <label
+                    className="form-label mb-1"
+                    style={{ fontWeight: 600 }}
+                  >
+                    Verified by
+                  </label>
                   <input
                     type="text"
                     className="form-control form-control-sm"
                     style={{ width: 220 }}
                     value={printVerifiedBy}
-                    onChange={e => setPrintVerifiedBy(e.target.value)}
+                    onChange={(e) => setPrintVerifiedBy(e.target.value)}
                   />
                 </div>
                 <div className="mb-4">
-                  <table className="table table-bordered print-table" style={{ fontSize: 17, marginBottom: 0 }}>
+                  <table
+                    className="table table-bordered print-table"
+                    style={{ fontSize: 17, marginBottom: 0 }}
+                  >
                     <thead>
                       <tr>
-                        <th style={{ width: '40%' }}>Product</th>
-                        <th style={{ width: '20%' }}>Total Qty</th>
-                        <th style={{ width: '30%' }}>Carts</th>
-                        <th style={{ width: '10%' }}>Edit</th>
+                        <th style={{ width: "40%" }}>Product</th>
+                        <th style={{ width: "20%" }}>Total Qty</th>
+                        <th style={{ width: "30%" }}>Carts</th>
+                        <th style={{ width: "10%" }}>Edit</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(printInvoiceData.productMap).map(([productId, prodRaw]) => {
-                        const prod = prodRaw as { name: string; total: number; carts: string[] };
-                        return (
-                          <tr key={productId}>
-                            <td>{prod.name}</td>
-                            <td>
-                              <input
-                                type="number"
-                                min={0}
-                                className="form-control form-control-sm"
-                                style={{ width: 80 }}
-                                value={printQuantities[productId] || 0}
-                                onChange={e => setPrintQuantities(q => ({ ...q, [productId]: Number(e.target.value) }))}
-                              />
-                            </td>
-                            <td style={{ fontSize: 15 }}>{prod.carts.join(", ")}</td>
-                            <td></td>
-                          </tr>
-                        );
-                      })}
+                      {Object.entries(printInvoiceData.productMap).map(
+                        ([productId, prodRaw]) => {
+                          const prod = prodRaw as {
+                            name: string;
+                            total: number;
+                            carts: string[];
+                          };
+                          return (
+                            <tr key={productId}>
+                              <td>{prod.name}</td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="form-control form-control-sm"
+                                  style={{ width: 80 }}
+                                  value={printQuantities[productId] || 0}
+                                  onChange={(e) =>
+                                    setPrintQuantities((q) => ({
+                                      ...q,
+                                      [productId]: Number(e.target.value),
+                                    }))
+                                  }
+                                />
+                              </td>
+                              <td style={{ fontSize: 15 }}>
+                                {prod.carts.join(", ")}
+                              </td>
+                              <td></td>
+                            </tr>
+                          );
+                        }
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2110,8 +2491,13 @@ export default function ActiveInvoices({
                     className="btn btn-success"
                     onClick={() => {
                       // Print only the modal content
-                      const printContents = document.querySelector('.print-area')?.innerHTML;
-                      const printWindow = window.open('', '', 'width=850,height=600');
+                      const printContents =
+                        document.querySelector(".print-area")?.innerHTML;
+                      const printWindow = window.open(
+                        "",
+                        "",
+                        "width=850,height=600"
+                      );
                       if (printWindow && printContents) {
                         printWindow.document.write(`
                           <html>

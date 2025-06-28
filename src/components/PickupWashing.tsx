@@ -92,8 +92,14 @@ export default function PickupWashing({
         return {
           id: doc.id,
           ...data,
-          startTime: data.startTime instanceof Timestamp ? data.startTime.toDate() : new Date(data.startTime),
-          endTime: data.endTime instanceof Timestamp ? data.endTime.toDate() : new Date(data.endTime),
+          startTime:
+            data.startTime instanceof Timestamp
+              ? data.startTime.toDate()
+              : new Date(data.startTime),
+          endTime:
+            data.endTime instanceof Timestamp
+              ? data.endTime.toDate()
+              : new Date(data.endTime),
         };
       });
       setGroups(fetchedGroups);
@@ -129,7 +135,10 @@ export default function PickupWashing({
     );
     await updateDoc(doc(db, "pickup_groups", groupId), {
       totalWeight,
-      endTime: endTimeDate instanceof Timestamp ? endTimeDate : Timestamp.fromDate(new Date(endTimeDate)),
+      endTime:
+        endTimeDate instanceof Timestamp
+          ? endTimeDate
+          : Timestamp.fromDate(new Date(endTimeDate)),
     });
   };
 
@@ -202,11 +211,17 @@ export default function PickupWashing({
         numCarts: updatedEntries.length,
       });
       // Also update segregatedCarts for Tunnel/no-segregation clients
-      const groupSnap = await getDocs(query(collection(db, "pickup_groups"), where("id", "==", groupId)));
+      const groupSnap = await getDocs(
+        query(collection(db, "pickup_groups"), where("id", "==", groupId))
+      );
       if (!groupSnap.empty) {
         const groupData = groupSnap.docs[0].data();
-        const client = clients.find(c => c.id === groupData.clientId);
-        if (client && client.washingType === "Tunnel" && client.segregation === false) {
+        const client = clients.find((c) => c.id === groupData.clientId);
+        if (
+          client &&
+          client.washingType === "Tunnel" &&
+          client.segregation === false
+        ) {
           await updateDoc(doc(db, "pickup_groups", groupId), {
             segregatedCarts: updatedEntries.length,
           });
@@ -254,13 +269,19 @@ export default function PickupWashing({
     // Find the most recent group
     if (result.length > 1) {
       result.sort((a, b) => {
-        const dateA = a._latest instanceof Date ? a._latest.getTime() : new Date(a._latest).getTime();
-        const dateB = b._latest instanceof Date ? b._latest.getTime() : new Date(b._latest).getTime();
+        const dateA =
+          a._latest instanceof Date
+            ? a._latest.getTime()
+            : new Date(a._latest).getTime();
+        const dateB =
+          b._latest instanceof Date
+            ? b._latest.getTime()
+            : new Date(b._latest).getTime();
         return dateB - dateA;
       });
       // Move the most recent group to the top explicitly (in case of equal timestamps, preserves most recent submission)
       const mostRecent = result[0];
-      result = [mostRecent, ...result.filter(g => g !== mostRecent)];
+      result = [mostRecent, ...result.filter((g) => g !== mostRecent)];
     }
     return result;
   }, [groups, entries]);
@@ -288,11 +309,17 @@ export default function PickupWashing({
         numCarts: groupEntries.length,
       });
       // Also update segregatedCarts for Tunnel/no-segregation clients
-      const groupSnap = await getDocs(query(collection(db, "pickup_groups"), where("id", "==", entry.groupId)));
+      const groupSnap = await getDocs(
+        query(collection(db, "pickup_groups"), where("id", "==", entry.groupId))
+      );
       if (!groupSnap.empty) {
         const groupData = groupSnap.docs[0].data();
-        const client = clients.find(c => c.id === groupData.clientId);
-        if (client && client.washingType === "Tunnel" && client.segregation === false) {
+        const client = clients.find((c) => c.id === groupData.clientId);
+        if (
+          client &&
+          client.washingType === "Tunnel" &&
+          client.segregation === false
+        ) {
           await updateDoc(doc(db, "pickup_groups", entry.groupId), {
             segregatedCarts: groupEntries.length,
           });
@@ -324,11 +351,17 @@ export default function PickupWashing({
         numCarts: groupEntries.length,
       });
       // Also update segregatedCarts for Tunnel/no-segregation clients
-      const groupSnap = await getDocs(query(collection(db, "pickup_groups"), where("id", "==", group.id)));
+      const groupSnap = await getDocs(
+        query(collection(db, "pickup_groups"), where("id", "==", group.id))
+      );
       if (!groupSnap.empty) {
         const groupData = groupSnap.docs[0].data();
-        const client = clients.find(c => c.id === groupData.clientId);
-        if (client && client.washingType === "Tunnel" && client.segregation === false) {
+        const client = clients.find((c) => c.id === groupData.clientId);
+        if (
+          client &&
+          client.washingType === "Tunnel" &&
+          client.segregation === false
+        ) {
           await updateDoc(doc(db, "pickup_groups", group.id), {
             segregatedCarts: groupEntries.length,
           });
@@ -416,17 +449,26 @@ export default function PickupWashing({
 
   // Add this handler below other handlers
   const handleDeleteGroup = async (groupId: string) => {
-    if (!window.confirm("¿Eliminar todo el grupo y todas sus entradas? Esta acción no se puede deshacer.")) return;
+    if (
+      !window.confirm(
+        "¿Eliminar todo el grupo y todas sus entradas? Esta acción no se puede deshacer."
+      )
+    )
+      return;
     try {
       // Delete all pickup_entries for this group
-      const entriesSnap = await getDocs(query(collection(db, "pickup_entries"), where("groupId", "==", groupId)));
-      const batchDeletes = entriesSnap.docs.map(docSnap => deleteDoc(doc(db, "pickup_entries", docSnap.id)));
+      const entriesSnap = await getDocs(
+        query(collection(db, "pickup_entries"), where("groupId", "==", groupId))
+      );
+      const batchDeletes = entriesSnap.docs.map((docSnap) =>
+        deleteDoc(doc(db, "pickup_entries", docSnap.id))
+      );
       await Promise.all(batchDeletes);
       // Delete the group itself
       await deleteDoc(doc(db, "pickup_groups", groupId));
       // Remove from UI state
-      setGroups(prev => prev.filter(g => g.id !== groupId));
-      setEntries(prev => prev.filter(e => e.groupId !== groupId));
+      setGroups((prev) => prev.filter((g) => g.id !== groupId));
+      setEntries((prev) => prev.filter((e) => e.groupId !== groupId));
     } catch (err) {
       alert("Error al eliminar el grupo");
     }
@@ -629,78 +671,83 @@ export default function PickupWashing({
                     </tr>
                   </thead>
                   <tbody>
-                    {group.entries.slice().reverse().map((entry: PickupEntry, i: number) => {
-                      let timeString = "";
-                      if (entry.timestamp instanceof Date) {
-                        timeString = entry.timestamp.toLocaleTimeString();
-                      } else if (
-                        entry.timestamp &&
-                        typeof entry.timestamp.toDate === "function"
-                      ) {
-                        timeString = entry.timestamp
-                          .toDate()
-                          .toLocaleTimeString();
-                      } else {
-                        timeString = new Date(
-                          entry.timestamp as any
-                        ).toLocaleTimeString();
-                      }
-                      return (
-                        <tr key={i}>
-                          <td>{i + 1}</td>
-                          <td>
-                            {editEntryId === entry.id ? (
-                              <input
-                                type="number"
-                                className="form-control form-control-sm"
-                                value={editWeight}
-                                onChange={(e) => setEditWeight(e.target.value)}
-                                style={{ width: 80, display: "inline-block" }}
-                                autoFocus
-                              />
-                            ) : (
-                              entry.weight
-                            )}
-                          </td>
-                          <td>{timeString}</td>
-                          <td>
-                            {editEntryId === entry.id ? (
-                              <>
-                                <button
-                                  className="btn btn-success btn-sm me-2"
-                                  onClick={() => handleEditSave(entry)}
-                                >
-                                  Guardar
-                                </button>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={handleEditCancel}
-                                >
-                                  Cancelar
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  className="btn btn-outline-primary btn-sm me-2"
-                                  onClick={() => handleEditEntry(entry)}
-                                >
-                                  Editar
-                                </button>
-                                <button
-                                  className="btn btn-outline-danger btn-sm"
-                                  onClick={() =>
-                                    handleDeleteEntry(group, entry)
+                    {group.entries
+                      .slice()
+                      .reverse()
+                      .map((entry: PickupEntry, i: number) => {
+                        let timeString = "";
+                        if (entry.timestamp instanceof Date) {
+                          timeString = entry.timestamp.toLocaleTimeString();
+                        } else if (
+                          entry.timestamp &&
+                          typeof entry.timestamp.toDate === "function"
+                        ) {
+                          timeString = entry.timestamp
+                            .toDate()
+                            .toLocaleTimeString();
+                        } else {
+                          timeString = new Date(
+                            entry.timestamp as any
+                          ).toLocaleTimeString();
+                        }
+                        return (
+                          <tr key={i}>
+                            <td>{i + 1}</td>
+                            <td>
+                              {editEntryId === entry.id ? (
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  value={editWeight}
+                                  onChange={(e) =>
+                                    setEditWeight(e.target.value)
                                   }
-                                >
-                                  Eliminar
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                                  style={{ width: 80, display: "inline-block" }}
+                                  autoFocus
+                                />
+                              ) : (
+                                entry.weight
+                              )}
+                            </td>
+                            <td>{timeString}</td>
+                            <td>
+                              {editEntryId === entry.id ? (
+                                <>
+                                  <button
+                                    className="btn btn-success btn-sm me-2"
+                                    onClick={() => handleEditSave(entry)}
+                                  >
+                                    Guardar
+                                  </button>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={handleEditCancel}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="btn btn-outline-primary btn-sm me-2"
+                                    onClick={() => handleEditEntry(entry)}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    className="btn btn-outline-danger btn-sm"
+                                    onClick={() =>
+                                      handleDeleteEntry(group, entry)
+                                    }
+                                  >
+                                    Eliminar
+                                  </button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
                 <div

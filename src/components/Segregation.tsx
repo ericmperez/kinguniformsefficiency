@@ -107,9 +107,16 @@ const Segregation: React.FC<SegregationProps> = ({
     entries.filter((e) => e.groupId === groupId).length;
 
   // Helper: get expected verification value for a group
-  const getExpectedVerificationValue = (group: any, client: Client | undefined) => {
+  const getExpectedVerificationValue = (
+    group: any,
+    client: Client | undefined
+  ) => {
     // For Tunnel clients that do NOT need segregation, use the number of carts as verification
-    if (client && client.washingType === "Tunnel" && client.segregation === false) {
+    if (
+      client &&
+      client.washingType === "Tunnel" &&
+      client.segregation === false
+    ) {
       return getCartCount(group.id);
     }
     // For other clients, use segregatedCarts (default behavior)
@@ -229,7 +236,7 @@ const Segregation: React.FC<SegregationProps> = ({
   const handleIncrement = async (groupId: string) => {
     const newValue = String(parseInt(segregatedCounts[groupId] || "0", 10) + 1);
     setSegregatedCounts((prev) => ({ ...prev, [groupId]: newValue }));
-    const group = groups.find(g => g.id === groupId);
+    const group = groups.find((g) => g.id === groupId);
     // Persist the new value to Firestore
     await updateDoc(doc(db, "pickup_groups", groupId), {
       segregatedCarts: parseInt(newValue, 10),
@@ -237,16 +244,20 @@ const Segregation: React.FC<SegregationProps> = ({
     });
     logActivity({
       type: "Segregation",
-      message: `+1 to group ${group?.clientName || groupId} (${groupId}) by ${getCurrentUser()}`,
+      message: `+1 to group ${
+        group?.clientName || groupId
+      } (${groupId}) by ${getCurrentUser()}`,
       user: getCurrentUser(),
     });
   };
 
   // In the - button handler:
   const handleDecrement = async (groupId: string) => {
-    const newValue = String(Math.max(0, parseInt(segregatedCounts[groupId] || "0", 10) - 1));
+    const newValue = String(
+      Math.max(0, parseInt(segregatedCounts[groupId] || "0", 10) - 1)
+    );
     setSegregatedCounts((prev) => ({ ...prev, [groupId]: newValue }));
-    const group = groups.find(g => g.id === groupId);
+    const group = groups.find((g) => g.id === groupId);
     // Persist the new value to Firestore
     await updateDoc(doc(db, "pickup_groups", groupId), {
       segregatedCarts: parseInt(newValue, 10),
@@ -254,7 +265,9 @@ const Segregation: React.FC<SegregationProps> = ({
     });
     logActivity({
       type: "Segregation",
-      message: `-1 to group ${group?.clientName || groupId} (${groupId}) by ${getCurrentUser()}`,
+      message: `-1 to group ${
+        group?.clientName || groupId
+      } (${groupId}) by ${getCurrentUser()}`,
       user: getCurrentUser(),
     });
   };
@@ -346,7 +359,8 @@ const Segregation: React.FC<SegregationProps> = ({
       groups.forEach((group) => {
         if (
           typeof group.segregatedCarts === "number" &&
-          (prev[group.id] === undefined || prev[group.id] !== String(group.segregatedCarts))
+          (prev[group.id] === undefined ||
+            prev[group.id] !== String(group.segregatedCarts))
         ) {
           next[group.id] = String(group.segregatedCarts);
         }
@@ -619,7 +633,9 @@ const Segregation: React.FC<SegregationProps> = ({
                     }}
                     placeholder="# segregated"
                     value={segregatedCounts[group.id] || ""}
-                    onChange={(e) => handleInputChange(group.id, e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange(group.id, e.target.value)
+                    }
                     disabled={completingGroup === group.id}
                   />
                   <button

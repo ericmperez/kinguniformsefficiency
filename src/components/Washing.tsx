@@ -61,7 +61,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   >("cart");
 
   // State for manual conventional products
-  const [manualConventionalProducts, setManualConventionalProducts] = useState<any[]>([]);
+  const [manualConventionalProducts, setManualConventionalProducts] = useState<
+    any[]
+  >([]);
   const [manualProductsLoading, setManualProductsLoading] = useState(true);
 
   // Red alert overlay state for tunnel cart count mismatch
@@ -159,13 +161,16 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       client.washingType === "Tunnel"
     ) {
       // Always use segregatedCarts if present, otherwise fallback to carts length/number
-      if (typeof group.segregatedCarts === "number") return group.segregatedCarts;
+      if (typeof group.segregatedCarts === "number")
+        return group.segregatedCarts;
       if (Array.isArray(group.carts)) return group.carts.length;
       if (typeof group.carts === "number") return group.carts;
       return 0;
     }
     // If segregatedCarts is null or undefined, fallback to 0
-    return typeof group.segregatedCarts === 'number' ? group.segregatedCarts : 0;
+    return typeof group.segregatedCarts === "number"
+      ? group.segregatedCarts
+      : 0;
   };
   // Helper to get client washing type
   const getWashingType = (clientId: string) => getClient(clientId)?.washingType;
@@ -190,7 +195,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     .map((p, idx) => ({
       ...p,
       isManualProduct: true,
-      order: p.order ?? (conventionalGroups.length + idx),
+      order: p.order ?? conventionalGroups.length + idx,
     }));
 
   // Merge and sort both lists
@@ -293,7 +298,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       }
       // Find client and product
       const client = clients.find((c) => c.id === selectedConventionalClientId);
-      const product = products.find((p) => p.id === selectedConventionalProductId);
+      const product = products.find(
+        (p) => p.id === selectedConventionalProductId
+      );
       if (!client) throw new Error("Client not found");
       if (!product) throw new Error("Product not found");
       // Save manual product entry
@@ -303,7 +310,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         productId: product.id,
         productName: product.name,
         quantity: conventionalProductQty,
-        type: conventionalAddMode === "cart" ? "cart" : conventionalAddMode === "quantity" ? "qty" : "lbs",
+        type:
+          conventionalAddMode === "cart"
+            ? "cart"
+            : conventionalAddMode === "quantity"
+            ? "qty"
+            : "lbs",
         createdAt: new Date(),
       });
       setShowAddConventionalModal(false);
@@ -456,7 +468,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
 
   // Handler to mark manual product as washed (but keep in list until invoiced)
   const handleMarkManualProductWashed = async (id: string) => {
-    await updateDoc(doc(db, 'manual_conventional_products', id), { washed: true });
+    await updateDoc(doc(db, "manual_conventional_products", id), {
+      washed: true,
+    });
     setManualConventionalProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, washed: true } : p))
     );
@@ -465,7 +479,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   // Handler to mark a conventional client group as washed
   const handleMarkConventionalGroupWashed = async (group: any) => {
     // 1. Update pickup group status to 'Empaque'
-    await updateDoc(doc(db, "pickup_groups", group.id), { status: "Empaque", washed: true });
+    await updateDoc(doc(db, "pickup_groups", group.id), {
+      status: "Empaque",
+      washed: true,
+    });
     // 2. Create an invoice for the client
     const { addInvoice } = await import("../services/firebaseService");
     const newInvoice = {
@@ -485,7 +502,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   const handleMarkGroupAsWashed = async (group: any) => {
     try {
       // Update group status to Empaque
-      await updateDoc(doc(db, "pickup_groups", group.id), { status: "Empaque", washed: true });
+      await updateDoc(doc(db, "pickup_groups", group.id), {
+        status: "Empaque",
+        washed: true,
+      });
       // Create invoice for this group
       const { addInvoice } = await import("../services/firebaseService");
       const newInvoice = {
@@ -501,11 +521,45 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       const invoiceId = await addInvoice(newInvoice);
       if (setSelectedInvoiceId) setSelectedInvoiceId(invoiceId);
       // Update local state
-      setGroups((prev) => prev.map((g) => g.id === group.id ? { ...g, status: "Empaque", washed: true } : g));
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === group.id ? { ...g, status: "Empaque", washed: true } : g
+        )
+      );
     } catch (e) {
       alert("Error marking group as washed and creating invoice");
     }
   };
+
+  // Automatically sync segregatedCarts for Tunnel/no-segregation clients
+  useEffect(() => {
+    if (!loading && groups.length > 0 && clients.length > 0) {
+      groups.forEach(async (group) => {
+        const client = clients.find((c) => c.id === group.clientId);
+        if (
+          client &&
+          client.washingType === "Tunnel" &&
+          client.segregation === false
+        ) {
+          let cartCount = 0;
+          if (typeof group.numCarts === "number") cartCount = group.numCarts;
+          else if (Array.isArray(group.carts)) cartCount = group.carts.length;
+          else if (typeof group.carts === "number") cartCount = group.carts;
+          if (group.segregatedCarts !== cartCount) {
+            await updateDoc(doc(db, "pickup_groups", group.id), {
+              segregatedCarts: cartCount,
+            });
+            setGroups((prev) =>
+              prev.map((g) =>
+                g.id === group.id ? { ...g, segregatedCarts: cartCount } : g
+              )
+            );
+          }
+        }
+      });
+    }
+    // eslint-disable-next-line
+  }, [loading, groups, clients]);
 
   return (
     <div className="container py-4">
@@ -516,7 +570,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             className={`nav-link${activeTab === "tunnel" ? " active" : ""}`}
             onClick={() => setActiveTab("tunnel")}
           >
-            <span style={{ color: 'black' }}>Tunnel</span>
+            <span style={{ color: "black" }}>Tunnel</span>
           </button>
         </li>
         <li className="nav-item">
@@ -526,7 +580,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             }`}
             onClick={() => setActiveTab("conventional")}
           >
-            <span style={{ color: 'black' }}>Conventional</span>
+            <span style={{ color: "black" }}>Conventional</span>
           </button>
         </li>
       </ul>
@@ -695,18 +749,26 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   onClick={async () => {
                                     const val = parseInt(tunnelCartInput);
                                     if (isNaN(val)) {
-                                      setTunnelCartError("Please enter a valid number.");
+                                      setTunnelCartError(
+                                        "Please enter a valid number."
+                                      );
                                       return;
                                     }
                                     if (val !== getSegregatedCarts(group)) {
                                       setTunnelCartError(
-                                        `Cart count does not match segregation value (${getSegregatedCarts(group)}).`
+                                        `Cart count does not match segregation value (${getSegregatedCarts(
+                                          group
+                                        )}).`
                                       );
                                       setShowTunnelRedAlert(true);
-                                      if (tunnelRedAlertTimerRef.current) clearTimeout(tunnelRedAlertTimerRef.current);
-                                      tunnelRedAlertTimerRef.current = setTimeout(() => {
-                                        setShowTunnelRedAlert(false);
-                                      }, 5000);
+                                      if (tunnelRedAlertTimerRef.current)
+                                        clearTimeout(
+                                          tunnelRedAlertTimerRef.current
+                                        );
+                                      tunnelRedAlertTimerRef.current =
+                                        setTimeout(() => {
+                                          setShowTunnelRedAlert(false);
+                                        }, 5000);
                                       return;
                                     }
                                     setTunnelCartError("");
@@ -871,10 +933,27 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               setTunnelCartError("");
                               // Always update segregatedCarts in Firestore and local state for Tunnel/no-segregation
                               const client = getClient(group.clientId);
-                              if (client && client.segregation === false && client.washingType === "Tunnel") {
-                                const newSegCarts = Array.isArray(group.carts) ? group.carts.length : (typeof group.carts === "number" ? group.carts : 0);
-                                await updateDoc(doc(db, "pickup_groups", group.id), { segregatedCarts: newSegCarts });
-                                setGroups(prev => prev.map(g => g.id === group.id ? { ...g, segregatedCarts: newSegCarts } : g));
+                              if (
+                                client &&
+                                client.segregation === false &&
+                                client.washingType === "Tunnel"
+                              ) {
+                                const newSegCarts = Array.isArray(group.carts)
+                                  ? group.carts.length
+                                  : typeof group.carts === "number"
+                                  ? group.carts
+                                  : 0;
+                                await updateDoc(
+                                  doc(db, "pickup_groups", group.id),
+                                  { segregatedCarts: newSegCarts }
+                                );
+                                setGroups((prev) =>
+                                  prev.map((g) =>
+                                    g.id === group.id
+                                      ? { ...g, segregatedCarts: newSegCarts }
+                                      : g
+                                  )
+                                );
                               }
                             }}
                           >
@@ -890,10 +969,13 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
           </div>
         )}
         {activeTab === "conventional" && (
-          <div className="card shadow p-4 mb-4 mx-auto" style={{ maxWidth: 600 }}>
+          <div
+            className="card shadow p-4 mb-4 mx-auto"
+            style={{ maxWidth: 600 }}
+          >
             <form
               className="row g-2 align-items-end mb-3"
-              onSubmit={e => {
+              onSubmit={(e) => {
                 e.preventDefault();
                 handleAddConventionalProduct();
               }}
@@ -903,12 +985,16 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                 <select
                   className="form-select"
                   value={selectedConventionalClientId}
-                  onChange={e => setSelectedConventionalClientId(e.target.value)}
+                  onChange={(e) =>
+                    setSelectedConventionalClientId(e.target.value)
+                  }
                   required
                 >
                   <option value="">-- Select a client --</option>
-                  {clientsNotInConventional.map(client => (
-                    <option key={client.id} value={client.id}>{client.name}</option>
+                  {clientsNotInConventional.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -917,12 +1003,16 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                 <select
                   className="form-select"
                   value={selectedConventionalProductId}
-                  onChange={e => setSelectedConventionalProductId(e.target.value)}
+                  onChange={(e) =>
+                    setSelectedConventionalProductId(e.target.value)
+                  }
                   required
                 >
                   <option value="">-- Select a product --</option>
-                  {products.map(product => (
-                    <option key={product.id} value={product.id}>{product.name}</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -939,7 +1029,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                       checked={conventionalAddMode === "cart"}
                       onChange={() => setConventionalAddMode("cart")}
                     />
-                    <label className="form-check-label" htmlFor="addByCart">Carts</label>
+                    <label className="form-check-label" htmlFor="addByCart">
+                      Carts
+                    </label>
                   </div>
                   <div className="form-check form-check-inline">
                     <input
@@ -951,7 +1043,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                       checked={conventionalAddMode === "quantity"}
                       onChange={() => setConventionalAddMode("quantity")}
                     />
-                    <label className="form-check-label" htmlFor="addByQty">Quantity</label>
+                    <label className="form-check-label" htmlFor="addByQty">
+                      Quantity
+                    </label>
                   </div>
                   <div className="form-check form-check-inline">
                     <input
@@ -963,7 +1057,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                       checked={conventionalAddMode === "pounds"}
                       onChange={() => setConventionalAddMode("pounds")}
                     />
-                    <label className="form-check-label" htmlFor="addByLbs">Pounds</label>
+                    <label className="form-check-label" htmlFor="addByLbs">
+                      Pounds
+                    </label>
                   </div>
                 </div>
               </div>
@@ -980,7 +1076,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                   className="form-control"
                   min={1}
                   value={conventionalProductQty}
-                  onChange={e => setConventionalProductQty(Number(e.target.value))}
+                  onChange={(e) =>
+                    setConventionalProductQty(Number(e.target.value))
+                  }
                   required
                 />
               </div>
@@ -1000,38 +1098,53 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
               </div>
               {conventionalModalError && (
                 <div className="col-12">
-                  <div className="alert alert-danger py-1 my-1">{conventionalModalError}</div>
+                  <div className="alert alert-danger py-1 my-1">
+                    {conventionalModalError}
+                  </div>
                 </div>
               )}
             </form>
             {manualProductsLoading ? (
               <div className="text-center py-2">Loading manual products...</div>
-            ) : manualConventionalProducts.length > 0 && (
-              <div className="list-group mb-3">
-                {manualConventionalProducts.filter(p => !p.invoiceId).map((item) => (
-                  <div
-                    key={item.id}
-                    className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-2 mb-1 shadow-sm rounded bg-warning bg-opacity-25"
-                    style={{ border: "1px solid #ffe066" }}
-                  >
-                    <div>
-                      <span style={{ fontWeight: 600, color: '#b8860b' }}>{item.clientName}</span>
-                      <span style={{ marginLeft: 8 }}><b>{item.productName}</b> x{item.quantity} <span style={{ color: '#888' }}>({item.type})</span></span>
-                    </div>
-                    {!item.washed && (
-                      <button
-                        className="btn btn-outline-success btn-sm"
-                        onClick={() => handleMarkManualProductWashed(item.id)}
+            ) : (
+              manualConventionalProducts.length > 0 && (
+                <div className="list-group mb-3">
+                  {manualConventionalProducts
+                    .filter((p) => !p.invoiceId)
+                    .map((item) => (
+                      <div
+                        key={item.id}
+                        className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-2 mb-1 shadow-sm rounded bg-warning bg-opacity-25"
+                        style={{ border: "1px solid #ffe066" }}
                       >
-                        Mark as Washed
-                      </button>
-                    )}
-                    {item.washed && (
-                      <span className="text-muted ms-2">Pending Invoice</span>
-                    )}
-                  </div>
-                ))}
-              </div>
+                        <div>
+                          <span style={{ fontWeight: 600, color: "#b8860b" }}>
+                            {item.clientName}
+                          </span>
+                          <span style={{ marginLeft: 8 }}>
+                            <b>{item.productName}</b> x{item.quantity}{" "}
+                            <span style={{ color: "#888" }}>({item.type})</span>
+                          </span>
+                        </div>
+                        {!item.washed && (
+                          <button
+                            className="btn btn-outline-success btn-sm"
+                            onClick={() =>
+                              handleMarkManualProductWashed(item.id)
+                            }
+                          >
+                            Mark as Washed
+                          </button>
+                        )}
+                        {item.washed && (
+                          <span className="text-muted ms-2">
+                            Pending Invoice
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )
             )}
             {loading ? (
               <div className="text-center py-5">Loading...</div>
@@ -1042,7 +1155,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             ) : (
               <div className="list-group list-group-flush">
                 {allConventionalRows.map((group, idx) => {
-                  let cartCount = 0, qty = 0, lbs = 0, totalWeight = 0;
+                  let cartCount = 0,
+                    qty = 0,
+                    lbs = 0,
+                    totalWeight = 0;
                   let showMarkAsWashed = false;
                   if (group.isManualProduct) {
                     showMarkAsWashed = !group.washed;
@@ -1055,9 +1171,17 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                       group.carts.forEach((cart: any) => {
                         const name = (cart.name || "").toLowerCase();
                         if (name.includes("qty")) {
-                          qty += (cart.items as any[]).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+                          qty += (cart.items as any[]).reduce(
+                            (sum: number, item: any) =>
+                              sum + (item.quantity || 0),
+                            0
+                          );
                         } else if (name.includes("lbs")) {
-                          lbs += (cart.items as any[]).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+                          lbs += (cart.items as any[]).reduce(
+                            (sum: number, item: any) =>
+                              sum + (item.quantity || 0),
+                            0
+                          );
                         } else if (
                           Array.isArray(cart.items) &&
                           cart.items.length > 0 &&
@@ -1065,7 +1189,11 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         ) {
                           // already counted in cartCount
                         } else if (Array.isArray(cart.items)) {
-                          qty += cart.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+                          qty += cart.items.reduce(
+                            (sum: number, item: any) =>
+                              sum + (item.quantity || 0),
+                            0
+                          );
                         }
                       });
                     }
@@ -1075,14 +1203,35 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                   return (
                     <div
                       key={group.id}
-                      className={`list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded ${group.isManualProduct ? 'bg-warning bg-opacity-25' : ''}`}
-                      style={group.isManualProduct ? { border: "1px solid #ffe066" } : { background: "#f8f9fa", border: "1px solid #e3e3e3" }}
+                      className={`list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded ${
+                        group.isManualProduct ? "bg-warning bg-opacity-25" : ""
+                      }`}
+                      style={
+                        group.isManualProduct
+                          ? { border: "1px solid #ffe066" }
+                          : {
+                              background: "#f8f9fa",
+                              border: "1px solid #e3e3e3",
+                            }
+                      }
                     >
-                      <span style={{ fontSize: "1.2rem", fontWeight: 600, color: group.isManualProduct ? "#b8860b" : "#007bff", minWidth: 120 }}>{group.clientName}</span>
+                      <span
+                        style={{
+                          fontSize: "1.2rem",
+                          fontWeight: 600,
+                          color: group.isManualProduct ? "#b8860b" : "#007bff",
+                          minWidth: 120,
+                        }}
+                      >
+                        {group.clientName}
+                      </span>
                       <span style={{ fontSize: "1.1rem", color: "#333" }}>
                         {group.isManualProduct ? (
                           <>
-                            <b>{group.productName}</b> x{group.quantity} <span style={{ color: '#888' }}>({group.type})</span>
+                            <b>{group.productName}</b> x{group.quantity}{" "}
+                            <span style={{ color: "#888" }}>
+                              ({group.type})
+                            </span>
                             {/* Removed Washed badge from here */}
                             {cartCount === 0 && qty === 0 && lbs === 0 && (
                               <span className="text-muted">No items</span>
@@ -1090,16 +1239,26 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           </>
                         ) : (
                           <>
-                            <span className="badge bg-primary me-2">Carts: {cartCount}</span>
-                            <span className="badge bg-info me-2">Total: {totalWeight} lbs</span>
+                            <span className="badge bg-primary me-2">
+                              Carts: {cartCount}
+                            </span>
+                            <span className="badge bg-info me-2">
+                              Total: {totalWeight} lbs
+                            </span>
                             {qty > 0 && (
-                              <span className="badge bg-success me-2">Qty: {qty}</span>
+                              <span className="badge bg-success me-2">
+                                Qty: {qty}
+                              </span>
                             )}
                             {lbs > 0 && (
-                              <span className="badge bg-warning text-dark">Lbs: {lbs}</span>
+                              <span className="badge bg-warning text-dark">
+                                Lbs: {lbs}
+                              </span>
                             )}
                             {group.washed && (
-                              <span className="badge bg-success ms-2">Washed</span>
+                              <span className="badge bg-success ms-2">
+                                Washed
+                              </span>
                             )}
                           </>
                         )}
@@ -1125,16 +1284,20 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           <button
                             className="btn btn-outline-danger btn-sm"
                             title="Delete manual product"
-                            onClick={() => handleDeleteManualProductGroup(group.id)}
+                            onClick={() =>
+                              handleDeleteManualProductGroup(group.id)
+                            }
                           >
                             <span aria-hidden="true">🗑️</span>
                           </button>
                         )}
-                        {showMarkAsWashed && (
-                          group.isManualProduct ? (
+                        {showMarkAsWashed &&
+                          (group.isManualProduct ? (
                             <button
                               className="btn btn-outline-success btn-sm ms-2"
-                              onClick={() => handleMarkManualProductWashed(group.id)}
+                              onClick={() =>
+                                handleMarkManualProductWashed(group.id)
+                              }
                             >
                               Mark as Washed
                             </button>
@@ -1145,8 +1308,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             >
                               Mark as Washed
                             </button>
-                          )
-                        )}
+                          ))}
                       </div>
                     </div>
                   );
@@ -1186,8 +1348,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             El número de carros ingresado <br />
             <span style={{ color: "#fff", fontWeight: 700 }}>
               NO COINCIDE
-            </span> <br />
-            con el número de carros segregados.<br />
+            </span>{" "}
+            <br />
+            con el número de carros segregados.
+            <br />
             (El mensaje desaparecerá en 5 segundos)
           </div>
         </div>

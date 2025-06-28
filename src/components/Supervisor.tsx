@@ -19,7 +19,10 @@ function getStepIndex(status: string) {
   return idx === -1 ? 0 : idx;
 }
 
-const Supervisor: React.FC<{ clients: Client[]; invoices: Invoice[] }> = ({ clients, invoices }) => {
+const Supervisor: React.FC<{ clients: Client[]; invoices: Invoice[] }> = ({
+  clients,
+  invoices,
+}) => {
   const [pickupGroups, setPickupGroups] = useState<any[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(true);
   const { user } = useAuth();
@@ -43,7 +46,9 @@ const Supervisor: React.FC<{ clients: Client[]; invoices: Invoice[] }> = ({ clie
     const ampm = hours >= 12 ? "PM" : "AM";
     hours = hours % 12;
     if (hours === 0) hours = 12;
-    return `${hours}:${minutes} ${ampm}  ${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}`;
+    return `${hours}:${minutes} ${ampm}  ${d.toLocaleString("en-US", {
+      month: "short",
+    })} ${d.getDate()}`;
   }
 
   // Only show groups that are not deleted and are for today
@@ -88,18 +93,30 @@ const Supervisor: React.FC<{ clients: Client[]; invoices: Invoice[] }> = ({ clie
                 const interpolateColor = (a: string, b: string, t: number) => {
                   const ah = a.match(/\w\w/g)!.map((x) => parseInt(x, 16));
                   const bh = b.match(/\w\w/g)!.map((x) => parseInt(x, 16));
-                  const rh = ah.map((av, i) => Math.round(av + (bh[i] - av) * t));
+                  const rh = ah.map((av, i) =>
+                    Math.round(av + (bh[i] - av) * t)
+                  );
                   return `rgb(${rh[0]},${rh[1]},${rh[2]})`;
                 };
-                const barColor = interpolateColor("#ffe066", "#51cf66", percent);
+                const barColor = interpolateColor(
+                  "#ffe066",
+                  "#51cf66",
+                  percent
+                );
                 const createdDate = formatDate(group.startTime);
                 return (
                   <tr key={group.id || groupIdx}>
                     <td>
-                      <span style={{ fontSize: 20, fontWeight: 700 }}>{group.clientName}</span>
+                      <span style={{ fontSize: 20, fontWeight: 700 }}>
+                        {group.clientName}
+                      </span>
                     </td>
                     <td>{createdDate}</td>
-                    <td>{typeof group.totalWeight === "number" ? group.totalWeight.toFixed(2) : "?"}</td>
+                    <td>
+                      {typeof group.totalWeight === "number"
+                        ? group.totalWeight.toFixed(2)
+                        : "?"}
+                    </td>
                     <td>
                       <select
                         className="form-select form-select-sm"
@@ -149,11 +166,24 @@ const Supervisor: React.FC<{ clients: Client[]; invoices: Invoice[] }> = ({ clie
                             }}
                           >
                             {STATUS_STEPS.map((step, i) => (
-                              <span key={step.key} style={{ fontWeight: i === stepIdx ? 700 : 400 }}>{i + 1}</span>
+                              <span
+                                key={step.key}
+                                style={{
+                                  fontWeight: i === stepIdx ? 700 : 400,
+                                }}
+                              >
+                                {i + 1}
+                              </span>
                             ))}
                           </div>
                         </div>
-                        <div style={{ fontSize: 11, marginTop: 2, textAlign: "center" }}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            marginTop: 2,
+                            textAlign: "center",
+                          }}
+                        >
                           {STATUS_STEPS[stepIdx]?.label}
                         </div>
                       </div>

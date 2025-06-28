@@ -40,7 +40,9 @@ export default function LaundryCartModal({
       (c) => c.name.trim().toLowerCase() === trimmedName.toLowerCase()
     );
     if (duplicate) {
-      setCartNameError("A cart with this name already exists. Please choose a unique name.");
+      setCartNameError(
+        "A cart with this name already exists. Please choose a unique name."
+      );
       return;
     }
     try {
@@ -124,17 +126,27 @@ export default function LaundryCartModal({
                     </button>
                   </div>
                   {cartNameError && (
-                    <div className="text-danger mt-1" style={{ fontSize: 14 }}>{cartNameError}</div>
+                    <div className="text-danger mt-1" style={{ fontSize: 14 }}>
+                      {cartNameError}
+                    </div>
                   )}
                   {showKeypad && (
                     <div className="mt-3">
-                      <div className="d-flex flex-wrap gap-3 mb-2 justify-content-center" style={{ maxWidth: 420, margin: "0 auto" }}>
-                        {[...'0123456789'].map((key) => (
+                      <div
+                        className="d-flex flex-wrap gap-3 mb-2 justify-content-center"
+                        style={{ maxWidth: 420, margin: "0 auto" }}
+                      >
+                        {[..."0123456789"].map((key) => (
                           <button
                             key={key}
                             type="button"
                             className="btn btn-outline-dark mb-2"
-                            style={{ width: 64, height: 64, fontSize: 32, borderRadius: 16 }}
+                            style={{
+                              width: 64,
+                              height: 64,
+                              fontSize: 32,
+                              borderRadius: 16,
+                            }}
                             onClick={() => handleKeypadInput(key)}
                           >
                             {key}
@@ -143,7 +155,12 @@ export default function LaundryCartModal({
                         <button
                           type="button"
                           className="btn btn-danger mb-2"
-                          style={{ width: 64, height: 64, fontSize: 32, borderRadius: 16 }}
+                          style={{
+                            width: 64,
+                            height: 64,
+                            fontSize: 32,
+                            borderRadius: 16,
+                          }}
                           onClick={() => handleKeypadInput("C")}
                         >
                           C
@@ -151,7 +168,12 @@ export default function LaundryCartModal({
                         <button
                           type="button"
                           className="btn btn-secondary mb-2"
-                          style={{ width: 64, height: 64, fontSize: 32, borderRadius: 16 }}
+                          style={{
+                            width: 64,
+                            height: 64,
+                            fontSize: 32,
+                            borderRadius: 16,
+                          }}
                           onClick={() => handleKeypadInput("←")}
                         >
                           &larr;

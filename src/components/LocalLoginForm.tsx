@@ -38,7 +38,7 @@ export default function LocalLoginForm() {
     ["1", "2", "3"],
     ["4", "5", "6"],
     ["7", "8", "9"],
-    ["", "0", "Login"]
+    ["", "0", "Login"],
   ];
 
   const handleKeypadClick = async (key: string) => {
@@ -53,7 +53,14 @@ export default function LocalLoginForm() {
 
   // --- PIN dots ---
   const renderPinDots = () => (
-    <div style={{ display: "flex", justifyContent: "center", gap: 24, margin: "32px 0 40px 0" }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        gap: 24,
+        margin: "32px 0 40px 0",
+      }}
+    >
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
@@ -62,7 +69,10 @@ export default function LocalLoginForm() {
             height: 32,
             borderRadius: "50%",
             background: id.length > i ? "#fff" : "rgba(255,255,255,0.12)",
-            border: id.length > i ? "2px solid #fff" : "2px solid rgba(255,255,255,0.18)",
+            border:
+              id.length > i
+                ? "2px solid #fff"
+                : "2px solid rgba(255,255,255,0.18)",
             boxShadow: id.length > i ? "0 2px 8px rgba(0,0,0,0.10)" : "none",
             transition: "all 0.2s",
           }}
@@ -77,7 +87,8 @@ export default function LocalLoginForm() {
       className="d-flex flex-column justify-content-center align-items-center"
       style={{
         minHeight: "100vh",
-        background: "radial-gradient(ellipse at 60% 10%, #1a232b 60%, #0c1014 100%)",
+        background:
+          "radial-gradient(ellipse at 60% 10%, #1a232b 60%, #0c1014 100%)",
         position: "relative",
       }}
     >
@@ -90,7 +101,7 @@ export default function LocalLoginForm() {
             maxWidth: "80vw",
             display: "block",
             margin: "0 auto 4px auto",
-            background: "none"
+            background: "none",
           }}
         />
       </div>
@@ -130,25 +141,33 @@ export default function LocalLoginForm() {
                   borderRadius: 18,
                   margin: 1,
                   flex: 1,
-                  background: key === "Login"
-                    ? "linear-gradient(135deg, #0c223a 60%, #1a232b 100%)"
-                    : "rgba(255,255,255,0.08)",
+                  background:
+                    key === "Login"
+                      ? "linear-gradient(135deg, #0c223a 60%, #1a232b 100%)"
+                      : "rgba(255,255,255,0.08)",
                   color: key === "Login" ? "#fff" : "#fff",
-                  border: key === "Login" ? "none" : "2px solid rgba(255,255,255,0.18)",
+                  border:
+                    key === "Login"
+                      ? "none"
+                      : "2px solid rgba(255,255,255,0.18)",
                   boxShadow: key ? "0 2px 16px rgba(0,0,0,0.10)" : "none",
                   opacity: key ? 1 : 0,
                   pointerEvents: key ? "auto" : "none",
                   transition: "all 0.2s",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center"
+                  justifyContent: "center",
                 }}
                 onClick={() => handleKeypadClick(key)}
                 disabled={key === "Login" ? id.length !== 4 || loading : false}
                 tabIndex={-1}
               >
                 {key === "Login" ? (
-                  <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: 1 }}>Login</span>
+                  <span
+                    style={{ fontSize: 18, fontWeight: 600, letterSpacing: 1 }}
+                  >
+                    Login
+                  </span>
                 ) : (
                   key
                 )}
@@ -158,7 +177,17 @@ export default function LocalLoginForm() {
         ))}
       </div>
       {error && (
-        <div className="alert alert-danger mt-4" style={{ fontSize: 22, borderRadius: 16, minWidth: 320, textAlign: "center" }}>{error}</div>
+        <div
+          className="alert alert-danger mt-4"
+          style={{
+            fontSize: 22,
+            borderRadius: 16,
+            minWidth: 320,
+            textAlign: "center",
+          }}
+        >
+          {error}
+        </div>
       )}
     </div>
   );
