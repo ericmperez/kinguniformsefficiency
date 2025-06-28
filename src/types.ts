@@ -48,6 +48,7 @@ export interface Invoice {
   invoiceNumber?: number; // Optional invoiceNumber property for sequential numbering
   locked?: boolean; // If true, invoice is locked and not editable
   verified?: boolean; // If true, invoice is verified
+  partiallyVerified?: boolean; // If true, invoice is partially verified
   verifiedBy?: string; // User ID who verified
   verifiedAt?: string; // Timestamp of verification
   verifiedProducts?: { [cartId: string]: string[] }; // Product IDs checked per cart

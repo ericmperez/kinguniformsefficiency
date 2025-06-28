@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter as Router, Route, Routes, Link } from "react-router-dom";
 import ActiveInvoices from "./ActiveInvoices";
 import Supervisor from "./Supervisor";
+import SendInvoicePage from "./SendInvoicePage";
 import "./App.css";
 import { Client, Invoice, Product, Cart } from "../types";
 
@@ -96,6 +97,14 @@ function App() {
                 <span className="d-none d-lg-inline">Supervisor</span>
               </Link>
             </li>
+            <li className="nav-item">
+              <Link className="nav-link d-flex align-items-center" to="/send-invoice">
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: '#fff', border: '2px solid #0ea5e9', borderRadius: '50%', marginRight: 6 }}>
+                  <i className="bi bi-envelope-paper" style={{ fontSize: 18, color: '#0ea5e9' }}></i>
+                </span>
+                <span className="d-none d-lg-inline">Send Invoice</span>
+              </Link>
+            </li>
           </ul>
         </nav>
         {/* Main Content */}
@@ -106,6 +115,7 @@ function App() {
           <Routes>
             {/* ...existing routes... */}
             <Route path="/supervisor" element={<Supervisor clients={clients} invoices={invoices} />} />
+            <Route path="/send-invoice" element={<SendInvoicePage />} />
             {/* Example: <Route path="/active-invoices" element={<ActiveInvoices />} /> */}
           </Routes>
         </main>

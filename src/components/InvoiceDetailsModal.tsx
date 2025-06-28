@@ -95,6 +95,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           <div className="modal-body">
             <h6>Client: {invoice.clientName}</h6>
             <h6>Date: {invoice.date}</h6>
+            {/* Show verifier if present */}
+            {invoice.verifiedBy && (
+              <h6 className="text-success">Verificado por: {invoice.verifiedBy}</h6>
+            )}
             <h6>Total Carts: {invoice.carts.length}</h6>
             {/* Show group weight if available on invoice or client */}
             {typeof invoice.totalWeight === 'number' && (
@@ -102,6 +106,17 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             )}
             {client && typeof (client as any).groupWeight === 'number' && !invoice.totalWeight && (
               <h6 className="text-success">Group Weight: {(client as any).groupWeight} lbs</h6>
+            )}
+            {/* Show verification status and verifier if present */}
+            {(invoice.verified || invoice.partiallyVerified) && (
+              <div className="mb-2">
+                <span className={invoice.verified ? 'badge bg-success' : 'badge bg-warning text-dark'}>
+                  {invoice.verified ? 'Fully Verified' : 'Partially Verified'}
+                </span>
+                {invoice.verifiedBy && (
+                  <span className="ms-2 text-secondary">Verifier: {invoice.verifiedBy}</span>
+                )}
+              </div>
             )}
             <div className="mb-3">
               {!showNewCartInput ? (
@@ -188,14 +203,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               )}
             </div>
             {localCarts.map((cart) => (
-              <div key={cart.id} className="cart-section mb-4 p-2 border rounded">
+              <div key={cart.id} className="cart-section mb-4 p-2 border rounded" style={{background: '#f8fafc', boxShadow: '0 2px 8px #e0e7ef'}}>
                 <div className="d-flex justify-content-between align-items-center mb-2">
                   <div>
-                    <h3 style={{ fontWeight: 800, color: '#0E62A0', marginBottom: 8 }}>CARRO # {cart.name}</h3>
-                    {/* Show weight if present as a custom property (ignore TS error if needed) */}
-                    {('weight' in cart) && (cart as any).weight && (
-                      <small className="text-success">Weight: {(cart as any).weight} lbs</small>
-                    )}
+                    <h3 style={{ fontWeight: 800, color: '#0E62A0', marginBottom: 8 }}>CART #{cart.name}</h3>
                   </div>
                   <div className="d-flex gap-2">
                     <button
@@ -225,128 +236,69 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     </button>
                   </div>
                 </div>
-                <ul>
-                  {cart.items.map((item) => (
-                    <li
-                      key={item.productId}
-                      style={{
-                        color: isItemAddedAfterDelivery(item) ? '#b91c1c' : '#0E62A0',
-                        fontWeight: 600,
-                        background: isItemAddedAfterDelivery(item) ? '#fee2e2' : undefined,
-                        borderRadius: isItemAddedAfterDelivery(item) ? 6 : undefined,
-                        padding: isItemAddedAfterDelivery(item) ? '2px 6px' : undefined,
-                        marginBottom: 2,
-                      }}
-                    >
-                      {item.productName} - {item.quantity} (Added by: {item.addedBy})
-                      {isItemAddedAfterDelivery(item) && (
-                        <span style={{ marginLeft: 8, fontWeight: 700, color: '#b91c1c', fontSize: 13 }}>
-                          Added after delivery
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <div className="d-flex flex-wrap gap-2 mt-2">
-                  {clientProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      className="card shadow-sm p-2 align-items-center justify-content-center"
-                      style={{
-                        minWidth: 120,
-                        maxWidth: 160,
-                        background: '#e3f2fd',
-                        border: '1px solid #b3c6e0',
-                        cursor: 'pointer',
-                        transition: 'border 0.18s',
-                        marginBottom: 8,
-                      }}
-                      onClick={() => {
-                        setShowProductKeypad({ cartId: cart.id, productId: product.id });
-                        setKeypadQty("");
-                      }}
-                    >
-                      <div style={{ fontWeight: 700, color: '#0E62A0' }}>{product.name}</div>
-                    </div>
-                  ))}
+                {/* Add New Item Button */}
+                <div className="mb-2">
+                  <button
+                    className="btn btn-link text-primary fw-bold"
+                    style={{fontSize: 18, textDecoration: 'none'}}
+                    onClick={() => setAddProductCartId(cart.id)}
+                  >
+                    + Add New Item
+                  </button>
                 </div>
-                {/* Product Keypad Modal */}
-                {showProductKeypad && showProductKeypad.cartId === cart.id && (
+                {/* Product Cards Modal for Adding Product */}
+                {addProductCartId === cart.id && (
                   <div className="modal show d-block" style={{ background: 'rgba(0,0,0,0.15)' }}>
-                    <div className="modal-dialog" style={{ maxWidth: 320 }}>
+                    <div className="modal-dialog" style={{ maxWidth: 600 }}>
                       <div className="modal-content">
                         <div className="modal-header">
-                          <h5 className="modal-title">Add Quantity</h5>
-                          <button type="button" className="btn-close" onClick={() => setShowProductKeypad(null)}></button>
+                          <h5 className="modal-title">Add Product</h5>
+                          <button type="button" className="btn-close" onClick={() => setAddProductCartId(null)}></button>
                         </div>
-                        <div className="modal-body text-center">
-                          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
-                            {clientProducts.find(p => p.id === showProductKeypad.productId)?.name}
-                          </div>
-                          <input
-                            type="number"
-                            min={1}
-                            className="form-control mb-3"
-                            style={{ fontSize: 22, textAlign: 'center', width: 120, margin: '0 auto' }}
-                            value={keypadQty}
-                            onChange={e => setKeypadQty(e.target.value.replace(/[^0-9]/g, ""))}
-                            autoFocus
-                          />
-                          <div className="d-flex flex-wrap justify-content-center">
-                            {[1,2,3,4,5,6,7,8,9,0].map((num) => (
-                              <button
-                                key={num}
-                                className="btn btn-light m-1"
-                                style={{ width: 60, height: 48, fontSize: 22, fontWeight: 600 }}
-                                onClick={() => setKeypadQty(q => q === "0" ? String(num) : q + String(num))}
-                              >
-                                {num}
-                              </button>
+                        <div className="modal-body">
+                          <div className="row g-3">
+                            {clientProducts.map((product) => (
+                              <div key={product.id} className="col-12 col-md-4">
+                                <div
+                                  className={`card mb-2 shadow-sm h-100${selectedProductId === product.id ? " border-primary" : " border-light"}`}
+                                  style={{ cursor: "pointer", minHeight: 120, borderWidth: 2 }}
+                                  onClick={() => setSelectedProductId(product.id)}
+                                >
+                                  {product.imageUrl && (
+                                    <img
+                                      src={product.imageUrl}
+                                      alt={product.name}
+                                      style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8 }}
+                                    />
+                                  )}
+                                  <div className="card-body py-2 px-3 text-center">
+                                    <div className="fw-bold" style={{ fontSize: 18 }}>{product.name}</div>
+                                  </div>
+                                </div>
+                              </div>
                             ))}
-                            <button
-                              className="btn btn-light m-1"
-                              style={{ width: 60, height: 48, fontSize: 22, fontWeight: 600 }}
-                              onClick={() => setKeypadQty(q => q.length > 0 ? q.slice(0, -1) : "")}
-                            >
-                              ←
-                            </button>
+                          </div>
+                          <div className="mt-3">
+                            <label className="form-label">Quantity</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              min={1}
+                              value={productQty}
+                              onChange={e => setProductQty(Number(e.target.value))}
+                            />
                           </div>
                         </div>
                         <div className="modal-footer">
-                          <button className="btn btn-secondary" onClick={() => setShowProductKeypad(null)}>Cancel</button>
+                          <button className="btn btn-secondary" onClick={() => setAddProductCartId(null)}>Cancel</button>
                           <button
-                            className="btn btn-success"
-                            disabled={keypadQty === "" || Number(keypadQty) < 1}
+                            className="btn btn-primary"
+                            disabled={!selectedProductId || productQty < 1}
                             onClick={() => {
-                              const qty = Number(keypadQty);
-                              if (qty < 1) return;
-                              setLocalCarts((prevCarts) => prevCarts.map((c) => {
-                                if (c.id !== cart.id) return c;
-                                const existingIdx = c.items.findIndex((item) => item.productId === showProductKeypad.productId);
-                                let newItems;
-                                if (existingIdx > -1) {
-                                  newItems = c.items.map((item, idx) =>
-                                    idx === existingIdx
-                                      ? { ...item, quantity: (Number(item.quantity) || 0) + qty }
-                                      : item
-                                  );
-                                } else {
-                                  const prod = clientProducts.find(p => p.id === showProductKeypad.productId);
-                                  newItems = [
-                                    ...c.items,
-                                    {
-                                      productId: showProductKeypad.productId,
-                                      productName: prod ? prod.name : '',
-                                      quantity: qty,
-                                      price: prod ? prod.price : 0,
-                                      addedBy: 'You',
-                                    },
-                                  ];
-                                }
-                                return { ...c, items: newItems };
-                              }));
-                              onAddProductToCart(cart.id, showProductKeypad.productId, qty);
-                              setShowProductKeypad(null);
+                              onAddProductToCart(cart.id, selectedProductId, productQty);
+                              setAddProductCartId(null);
+                              setSelectedProductId("");
+                              setProductQty(1);
                             }}
                           >
                             Add
@@ -356,6 +308,68 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     </div>
                   </div>
                 )}
+                {/* Product Cards */}
+                <div className="row g-2 mb-2">
+                  {/* Group items by productId, but keep each entry, and show as a single card with icon, name, total, and per-entry breakdown */}
+                  {(() => {
+                    // Group items by productId
+                    const itemsByProduct: Record<string, Array<typeof cart.items[0]>> = {};
+                    cart.items.forEach(item => {
+                      if (!itemsByProduct[item.productId]) itemsByProduct[item.productId] = [];
+                      itemsByProduct[item.productId].push(item);
+                    });
+                    // Helper: get icon for product (fallback to placeholder)
+                    const getProductIcon = (product: Product | undefined) => {
+                      if (!product) return <span role="img" aria-label="product">🖼️</span>;
+                      const name = product.name.toLowerCase();
+                      if (name.includes("scrub shirt") || name.includes("scrub top") || name.includes("scrub")) {
+                        return (
+                          <img
+                            src={"/images/products/scrubshirt.png"}
+                            alt="Scrub Shirt"
+                            style={{ width: 40, height: 40, objectFit: 'contain' }}
+                          />
+                        );
+                      }
+                      if (name.includes("sábanas")) return <span role="img" aria-label="sheets">🛏️</span>;
+                      if (name.includes("fundas")) return <span role="img" aria-label="covers">🧺</span>;
+                      if (name.includes("toallas de baño")) return <span role="img" aria-label="bath towel">🛁</span>;
+                      if (name.includes("toalla de piso")) return <span role="img" aria-label="floor towel">🧍</span>;
+                      if (name.includes("toalla de cara")) return <span role="img" aria-label="face towel">🧻</span>;
+                      if (name.includes("frisas")) return <span role="img" aria-label="frisas">🦢</span>;
+                      if (name.includes("cortinas")) return <span role="img" aria-label="curtains">🪟</span>;
+                      return <span role="img" aria-label="product">🖼️</span>;
+                    };
+                    return Object.entries(itemsByProduct).map(([productId, entries]) => {
+                      const product = clientProducts.find(p => p.id === productId);
+                      const totalQty = entries.reduce((sum, e) => sum + Number(e.quantity), 0);
+                      return (
+                        <div key={productId} className="col-12 col-md-6">
+                          <div className="d-flex align-items-center border rounded p-2 mb-2" style={{background: '#fff', minHeight: 72}}>
+                            <div style={{width: 48, height: 48, marginRight: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32}}>
+                              {getProductIcon(product)}
+                            </div>
+                            <div style={{flex: 1}}>
+                              <div style={{fontWeight: 700, fontSize: 18, color: '#222'}}>{entries[0].productName}</div>
+                              <div style={{fontSize: 13, color: '#888'}}>
+                                Added by {entries[0].addedBy || 'You'}
+                              </div>
+                            </div>
+                            <div style={{fontWeight: 700, fontSize: 22, color: '#0E62A0', marginLeft: 8, minWidth: 60, textAlign: 'right'}}>{totalQty}</div>
+                          </div>
+                          {/* Per-entry breakdown */}
+                          {entries.length > 1 && (
+                            <div style={{marginLeft: 60, fontSize: 13, color: '#888', marginTop: -8, marginBottom: 8}}>
+                              {entries.map((entry, idx) => (
+                                <span key={idx} style={{marginRight: 8}}>+{entry.quantity}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
             ))}
           </div>

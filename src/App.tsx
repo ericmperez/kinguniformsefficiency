@@ -83,6 +83,7 @@ import SignInSide from "./components/SignInSide";
 import RutasPorCamion from "./components/RutasPorCamion";
 import GlobalActivityLog from "./components/GlobalActivityLog";
 import BillingPage from "./components/BillingPage";
+import SendInvoicePage from "./components/SendInvoicePage";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -155,7 +156,7 @@ function updateClientInInvoices(
 function App() {
   const { user, logout } = useAuth();
   const [activePage, setActivePage] = useState<
-    "home" | "entradas" | "washing" | "segregation" | "settings" | "reports" | "billing"
+    "home" | "entradas" | "washing" | "segregation" | "settings" | "reports" | "billing" | "activityLog"
   >("home");
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -593,6 +594,12 @@ function App() {
       icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
       visible: true,
     },
+    {
+      label: "Activity Log",
+      page: "activityLog" as const,
+      icon: <ListAltIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
+      visible: true, // Adjust permission as needed
+    },
     // Removed 'Rutas por Camión' from navLinks
   ];
 
@@ -821,7 +828,7 @@ function App() {
   }
 
   return (
-    <div className="App">
+    <Router>
       <AppBar
         position="sticky"
         color="default"
@@ -883,7 +890,7 @@ function App() {
               onClick={() => setActivePage("home")}
             >
               <Avatar
-                src={kingUniformsLogo}
+                src={"/images/King-Uniforms-Icon.png"}
                 alt="King Uniforms"
                 sx={{
                   width: { xs: 28, md: 36 },
@@ -1346,12 +1353,6 @@ function App() {
       )}
       {activePage === "home" && (
         <div className="container py-5">
-          {/* --- Missing Required Items Section --- */}
-          <MissingRequiredItemsSection
-            clients={clients}
-            products={products}
-            invoices={invoices}
-          />
           <div className="row justify-content-center mb-4">
             <div className="col-12 col-md-6 col-lg-4">
               <div
@@ -1435,19 +1436,12 @@ function App() {
                 </div>
               ))}
           </div>
-          {/* --- Global Activity Log at the bottom --- */}
-          <div className="row justify-content-center mt-5">
-            <div className="col-12 col-md-10 col-lg-8">
-              <GlobalActivityLog />
-            </div>
-          </div>
         </div>
       )}
       {/* Removed rendering for activePage === "rutasPorCamion" */}
       {activePage === "home" && (
         <div className="home-page">
-          <h1>Welcome to the App</h1>
-          <p>Select a page from the menu to get started.</p>
+          {/* Removed 'Welcome to the App' and instructions text */}
         </div>
       )}
       {activePage === "entradas" && (
@@ -1470,7 +1464,19 @@ function App() {
       )}
       {activePage === "reports" && <Report />}
       {activePage === "billing" && <BillingPage />}
-    </div>
+      {activePage === "activityLog" && (
+        <div className="container py-5">
+          <div className="row justify-content-center">
+            <div className="col-12 col-md-10 col-lg-8">
+              <GlobalActivityLog />
+            </div>
+          </div>
+        </div>
+      )}
+      <Routes>
+        <Route path="/send-invoice" element={<SendInvoicePage />} />
+      </Routes>
+    </Router>
   );
 }
 

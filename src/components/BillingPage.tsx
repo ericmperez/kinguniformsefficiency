@@ -4,6 +4,7 @@ import { getInvoices, getClients } from "../services/firebaseService";
 import { collection, setDoc, doc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
+import html2pdf from "html2pdf.js";
 
 const nowrapCellStyle = { whiteSpace: 'nowrap' };
 
@@ -197,10 +198,57 @@ const BillingPage: React.FC = () => {
   // Print modal state
   const [invoiceToPrint, setInvoiceToPrint] = useState<Invoice | null>(null);
 
+  // State for email sending
+  const [emailStatus, setEmailStatus] = useState<string>("");
+  const [emailTo, setEmailTo] = useState<string>("");
+
   // Get charge label based on type
   const getChargeLabel = () => {
     return serviceChargeEnabled ? 'Service Charge' : 'Fuel Charge';
   };
+
+  async function sendInvoiceByEmail() {
+    setEmailStatus("");
+    if (!emailTo) {
+      setEmailStatus("Please enter a recipient email.");
+      return;
+    }
+    const element = document.getElementById("print-area");
+    if (!element) {
+      setEmailStatus("Invoice content not found.");
+      return;
+    }
+    try {
+      const pdfBlob = await html2pdf().from(element).outputPdf("blob");
+      const pdfBase64 = await blobToBase64(pdfBlob);
+      const res = await fetch("/api/send-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: emailTo,
+          subject: `Factura #${invoiceToPrint?.invoiceNumber}`,
+          text: "Adjunto su factura.",
+          pdfBase64: pdfBase64.split(",")[1], // remove data:...base64,
+        }),
+      });
+      if (res.ok) {
+        setEmailStatus("Email sent successfully.");
+      } else {
+        setEmailStatus("Failed to send email.");
+      }
+    } catch (err) {
+      setEmailStatus("Error generating or sending PDF.");
+    }
+  }
+
+  function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
 
   return (
     <div className="container py-4">
@@ -242,9 +290,19 @@ const BillingPage: React.FC = () => {
                   .map(product => {
                     const priceValue = productPrices[product.id];
                     const isMissing = !priceValue || priceValue <= 0;
+                    const name = product.name.toLowerCase();
                     return (
                       <tr key={product.id}>
-                        <td style={nowrapCellStyle}>{product.name}</td>
+                        <td style={nowrapCellStyle}>
+                          {name.includes("scrub shirt") || name.includes("scrub top") || name.includes("scrub") ? (
+                            <img
+                              src={"/images/products/scrubshirt.png"}
+                              alt="Scrub Shirt"
+                              style={{ width: 28, height: 28, objectFit: 'contain', marginRight: 8, verticalAlign: 'middle' }}
+                            />
+                          ) : null}
+                          {product.name}
+                        </td>
                         <td style={nowrapCellStyle}>
                           <input
                             type="number"
@@ -404,6 +462,8 @@ const BillingPage: React.FC = () => {
                       <th>Invoice #</th>
                       <th>Date</th>
                       <th>Truck #</th>
+                      {/* Add Verifier column */}
+                      <th>Verifier</th>
                       {productColumns.map(prod => (
                         <th key={prod.id}>{prod.name}</th>
                       ))}
@@ -471,6 +531,8 @@ const BillingPage: React.FC = () => {
                           <td>{inv.invoiceNumber || inv.id}</td>
                           <td>{inv.date ? new Date(inv.date).toLocaleDateString() : '-'}</td>
                           <td>{inv.truckNumber || '-'}</td>
+                          {/* Verifier cell */}
+                          <td>{inv.verifiedBy || '-'}</td>
                           {productCells}
                           <td style={nowrapCellStyle}><b>{displaySubtotal > 0 ? `$${displaySubtotal.toFixed(2)}` : ''}</b></td>
                           <td style={nowrapCellStyle}><b>{serviceCharge > 0 ? `$${serviceCharge.toFixed(2)}` : ''}</b></td>
@@ -550,6 +612,19 @@ const BillingPage: React.FC = () => {
                     <br />
                     <span style={{ fontWeight: 700 }}>Fecha: </span>
                     <span style={{ color: '#0E62A0', fontWeight: 700 }}>{invoiceToPrint.date ? new Date(invoiceToPrint.date).toLocaleDateString() : '-'}</span>
+                    {/* Show verification status and verifier if present */}
+                    {(invoiceToPrint.verified || invoiceToPrint.partiallyVerified) && (
+                      <div style={{ marginTop: 8 }}>
+                        <span style={{ fontWeight: 700, color: invoiceToPrint.verified ? '#22c55e' : '#fbbf24' }}>
+                          {invoiceToPrint.verified ? 'Fully Verified' : 'Partially Verified'}
+                        </span>
+                        {invoiceToPrint.verifiedBy && (
+                          <span style={{ marginLeft: 12, color: '#888', fontWeight: 500 }}>
+                            Verifier: {invoiceToPrint.verifiedBy}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div style={{ marginTop: 18 }}>
                     <div style={{ maxHeight: '4.5in', overflowY: 'auto' }}>
@@ -574,12 +649,24 @@ const BillingPage: React.FC = () => {
                             });
                             const productRows = Object.entries(productMap)
                               .sort((a, b) => a[0].localeCompare(b[0]))
-                              .map(([name, qty], idx) => (
-                                <tr key={name + idx}>
-                                  <td style={{ fontWeight: 700, color: '#111', padding: '1px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal', maxWidth: 0, fontSize: 13 }}>{name}</td>
-                                  <td style={{ fontWeight: 700, color: '#111', textAlign: 'right', padding: '1px 0', fontSize: 13 }}>{Number(qty)}</td>
-                                </tr>
-                              ));
+                              .map(([name, qty], idx) => {
+                                const lower = name.toLowerCase();
+                                return (
+                                  <tr key={name + idx}>
+                                    <td style={{ fontWeight: 700, color: '#111', padding: '1px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal', maxWidth: 0, fontSize: 13 }}>
+                                      {lower.includes("scrub shirt") || lower.includes("scrub top") || lower.includes("scrub") ? (
+                                        <img
+                                          src={"/images/products/scrubshirt.png"}
+                                          alt="Scrub Shirt"
+                                          style={{ width: 20, height: 20, objectFit: 'contain', marginRight: 6, verticalAlign: 'middle' }}
+                                        />
+                                      ) : null}
+                                      {name}
+                                    </td>
+                                    <td style={{ fontWeight: 700, color: '#111', textAlign: 'right', padding: '1px 0', fontSize: 13 }}>{Number(qty)}</td>
+                                  </tr>
+                                );
+                              });
                             if (productRows.length === 0) {
                               return <tr><td colSpan={2} style={{ textAlign: 'center', color: '#888', fontWeight: 400 }}>No hay productos</td></tr>;
                             }
@@ -633,6 +720,21 @@ const BillingPage: React.FC = () => {
                     }, 100);
                   }
                 }}>Imprimir</button>
+                <div className="d-flex flex-column align-items-end" style={{ flex: 1 }}>
+                  <div className="input-group mb-1" style={{ maxWidth: 320 }}>
+                    <input
+                      type="email"
+                      className="form-control"
+                      placeholder="Recipient email"
+                      value={emailTo}
+                      onChange={e => setEmailTo(e.target.value)}
+                    />
+                    <button className="btn btn-outline-primary" onClick={sendInvoiceByEmail}>
+                      Send PDF by Email
+                    </button>
+                  </div>
+                  {emailStatus && <div className="text-end" style={{ color: emailStatus.includes('success') ? 'green' : 'red', fontSize: 14 }}>{emailStatus}</div>}
+                </div>
               </div>
             </div>
           </div>

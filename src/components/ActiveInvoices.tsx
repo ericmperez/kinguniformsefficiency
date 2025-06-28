@@ -158,8 +158,8 @@ export default function ActiveInvoices({
     [cartId: string]: { [productId: string]: boolean };
   }>({});
   const [showVerifyIdModal, setShowVerifyIdModal] = useState(false);
-  const [verifyIdInput, setVerifyIdInput] = useState("");
   const [verifyIdError, setVerifyIdError] = useState("");
+  const [partialVerifiedInvoices, setPartialVerifiedInvoices] = useState<{ [id: string]: boolean }>({});
 
   // Handler to lock invoice
   const handleLockInvoice = async (invoiceId: string) => {
@@ -223,23 +223,25 @@ export default function ActiveInvoices({
     );
   };
 
-  // When user clicks Done in verify modal
-  const handleVerifyDone = async () => {
-    if (!allVerified()) return;
-    setShowVerifyIdModal(true);
-    setVerifyIdInput("");
-    setVerifyIdError("");
-    // Mark as verified in local state for instant UI update
-    if (verifyInvoiceId) {
-      setReadyInvoices((prev) => ({ ...prev, [verifyInvoiceId]: true }));
-    }
+  // Check if any products are checked
+  const anyVerified = () => {
+    return Object.values(verifyChecks).some((cartChecks) =>
+      Object.values(cartChecks).some(Boolean)
+    );
   };
 
-  // Confirm verification with ID
+  // When user clicks Done in verify modal
+  const handleVerifyDone = async () => {
+    if (!anyVerified()) return; // Require at least one item checked
+    // Instead of showing modal, immediately use logged-in user's name
+    await confirmVerifyId();
+  };
+
+  // Confirm verification with user name
   const confirmVerifyId = async () => {
     if (!verifyInvoiceId) return;
-    if (!verifyIdInput || verifyIdInput !== user?.id) {
-      setVerifyIdError("ID incorrecto o no coincide con el usuario actual.");
+    if (!user?.username) {
+      setVerifyIdError("No user name found. Please log in again.");
       return;
     }
     // Build verifiedProducts structure
@@ -249,19 +251,25 @@ export default function ActiveInvoices({
         .filter(([_, checked]) => checked)
         .map(([productId]) => productId);
     }
+    const isFullyVerified = allVerified();
     await onUpdateInvoice(verifyInvoiceId, {
-      verified: true,
-      verifiedBy: user?.id,
+      verified: isFullyVerified,
+      partiallyVerified: !isFullyVerified,
+      verifiedBy: user.username,
       verifiedAt: new Date().toISOString(),
       verifiedProducts,
     });
-    // Open print modal for this invoice
+    setPartialVerifiedInvoices((prev) => ({
+      ...prev,
+      [verifyInvoiceId]: !isFullyVerified && anyVerified(),
+    }));
     const invoice = invoices.find((inv) => inv.id === verifyInvoiceId);
     if (invoice) {
       openPrintInvoice({
         ...invoice,
-        verified: true,
-        verifiedBy: user?.id,
+        verified: isFullyVerified,
+        partiallyVerified: !isFullyVerified,
+        verifiedBy: user.username,
         verifiedAt: new Date().toISOString(),
         verifiedProducts,
       });
@@ -754,6 +762,9 @@ export default function ActiveInvoices({
   const [showShippedModal, setShowShippedModal] = useState<string | null>(null);
   const [shippedTruckNumber, setShippedTruckNumber] = useState("");
 
+  // Add at the top-level of the component:
+  const [highlightColors, setHighlightColors] = useState<{ [invoiceId: string]: 'yellow' | 'blue' }>({});
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
@@ -789,6 +800,22 @@ export default function ActiveInvoices({
               const avatarSrc = getClientAvatarUrl(client || {});
               const isReady = invoice.status === 'ready' || readyInvoices[invoice.id];
               const isVerified = invoice.verified;
+              const isPartiallyVerified = invoice.partiallyVerified || partialVerifiedInvoices[invoice.id];
+              // Determine highlight color for this invoice
+              const highlight = highlightColors[invoice.id] || 'blue';
+              // Compute background based on highlight color and status
+              let cardBackground = '';
+              if (isVerified) {
+                cardBackground = 'linear-gradient(135deg, #bbf7d0 0%, #22c55e 100%)'; // green
+              } else if (isPartiallyVerified) {
+                cardBackground = 'linear-gradient(135deg, #fef9c3 0%, #fde047 100%)'; // yellow for partial
+              } else if (isReady) {
+                cardBackground = 'linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)'; // yellow
+              } else if (highlight === 'yellow') {
+                cardBackground = 'linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)'; // yellow
+              } else {
+                cardBackground = 'linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)'; // blue
+              }
               return (
                 <div
                   key={invoice.id}
@@ -800,11 +827,7 @@ export default function ActiveInvoices({
                     className="modern-invoice-card shadow-lg"
                     style={{
                       borderRadius: 24,
-                      background: isVerified
-                        ? 'linear-gradient(135deg, #bbf7d0 0%, #22c55e 100%)' // green
-                        : isReady
-                        ? 'linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)' // yellow
-                        : 'linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)',
+                      background: cardBackground,
                       color: '#222',
                       boxShadow: '0 8px 32px 0 rgba(0,0,0,0.10)',
                       border: 'none',
@@ -929,7 +952,7 @@ export default function ActiveInvoices({
                         zIndex: 10,
                       }}
                     >
-                      {/* Mark as Ready button */}
+                      {/* Mark as Ready button (now toggles highlight color) */}
                       <button
                         className="btn btn-warning btn-sm"
                         style={{
@@ -946,12 +969,14 @@ export default function ActiveInvoices({
                         }}
                         onClick={e => {
                           e.stopPropagation();
-                          handleReadyClick(invoice.id);
+                          setHighlightColors(prev => ({
+                            ...prev,
+                            [invoice.id]: prev[invoice.id] === 'yellow' ? 'blue' : 'yellow',
+                          }));
                         }}
-                        disabled={isReady}
-                        title={isReady ? "Ready!" : "Mark as Ready"}
+                        title={highlight === 'yellow' ? 'Highlight: Yellow' : 'Highlight: Blue'}
                       >
-                        <i className="bi bi-flag-fill" style={{ color: isReady ? '#fbbf24' : '#b45309', fontSize: 22 }} />
+                        <i className="bi bi-flag-fill" style={{ color: highlight === 'yellow' ? '#fbbf24' : '#0E62A0', fontSize: 22 }} />
                       </button>
                       {/* Verified button */}
                       <button
@@ -1174,18 +1199,29 @@ export default function ActiveInvoices({
                                 setKeypadQuantity(1);
                               }}
                             >
-                              {product.imageUrl && (
-                                <img
-                                  src={product.imageUrl}
-                                  alt={product.name}
-                                  style={{
-                                    width: "100%",
-                                    height: 90,
-                                    objectFit: "cover",
-                                    borderRadius: 8,
-                                  }}
-                                />
-                              )}
+                              {/* Show product image or icon */}
+                              {(() => {
+                                const name = product.name.toLowerCase();
+                                if (name.includes("scrub shirt") || name.includes("scrub top") || name.includes("scrub")) {
+                                  return (
+                                    <img
+                                      src={"/images/products/scrubshirt.png"}
+                                      alt="Scrub Shirt"
+                                      style={{ width: "100%", height: 90, objectFit: "contain", borderRadius: 8 }}
+                                    />
+                                  );
+                                }
+                                if (product.imageUrl) {
+                                  return (
+                                    <img
+                                      src={product.imageUrl}
+                                      alt={product.name}
+                                      style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8 }}
+                                    />
+                                  );
+                                }
+                                return null;
+                              })()}
                               <div className="card-body py-2 px-3 text-center">
                                 <div
                                   className="fw-bold"
@@ -1959,9 +1995,7 @@ export default function ActiveInvoices({
                       className="form-control"
                       min={1}
                       value={addToGroupValue}
-                      onChange={(e) =>
-                        setAddToGroupValue(Number(e.target.value))
-                      }
+                      onChange={(e) => setAddToGroupValue(Number(e.target.value))}
                     />
                   </div>
                 )}
@@ -2094,7 +2128,7 @@ export default function ActiveInvoices({
                   autoFocus
                 />
               </div>
-              <div className="modal-footer">
+                           <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowShippedModal(null)}>Cancel</button>
                 <button
                   className="btn btn-info"
@@ -2108,16 +2142,18 @@ export default function ActiveInvoices({
                     if (invoice.pickupGroupId) {
                       try {
                         const { updatePickupGroupStatus } = await import("../services/firebaseService");
-                        await updatePickupGroupStatus(invoice.pickupGroupId, 'done');
-                      } catch (e) {
-                        // Optionally handle error
-                        console.error('Failed to update group status:', e);
+                        const group = pickupGroups.find(g => g.id === invoice.pickupGroupId);
+                        if (group) {
+                          await updatePickupGroupStatus(invoice.pickupGroupId, 'done');
+                        }
+                      } catch (err) {
+                        console.error("Error updating group status:", err);
                       }
                     }
                     setShowShippedModal(null);
                   }}
                 >
-                  Mark as Shipped
+                  Ship
                 </button>
               </div>
             </div>
@@ -2287,13 +2323,8 @@ export default function ActiveInvoices({
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setVerifyInvoiceId(null)}>Cancel</button>
-                <button className="btn btn-success" onClick={async () => {
-                  // Mark as verified in backend and update UI
-                  if (!allVerified() || !verifyInvoiceId) return;
-                  await onUpdateInvoice(verifyInvoiceId, { verified: true });
-                  setVerifyInvoiceId(null);
-                }} disabled={!allVerified()}>
-                  Mark as Verified
+                <button className="btn btn-success" onClick={handleVerifyDone} disabled={!anyVerified()}>
+                  Done
                 </button>
               </div>
             </div>
