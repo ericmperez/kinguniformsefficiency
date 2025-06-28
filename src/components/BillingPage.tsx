@@ -4,6 +4,8 @@ import { getInvoices, getClients } from "../services/firebaseService";
 import { collection, setDoc, doc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 
+const nowrapCellStyle = { whiteSpace: 'nowrap' };
+
 const BillingPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -12,6 +14,15 @@ const BillingPage: React.FC = () => {
   // State for per-client, per-product prices
   const [productPrices, setProductPrices] = useState<Record<string, number>>({});
   const [saveStatus, setSaveStatus] = useState<string>("");
+
+  // State for minimum billing value
+  const [minBilling, setMinBilling] = useState<string>("");
+
+  // State for service and fuel charge
+  const [serviceChargeEnabled, setServiceChargeEnabled] = useState(false);
+  const [serviceChargePercent, setServiceChargePercent] = useState('');
+  const [fuelChargeEnabled, setFuelChargeEnabled] = useState(false);
+  const [fuelChargePercent, setFuelChargePercent] = useState('');
 
   // Get selected client object
   const selectedClient = clients.find(c => c.id === selectedClientId);
@@ -53,6 +64,53 @@ const BillingPage: React.FC = () => {
     })();
   }, [selectedClientId]);
 
+  // Load minimum billing value for selected client
+  useEffect(() => {
+    if (!selectedClient) {
+      setMinBilling("");
+      return;
+    }
+    (async () => {
+      const { getDoc, doc } = await import("firebase/firestore");
+      const { db } = await import("../firebase");
+      const docRef = doc(db, "client_minimum_billing", selectedClient.id);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        setMinBilling(String(snap.data().minBilling ?? ""));
+      } else {
+        setMinBilling("");
+      }
+    })();
+  }, [selectedClientId]);
+
+  // Load both charges for selected client
+  useEffect(() => {
+    if (!selectedClient) {
+      setServiceChargeEnabled(false);
+      setServiceChargePercent('');
+      setFuelChargeEnabled(false);
+      setFuelChargePercent('');
+      return;
+    }
+    (async () => {
+      const { getDoc, doc } = await import("firebase/firestore");
+      const { db } = await import("../firebase");
+      const docRef = doc(db, "client_minimum_billing", selectedClient.id);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        setServiceChargeEnabled(!!snap.data().serviceChargeEnabled);
+        setServiceChargePercent(snap.data().serviceChargePercent !== undefined ? String(snap.data().serviceChargePercent) : '');
+        setFuelChargeEnabled(!!snap.data().fuelChargeEnabled);
+        setFuelChargePercent(snap.data().fuelChargePercent !== undefined ? String(snap.data().fuelChargePercent) : '');
+      } else {
+        setServiceChargeEnabled(false);
+        setServiceChargePercent('');
+        setFuelChargeEnabled(false);
+        setFuelChargePercent('');
+      }
+    })();
+  }, [selectedClientId]);
+
   // Handler for price input
   const handlePriceChange = (productId: string, value: string) => {
     setProductPrices(prev => ({ ...prev, [productId]: Number(value) }));
@@ -77,11 +135,29 @@ const BillingPage: React.FC = () => {
             }
           );
         });
+      // Save minimum billing value and both charges
+      await setDoc(
+        doc(collection(db, "client_minimum_billing"), selectedClient.id),
+        {
+          clientId: selectedClient.id,
+          minBilling: minBilling ? Number(minBilling) : 0,
+          serviceChargeEnabled,
+          serviceChargePercent: serviceChargePercent ? Number(serviceChargePercent) : 0,
+          fuelChargeEnabled,
+          fuelChargePercent: fuelChargePercent ? Number(fuelChargePercent) : 0,
+          updatedAt: new Date().toISOString(),
+        }
+      );
       await Promise.all(updates);
       setSaveStatus("Prices saved successfully.");
     } catch (e) {
       setSaveStatus("Error saving prices.");
     }
+  };
+
+  // Get charge label based on type
+  const getChargeLabel = () => {
+    return serviceChargeEnabled ? 'Service Charge' : 'Fuel Charge';
   };
 
   return (
@@ -91,14 +167,6 @@ const BillingPage: React.FC = () => {
       {selectedClient && (
         <div className="mb-4">
           <h5>Set Product Prices for {selectedClient.name}</h5>
-          <button className="btn btn-success mb-3" onClick={handleSavePrices}>
-            Save Prices
-          </button>
-          {saveStatus && (
-            <div className={`alert ${saveStatus.includes('success') ? 'alert-success' : 'alert-danger'} mt-2`}>
-              {saveStatus}
-            </div>
-          )}
           <div className="table-responsive" style={{ maxWidth: 600 }}>
             <table className="table table-bordered align-middle">
               <thead>
@@ -110,24 +178,102 @@ const BillingPage: React.FC = () => {
               <tbody>
                 {allProducts
                   .filter(p => selectedClient.selectedProducts.includes(p.id))
-                  .map(product => (
-                    <tr key={product.id}>
-                      <td>{product.name}</td>
-                      <td>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min={0}
-                          value={productPrices[product.id] ?? ""}
-                          onChange={e => handlePriceChange(product.id, e.target.value)}
-                          placeholder="Enter price"
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  .map(product => {
+                    const priceValue = productPrices[product.id];
+                    const isMissing = !priceValue || priceValue <= 0;
+                    return (
+                      <tr key={product.id}>
+                        <td style={nowrapCellStyle}>{product.name}</td>
+                        <td style={nowrapCellStyle}>
+                          <input
+                            type="number"
+                            className={`form-control${isMissing ? ' is-invalid' : ''}`}
+                            min={0}
+                            value={priceValue ?? ""}
+                            onChange={e => handlePriceChange(product.id, e.target.value)}
+                            placeholder="Enter price"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
+          {/* Minimum Billing Value input */}
+          <div className="mb-3" style={{ maxWidth: 300 }}>
+            <label className="form-label">Minimum Billing Value</label>
+            <input
+              type="number"
+              className="form-control"
+              min={0}
+              value={minBilling}
+              onChange={e => setMinBilling(e.target.value)}
+              placeholder="Enter minimum billing value"
+            />
+          </div>
+          {/* Service and Fuel Charge Options */}
+          <div className="mb-3" style={{ maxWidth: 500 }}>
+            <label className="form-label">Additional Charges</label>
+            <div className="d-flex align-items-center gap-4 mb-2">
+              <div className="form-check">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="serviceCharge"
+                  checked={serviceChargeEnabled}
+                  onChange={() => setServiceChargeEnabled(v => !v)}
+                />
+                <label className="form-check-label" htmlFor="serviceCharge">
+                  Service Charge
+                </label>
+                <input
+                  type="number"
+                  className="form-control d-inline-block ms-2"
+                  style={{ width: 100 }}
+                  min={0}
+                  max={100}
+                  value={serviceChargePercent}
+                  onChange={e => setServiceChargePercent(e.target.value)}
+                  placeholder="%"
+                  disabled={!serviceChargeEnabled}
+                />
+                <span className="ms-2">%</span>
+              </div>
+              <div className="form-check">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="fuelCharge"
+                  checked={fuelChargeEnabled}
+                  onChange={() => setFuelChargeEnabled(v => !v)}
+                />
+                <label className="form-check-label" htmlFor="fuelCharge">
+                  Fuel Charge
+                </label>
+                <input
+                  type="number"
+                  className="form-control d-inline-block ms-2"
+                  style={{ width: 100 }}
+                  min={0}
+                  max={100}
+                  value={fuelChargePercent}
+                  onChange={e => setFuelChargePercent(e.target.value)}
+                  placeholder="%"
+                  disabled={!fuelChargeEnabled}
+                />
+                <span className="ms-2">%</span>
+              </div>
+            </div>
+          </div>
+          <button className="btn btn-success mt-2" onClick={handleSavePrices}>
+            Save Prices
+          </button>
+          {saveStatus && (
+            <div className={`alert ${saveStatus.includes('success') ? 'alert-success' : 'alert-danger'} mt-2`}>
+              {saveStatus}
+            </div>
+          )}
         </div>
       )}
       {/* Client Dropdown Filter */}
@@ -182,8 +328,8 @@ const BillingPage: React.FC = () => {
           return (
             <div key={clientId} className="mb-5">
               <h5 style={{ fontWeight: 700, color: '#0ea5e9' }}>{client?.name || clientInvoices[0].clientName}</h5>
-              <div className="table-responsive">
-                <table className="table table-bordered table-hover">
+              <div className="table-responsive" style={{ overflowX: 'auto', minWidth: 400 }}>
+                <table className="table table-bordered table-hover" style={{ minWidth: 700 }}>
                   <thead>
                     <tr>
                       <th>Invoice #</th>
@@ -192,6 +338,9 @@ const BillingPage: React.FC = () => {
                       {productColumns.map(prod => (
                         <th key={prod.id}>{prod.name}</th>
                       ))}
+                      <th>Subtotal</th>
+                      <th>Service Charge</th>
+                      <th>Fuel Charge</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -199,28 +348,61 @@ const BillingPage: React.FC = () => {
                       if (a.invoiceNumber && b.invoiceNumber) return a.invoiceNumber - b.invoiceNumber;
                       if (a.date && b.date) return new Date(a.date).getTime() - new Date(b.date).getTime();
                       return a.id.localeCompare(b.id);
-                    }).map(inv => (
-                      <tr key={inv.id}>
-                        <td>{inv.invoiceNumber || inv.id}</td>
-                        <td>{inv.date ? new Date(inv.date).toLocaleDateString() : '-'}</td>
-                        <td>{inv.truckNumber || '-'}</td>
-                        {productColumns.map(prod => {
-                          // Sum quantity of this product in all carts for this invoice
-                          const qty = (inv.carts || []).reduce((sum, cart) => {
-                            return sum + (cart.items || []).filter(item => item.productId === prod.id).reduce((s, item) => s + (Number(item.quantity) || 0), 0);
-                          }, 0);
-                          const price = productPrices[prod.id];
-                          if (qty > 0 && price > 0) {
-                            const total = qty * price;
-                            return <td key={prod.id}>{`${qty} | ${total.toFixed(2)}`}</td>;
-                          } else if (qty > 0) {
-                            return <td key={prod.id}>{qty}</td>;
-                          } else {
-                            return <td key={prod.id}></td>;
-                          }
-                        })}
-                      </tr>
-                    ))}
+                    }).map(inv => {
+                      // Check if any product in this invoice has qty > 0 and no price set
+                      const missingPrice = productColumns.some(prod => {
+                        const qty = (inv.carts || []).reduce((sum, cart) => {
+                          return sum + (cart.items || []).filter(item => item.productId === prod.id).reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                        }, 0);
+                        const price = productPrices[prod.id];
+                        return qty > 0 && (!price || price <= 0);
+                      });
+                      let subtotal = 0;
+                      const productCells = productColumns.map(prod => {
+                        const qty = (inv.carts || []).reduce((sum, cart) => {
+                          return sum + (cart.items || []).filter(item => item.productId === prod.id).reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                        }, 0);
+                        const price = productPrices[prod.id];
+                        let cell = null;
+                        if (qty > 0 && price > 0) {
+                          const total = qty * price;
+                          subtotal += total;
+                          cell = `${qty} | `;
+                          return <td key={prod.id} style={nowrapCellStyle}>{qty} | <span className="text-success">${total.toFixed(2)}</span></td>;
+                        } else if (qty > 0) {
+                          return <td key={prod.id} style={nowrapCellStyle}>{qty}</td>;
+                        } else {
+                          return <td key={prod.id}></td>;
+                        }
+                        return <td key={prod.id}>{cell}</td>;
+                      });
+                      // Use minimum billing value if subtotal is less
+                      let minValue = minBilling ? Number(minBilling) : 0;
+                      let displaySubtotal = subtotal;
+                      if (minValue > 0 && subtotal < minValue) {
+                        displaySubtotal = minValue;
+                      }
+                      // Calculate charges
+                      let serviceCharge = 0;
+                      let fuelCharge = 0;
+                      if (serviceChargeEnabled && serviceChargePercent && Number(serviceChargePercent) > 0) {
+                        serviceCharge = displaySubtotal * (Number(serviceChargePercent) / 100);
+                      }
+                      if (fuelChargeEnabled && fuelChargePercent && Number(fuelChargePercent) > 0) {
+                        fuelCharge = displaySubtotal * (Number(fuelChargePercent) / 100);
+                      }
+                      return (
+                        <tr key={inv.id} className={missingPrice ? 'table-danger' : ''}>
+                          <td>{inv.invoiceNumber || inv.id}</td>
+                          <td>{inv.date ? new Date(inv.date).toLocaleDateString() : '-'}</td>
+                          <td>{inv.truckNumber || '-'}</td>
+                          {productCells}
+                          <td style={nowrapCellStyle}><b>{displaySubtotal > 0 ? `$${displaySubtotal.toFixed(2)}` : ''}</b></td>
+                          <td style={nowrapCellStyle}><b>{serviceCharge > 0 ? `$${serviceCharge.toFixed(2)}` : ''}</b></td>
+                          <td style={nowrapCellStyle}><b>{fuelCharge > 0 ? `$${fuelCharge.toFixed(2)}` : ''}</b></td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

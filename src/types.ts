@@ -15,6 +15,7 @@ export interface Client {
   isRented: boolean;
   washingType?: "Tunnel" | "Conventional";
   segregation?: boolean;
+  billingCalculation?: "byWeight" | "byItem";
 }
 
 export interface CartItem {

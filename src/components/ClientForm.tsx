@@ -49,6 +49,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<AppClient | null>(null);
   const [segregation, setSegregation] = useState(false);
+  const [billingCalculation, setBillingCalculation] = useState<"byWeight" | "byItem">("byWeight");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +60,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
       isRented,
       washingType,
       segregation,
+      billingCalculation,
     };
     // Only include image if a new image is selected
     if (newClientImage) {
@@ -77,6 +79,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setIsRented(false);
     setWashingType("Tunnel");
     setSegregation(false);
+    setBillingCalculation("byWeight");
   };
 
   // Patch: always provide image as File|null (never undefined) for AppClient
@@ -93,6 +96,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setWashingType(client.washingType || "Tunnel");
     setSegregation(client.segregation ?? false);
     setNewClientImage(null); // Always reset when opening edit modal
+    setBillingCalculation(client.billingCalculation || "byWeight");
   };
 
   const handleCancel = () => {
@@ -103,6 +107,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setIsRented(false);
     setWashingType("Tunnel");
     setSegregation(false);
+    setBillingCalculation("byWeight");
   };
 
   const handleProductToggle = async (productId: string) => {
@@ -305,6 +310,40 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   />
                   <label className="form-check-label" htmlFor="segregationNo">
                     No
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">Billing Calculation</label>
+              <div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="billingCalculation"
+                    id="billingByWeight"
+                    value="byWeight"
+                    checked={billingCalculation === "byWeight"}
+                    onChange={() => setBillingCalculation("byWeight")}
+                  />
+                  <label className="form-check-label" htmlFor="billingByWeight">
+                    By Weight
+                  </label>
+                </div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="billingCalculation"
+                    id="billingByItem"
+                    value="byItem"
+                    checked={billingCalculation === "byItem"}
+                    onChange={() => setBillingCalculation("byItem")}
+                  />
+                  <label className="form-check-label" htmlFor="billingByItem">
+                    Per Item
                   </label>
                 </div>
               </div>
@@ -654,6 +693,46 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           htmlFor="segregationNoEdit"
                         >
                           No
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Billing Calculation</label>
+                    <div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="billingCalculationEdit"
+                          id="billingByWeightEdit"
+                          value="byWeight"
+                          checked={billingCalculation === "byWeight"}
+                          onChange={() => setBillingCalculation("byWeight")}
+                        />
+                        <label
+                          className="form-check-label"
+                          htmlFor="billingByWeightEdit"
+                        >
+                          By Weight
+                        </label>
+                      </div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="billingCalculationEdit"
+                          id="billingByItemEdit"
+                          value="byItem"
+                          checked={billingCalculation === "byItem"}
+                          onChange={() => setBillingCalculation("byItem")}
+                        />
+                        <label
+                          className="form-check-label"
+                          htmlFor="billingByItemEdit"
+                        >
+                          Per Item
                         </label>
                       </div>
                     </div>
