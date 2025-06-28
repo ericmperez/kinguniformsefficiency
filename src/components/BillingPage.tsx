@@ -552,22 +552,42 @@ const BillingPage: React.FC = () => {
                     <span style={{ color: '#0E62A0', fontWeight: 700 }}>{invoiceToPrint.date ? new Date(invoiceToPrint.date).toLocaleDateString() : '-'}</span>
                   </div>
                   <div style={{ marginTop: 18 }}>
-                    <table style={{ width: '100%', fontSize: 24, fontWeight: 700, borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr>
-                          <th style={{ textAlign: 'left', paddingBottom: 8 }}>Producto</th>
-                          <th style={{ textAlign: 'right', paddingBottom: 8 }}>Qty</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {invoiceToPrint.carts.flatMap(cart => cart.items).map((item, idx) => (
-                          <tr key={item.productId + idx}>
-                            <td style={{ fontWeight: 700, color: '#111', padding: '2px 0' }}>{item.productName}</td>
-                            <td style={{ fontWeight: 700, color: '#111', textAlign: 'right', padding: '2px 0' }}>{item.quantity}</td>
+                    <div style={{ maxHeight: '4.5in', overflowY: 'auto' }}>
+                      <table style={{ width: '100%', fontSize: 14, fontWeight: 700, borderCollapse: 'collapse', tableLayout: 'fixed', wordBreak: 'break-word' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: 'left', paddingBottom: 4, width: '70%' }}>Producto</th>
+                            <th style={{ textAlign: 'right', paddingBottom: 4, width: '30%' }}>Qty</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            // Group items by product name and sum quantities
+                            const productMap: Record<string, number> = {};
+                            invoiceToPrint.carts.forEach(cart => {
+                              cart.items.forEach(item => {
+                                if (!productMap[item.productName]) {
+                                  productMap[item.productName] = 0;
+                                }
+                                productMap[item.productName] += Number(item.quantity) || 0;
+                              });
+                            });
+                            const productRows = Object.entries(productMap)
+                              .sort((a, b) => a[0].localeCompare(b[0]))
+                              .map(([name, qty], idx) => (
+                                <tr key={name + idx}>
+                                  <td style={{ fontWeight: 700, color: '#111', padding: '1px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal', maxWidth: 0, fontSize: 13 }}>{name}</td>
+                                  <td style={{ fontWeight: 700, color: '#111', textAlign: 'right', padding: '1px 0', fontSize: 13 }}>{Number(qty)}</td>
+                                </tr>
+                              ));
+                            if (productRows.length === 0) {
+                              return <tr><td colSpan={2} style={{ textAlign: 'center', color: '#888', fontWeight: 400 }}>No hay productos</td></tr>;
+                            }
+                            return productRows;
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -576,29 +596,41 @@ const BillingPage: React.FC = () => {
                 <button className="btn btn-primary" onClick={() => {
                   const printContents = document.getElementById('print-area')?.innerHTML;
                   if (printContents) {
-                    // Patch the logo src for the print window
-                    const patched = printContents.replace(/src=\".*King Uniforms Logo.png\"/, 'src="/images/King Uniforms Logo.png"');
-                    const printWindow = window.open('', '', 'height=600,width=800');
-                    printWindow?.document.write(`
-                      <html>
-                        <head>
-                          <title>Print Invoice</title>
-                          <style>
-                            @media print {
-                              @page { size: 8.5in 5.5in landscape; margin: 0; }
-                              body { margin: 0; }
-                              .modal-footer, .d-print-none { display: none !important; }
-                            }
-                            body { background: #fff; }
-                          </style>
-                        </head>
-                        <body>${patched}</body>
-                      </html>
-                    `);
-                    printWindow?.document.close();
-                    printWindow?.focus();
-                    printWindow?.print();
-                    printWindow?.close();
+                    const logoUrl = window.location.origin + '/images/King Uniforms Logo.png';
+                    const patched = printContents.replace(/<img[^>]+src=["'][^"']*King Uniforms Logo.png["'][^>]*>/,
+                      `<img src='${logoUrl}' alt='King Uniforms Logo' style='width:120px;height:auto;margin-bottom:8px;' />`
+                    );
+                    // Open the print window first to avoid pop-up blockers
+                    const printWindow = window.open('', '', 'height=800,width=600');
+                    if (!printWindow) return;
+                    // Write after a short delay to ensure window is ready
+                    setTimeout(() => {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Print Invoice</title>
+                            <style>
+                              @media print {
+                                @page { size: 5.5in 8.5in portrait; margin: 0; }
+                                body { margin: 0; }
+                                .modal-footer, .d-print-none { display: none !important; }
+                                table { font-size: 12px !important; }
+                                td, th { word-break: break-word; white-space: normal !important; padding: 1px 0 !important; }
+                                .product-table-scroll { max-height: 4.5in !important; overflow-y: auto !important; }
+                              }
+                              body { background: #fff; }
+                              table { font-size: 13px; }
+                              td, th { word-break: break-word; white-space: normal; padding: 1px 0; }
+                            </style>
+                          </head>
+                          <body>${patched}</body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                      printWindow.focus();
+                      printWindow.print();
+                      printWindow.close();
+                    }, 100);
                   }
                 }}>Imprimir</button>
               </div>
