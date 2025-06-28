@@ -1,40 +1,84 @@
 import React, { useEffect, useState } from "react";
-import { Invoice } from "../types";
-import { getInvoices } from "../services/firebaseService";
+import { Invoice, Client } from "../types";
+import { getInvoices, getClients } from "../services/firebaseService";
 
 const ReportsPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   useEffect(() => {
     (async () => {
       const all = await getInvoices();
       setInvoices(all.filter((inv: Invoice) => inv.status === "done"));
+      setClients(await getClients());
     })();
   }, []);
   return (
     <div className="container py-4">
       <h2>Shipped/Done Invoices</h2>
-      <table className="table table-bordered mt-4">
-        <thead>
-          <tr>
-            <th>Invoice #</th>
-            <th>Client</th>
-            <th>Date</th>
-            <th>Truck #</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoices.map(inv => (
-            <tr key={inv.id}>
-              <td>{inv.invoiceNumber}</td>
-              <td>{inv.clientName}</td>
-              <td>{inv.date}</td>
-              <td>{inv.truckNumber || "-"}</td>
-              <td>{inv.status}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Grouped Table by Client */}
+      {(() => {
+        // Group invoices by clientId
+        const grouped = invoices.reduce((acc, inv) => {
+          if (!acc[inv.clientId]) acc[inv.clientId] = [];
+          acc[inv.clientId].push(inv);
+          return acc;
+        }, {} as Record<string, Invoice[]>);
+        if (Object.keys(grouped).length === 0) {
+          return <div className="text-muted">No completed invoices found.</div>;
+        }
+        return Object.entries(grouped).map(([clientId, clientInvoices]) => {
+          const client = clients.find(c => c.id === clientId);
+          return (
+            <div key={clientId} className="mb-5">
+              <h5 style={{ fontWeight: 700, color: '#0ea5e9' }}>{client?.name || clientInvoices[0].clientName}</h5>
+              <div className="table-responsive">
+                <table className="table table-bordered table-hover">
+                  <thead>
+                    <tr>
+                      <th>Invoice #</th>
+                      <th>Date</th>
+                      <th>Status</th>
+                      <th>Truck #</th>
+                      <th>Total Weight</th>
+                      <th>Products</th>
+                      <th>Carts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientInvoices.sort((a, b) => {
+                      if (a.invoiceNumber && b.invoiceNumber) return a.invoiceNumber - b.invoiceNumber;
+                      if (a.date && b.date) return new Date(a.date).getTime() - new Date(b.date).getTime();
+                      return a.id.localeCompare(b.id);
+                    }).map(inv => (
+                      <tr key={inv.id}>
+                        <td>{inv.invoiceNumber || inv.id}</td>
+                        <td>{inv.date ? new Date(inv.date).toLocaleDateString() : '-'}</td>
+                        <td>{inv.status || '-'}</td>
+                        <td>{inv.truckNumber || '-'}</td>
+                        <td>{inv.totalWeight || '-'}</td>
+                        <td>
+                          {(inv.products && inv.products.length > 0)
+                            ? inv.products.map(p => `${p.name} (${p.price})`).join(', ')
+                            : '-'}
+                        </td>
+                        <td>
+                          {(inv.carts && inv.carts.length > 0)
+                            ? inv.carts.map(cart => (
+                                <div key={cart.id}>
+                                  <b>{cart.name}:</b> {cart.items.map(item => `${item.productName} x${item.quantity}`).join(', ')}
+                                </div>
+                              ))
+                            : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        });
+      })()}
     </div>
   );
 };

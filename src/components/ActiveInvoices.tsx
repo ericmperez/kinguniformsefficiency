@@ -768,12 +768,13 @@ export default function ActiveInvoices({
       </div>
 
       <div className="row">
-        {invoices.length === 0 ? (
+        {invoices.filter(inv => inv.status !== 'done').length === 0 ? (
           <div className="text-center text-muted py-5">
             No active invoices found. Create a new invoice to get started.
           </div>
         ) : (
           invoices
+            .filter(inv => inv.status !== 'done')
             .sort((a, b) => {
               if (a.invoiceNumber && b.invoiceNumber) {
                 return a.invoiceNumber - b.invoiceNumber;
