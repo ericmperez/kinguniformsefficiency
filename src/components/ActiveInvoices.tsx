@@ -224,11 +224,15 @@ export default function ActiveInvoices({
   };
 
   // When user clicks Done in verify modal
-  const handleVerifyDone = () => {
+  const handleVerifyDone = async () => {
     if (!allVerified()) return;
     setShowVerifyIdModal(true);
     setVerifyIdInput("");
     setVerifyIdError("");
+    // Mark as verified in local state for instant UI update
+    if (verifyInvoiceId) {
+      setReadyInvoices((prev) => ({ ...prev, [verifyInvoiceId]: true }));
+    }
   };
 
   // Confirm verification with ID
@@ -779,6 +783,7 @@ export default function ActiveInvoices({
               const client = clients.find((c) => c.id === invoice.clientId);
               const avatarSrc = getClientAvatarUrl(client || {});
               const isReady = invoice.status === 'ready' || readyInvoices[invoice.id];
+              const isVerified = invoice.verified;
               return (
                 <div
                   key={invoice.id}
@@ -790,7 +795,9 @@ export default function ActiveInvoices({
                     className="modern-invoice-card shadow-lg"
                     style={{
                       borderRadius: 24,
-                      background: isReady
+                      background: isVerified
+                        ? 'linear-gradient(135deg, #bbf7d0 0%, #22c55e 100%)' // green
+                        : isReady
                         ? 'linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)' // yellow
                         : 'linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)',
                       color: '#222',
@@ -908,43 +915,71 @@ export default function ActiveInvoices({
                     {/* Social-style action buttons */}
                     <div
                       style={{
-                        display: "flex",
-                        justifyContent: "center",
-                        gap: 18,
-                        margin: "22px 0 0 0",
+                        position: 'absolute',
+                        bottom: 24,
+                        right: 24,
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: 10,
+                        zIndex: 10,
                       }}
                     >
-                      {invoice.locked ? (
-                        <button
-                          className="btn"
-                          style={{
-                            background: "#fff",
-                            borderRadius: "50%",
-                            width: 44,
-                            height: 44,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: "none",
-                          }}
-                          disabled
-                        >
-                          Locked
-                        </button>
-                      ) : null}
-                    </div>
-                    <div style={{ marginTop: 16, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                      {/* Mark as Ready button */}
                       <button
-                        className="btn btn-warning fw-bold"
-                        style={{ fontSize: 18, width: '80%' }}
+                        className="btn btn-warning btn-sm"
+                        style={{
+                          fontSize: 16,
+                          width: 44,
+                          height: 44,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                          border: "none",
+                        }}
                         onClick={e => {
                           e.stopPropagation();
                           handleReadyClick(invoice.id);
                         }}
                         disabled={isReady}
+                        title={isReady ? "Ready!" : "Mark as Ready"}
                       >
-                        {isReady ? 'Ready!' : 'Mark as Ready'}
+                        <i className="bi bi-flag-fill" style={{ color: isReady ? '#fbbf24' : '#b45309', fontSize: 22 }} />
+                      </button>
+                      {/* Verified button */}
+                      <button
+                        className="btn btn-success btn-sm"
+                        style={{
+                          fontSize: 16,
+                          width: 44,
+                          height: 44,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                          border: "none",
+                        }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          setVerifyInvoiceId(invoice.id); // open verify modal
+                          // Build initial check state for modal
+                          const checks: Record<string, Record<string, boolean>> = {};
+                          for (const cart of invoice.carts) {
+                            checks[cart.id] = {};
+                            for (const item of cart.items) {
+                              checks[cart.id][item.productId] = false;
+                            }
+                          }
+                          setVerifyChecks(checks);
+                        }}
+                        disabled={invoice.verified}
+                        title={invoice.verified ? "Verified" : "Verify"}
+                      >
+                        <i className="bi bi-check-lg" style={{ color: invoice.verified ? '#22c55e' : '#166534', fontSize: 22 }} />
                       </button>
                     </div>
                   </div>
@@ -2110,7 +2145,10 @@ export default function ActiveInvoices({
               if (existingIdx > -1) {
                 newItems = cart.items.map((item, idx) =>
                   idx === existingIdx
-                    ? { ...item, quantity: (Number(item.quantity) || 0) + quantity }
+                    ? {
+                        ...item,
+                        quantity: (Number(item.quantity) || 0) + quantity,
+                      }
                     : item
                 );
               } else {
@@ -2131,6 +2169,55 @@ export default function ActiveInvoices({
             onUpdateInvoice(invoice.id, { carts: updatedCarts });
           }}
         />
+      )}
+
+      {/* Verification Modal */}
+      {verifyInvoiceId && (
+        <div className="modal show" style={{ display: 'block', background: 'rgba(0,0,0,0.3)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Verify Invoice Items</h5>
+                <button type="button" className="btn-close" onClick={() => setVerifyInvoiceId(null)}></button>
+              </div>
+              <div className="modal-body">
+                {(() => {
+                  const invoice = invoices.find(inv => inv.id === verifyInvoiceId);
+                  if (!invoice) return null;
+                  return invoice.carts.map(cart => (
+                    <div key={cart.id} className="mb-3">
+                      <div className="fw-bold mb-1">{cart.name}</div>
+                      <ul className="list-group">
+                        {cart.items.map(item => (
+                          <li key={item.productId} className="list-group-item d-flex align-items-center">
+                            <input
+                              type="checkbox"
+                              className="form-check-input me-2"
+                              checked={!!verifyChecks[cart.id]?.[item.productId]}
+                              onChange={() => toggleVerifyCheck(cart.id, item.productId)}
+                            />
+                            <span>{item.productName} <span className="text-muted">x{item.quantity}</span></span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ));
+                })()}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setVerifyInvoiceId(null)}>Cancel</button>
+                <button className="btn btn-success" onClick={async () => {
+                  // Mark as verified in backend and update UI
+                  if (!allVerified() || !verifyInvoiceId) return;
+                  await onUpdateInvoice(verifyInvoiceId, { verified: true });
+                  setVerifyInvoiceId(null);
+                }} disabled={!allVerified()}>
+                  Mark as Verified
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
