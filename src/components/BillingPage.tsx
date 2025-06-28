@@ -511,43 +511,96 @@ const BillingPage: React.FC = () => {
       {/* Print Invoice Modal */}
       {invoiceToPrint && (
         <div className="modal show" style={{ display: 'block', background: 'rgba(0,0,0,0.3)' }}>
-          <div className="modal-dialog modal-lg">
+          <div className="modal-dialog" style={{ maxWidth: 700 }}>
             <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Print Invoice #{invoiceToPrint.invoiceNumber}</h5>
+              <div className="modal-header d-print-none">
+                <h5 className="modal-title">Imprimir Factura #{invoiceToPrint.invoiceNumber}</h5>
                 <button type="button" className="btn-close" onClick={() => setInvoiceToPrint(null)}></button>
               </div>
               <div className="modal-body" id="print-area">
-                <h4>Client: {invoiceToPrint.clientName}</h4>
-                <h5>Date: {invoiceToPrint.date ? new Date(invoiceToPrint.date).toLocaleDateString() : '-'}</h5>
-                <h5>Total: ${invoiceToPrint.total?.toFixed(2) ?? '-'}</h5>
-                <hr />
-                {invoiceToPrint.carts.map(cart => (
-                  <div key={cart.id} style={{ marginBottom: 12 }}>
-                    <b>Cart: {cart.name}</b>
-                    <ul>
-                      {cart.items.map(item => (
-                        <li key={item.productId}>
-                          {item.productName} x{item.quantity} @ ${item.price?.toFixed(2) ?? '-'}
-                        </li>
-                      ))}
-                    </ul>
+                <div
+                  style={{
+                    width: '8.5in',
+                    height: '5.5in',
+                    margin: '0 auto',
+                    background: '#fff',
+                    border: '2px solid #222',
+                    padding: 32,
+                    fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
+                    position: 'relative',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <img
+                      src={'/images/King Uniforms Logo.png'}
+                      alt="King Uniforms Logo"
+                      style={{ width: 120, height: 'auto', marginBottom: 8 }}
+                    />
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, fontSize: 32, color: '#111' }}>Invoice #</div>
+                      <div style={{ fontWeight: 700, fontSize: 22, color: '#0E62A0' }}>{invoiceToPrint.invoiceNumber}</div>
+                    </div>
                   </div>
-                ))}
+                  <div style={{ marginTop: 12, marginBottom: 18 }}>
+                    <div style={{ fontWeight: 800, fontSize: 36, color: '#111' }}>Servicios de Lavandería</div>
+                  </div>
+                  <div style={{ fontSize: 22, marginBottom: 18 }}>
+                    <span style={{ fontWeight: 700 }}>Nombre: </span>
+                    <span style={{ color: '#0E62A0', fontWeight: 700 }}>{invoiceToPrint.clientName}</span>
+                    <br />
+                    <span style={{ fontWeight: 700 }}>Fecha: </span>
+                    <span style={{ color: '#0E62A0', fontWeight: 700 }}>{invoiceToPrint.date ? new Date(invoiceToPrint.date).toLocaleDateString() : '-'}</span>
+                  </div>
+                  <div style={{ marginTop: 18 }}>
+                    <table style={{ width: '100%', fontSize: 24, fontWeight: 700, borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', paddingBottom: 8 }}>Producto</th>
+                          <th style={{ textAlign: 'right', paddingBottom: 8 }}>Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoiceToPrint.carts.flatMap(cart => cart.items).map((item, idx) => (
+                          <tr key={item.productId + idx}>
+                            <td style={{ fontWeight: 700, color: '#111', padding: '2px 0' }}>{item.productName}</td>
+                            <td style={{ fontWeight: 700, color: '#111', textAlign: 'right', padding: '2px 0' }}>{item.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-              <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setInvoiceToPrint(null)}>Close</button>
+              <div className="modal-footer d-print-none">
+                <button className="btn btn-secondary" onClick={() => setInvoiceToPrint(null)}>Cerrar</button>
                 <button className="btn btn-primary" onClick={() => {
                   const printContents = document.getElementById('print-area')?.innerHTML;
                   if (printContents) {
+                    // Patch the logo src for the print window
+                    const patched = printContents.replace(/src=\".*King Uniforms Logo.png\"/, 'src="/images/King Uniforms Logo.png"');
                     const printWindow = window.open('', '', 'height=600,width=800');
-                    printWindow?.document.write('<html><head><title>Print Invoice</title></head><body>' + printContents + '</body></html>');
+                    printWindow?.document.write(`
+                      <html>
+                        <head>
+                          <title>Print Invoice</title>
+                          <style>
+                            @media print {
+                              @page { size: 8.5in 5.5in landscape; margin: 0; }
+                              body { margin: 0; }
+                              .modal-footer, .d-print-none { display: none !important; }
+                            }
+                            body { background: #fff; }
+                          </style>
+                        </head>
+                        <body>${patched}</body>
+                      </html>
+                    `);
                     printWindow?.document.close();
                     printWindow?.focus();
                     printWindow?.print();
                     printWindow?.close();
                   }
-                }}>Print</button>
+                }}>Imprimir</button>
               </div>
             </div>
           </div>
