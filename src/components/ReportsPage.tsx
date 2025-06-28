@@ -1,17 +1,24 @@
 import React, { useEffect, useState } from "react";
-import { Invoice, Client } from "../types";
-import { getInvoices, getClients } from "../services/firebaseService";
+import { Invoice, Client, Product } from "../types";
+import { getInvoices, getClients, getProducts } from "../services/firebaseService";
+import InvoiceDetailsModal from "./InvoiceDetailsModal";
 
 const ReportsPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [showInvoiceDetailsModal, setShowInvoiceDetailsModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+
   useEffect(() => {
     (async () => {
       const all = await getInvoices();
       setInvoices(all.filter((inv: Invoice) => inv.status === "done"));
       setClients(await getClients());
+      setAllProducts(await getProducts());
     })();
   }, []);
+
   return (
     <div className="container py-4">
       <h2>Shipped/Done Invoices</h2>
@@ -42,6 +49,7 @@ const ReportsPage: React.FC = () => {
                       <th>Total Weight</th>
                       <th>Products</th>
                       <th>Carts</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -70,6 +78,11 @@ const ReportsPage: React.FC = () => {
                               ))
                             : '-'}
                         </td>
+                        <td>
+                          <button className="btn btn-sm btn-outline-primary" onClick={() => { setSelectedInvoice(inv); setShowInvoiceDetailsModal(true); }}>
+                            Edit
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -79,6 +92,18 @@ const ReportsPage: React.FC = () => {
           );
         });
       })()}
+      {showInvoiceDetailsModal && selectedInvoice && (
+        <InvoiceDetailsModal
+          invoice={selectedInvoice}
+          onClose={() => setShowInvoiceDetailsModal(false)}
+          client={clients.find(c => c.id === selectedInvoice.clientId)}
+          products={allProducts}
+          onAddCart={async (cartName: string) => {
+            return { id: Date.now().toString(), name: cartName, isActive: true };
+          }}
+          onAddProductToCart={() => {}}
+        />
+      )}
     </div>
   );
 };

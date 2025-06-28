@@ -509,9 +509,17 @@ export const ClientForm: React.FC<ClientFormProps> = ({
       {editingClient && (
         <div
           className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+          style={{
+            display: "block",
+            background: "rgba(0,0,0,0.3)",
+            position: "absolute",
+            left: 0,
+            right: 0,
+            zIndex: 1050,
+            minHeight: "100vh"
+          }}
         >
-          <div className="modal-dialog">
+          <div className="modal-dialog" style={{ maxWidth: 600, width: "100%", margin: "2rem auto" }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Edit Client</h5>

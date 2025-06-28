@@ -41,6 +41,15 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     return products.filter((p) => client.selectedProducts.includes(p.id));
   }, [client, products]);
 
+  // Determine delivery timestamp (lockedAt, verifiedAt, or deliveredAt if present)
+  const deliveryTimestamp = invoice.lockedAt || invoice.verifiedAt || (invoice as any).deliveredAt || null;
+
+  // Helper to check if item was added after delivery
+  function isItemAddedAfterDelivery(item: any) {
+    if (!deliveryTimestamp || !item.addedAt) return false;
+    return new Date(item.addedAt).getTime() > new Date(deliveryTimestamp).getTime();
+  }
+
   // Helper: keypad buttons
   const keypadButtons = [
     '1', '2', '3',
@@ -218,8 +227,23 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 </div>
                 <ul>
                   {cart.items.map((item) => (
-                    <li key={item.productId} style={{ color: '#0E62A0', fontWeight: 600 }}>
+                    <li
+                      key={item.productId}
+                      style={{
+                        color: isItemAddedAfterDelivery(item) ? '#b91c1c' : '#0E62A0',
+                        fontWeight: 600,
+                        background: isItemAddedAfterDelivery(item) ? '#fee2e2' : undefined,
+                        borderRadius: isItemAddedAfterDelivery(item) ? 6 : undefined,
+                        padding: isItemAddedAfterDelivery(item) ? '2px 6px' : undefined,
+                        marginBottom: 2,
+                      }}
+                    >
                       {item.productName} - {item.quantity} (Added by: {item.addedBy})
+                      {isItemAddedAfterDelivery(item) && (
+                        <span style={{ marginLeft: 8, fontWeight: 700, color: '#b91c1c', fontSize: 13 }}>
+                          Added after delivery
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>

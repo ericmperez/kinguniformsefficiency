@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Invoice, Client } from "../types";
+import { Invoice, Client, Product } from "../types";
 import { getInvoices, getClients } from "../services/firebaseService";
 import { collection, setDoc, doc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
+import InvoiceDetailsModal from "./InvoiceDetailsModal";
 
 const nowrapCellStyle = { whiteSpace: 'nowrap' };
 
@@ -31,7 +32,7 @@ const BillingPage: React.FC = () => {
   // Get selected client object
   const selectedClient = clients.find(c => c.id === selectedClientId);
   // Get products for selected client
-  const [allProducts, setAllProducts] = useState<{id: string, name: string}[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   useEffect(() => {
     if (!selectedClient) return;
     (async () => {
@@ -182,6 +183,19 @@ const BillingPage: React.FC = () => {
       setSaveStatus("Error saving prices.");
     }
   };
+
+  // --- Invoice Editing Modal State ---
+  const [showInvoiceDetailsModal, setShowInvoiceDetailsModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+
+  // Handler to open invoice edit modal
+  const handleEditInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setShowInvoiceDetailsModal(true);
+  };
+
+  // Print modal state
+  const [invoiceToPrint, setInvoiceToPrint] = useState<Invoice | null>(null);
 
   // Get charge label based on type
   const getChargeLabel = () => {
@@ -397,6 +411,7 @@ const BillingPage: React.FC = () => {
                       <th>Service Charge</th>
                       <th>Fuel Charge</th>
                       <th>Surcharge</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -461,6 +476,14 @@ const BillingPage: React.FC = () => {
                           <td style={nowrapCellStyle}><b>{serviceCharge > 0 ? `$${serviceCharge.toFixed(2)}` : ''}</b></td>
                           <td style={nowrapCellStyle}><b>{fuelCharge > 0 ? `$${fuelCharge.toFixed(2)}` : ''}</b></td>
                           <td style={nowrapCellStyle}><b>{surchargeValue > 0 ? `$${surchargeValue.toFixed(2)}` : ''}</b></td>
+                          <td>
+                            <button className="btn btn-sm btn-outline-primary" onClick={() => handleEditInvoice(inv)}>
+                              Edit
+                            </button>
+                            <button className="btn btn-sm btn-outline-secondary ms-2" onClick={() => setInvoiceToPrint(inv)}>
+                              Print
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -471,6 +494,65 @@ const BillingPage: React.FC = () => {
           );
         });
       })()}
+      {/* Invoice Details Modal - for editing invoices */}
+      {showInvoiceDetailsModal && selectedInvoice && (
+        <InvoiceDetailsModal
+          invoice={selectedInvoice}
+          onClose={() => setShowInvoiceDetailsModal(false)}
+          client={clients.find(c => c.id === selectedInvoice.clientId)}
+          products={allProducts}
+          onAddCart={async (cartName: string) => {
+            // Dummy cart for now, implement real logic as needed
+            return { id: Date.now().toString(), name: cartName, isActive: true };
+          }}
+          onAddProductToCart={() => {}}
+        />
+      )}
+      {/* Print Invoice Modal */}
+      {invoiceToPrint && (
+        <div className="modal show" style={{ display: 'block', background: 'rgba(0,0,0,0.3)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Print Invoice #{invoiceToPrint.invoiceNumber}</h5>
+                <button type="button" className="btn-close" onClick={() => setInvoiceToPrint(null)}></button>
+              </div>
+              <div className="modal-body" id="print-area">
+                <h4>Client: {invoiceToPrint.clientName}</h4>
+                <h5>Date: {invoiceToPrint.date ? new Date(invoiceToPrint.date).toLocaleDateString() : '-'}</h5>
+                <h5>Total: ${invoiceToPrint.total?.toFixed(2) ?? '-'}</h5>
+                <hr />
+                {invoiceToPrint.carts.map(cart => (
+                  <div key={cart.id} style={{ marginBottom: 12 }}>
+                    <b>Cart: {cart.name}</b>
+                    <ul>
+                      {cart.items.map(item => (
+                        <li key={item.productId}>
+                          {item.productName} x{item.quantity} @ ${item.price?.toFixed(2) ?? '-'}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setInvoiceToPrint(null)}>Close</button>
+                <button className="btn btn-primary" onClick={() => {
+                  const printContents = document.getElementById('print-area')?.innerHTML;
+                  if (printContents) {
+                    const printWindow = window.open('', '', 'height=600,width=800');
+                    printWindow?.document.write('<html><head><title>Print Invoice</title></head><body>' + printContents + '</body></html>');
+                    printWindow?.document.close();
+                    printWindow?.focus();
+                    printWindow?.print();
+                    printWindow?.close();
+                  }
+                }}>Print</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
