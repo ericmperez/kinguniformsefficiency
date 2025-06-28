@@ -80,6 +80,7 @@ import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import kingUniformsLogo from "./assets/King Uniforms Logo.jpeg";
 import SignInSide from "./components/SignInSide";
 import RutasPorCamion from "./components/RutasPorCamion";
+import GlobalActivityLog from "./components/GlobalActivityLog";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -593,7 +594,6 @@ function App() {
     { label: "Washing", page: "washing", color: "#D72328", icon: <LocalLaundryServiceIcon style={{ fontSize: 38, color: '#D72328' }} /> },
     { label: "Reports", page: "reports", color: "#0E62A0", icon: <AssessmentIcon style={{ fontSize: 38, color: '#0E62A0' }} /> },
     { label: "Settings", page: "settings", color: "#FAC61B", icon: <SettingsIcon style={{ fontSize: 38, color: '#FAC61B' }} /> },
-    { label: "Supervisor", page: "supervisor", color: "#D72328", icon: <AccountCircle style={{ fontSize: 38, color: '#D72328' }} /> },
     // Add more pages as needed
   ];
 
@@ -1283,9 +1283,45 @@ function App() {
       )}
       {activePage === "home" && (
         <div className="container py-5">
-          <h2 className="mb-4 text-center" style={{ fontWeight: 800, letterSpacing: 1 }}>Welcome, {user.username}!</h2>
+          {/* --- Missing Required Items Section --- */}
+          <MissingRequiredItemsSection clients={clients} products={products} invoices={invoices} />
+          <div className="row justify-content-center mb-4">
+            <div className="col-12 col-md-6 col-lg-4">
+              <div
+                className="card shadow text-center"
+                style={{
+                  background: "#fffbe6",
+                  border: "1px solid #ffe066",
+                }}
+              >
+                <div className="card-body">
+                  <h5
+                    className="card-title mb-2"
+                    style={{
+                      color: "#FFB300",
+                      fontWeight: 700,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    Total Pounds Entered Today
+                  </h5>
+                  <div
+                    style={{
+                      fontSize: 36,
+                      fontWeight: 700,
+                      color: "#333",
+                    }}
+                  >
+                    {todayTotalLbs.toLocaleString()} lbs
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <ManualConventionalProductsWidget />
+          {/* <PendingProductsWidget /> */}
           <div className="row justify-content-center g-4">
-            {homePages.filter(p => navLinks.find(l => l.page === p.page && l.visible) || p.page === "supervisor").map((p) => (
+            {homePages.filter(p => navLinks.find(l => l.page === p.page && l.visible)).map((p) => (
               <div key={p.page} className="col-12 col-sm-6 col-md-4 col-lg-3 d-flex align-items-stretch">
                 <div
                   className="card shadow text-center w-100 home-page-card"
@@ -1313,23 +1349,12 @@ function App() {
               </div>
             ))}
           </div>
-        </div>
-      )}
-      {/* Supervisor page: show the client groups/status bars section here */}
-      {activePage === "supervisor" && (
-        <div className="container py-5">
-          <h2 className="mb-4 text-center" style={{ fontWeight: 800, letterSpacing: 1 }}>Supervisor Overview</h2>
-          {/* --- Client Groups Overview (moved from home) --- */}
-          <ActiveInvoices
-            clients={clients}
-            products={products}
-            invoices={invoices}
-            onAddInvoice={handleAddInvoice}
-            onDeleteInvoice={handleDeleteInvoice}
-            onUpdateInvoice={handleUpdateInvoice}
-            selectedInvoiceId={selectedInvoiceId}
-            setSelectedInvoiceId={setSelectedInvoiceId}
-          />
+          {/* --- Global Activity Log at the bottom --- */}
+          <div className="row justify-content-center mt-5">
+            <div className="col-12 col-md-10 col-lg-8">
+              <GlobalActivityLog />
+            </div>
+          </div>
         </div>
       )}
       {/* Removed rendering for activePage === "rutasPorCamion" */}

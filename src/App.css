@@ -117,7 +117,7 @@ body, #root, .app {
 }
 
 .navbar, .main-nav, .settings-nav {
-  background: var(--ku-red) !important;
+  background: #111 !important;
   color: #fff !important;
   border-radius: 0 0 var(--ku-radius) var(--ku-radius);
   box-shadow: 0 2px 12px rgba(215, 35, 40, 0.08);

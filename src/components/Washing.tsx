@@ -158,7 +158,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       client.segregation === false &&
       client.washingType === "Tunnel"
     ) {
-      // Always use group.carts or group.carts.length if available
+      // Always use segregatedCarts if present, otherwise fallback to carts length/number
+      if (typeof group.segregatedCarts === "number") return group.segregatedCarts;
       if (Array.isArray(group.carts)) return group.carts.length;
       if (typeof group.carts === "number") return group.carts;
       return 0;
@@ -515,7 +516,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             className={`nav-link${activeTab === "tunnel" ? " active" : ""}`}
             onClick={() => setActiveTab("tunnel")}
           >
-            Tunnel
+            <span style={{ color: 'black' }}>Tunnel</span>
           </button>
         </li>
         <li className="nav-item">
@@ -525,7 +526,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             }`}
             onClick={() => setActiveTab("conventional")}
           >
-            Conventional
+            <span style={{ color: 'black' }}>Conventional</span>
           </button>
         </li>
       </ul>
@@ -694,14 +695,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   onClick={async () => {
                                     const val = parseInt(tunnelCartInput);
                                     if (isNaN(val)) {
-                                      setTunnelCartError(
-                                        "Please enter a valid number."
-                                      );
+                                      setTunnelCartError("Please enter a valid number.");
                                       return;
                                     }
-                                    if (val !== group.segregatedCarts) {
+                                    if (val !== getSegregatedCarts(group)) {
                                       setTunnelCartError(
-                                        `Cart count does not match segregation value (${group.segregatedCarts}).`
+                                        `Cart count does not match segregation value (${getSegregatedCarts(group)}).`
                                       );
                                       setShowTunnelRedAlert(true);
                                       if (tunnelRedAlertTimerRef.current) clearTimeout(tunnelRedAlertTimerRef.current);
@@ -725,6 +724,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                       {
                                         tunnelVerified: true,
                                         tunnelCartCount: 0,
+                                        segregatedCarts: val, // <-- Ensure segregatedCarts is set to the verified value
                                       }
                                     );
                                   }}
@@ -865,10 +865,17 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         {!isSelected && !isVerified && !isLocked && (
                           <button
                             className="btn btn-outline-primary btn-sm"
-                            onClick={() => {
+                            onClick={async () => {
                               setSelectedTunnelGroup(group);
                               setTunnelCartInput("");
                               setTunnelCartError("");
+                              // Always update segregatedCarts in Firestore and local state for Tunnel/no-segregation
+                              const client = getClient(group.clientId);
+                              if (client && client.segregation === false && client.washingType === "Tunnel") {
+                                const newSegCarts = Array.isArray(group.carts) ? group.carts.length : (typeof group.carts === "number" ? group.carts : 0);
+                                await updateDoc(doc(db, "pickup_groups", group.id), { segregatedCarts: newSegCarts });
+                                setGroups(prev => prev.map(g => g.id === group.id ? { ...g, segregatedCarts: newSegCarts } : g));
+                              }
                             }}
                           >
                             Count Carts

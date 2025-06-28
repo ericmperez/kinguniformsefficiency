@@ -256,6 +256,20 @@ export const uploadImage = async (file: File, path: string): Promise<string> => 
 };
 
 // Pickup Entry operations
+// Export logActivity so it can be used in Segregation
+export async function logActivity({ type, message, user }: { type: string; message: string; user?: string }) {
+  try {
+    await addDoc(collection(db, "activity_log"), {
+      type,
+      message,
+      user: user || null,
+      createdAt: Timestamp.now(),
+    });
+  } catch (e) {
+    // Silent fail for logging
+  }
+}
+
 export const addPickupEntry = async (entry: {
   clientId: string;
   clientName: string;
@@ -264,6 +278,7 @@ export const addPickupEntry = async (entry: {
   groupId: string;
   weight: number;
   timestamp: Date | Timestamp;
+  user?: string; // Optionally pass user info
 }) => {
   try {
     const docToSend = {
@@ -272,6 +287,12 @@ export const addPickupEntry = async (entry: {
     };
     console.log("[addPickupEntry] Writing to Firestore:", docToSend);
     const docRef = await addDoc(collection(db, "pickup_entries"), docToSend);
+    // Log the entry creation
+    await logActivity({
+      type: "Entradas",
+      message: `Entrada creada para cliente ${entry.clientName} (${entry.clientId}), chofer ${entry.driverName}, peso: ${entry.weight} lbs`,
+      user: entry.user,
+    });
     return docRef;
   } catch (error) {
     console.error("Error adding pickup entry:", error, entry);
@@ -320,8 +341,11 @@ export const addPickupGroup = async (group: {
     try {
       const clientSnap = await getDoc(doc(db, "clients", group.clientId));
       const client = clientSnap.exists() ? clientSnap.data() : null;
-      if (client && client.segregation === false && client.washingType === "Tunnel") {
+      // Always set segregatedCarts = numCarts for Tunnel clients that do not need segregation
+      if (client && client.washingType === "Tunnel" && client.segregation === false) {
         segregatedCarts = numCarts;
+      } else {
+        segregatedCarts = null;
       }
     } catch (e) {
       // If client fetch fails, fallback to null
@@ -472,4 +496,9 @@ export const updateSegregatedCartsIfTunnelNoSeg = async (groupId: string) => {
       segregatedCarts: group.carts.length,
     });
   }
+};
+
+// Set segregatedCarts for a pickup group (used by Segregation page to persist value)
+export const setSegregatedCarts = async (groupId: string, value: number) => {
+  await updateDoc(doc(db, "pickup_groups", groupId), { segregatedCarts: value });
 };

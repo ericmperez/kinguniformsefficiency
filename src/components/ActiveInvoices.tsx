@@ -709,10 +709,8 @@ export default function ActiveInvoices({
           </div>
         ) : (
           invoices
-            .slice() // copy to avoid mutating original
+            .slice()
             .sort((a, b) => {
-              // Sort by date or id for consistent numbering (oldest first)
-              // If invoiceNumber exists, use it; else fallback to date or id
               if (a.invoiceNumber && b.invoiceNumber) {
                 return a.invoiceNumber - b.invoiceNumber;
               }
@@ -729,42 +727,47 @@ export default function ActiveInvoices({
                 onMouseLeave={() => setHoveredInvoiceId(null)}
               >
                 <div
-                  className="card h-100"
-                  style={
-                    invoice.locked
-                      ? {
-                          opacity: 0.7,
-                          pointerEvents: "auto",
-                          border: "2px solid #d9534f",
-                        }
-                      : {}
-                  }
+                  className="modern-invoice-card shadow-lg"
+                  style={{
+                    borderRadius: 20,
+                    background: '#fff',
+                    color: '#111',
+                    boxShadow: '0 4px 24px 0 rgba(0,0,0,0.07)',
+                    border: '1.5px solid #e0e0e0',
+                    position: 'relative',
+                    minHeight: 320,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
+                    transition: 'transform 0.18s, box-shadow 0.18s',
+                    transform: hoveredInvoiceId === invoice.id ? 'translateY(-4px) scale(1.02)' : 'none',
+                    overflow: 'hidden',
+                  }}
                 >
-                  <div className="card-body">
-                    <div
-                      style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}
-                    >
-                      {clients.find((c) => c.id === invoice.clientId)?.name ||
-                        invoice.clientName}
+                  <div className="card-body p-4" style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 24, marginBottom: 6, color: 'var(--ku-blue)' }}>
+                      {clients.find((c) => c.id === invoice.clientId)?.name || invoice.clientName}
                     </div>
-                    <div style={{ fontSize: 14, color: "#888", marginBottom: 8 }}>
-                      Invoice #
-                      {invoice.invoiceNumber
-                        ? String(invoice.invoiceNumber).padStart(4, "0")
-                        : String(idx + 1).padStart(4, "0")}
+                    <div style={{ fontSize: 15, color: '#888', marginBottom: 12, letterSpacing: 1 }}>
+                      Invoice #{invoice.invoiceNumber ? String(invoice.invoiceNumber).padStart(4, '0') : String(idx + 1).padStart(4, '0')}
                     </div>
-                    <p className="card-text">
-                      <strong>Carts:</strong>{" "}
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ fontWeight: 600, color: '#222', fontSize: 16 }}>Carts:</span>{' '}
                       {invoice.carts && invoice.carts.length > 0 ? (
                         <span className="d-flex flex-wrap gap-2 mt-1">
                           {invoice.carts.map((cart) => (
                             <span
                               key={cart.id}
-                              className="badge rounded-pill bg-light text-dark"
+                              className="badge rounded-pill"
                               style={{
-                                fontSize: 16,
-                                padding: "8px 16px",
-                                border: "1px solid #ccc",
+                                fontSize: 15,
+                                padding: '8px 18px',
+                                background: 'var(--ku-light)',
+                                color: 'var(--ku-blue)',
+                                border: '1.5px solid var(--ku-blue)',
+                                fontWeight: 700,
+                                letterSpacing: 0.5,
                               }}
                             >
                               {cart.name}
@@ -774,8 +777,8 @@ export default function ActiveInvoices({
                       ) : (
                         <span className="text-muted">No carts</span>
                       )}
-                    </p>
-                    {/* --- Manual Products for this Invoice --- */}
+                    </div>
+                    {/* Manual Products for this Invoice */}
                     {(() => {
                       const manualForInvoice = manualProducts.filter(
                         (mp) => mp.invoiceId === invoice.id
@@ -783,10 +786,10 @@ export default function ActiveInvoices({
                       if (manualForInvoice.length === 0) return null;
                       return (
                         <div className="mb-2">
-                          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>Manual Products</div>
+                          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2, color: 'var(--ku-red)' }}>Manual Products</div>
                           <ul className="list-group mb-2">
                             {manualForInvoice.map((mp) => (
-                              <li key={mp.id} className="list-group-item d-flex justify-content-between align-items-center py-2">
+                              <li key={mp.id} className="list-group-item d-flex justify-content-between align-items-center py-2" style={{ background: 'rgba(250,198,27,0.08)', border: 'none', fontSize: 14 }}>
                                 <span>
                                   <b>{mp.productName}</b> x{mp.quantity} <span className="text-muted">({mp.type})</span>
                                   {mp.washed && <span className="badge bg-success ms-2">Washed</span>}
@@ -807,90 +810,35 @@ export default function ActiveInvoices({
                         </div>
                       );
                     })()}
-                    {invoice.locked && (
-                      <div
-                        className="alert alert-danger py-1 mb-2"
-                        style={{ fontSize: 14 }}
-                      >
-                        <b>Boleta Cerrada</b> – No editable
-                      </div>
-                    )}
-                    {invoice.verified && (
-                      <div
-                        className="alert alert-success py-1 mb-2"
-                        style={{ fontSize: 14 }}
-                      >
-                        <b>Verificado</b> por{" "}
-                        {(() => {
-                          // Try to find the user by ID in context or user list
-                          if (invoice.verifiedBy) {
-                            // If current user matches, show their username
-                            if (user && user.id === invoice.verifiedBy)
-                              return user.username;
-                            // Otherwise, try to find in user list if available
-                            if (
-                              typeof window !== "undefined" &&
-                              window.localStorage
-                            ) {
-                              try {
-                                const users = JSON.parse(
-                                  localStorage.getItem("users") || "[]"
-                                );
-                                const found = users.find(
-                                  (u: any) => u.id === invoice.verifiedBy
-                                );
-                                if (found && found.username)
-                                  return found.username;
-                              } catch {}
-                            }
-                            // Fallback to ID if username not found
-                            return invoice.verifiedBy;
-                          }
-                          return "";
-                        })()}
-                      </div>
-                    )}
-                    {invoice.locked && invoice.lockedBy && (
-                      <div
-                        className="alert alert-warning py-1 mb-2"
-                        style={{ fontSize: 14 }}
-                      >
-                        <b>Boleta Cerrada</b> por {invoice.lockedBy}
-                      </div>
-                    )}
+                    {/* Public Note */}
                     <div className="mb-2">
-                      <label className="form-label" style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+                      <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ku-yellow)' }}>
                         Nota Pública
                         <span
-                          style={{ cursor: "pointer", color: "#f0ad4e", fontSize: 22, display: "inline-flex", alignItems: "center" }}
+                          style={{ cursor: 'pointer', color: '#f0ad4e', fontSize: 22, display: 'inline-flex', alignItems: 'center' }}
                           title="Agregar o editar nota pública"
                           onClick={() => setShowNoteInput((prev) => ({ ...prev, [invoice.id]: !prev[invoice.id] }))}
                         >
-                          {/* Alert icon (Bootstrap or emoji fallback) */}
                           <svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.707c.89 0 1.438-.99.982-1.767L8.982 1.566zm-1.196.93a.13.13 0 0 1 .228 0l6.853 11.667a.13.13 0 0 1-.114.197H1.147a.13.13 0 0 1-.114-.197L7.886 2.497zM8 5c-.535 0-.954.462-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
-      </svg>
+                            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.707c.89 0 1.438-.99.982-1.767L8.982 1.566zm-1.196.93a.13.13 0 0 1 .228 0l6.853 11.667a.13.13 0 0 1-.114.197H1.147a.13.13 0 0 1-.114-.197L7.886 2.497zM8 5c-.535 0-.954.462-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+                          </svg>
                         </span>
                       </label>
                       {showNoteInput[invoice.id] && !invoice.locked ? (
                         <textarea
                           className="form-control mb-2"
                           rows={2}
-                          value={invoice.note || ""}
+                          value={invoice.note || ''}
                           placeholder="Escribe una nota visible para todos..."
-                          onChange={(e) =>
-                            onUpdateInvoice(invoice.id, {
-                              note: e.target.value,
-                            })
-                          }
+                          onChange={(e) => onUpdateInvoice(invoice.id, { note: e.target.value })}
                           disabled={!!invoice.locked}
-                          style={{ fontSize: 24, fontWeight: 700 }}
+                          style={{ fontSize: 20, fontWeight: 700, borderRadius: 12, background: 'rgba(255,255,255,0.7)' }}
                           autoFocus
                         />
                       ) : (
                         <div
                           className="alert alert-info py-1 mb-2"
-                          style={{ fontSize: 24, fontWeight: 700, whiteSpace: "pre-line", minHeight: 38 }}
+                          style={{ fontSize: 20, fontWeight: 700, whiteSpace: 'pre-line', minHeight: 38, borderRadius: 12, background: 'rgba(250,198,27,0.08)' }}
                         >
                           {invoice.note ? (
                             invoice.note
@@ -900,98 +848,79 @@ export default function ActiveInvoices({
                         </div>
                       )}
                     </div>
-                  </div>
-                  <div className="card-footer bg-transparent border-top-0">
-                    <div className="d-flex justify-content-between">
-                      <button
-                        className="btn btn-sm btn-outline-primary"
-                        onClick={() => handleInvoiceClick(invoice.id)}
-                        disabled={!!invoice.locked}
-                      >
-                        View / Edit
-                      </button>
-                      <button
-                        className="btn btn-sm btn-outline-danger"
-                        onClick={() => handleDeleteClick(invoice)}
-                        disabled={!!invoice.locked}
-                      >
-                        Delete
-                      </button>
-                      {!invoice.locked ? (
-                        <>
-                          <button
-                            className="btn btn-sm btn-warning ms-2"
-                            onClick={() => handleLockInvoice(invoice.id)}
-                            disabled={!invoiceHasAllRequiredManualProducts(invoice)}
-                          >
-                            Cerrar Boleta
-                          </button>
-                          {!invoiceHasAllRequiredManualProducts(invoice) && (() => {
-                            // Find missing required manual products
-                            const required = getRequiredManualProductsForInvoice(invoice);
-                            // Flatten all cart items in the invoice
-                            const allItems = (invoice.carts || []).flatMap((cart) => cart.items || []);
-                            const missing = required.filter(mp =>
-                              !allItems.some(item => item.productId === mp.productId && Number(item.quantity) >= Number(mp.quantity))
-                            );
-                            if (missing.length === 0) return null;
-                            return (
-                              <div className="alert alert-danger mt-2 mb-0" style={{ fontSize: 14, borderRadius: 8 }}>
-                                Debe agregar los siguientes productos manuales a la boleta:<ul style={{ margin: 0, paddingLeft: 18 }}>
-                                  {missing.map((mp, idx) => (
-                                    <li key={mp.id || idx}>
-                                      <b>{mp.productName}</b> x{mp.quantity} <span style={{ color: '#888' }}>({mp.type})</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            );
-                          })()}
-                        </>
-                      ) : user?.role === "Owner" ? (
-                        <button
-                          className="btn btn-sm btn-success ms-2"
-                          onClick={() => handleUnlockInvoice(invoice.id)}
-                        >
-                          Desbloquear
-                        </button>
-                      ) : null}
-                      {invoice.locked && !invoice.verified && (
-                        <button
-                          className="btn btn-sm btn-info ms-2"
-                          onClick={() => handleVerifyInvoice(invoice.id)}
-                          disabled={!!verifyInvoiceId}
-                        >
-                          Verificar Boleta
-                        </button>
+                    {/* Status Badges */}
+                    <div className="d-flex flex-wrap gap-2 mb-2">
+                      {invoice.locked && (
+                        <span className="badge" style={{ background: 'var(--ku-red)', color: '#fff', fontWeight: 700, fontSize: 14 }}>Boleta Cerrada</span>
                       )}
-                      {(invoice.locked || invoice.verified) &&
-                        user?.role === "Owner" && (
-                          <button
-                            className="btn btn-sm btn-outline-secondary ms-2"
-                            onClick={async () => {
-                              await onUpdateInvoice(invoice.id, {
-                                locked: false,
-                                verified: false,
-                                verifiedBy: undefined,
-                                verifiedAt: undefined,
-                                verifiedProducts: undefined,
-                              });
-                            }}
-                          >
-                            Abrir Boleta
-                          </button>
-                        )}
                       {invoice.verified && (
-                        <button
-                          className="btn btn-sm btn-success ms-2"
-                          onClick={() => openPrintInvoice(invoice)}
-                        >
-                          Print
-                        </button>
+                        <span className="badge" style={{ background: 'var(--ku-yellow)', color: 'var(--ku-dark)', fontWeight: 700, fontSize: 14 }}>Verificado</span>
                       )}
                     </div>
                   </div>
+                  <div className="card-footer bg-transparent border-top-0 p-3"
+  style={{
+    borderRadius: '0 0 28px 28px',
+    background: 'rgba(255,255,255,0.5)',
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    rowGap: 10,
+    minHeight: 60,
+  }}
+>
+  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, flex: 1, justifyContent: 'flex-start', alignItems: 'center' }}>
+    <button
+      className="btn btn-outline-primary ku-btn-blue"
+      onClick={() => handleInvoiceClick(invoice.id)}
+      disabled={!!invoice.locked}
+      style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 110, flex: '1 1 120px', maxWidth: 180 }}
+    >
+      View / Edit
+    </button>
+    <button
+      className="btn btn-outline-danger ku-btn-red"
+      onClick={() => handleDeleteClick(invoice)}
+      disabled={!!invoice.locked}
+      style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 110, flex: '1 1 120px', maxWidth: 180 }}
+    >
+      Delete
+    </button>
+    {!invoice.locked ? (
+      <>
+        <button
+          className="btn ku-btn-yellow"
+          onClick={() => handleLockInvoice(invoice.id)}
+          disabled={!invoiceHasAllRequiredManualProducts(invoice)}
+          style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 140, flex: '1 1 140px', maxWidth: 200 }}
+        >
+          Cerrar Boleta
+        </button>
+        {/* ...missing products alert stays below, not in button row... */}
+      </>
+    ) : user?.role === 'Owner' ? (
+      <button
+        className="btn btn-success ku-btn-blue"
+        onClick={() => handleUnlockInvoice(invoice.id)}
+        style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 140, flex: '1 1 140px', maxWidth: 200 }}
+      >
+        Desbloquear
+      </button>
+    ) : null}
+    {invoice.locked && !invoice.verified && (
+      <button
+        className="btn btn-info ku-btn-yellow"
+        onClick={() => handleVerifyInvoice(invoice.id)}
+        disabled={!!verifyInvoiceId}
+        style={{ borderRadius: 10, fontWeight: 700, fontSize: 16, minWidth: 140, flex: '1 1 140px', maxWidth: 200 }}
+      >
+        Verificar
+      </button>
+    )}
+  </div>
+</div>
                 </div>
               </div>
             ))
@@ -1957,7 +1886,7 @@ export default function ActiveInvoices({
                   <div className="alert alert-danger py-1">{unlockError}</div>
                 )}
               </div>
-              <div className="modal-footer">
+                           <div className="modal-footer">
                 <button
                   className="btn btn-secondary"
                   onClick={() => setUnlockInvoiceId(null)}

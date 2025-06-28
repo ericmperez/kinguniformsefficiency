@@ -87,10 +87,15 @@ export default function PickupWashing({
       where("startTime", "<", Timestamp.fromDate(tomorrow))
     );
     const unsub = onSnapshot(q, (snap) => {
-      const fetchedGroups = snap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const fetchedGroups = snap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          startTime: data.startTime instanceof Timestamp ? data.startTime.toDate() : new Date(data.startTime),
+          endTime: data.endTime instanceof Timestamp ? data.endTime.toDate() : new Date(data.endTime),
+        };
+      });
       setGroups(fetchedGroups);
     });
     return () => unsub();
@@ -196,6 +201,17 @@ export default function PickupWashing({
       await updateDoc(doc(db, "pickup_groups", groupId), {
         numCarts: updatedEntries.length,
       });
+      // Also update segregatedCarts for Tunnel/no-segregation clients
+      const groupSnap = await getDocs(query(collection(db, "pickup_groups"), where("id", "==", groupId)));
+      if (!groupSnap.empty) {
+        const groupData = groupSnap.docs[0].data();
+        const client = clients.find(c => c.id === groupData.clientId);
+        if (client && client.washingType === "Tunnel" && client.segregation === false) {
+          await updateDoc(doc(db, "pickup_groups", groupId), {
+            segregatedCarts: updatedEntries.length,
+          });
+        }
+      }
       setSuccess(true);
       setShowFullScreenSuccess(true); // Show full-screen confirmation
       setTimeout(() => setShowFullScreenSuccess(false), 5000); // Hide after 5 seconds
@@ -211,7 +227,7 @@ export default function PickupWashing({
   // Grouped entries by groupId (using Firestore groups)
   const groupedEntries = useMemo(() => {
     // Sort groups by most recent (latest endTime or startTime) first
-    return groups
+    let result = groups
       .map((group) => {
         const groupEntries = entries.filter((e) => e.groupId === group.id);
         const totalWeight = groupEntries.reduce((sum, e) => sum + e.weight, 0);
@@ -234,8 +250,19 @@ export default function PickupWashing({
           _latest: latest,
         };
       })
-      .filter((g) => g.entries.length > 0)
-      .sort((a, b) => b._latest - a._latest); // Most recent group first
+      .filter((g) => g.entries.length > 0);
+    // Find the most recent group
+    if (result.length > 1) {
+      result.sort((a, b) => {
+        const dateA = a._latest instanceof Date ? a._latest.getTime() : new Date(a._latest).getTime();
+        const dateB = b._latest instanceof Date ? b._latest.getTime() : new Date(b._latest).getTime();
+        return dateB - dateA;
+      });
+      // Move the most recent group to the top explicitly (in case of equal timestamps, preserves most recent submission)
+      const mostRecent = result[0];
+      result = [mostRecent, ...result.filter(g => g !== mostRecent)];
+    }
+    return result;
   }, [groups, entries]);
 
   // Edit an entry's weight inline
@@ -260,6 +287,17 @@ export default function PickupWashing({
       await updateDoc(doc(db, "pickup_groups", entry.groupId), {
         numCarts: groupEntries.length,
       });
+      // Also update segregatedCarts for Tunnel/no-segregation clients
+      const groupSnap = await getDocs(query(collection(db, "pickup_groups"), where("id", "==", entry.groupId)));
+      if (!groupSnap.empty) {
+        const groupData = groupSnap.docs[0].data();
+        const client = clients.find(c => c.id === groupData.clientId);
+        if (client && client.washingType === "Tunnel" && client.segregation === false) {
+          await updateDoc(doc(db, "pickup_groups", entry.groupId), {
+            segregatedCarts: groupEntries.length,
+          });
+        }
+      }
       setEditEntryId(null);
       setEditWeight("");
     } catch (err) {
@@ -285,6 +323,17 @@ export default function PickupWashing({
       await updateDoc(doc(db, "pickup_groups", group.id), {
         numCarts: groupEntries.length,
       });
+      // Also update segregatedCarts for Tunnel/no-segregation clients
+      const groupSnap = await getDocs(query(collection(db, "pickup_groups"), where("id", "==", group.id)));
+      if (!groupSnap.empty) {
+        const groupData = groupSnap.docs[0].data();
+        const client = clients.find(c => c.id === groupData.clientId);
+        if (client && client.washingType === "Tunnel" && client.segregation === false) {
+          await updateDoc(doc(db, "pickup_groups", group.id), {
+            segregatedCarts: groupEntries.length,
+          });
+        }
+      }
     } catch (err) {
       alert("Error al eliminar la entrada");
     }
@@ -580,7 +629,7 @@ export default function PickupWashing({
                     </tr>
                   </thead>
                   <tbody>
-                    {group.entries.map((entry: PickupEntry, i: number) => {
+                    {group.entries.slice().reverse().map((entry: PickupEntry, i: number) => {
                       let timeString = "";
                       if (entry.timestamp instanceof Date) {
                         timeString = entry.timestamp.toLocaleTimeString();
