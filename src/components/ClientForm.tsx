@@ -376,6 +376,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   <th>Status</th>
                   <th>Washing Type</th>
                   <th>Segregation</th>
+                  <th>Billing Calculation</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -477,6 +478,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                         >
                           {client.segregation ? "Yes" : "No"}
                         </span>
+                      </td>
+                      <td>
+                        {client.billingCalculation === "byItem" ? "Per Item" : "By Weight"}
                       </td>
                       <td>
                         <div className="d-flex gap-2">

@@ -24,6 +24,9 @@ const BillingPage: React.FC = () => {
   const [fuelChargeEnabled, setFuelChargeEnabled] = useState(false);
   const [fuelChargePercent, setFuelChargePercent] = useState('');
 
+  // State for surcharge
+  const [surcharge, setSurcharge] = useState<string>("");
+
   // Get selected client object
   const selectedClient = clients.find(c => c.id === selectedClientId);
   // Get products for selected client
@@ -111,6 +114,25 @@ const BillingPage: React.FC = () => {
     })();
   }, [selectedClientId]);
 
+  // Load surcharge for selected client
+  useEffect(() => {
+    if (!selectedClient) {
+      setSurcharge("");
+      return;
+    }
+    (async () => {
+      const { getDoc, doc } = await import("firebase/firestore");
+      const { db } = await import("../firebase");
+      const docRef = doc(db, "client_minimum_billing", selectedClient.id);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        setSurcharge(snap.data().surcharge !== undefined ? String(snap.data().surcharge) : "");
+      } else {
+        setSurcharge("");
+      }
+    })();
+  }, [selectedClientId]);
+
   // Handler for price input
   const handlePriceChange = (productId: string, value: string) => {
     setProductPrices(prev => ({ ...prev, [productId]: Number(value) }));
@@ -135,7 +157,7 @@ const BillingPage: React.FC = () => {
             }
           );
         });
-      // Save minimum billing value and both charges
+      // Save minimum billing value, charges, and surcharge
       await setDoc(
         doc(collection(db, "client_minimum_billing"), selectedClient.id),
         {
@@ -145,6 +167,7 @@ const BillingPage: React.FC = () => {
           serviceChargePercent: serviceChargePercent ? Number(serviceChargePercent) : 0,
           fuelChargeEnabled,
           fuelChargePercent: fuelChargePercent ? Number(fuelChargePercent) : 0,
+          surcharge: surcharge ? Number(surcharge) : 0,
           updatedAt: new Date().toISOString(),
         }
       );
@@ -210,6 +233,18 @@ const BillingPage: React.FC = () => {
               value={minBilling}
               onChange={e => setMinBilling(e.target.value)}
               placeholder="Enter minimum billing value"
+            />
+          </div>
+          {/* Surcharge input */}
+          <div className="mb-3" style={{ maxWidth: 300 }}>
+            <label className="form-label">Surcharge</label>
+            <input
+              type="number"
+              className="form-control"
+              min={0}
+              value={surcharge}
+              onChange={e => setSurcharge(e.target.value)}
+              placeholder="Enter surcharge value"
             />
           </div>
           {/* Service and Fuel Charge Options */}
@@ -341,6 +376,7 @@ const BillingPage: React.FC = () => {
                       <th>Subtotal</th>
                       <th>Service Charge</th>
                       <th>Fuel Charge</th>
+                      <th>Surcharge</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -391,6 +427,7 @@ const BillingPage: React.FC = () => {
                       if (fuelChargeEnabled && fuelChargePercent && Number(fuelChargePercent) > 0) {
                         fuelCharge = displaySubtotal * (Number(fuelChargePercent) / 100);
                       }
+                      let surchargeValue = surcharge ? Number(surcharge) : 0;
                       return (
                         <tr key={inv.id} className={missingPrice ? 'table-danger' : ''}>
                           <td>{inv.invoiceNumber || inv.id}</td>
@@ -400,6 +437,7 @@ const BillingPage: React.FC = () => {
                           <td style={nowrapCellStyle}><b>{displaySubtotal > 0 ? `$${displaySubtotal.toFixed(2)}` : ''}</b></td>
                           <td style={nowrapCellStyle}><b>{serviceCharge > 0 ? `$${serviceCharge.toFixed(2)}` : ''}</b></td>
                           <td style={nowrapCellStyle}><b>{fuelCharge > 0 ? `$${fuelCharge.toFixed(2)}` : ''}</b></td>
+                          <td style={nowrapCellStyle}><b>{surchargeValue > 0 ? `$${surchargeValue.toFixed(2)}` : ''}</b></td>
                         </tr>
                       );
                     })}
