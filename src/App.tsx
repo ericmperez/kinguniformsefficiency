@@ -82,6 +82,7 @@ import kingUniformsLogo from "./assets/King Uniforms Logo.jpeg";
 import SignInSide from "./components/SignInSide";
 import RutasPorCamion from "./components/RutasPorCamion";
 import GlobalActivityLog from "./components/GlobalActivityLog";
+import BillingPage from "./components/BillingPage";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -154,7 +155,7 @@ function updateClientInInvoices(
 function App() {
   const { user, logout } = useAuth();
   const [activePage, setActivePage] = useState<
-    "home" | "entradas" | "washing" | "segregation" | "settings" | "reports"
+    "home" | "entradas" | "washing" | "segregation" | "settings" | "reports" | "billing"
   >("home");
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -585,6 +586,12 @@ function App() {
       page: "settings" as const,
       icon: <SettingsIcon />,
       visible: canManageUsers,
+    },
+    {
+      label: "Billing",
+      page: "billing" as const,
+      icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
+      visible: true,
     },
     // Removed 'Rutas por Camión' from navLinks
   ];
@@ -1462,6 +1469,7 @@ function App() {
         </div>
       )}
       {activePage === "reports" && <Report />}
+      {activePage === "billing" && <BillingPage />}
     </div>
   );
 }
