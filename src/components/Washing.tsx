@@ -357,6 +357,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     // eslint-disable-next-line
   }, [conventionalGroups.length]);
 
+  // Ensure Tunnel groups have an 'order' property for sorting
+  useEffect(() => {
+    if (tunnelGroups.some((g) => typeof g.order !== "number")) {
+      setGroups((prev) => {
+        let changed = false;
+        const updated = prev.map((g, idx) => {
+          if (
+            g.status === "Tunnel" &&
+            getWashingType(g.clientId) === "Tunnel" &&
+            typeof g.order !== "number"
+          ) {
+            changed = true;
+            return { ...g, order: idx };
+          }
+          return g;
+        });
+        return changed ? updated : prev;
+      });
+    }
+    // eslint-disable-next-line
+  }, [tunnelGroups.length]);
+
   // Move group up/down in order
   const moveConventionalGroup = async (
     groupId: string,
@@ -406,6 +428,46 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       const newGroups = [...others, ...sorted];
       return newGroups;
     });
+  };
+
+  const [tunnelReorderLoading, setTunnelReorderLoading] = useState<
+    string | null
+  >(null);
+
+  // Move Tunnel group up/down in order
+  const moveTunnelGroup = async (groupId: string, direction: "up" | "down") => {
+    setTunnelReorderLoading(groupId);
+    const tunnel = groups.filter(
+      (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
+    );
+    const sorted = [...tunnel].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const idx = sorted.findIndex((g) => g.id === groupId);
+    if (idx === -1) {
+      setTunnelReorderLoading(null);
+      return;
+    }
+    let newIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= sorted.length) {
+      setTunnelReorderLoading(null);
+      return;
+    }
+    // Swap order values
+    const tempOrder = sorted[idx].order ?? idx;
+    sorted[idx].order = sorted[newIdx].order ?? newIdx;
+    sorted[newIdx].order = tempOrder;
+    try {
+      await Promise.all([
+        updateDoc(doc(db, "pickup_groups", sorted[idx].id), {
+          order: sorted[idx].order,
+        }),
+        updateDoc(doc(db, "pickup_groups", sorted[newIdx].id), {
+          order: sorted[newIdx].order,
+        }),
+      ]);
+    } catch (e) {
+      // Optionally handle error
+    }
+    setTunnelReorderLoading(null);
   };
 
   // Move up/down for both manual products and client groups
@@ -587,21 +649,51 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       <div>
         {activeTab === "tunnel" && (
           <div
-            className="card shadow p-4 mb-4 mx-auto"
-            style={{ maxWidth: 600 }}
+            className="card shadow p-5 mb-5 mx-auto"
+            style={{
+              maxWidth: 1100,
+              minWidth: 700,
+              width: "100%",
+              background: "#f8f9fa",
+              border: "2.5px solid #0E62A0",
+              borderRadius: 22,
+              boxShadow: "0 8px 32px rgba(14,98,160,0.13)",
+              padding: "3.5rem 2.5rem 2.5rem 2.5rem",
+              marginBottom: 40,
+              marginTop: 18,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
           >
-            <h5 className="mb-4 text-center" style={{ letterSpacing: 1 }}>
+            <h3
+              className="mb-4 text-center"
+              style={{
+                letterSpacing: 1.5,
+                fontSize: 32,
+                fontWeight: 800,
+                color: "#0E62A0",
+              }}
+            >
               Groups for Tunnel Washing
-            </h5>
+            </h3>
             {loading ? (
-              <div className="text-center py-5">Loading...</div>
+              <div className="text-center py-5" style={{ fontSize: 22 }}>
+                Loading...
+              </div>
             ) : tunnelGroups.length === 0 ? (
-              <div className="text-muted text-center py-5">
+              <div
+                className="text-muted text-center py-5"
+                style={{ fontSize: 22 }}
+              >
                 No tunnel groups ready for washing.
               </div>
             ) : (
-              <div className="list-group list-group-flush">
-                {tunnelGroups.map((group) => {
+              <div
+                className="list-group list-group-flush w-100"
+                style={{ maxWidth: 1000, margin: "0 auto" }}
+              >
+                {tunnelGroups.map((group, idx) => {
                   const isSelected =
                     selectedTunnelGroup && selectedTunnelGroup.id === group.id;
                   const isVerified = !!verifiedGroups[group.id];
@@ -612,24 +704,36 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                   return (
                     <div
                       key={group.id}
-                      className="list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded"
+                      className="list-group-item d-flex flex-row align-items-center justify-content-between gap-4 py-4 mb-3 shadow-sm rounded"
                       style={{
-                        background: isLocked ? "#cce5ff" : "#f8f9fa", // light blue for lock mode
-                        border: "1px solid #e3e3e3",
+                        background: isLocked ? "#cce5ff" : "#fff",
+                        border: "2px solid #e3e3e3",
+                        fontSize: 20,
+                        minHeight: 90,
+                        boxShadow: "0 2px 12px rgba(14,98,160,0.07)",
                       }}
                     >
-                      <div className="d-flex flex-column flex-md-row align-items-md-center gap-3 flex-grow-1">
+                      <div
+                        className="d-flex flex-column flex-md-row align-items-md-center gap-4 flex-grow-1"
+                        style={{ flex: 1, minWidth: 0 }}
+                      >
                         <span
                           style={{
-                            fontSize: "1.2rem",
-                            fontWeight: 600,
+                            fontSize: "1.5rem",
+                            fontWeight: 700,
                             color: "#007bff",
-                            minWidth: 120,
+                            minWidth: 180,
                           }}
                         >
                           {group.clientName}
                         </span>
-                        <span style={{ fontSize: "1.1rem", color: "#28a745" }}>
+                        <span
+                          style={{
+                            fontSize: "1.2rem",
+                            color: "#28a745",
+                            minWidth: 120,
+                          }}
+                        >
                           Total:{" "}
                           <strong>
                             {typeof group.totalWeight === "number"
@@ -923,7 +1027,32 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           </>
                         )}
                       </div>
-                      <div className="d-flex flex-row gap-2 align-items-center">
+                      <div
+                        className="d-flex flex-row align-items-center justify-content-end gap-2"
+                        style={{ minWidth: 220, maxWidth: 260 }}
+                      >
+                        {/* Move up/down arrows */}
+                        <button
+                          className="btn btn-outline-secondary btn-sm"
+                          title="Move up"
+                          disabled={
+                            tunnelReorderLoading === group.id || idx === 0
+                          }
+                          onClick={() => moveTunnelGroup(group.id, "up")}
+                        >
+                          <span aria-hidden="true">▲</span>
+                        </button>
+                        <button
+                          className="btn btn-outline-secondary btn-sm"
+                          title="Move down"
+                          disabled={
+                            tunnelReorderLoading === group.id ||
+                            idx === tunnelGroups.length - 1
+                          }
+                          onClick={() => moveTunnelGroup(group.id, "down")}
+                        >
+                          <span aria-hidden="true">▼</span>
+                        </button>
                         {!isSelected && !isVerified && !isLocked && (
                           <button
                             className="btn btn-outline-primary btn-sm"

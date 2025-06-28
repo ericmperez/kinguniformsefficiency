@@ -115,12 +115,10 @@ export const getNextInvoiceNumber = async (): Promise<number> => {
   return max + 1;
 };
 
-export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<string> => {
+export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<void> => {
   try {
-    // Assign invoiceNumber
     const invoiceNumber = (invoice as any).invoiceNumber || await getNextInvoiceNumber();
-    const docRef = await addDoc(collection(db, "invoices"), { ...invoice, invoiceNumber });
-    return docRef.id;
+    await addDoc(collection(db, "invoices"), { ...invoice, invoiceNumber });
   } catch (error) {
     throw error;
   }
@@ -499,6 +497,19 @@ export const updateSegregatedCartsIfTunnelNoSeg = async (groupId: string) => {
 };
 
 // Set segregatedCarts for a pickup group (used by Segregation page to persist value)
-export const setSegregatedCarts = async (groupId: string, value: number) => {
-  await updateDoc(doc(db, "pickup_groups", groupId), { segregatedCarts: value });
+export const setSegregatedCarts = async (
+  groupId: string,
+  segregatedCarts: number
+): Promise<void> => {
+  await updateDoc(doc(db, 'pickup_groups', groupId), {
+    segregatedCarts,
+  });
 };
+
+// Avatar fallback utility for client avatars
+export function getClientAvatarUrl(client: { imageUrl?: string }): string {
+  if (client && typeof client.imageUrl === 'string' && client.imageUrl.trim() !== '') {
+    return client.imageUrl;
+  }
+  return '/images/clients/default-avatar.png';
+}

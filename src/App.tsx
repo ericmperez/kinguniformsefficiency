@@ -1435,6 +1435,31 @@ function App() {
         </div>
       )}
       {/* Removed rendering for activePage === "rutasPorCamion" */}
+      {activePage === "home" && (
+        <div className="home-page">
+          <h1>Welcome to the App</h1>
+          <p>Select a page from the menu to get started.</p>
+        </div>
+      )}
+      {activePage === "entradas" && (
+        <ActiveInvoices
+          clients={clients}
+          products={products}
+          invoices={invoices}
+          onAddInvoice={addInvoice}
+          onDeleteInvoice={deleteInvoice}
+          onUpdateInvoice={updateInvoice}
+        />
+      )}
+      {activePage === "washing" && <Washing />}
+      {activePage === "segregation" && <Segregation />}
+      {activePage === "settings" && (
+        <div className="settings-page">
+          <h2>Settings</h2>
+          {/* Add settings content here */}
+        </div>
+      )}
+      {activePage === "reports" && <Report />}
     </div>
   );
 }

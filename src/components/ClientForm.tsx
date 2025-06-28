@@ -53,22 +53,26 @@ export const ClientForm: React.FC<ClientFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClientName.trim()) return;
-    const clientData = {
+    const clientData: any = {
       name: newClientName,
-      image: newClientImage,
       selectedProducts,
       isRented,
       washingType,
       segregation,
     };
+    // Only include image if a new image is selected
+    if (newClientImage) {
+      clientData.image = newClientImage;
+    }
     if (editingClient) {
       await onUpdateClient(editingClient.id, clientData);
       setEditingClient(null);
     } else {
+      clientData.image = newClientImage;
       await onAddClient(clientData);
     }
     setNewClientName("");
-    setNewClientImage(null);
+    setNewClientImage(null); // Always reset after submit
     setSelectedProducts([]);
     setIsRented(false);
     setWashingType("Tunnel");
@@ -81,13 +85,14 @@ export const ClientForm: React.FC<ClientFormProps> = ({
   const handleEdit = (client: CanonicalClient) => {
     setEditingClient({
       ...client,
-      image: client.image === undefined ? null : client.image,
+      image: null, // Always start with no new image selected
     });
     setNewClientName(client.name);
     setSelectedProducts(client.selectedProducts);
     setIsRented(client.isRented);
     setWashingType(client.washingType || "Tunnel");
     setSegregation(client.segregation ?? false);
+    setNewClientImage(null); // Always reset when opening edit modal
   };
 
   const handleCancel = () => {
@@ -195,7 +200,11 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                             src={product.imageUrl}
                             alt={product.name}
                             className="mb-2 rounded"
-                            style={{ width: 40, height: 40, objectFit: "cover" }}
+                            style={{
+                              width: 40,
+                              height: 40,
+                              objectFit: "cover",
+                            }}
                           />
                         )}
                         <span
@@ -240,7 +249,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                     checked={washingType === "Tunnel"}
                     onChange={() => setWashingType("Tunnel")}
                   />
-                  <label className="form-check-label" htmlFor="washingTypeTunnel">
+                  <label
+                    className="form-check-label"
+                    htmlFor="washingTypeTunnel"
+                  >
                     Tunnel
                   </label>
                 </div>
@@ -404,7 +416,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                       </td>
                       <td>
                         <span
-                          className={`badge ${client.segregation ? "bg-success" : "bg-secondary"}`}
+                          className={`badge ${
+                            client.segregation ? "bg-success" : "bg-secondary"
+                          }`}
                           style={{ cursor: "pointer" }}
                           title="Click to toggle segregation"
                           onClick={async () => {
@@ -412,7 +426,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                             setIsSaving(true);
                             setSaveError(null);
                             try {
-                              await onUpdateClient(client.id, { segregation: newSeg });
+                              await onUpdateClient(client.id, {
+                                segregation: newSeg,
+                              });
                             } catch {
                               setSaveError("Failed to update segregation.");
                             } finally {
@@ -448,12 +464,19 @@ export const ClientForm: React.FC<ClientFormProps> = ({
       </div>
       {/* Edit Client Modal */}
       {editingClient && (
-        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Edit Client</h5>
-                <button type="button" className="btn-close" onClick={handleCancel}></button>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={handleCancel}
+                ></button>
               </div>
               <div className="modal-body">
                 <form onSubmit={handleSubmit}>
@@ -480,7 +503,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                       className="form-control"
                       id="clientImageEdit"
                       accept="image/*"
-                      onChange={(e) => setNewClientImage(e.target.files?.[0] || null)}
+                      onChange={(e) =>
+                        setNewClientImage(e.target.files?.[0] || null)
+                      }
                     />
                   </div>
 
@@ -488,7 +513,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                     <label className="form-label">Selected Products</label>
                     <div className="row g-3">
                       {products.map((product) => (
-                        <div key={product.id} className="col-6 col-md-4 col-lg-3">
+                        <div
+                          key={product.id}
+                          className="col-6 col-md-4 col-lg-3"
+                        >
                           <label
                             className={`card h-100 shadow-sm position-relative product-checkbox-card ${
                               selectedProducts.includes(product.id)
@@ -512,7 +540,11 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                                   src={product.imageUrl}
                                   alt={product.name}
                                   className="mb-2 rounded"
-                                  style={{ width: 40, height: 40, objectFit: "cover" }}
+                                  style={{
+                                    width: 40,
+                                    height: 40,
+                                    objectFit: "cover",
+                                  }}
                                 />
                               )}
                               <span
@@ -538,7 +570,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                         onChange={(e) => handleIsRentedToggle(e.target.checked)}
                         disabled={isSaving}
                       />
-                      <label className="form-check-label" htmlFor="isRentedEdit">
+                      <label
+                        className="form-check-label"
+                        htmlFor="isRentedEdit"
+                      >
                         Is Rented
                       </label>
                     </div>
@@ -557,7 +592,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           checked={washingType === "Tunnel"}
                           onChange={() => setWashingType("Tunnel")}
                         />
-                        <label className="form-check-label" htmlFor="washingTypeTunnelEdit">
+                        <label
+                          className="form-check-label"
+                          htmlFor="washingTypeTunnelEdit"
+                        >
                           Tunnel
                         </label>
                       </div>
@@ -594,7 +632,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           checked={segregation === true}
                           onChange={() => setSegregation(true)}
                         />
-                        <label className="form-check-label" htmlFor="segregationYesEdit">
+                        <label
+                          className="form-check-label"
+                          htmlFor="segregationYesEdit"
+                        >
                           Yes
                         </label>
                       </div>
@@ -608,7 +649,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           checked={segregation === false}
                           onChange={() => setSegregation(false)}
                         />
-                        <label className="form-check-label" htmlFor="segregationNoEdit">
+                        <label
+                          className="form-check-label"
+                          htmlFor="segregationNoEdit"
+                        >
                           No
                         </label>
                       </div>

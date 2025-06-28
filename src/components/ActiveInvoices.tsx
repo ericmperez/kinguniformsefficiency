@@ -10,6 +10,7 @@ import {
 import InvoiceForm from "./InvoiceForm";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
 import LaundryCartModal from "./LaundryCartModal";
+import InvoiceDetailsModal from "./InvoiceDetailsModal";
 import {
   getAllPickupGroups,
   updatePickupGroupStatus,
@@ -22,12 +23,13 @@ import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 import { AuthContext, useAuth } from "./AuthContext";
 import { db } from "../firebase";
+import { getClientAvatarUrl } from "../services/firebaseService";
 
 interface ActiveInvoicesProps {
   clients: Client[];
   products: Product[];
   invoices: Invoice[];
-  onAddInvoice: (invoice: Omit<Invoice, "id">) => Promise<void>;
+  onAddInvoice: (invoice: Omit<Invoice, "id">) => Promise<string>;
   onDeleteInvoice: (invoiceId: string) => Promise<void>;
   onUpdateInvoice: (
     invoiceId: string,
@@ -340,9 +342,8 @@ export default function ActiveInvoices({
   const handleInvoiceClick = (invoiceId: string) => {
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (invoice) {
-      setCartSelectInvoiceId(invoiceId);
-      setCartSelectCarts(invoice.carts || []);
-      setShowCartSelectModal(true);
+      setSelectedInvoice(invoice);
+      setShowInvoiceDetailsModal(true);
     }
   };
 
@@ -724,6 +725,14 @@ export default function ActiveInvoices({
     setShowPrintInvoiceModal(true);
   }
 
+  // Avatar error state: track which invoice cards have failed avatar loads
+  const [avatarErrorMap, setAvatarErrorMap] = useState<{
+    [invoiceId: string]: boolean;
+  }>({});
+
+  const [showInvoiceDetailsModal, setShowInvoiceDetailsModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
@@ -754,379 +763,172 @@ export default function ActiveInvoices({
               }
               return a.id.localeCompare(b.id);
             })
-            .map((invoice, idx) => (
-              <div
-                key={invoice.id}
-                className="col-lg-4 col-md-6 mb-4"
-                onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
-                onMouseLeave={() => setHoveredInvoiceId(null)}
-              >
+            .map((invoice, idx) => {
+              const client = clients.find((c) => c.id === invoice.clientId);
+              const avatarSrc = getClientAvatarUrl(client || {});
+              return (
                 <div
-                  className="modern-invoice-card shadow-lg"
-                  style={{
-                    borderRadius: 20,
-                    background: "#fff",
-                    color: "#111",
-                    boxShadow: "0 4px 24px 0 rgba(0,0,0,0.07)",
-                    border: "1.5px solid #e0e0e0",
-                    position: "relative",
-                    minHeight: 320,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    fontFamily: "Inter, Segoe UI, Arial, sans-serif",
-                    transition: "transform 0.18s, box-shadow 0.18s",
-                    transform:
-                      hoveredInvoiceId === invoice.id
-                        ? "translateY(-4px) scale(1.02)"
-                        : "none",
-                    overflow: "hidden",
-                  }}
+                  key={invoice.id}
+                  className="col-lg-4 col-md-6 mb-4"
+                  onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
+                  onMouseLeave={() => setHoveredInvoiceId(null)}
                 >
-                  <div className="card-body p-4" style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontWeight: 800,
-                        fontSize: 24,
-                        marginBottom: 6,
-                        color: "var(--ku-blue)",
-                      }}
-                    >
-                      {clients.find((c) => c.id === invoice.clientId)?.name ||
-                        invoice.clientName}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        color: "#888",
-                        marginBottom: 12,
-                        letterSpacing: 1,
-                      }}
-                    >
-                      Invoice #
-                      {invoice.invoiceNumber
-                        ? String(invoice.invoiceNumber).padStart(4, "0")
-                        : String(idx + 1).padStart(4, "0")}
-                    </div>
-                    <div style={{ marginBottom: 14 }}>
-                      <span
-                        style={{ fontWeight: 600, color: "#222", fontSize: 16 }}
-                      >
-                        Carts:
-                      </span>{" "}
-                      {invoice.carts && invoice.carts.length > 0 ? (
-                        <span className="d-flex flex-wrap gap-2 mt-1">
-                          {invoice.carts.map((cart) => (
-                            <span
-                              key={cart.id}
-                              className="badge rounded-pill"
-                              style={{
-                                fontSize: 15,
-                                padding: "8px 18px",
-                                background: "var(--ku-light)",
-                                color: "var(--ku-blue)",
-                                border: "1.5px solid var(--ku-blue)",
-                                fontWeight: 700,
-                                letterSpacing: 0.5,
-                              }}
-                            >
-                              {cart.name}
-                            </span>
-                          ))}
-                        </span>
-                      ) : (
-                        <span className="text-muted">No carts</span>
-                      )}
-                    </div>
-                    {/* Manual Products for this Invoice */}
-                    {(() => {
-                      const manualForInvoice = manualProducts.filter(
-                        (mp) => mp.invoiceId === invoice.id
-                      );
-                      if (manualForInvoice.length === 0) return null;
-                      return (
-                        <div className="mb-2">
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              fontSize: 15,
-                              marginBottom: 2,
-                              color: "var(--ku-red)",
-                            }}
-                          >
-                            Manual Products
-                          </div>
-                          <ul className="list-group mb-2">
-                            {manualForInvoice.map((mp) => (
-                              <li
-                                key={mp.id}
-                                className="list-group-item d-flex justify-content-between align-items-center py-2"
-                                style={{
-                                  background: "rgba(250,198,27,0.08)",
-                                  border: "none",
-                                  fontSize: 14,
-                                }}
-                              >
-                                <span>
-                                  <b>{mp.productName}</b> x{mp.quantity}{" "}
-                                  <span className="text-muted">
-                                    ({mp.type})
-                                  </span>
-                                  {mp.washed && (
-                                    <span className="badge bg-success ms-2">
-                                      Washed
-                                    </span>
-                                  )}
-                                  {mp.delivered && (
-                                    <span className="badge bg-secondary ms-2">
-                                      Delivered
-                                    </span>
-                                  )}
-                                  {!mp.washed && (
-                                    <span className="badge bg-warning text-dark ms-2">
-                                      Pending
-                                    </span>
-                                  )}
-                                </span>
-                                <button
-                                  className="btn btn-sm btn-outline-danger"
-                                  title="Delete manual product"
-                                  onClick={() =>
-                                    handleDeleteManualProduct(mp.id)
-                                  }
-                                  disabled={!!invoice.locked}
-                                >
-                                  Delete
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      );
-                    })()}
-                    {/* Public Note */}
-                    <div className="mb-2">
-                      <label
-                        className="form-label"
-                        style={{
-                          fontWeight: 600,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          color: "var(--ku-yellow)",
-                        }}
-                      >
-                        Nota Pública
-                        <span
-                          style={{
-                            cursor: "pointer",
-                            color: "#f0ad4e",
-                            fontSize: 22,
-                            display: "inline-flex",
-                            alignItems: "center",
-                          }}
-                          title="Agregar o editar nota pública"
-                          onClick={() =>
-                            setShowNoteInput((prev) => ({
-                              ...prev,
-                              [invoice.id]: !prev[invoice.id],
-                            }))
-                          }
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="1.2em"
-                            height="1.2em"
-                            fill="currentColor"
-                            viewBox="0 0 16 16"
-                          >
-                            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.964 0L.165 13.233c-.457.778.091 1.767.982 1.767h13.707c.89 0 1.438-.99.982-1.767L8.982 1.566zm-1.196.93a.13.13 0 0 1 .228 0l6.853 11.667a.13.13 0 0 1-.114.197H1.147a.13.13 0 0 1-.114-.197L7.886 2.497zM8 5c-.535 0-.954.462-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 5zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" />
-                          </svg>
-                        </span>
-                      </label>
-                      {showNoteInput[invoice.id] && !invoice.locked ? (
-                        <textarea
-                          className="form-control mb-2"
-                          rows={2}
-                          value={invoice.note || ""}
-                          placeholder="Escribe una nota visible para todos..."
-                          onChange={(e) =>
-                            onUpdateInvoice(invoice.id, {
-                              note: e.target.value,
-                            })
-                          }
-                          disabled={!!invoice.locked}
-                          style={{
-                            fontSize: 20,
-                            fontWeight: 700,
-                            borderRadius: 12,
-                            background: "rgba(255,255,255,0.7)",
-                          }}
-                          autoFocus
-                        />
-                      ) : (
-                        <div
-                          className="alert alert-info py-1 mb-2"
-                          style={{
-                            fontSize: 20,
-                            fontWeight: 700,
-                            whiteSpace: "pre-line",
-                            minHeight: 38,
-                            borderRadius: 12,
-                            background: "rgba(250,198,27,0.08)",
-                          }}
-                        >
-                          {invoice.note ? (
-                            invoice.note
-                          ) : (
-                            <span className="text-muted">Sin nota</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {/* Status Badges */}
-                    <div className="d-flex flex-wrap gap-2 mb-2">
-                      {invoice.locked && (
-                        <span
-                          className="badge"
-                          style={{
-                            background: "var(--ku-red)",
-                            color: "#fff",
-                            fontWeight: 700,
-                            fontSize: 14,
-                          }}
-                        >
-                          Boleta Cerrada
-                        </span>
-                      )}
-                      {invoice.verified && (
-                        <span
-                          className="badge"
-                          style={{
-                            background: "var(--ku-yellow)",
-                            color: "var(--ku-dark)",
-                            fontWeight: 700,
-                            fontSize: 14,
-                          }}
-                        >
-                          Verificado
-                        </span>
-                      )}
-                    </div>
-                  </div>
                   <div
-                    className="card-footer bg-transparent border-top-0 p-3"
+                    className="modern-invoice-card shadow-lg"
                     style={{
-                      borderRadius: "0 0 28px 28px",
-                      background: "rgba(255,255,255,0.5)",
+                      borderRadius: 24,
+                      background:
+                        "linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)",
+                      color: "#222",
+                      boxShadow: "0 8px 32px 0 rgba(0,0,0,0.10)",
+                      border: "none",
+                      position: "relative",
+                      minHeight: 380,
+                      maxWidth: 340,
+                      margin: "60px auto 0 auto",
                       display: "flex",
-                      flexWrap: "wrap",
-                      justifyContent: "space-between",
+                      flexDirection: "column",
                       alignItems: "center",
-                      gap: 10,
-                      rowGap: 10,
-                      minHeight: 60,
+                      justifyContent: "flex-start",
+                      fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+                      padding: "2.5rem 1.5rem 1.5rem 1.5rem",
+                      transition: "transform 0.18s, box-shadow 0.18s",
+                      transform:
+                        hoveredInvoiceId === invoice.id
+                          ? "translateY(-4px) scale(1.02)"
+                          : "none",
+                      overflow: "visible",
+                    }}
+                    onClick={() => handleInvoiceClick(invoice.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        handleInvoiceClick(invoice.id);
+                      }
                     }}
                   >
+                    {/* Delete button in top left corner */}
+                    <button
+                      className="btn"
+                      style={{
+                        position: "absolute",
+                        top: 16,
+                        left: 16,
+                        background: "#fff",
+                        borderRadius: "50%",
+                        width: 44,
+                        height: 44,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                        border: "none",
+                        color: "#ef4444",
+                        fontSize: 22,
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(invoice);
+                      }}
+                      title="Delete"
+                      disabled={!!invoice.locked}
+                    >
+                      <i className="bi bi-trash" />
+                    </button>
+                    {/* Avatar */}
+                    <div
+                      style={{
+                        width: 110,
+                        height: 110,
+                        position: "absolute",
+                        left: "50%",
+                        top: -55,
+                        transform: "translateX(-50%)",
+                        zIndex: 2,
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <img
+                        src={avatarSrc}
+                        alt="avatar"
+                        style={{
+                          width: 100,
+                          height: 100,
+                          borderRadius: "50%",
+                          border: "4px solid #fff",
+                          objectFit: "cover",
+                          boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
+                          background: "#e0f2fe",
+                        }}
+                        onError={() =>
+                          setAvatarErrorMap((prev) => ({
+                            ...prev,
+                            [invoice.id]: true,
+                          }))
+                        }
+                      />
+                    </div>
+                    {/* Name and subtitle */}
+                    <div
+                      style={{
+                        textAlign: "center",
+                        marginTop: 16,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          fontSize: 24,
+                          color: "#222",
+                          marginBottom: 4,
+                        }}
+                      >
+                        {client?.name || invoice.clientName}
+                      </div>
+                      <div
+                        style={{ fontSize: 15, color: "#555", marginBottom: 0 }}
+                      >
+                        Active Invoice
+                      </div>
+                    </div>
+                    {/* Social-style action buttons */}
                     <div
                       style={{
                         display: "flex",
-                        flexWrap: "wrap",
-                        gap: 10,
-                        flex: 1,
-                        justifyContent: "flex-start",
-                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 18,
+                        margin: "22px 0 0 0",
                       }}
                     >
-                      <button
-                        className="btn btn-outline-primary ku-btn-blue"
-                        onClick={() => handleInvoiceClick(invoice.id)}
-                        disabled={!!invoice.locked}
-                        style={{
-                          borderRadius: 10,
-                          fontWeight: 700,
-                          fontSize: 16,
-                          minWidth: 110,
-                          flex: "1 1 120px",
-                          maxWidth: 180,
-                        }}
-                      >
-                        View / Edit
-                      </button>
-                      <button
-                        className="btn btn-outline-danger ku-btn-red"
-                        onClick={() => handleDeleteClick(invoice)}
-                        disabled={!!invoice.locked}
-                        style={{
-                          borderRadius: 10,
-                          fontWeight: 700,
-                          fontSize: 16,
-                          minWidth: 110,
-                          flex: "1 1 120px",
-                          maxWidth: 180,
-                        }}
-                      >
-                        Delete
-                      </button>
-                      {!invoice.locked ? (
-                        <>
-                          <button
-                            className="btn ku-btn-yellow"
-                            onClick={() => handleLockInvoice(invoice.id)}
-                            disabled={
-                              !invoiceHasAllRequiredManualProducts(invoice)
-                            }
-                            style={{
-                              borderRadius: 10,
-                              fontWeight: 700,
-                              fontSize: 16,
-                              minWidth: 140,
-                              flex: "1 1 140px",
-                              maxWidth: 200,
-                            }}
-                          >
-                            Cerrar Boleta
-                          </button>
-                          {/* ...missing products alert stays below, not in button row... */}
-                        </>
-                      ) : user?.role === "Owner" ? (
+                      {invoice.locked ? (
                         <button
-                          className="btn btn-success ku-btn-blue"
-                          onClick={() => handleUnlockInvoice(invoice.id)}
+                          className="btn"
                           style={{
-                            borderRadius: 10,
-                            fontWeight: 700,
-                            fontSize: 16,
-                            minWidth: 140,
-                            flex: "1 1 140px",
-                            maxWidth: 200,
+                            background: "#fff",
+                            borderRadius: "50%",
+                            width: 44,
+                            height: 44,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border: "none",
                           }}
+                          disabled
                         >
-                          Desbloquear
+                          Locked
                         </button>
                       ) : null}
-                      {invoice.locked && !invoice.verified && (
-                        <button
-                          className="btn btn-info ku-btn-yellow"
-                          onClick={() => handleVerifyInvoice(invoice.id)}
-                          disabled={!!verifyInvoiceId}
-                          style={{
-                            borderRadius: 10,
-                            fontWeight: 700,
-                            fontSize: 16,
-                            minWidth: 140,
-                            flex: "1 1 140px",
-                            maxWidth: 200,
-                          }}
-                        >
-                          Verificar
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ); // <-- close map function
+            })
         )}
       </div>
 
@@ -1807,6 +1609,9 @@ export default function ActiveInvoices({
                     />
                   </div>
                 )}
+                {addToGroupError && (
+                  <div className="text-danger mb-2">{addToGroupError}</div>
+                )}
               </div>
               <div className="modal-footer">
                 <button
@@ -2074,7 +1879,7 @@ export default function ActiveInvoices({
                   </div>
                 )}
                 {addToGroupError && (
-                  <div className="alert alert-danger">{addToGroupError}</div>
+                  <div className="text-danger mb-2">{addToGroupError}</div>
                 )}
               </div>
               <div className="modal-footer">
@@ -2365,7 +2170,7 @@ export default function ActiveInvoices({
                 >
                   Cancelar
                 </button>
-                <button className="btn btn-success" onClick={confirmVerifyId}>
+                <button className="btn btn-primary" onClick={confirmVerifyId}>
                   Confirmar
                 </button>
               </div>
@@ -2378,7 +2183,7 @@ export default function ActiveInvoices({
       {showPrintInvoiceModal && printInvoiceData && (
         <div
           className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+          style={{ display: "block", background: "rgba(0,0,0.3)" }}
         >
           <div className="modal-dialog" style={{ maxWidth: 700 }}>
             <div className="modal-content print-modal-content">
@@ -2537,6 +2342,14 @@ export default function ActiveInvoices({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Invoice Details Modal */}
+      {showInvoiceDetailsModal && selectedInvoice && (
+        <InvoiceDetailsModal
+          invoice={selectedInvoice}
+          onClose={() => setShowInvoiceDetailsModal(false)}
+        />
       )}
     </div>
   );
