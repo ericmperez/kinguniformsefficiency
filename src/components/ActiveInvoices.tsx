@@ -2022,13 +2022,13 @@ export default function ActiveInvoices({
           carts={cartSelectCarts.map(cartToLaundryCart)}
           onAddCart={async (cartName) => {
             const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
-            if (!invoice) return;
+            if (!invoice) throw new Error("Invoice not found");
             // Handle delete cart
             if (cartName.startsWith("__delete__")) {
               const cartId = cartName.replace("__delete__", "");
               const updatedCarts = invoice.carts.filter((c) => c.id !== cartId);
-              await onUpdateInvoice(selectedInvoice.id, { carts: updatedCarts });
-              return;
+              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+              return { id: cartId, name: '', isActive: false };
             }
             // Handle edit cart name
             if (cartName.startsWith("__edit__")) {
@@ -2037,11 +2037,13 @@ export default function ActiveInvoices({
               const updatedCarts = invoice.carts.map((c) =>
                 c.id === cartId ? { ...c, name: newName } : c
               );
-              await onUpdateInvoice(selectedInvoice.id, { carts: updatedCarts });
-              return;
+              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+              return { id: cartId, name: newName, isActive: true };
             }
             // Prevent duplicate cart names
-            if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) return;
+            if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) {
+              throw new Error("Duplicate cart name");
+            }
             const newCart = {
               id: Date.now().toString(),
               name: cartName,
@@ -2049,346 +2051,10 @@ export default function ActiveInvoices({
               total: 0,
               createdAt: new Date().toISOString(),
             };
-            await onUpdateInvoice(selectedInvoice.id, { carts: [...invoice.carts, newCart] });
+            await onUpdateInvoice(invoice.id, { carts: [...invoice.carts, newCart] });
+            return { id: newCart.id, name: newCart.name, isActive: true };
           }}
         />
-      )}
-
-      {/* Modal for owner unlock */}
-      {unlockInvoiceId && (
-        <div
-          className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-        >
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Desbloquear Boleta</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setUnlockInvoiceId(null)}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <label className="form-label">
-                  Ingrese su ID de propietario
-                </label>
-                <input
-                  type="password"
-                  className="form-control mb-2"
-                  value={unlockInput}
-                  onChange={(e) => setUnlockInput(e.target.value)}
-                  autoFocus
-                />
-                {unlockError && (
-                  <div className="alert alert-danger py-1">{unlockError}</div>
-                )}
-              </div>
-              <div className="modal-footer">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setUnlockInvoiceId(null)}
-                >
-                  Cancelar
-                </button>
-                <button className="btn btn-success" onClick={confirmUnlock}>
-                  Desbloquear
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- Verification Modal --- */}
-      {verifyInvoiceId &&
-        (() => {
-          const invoice = invoices.find((inv) => inv.id === verifyInvoiceId);
-          if (!invoice) return null;
-          return (
-            <div
-              className="modal show"
-              style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-            >
-              <div className="modal-dialog modal-lg">
-                <div className="modal-content">
-                  <div className="modal-header">
-                    <h5 className="modal-title">
-                      Verificar Productos de la Boleta
-                    </h5>
-                    <button
-                      type="button"
-                      className="btn-close"
-                      onClick={() => setVerifyInvoiceId(null)}
-                    ></button>
-                  </div>
-                  <div className="modal-body">
-                    {invoice.carts.map((cart) => (
-                      <div key={cart.id} className="mb-3">
-                        <div className="fw-bold mb-1">{cart.name}</div>
-                        {cart.items.length === 0 ? (
-                          <div className="text-muted">
-                            No hay productos en este carrito.
-                          </div>
-                        ) : (
-                          <ul className="list-group">
-                            {cart.items.map((item) => (
-                              <li
-                                key={item.productId}
-                                className="list-group-item d-flex align-items-center justify-content-between"
-                              >
-                                <div className="d-flex align-items-center">
-                                  <input
-                                    type="checkbox"
-                                    className="form-check-input me-2"
-                                    checked={
-                                      !!verifyChecks[cart.id]?.[item.productId]
-                                    }
-                                    onChange={() =>
-                                      toggleVerifyCheck(cart.id, item.productId)
-                                    }
-                                  />
-                                  <span>{item.productName}</span>
-                                </div>
-                                <span className="fw-bold">
-                                  x{item.quantity}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="modal-footer">
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => setVerifyInvoiceId(null)}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      className="btn btn-success"
-                      onClick={handleVerifyDone}
-                      disabled={!allVerified()}
-                    >
-                      Done
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-      {/* --- Verify ID Modal --- */}
-      {showVerifyIdModal && (
-        <div
-          className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-        >
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Confirmar Verificación</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowVerifyIdModal(false)}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <label className="form-label">Ingrese su ID de usuario</label>
-                <input
-                  type="password"
-                  className="form-control mb-2"
-                  value={verifyIdInput}
-                  onChange={(e) => setVerifyIdInput(e.target.value)}
-                  autoFocus
-                />
-                {verifyIdError && (
-                  <div className="alert alert-danger py-1">{verifyIdError}</div>
-                )}
-              </div>
-              <div className="modal-footer">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowVerifyIdModal(false)}
-                >
-                  Cancelar
-                </button>
-                <button className="btn btn-primary" onClick={confirmVerifyId}>
-                  Confirmar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Print Invoice Modal */}
-      {showPrintInvoiceModal && printInvoiceData && (
-        <div
-          className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-        >
-          <div className="modal-dialog" style={{ maxWidth: 700 }}>
-            <div className="modal-content print-modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  Print Invoice #{printInvoiceData.invoiceId?.slice(-4)}
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowPrintInvoiceModal(false)}
-                ></button>
-              </div>
-              <div
-                className="modal-body print-area"
-                style={{ minHeight: 350, padding: 32 }}
-              >
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 22 }}>
-                      {printInvoiceData.clientName}
-                    </div>
-                    <div style={{ fontSize: 15, color: "#888" }}>
-                      Invoice #{printInvoiceData.invoiceId?.slice(-4)}
-                    </div>
-                  </div>
-                  <div>
-                    <label
-                      className="form-label mb-1"
-                      style={{ fontWeight: 600 }}
-                    >
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      className="form-control form-control-sm"
-                      style={{ width: 150 }}
-                      value={printDate}
-                      onChange={(e) => setPrintDate(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="mb-3">
-                  <label
-                    className="form-label mb-1"
-                    style={{ fontWeight: 600 }}
-                  >
-                    Verified by
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control form-control-sm"
-                    style={{ width: 220 }}
-                    value={printVerifiedBy}
-                    onChange={(e) => setPrintVerifiedBy(e.target.value)}
-                  />
-                </div>
-                <div className="mb-4">
-                  <table
-                    className="table table-bordered print-table"
-                    style={{ fontSize: 17, marginBottom: 0 }}
-                  >
-                    <thead>
-                      <tr>
-                        <th style={{ width: "40%" }}>Product</th>
-                        <th style={{ width: "20%" }}>Total Qty</th>
-                        <th style={{ width: "30%" }}>Carts</th>
-                        <th style={{ width: "10%" }}>Edit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(printInvoiceData.productMap).map(
-                        ([productId, prodRaw]) => {
-                          const prod = prodRaw as {
-                            name: string;
-                            total: number;
-                            carts: string[];
-                          };
-                          return (
-                            <tr key={productId}>
-                              <td>{prod.name}</td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  className="form-control form-control-sm"
-                                  style={{ width: 80 }}
-                                  value={printQuantities[productId] || 0}
-                                  onChange={(e) =>
-                                    setPrintQuantities((q) => ({
-                                      ...q,
-                                      [productId]: Number(e.target.value),
-                                    }))
-                                  }
-                                />
-                              </td>
-                              <td style={{ fontSize: 15 }}>
-                                {prod.carts.join(", ")}
-                              </td>
-                              <td></td>
-                            </tr>
-                          );
-                        }
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="d-flex justify-content-end mt-4">
-                  <button
-                    className="btn btn-success"
-                    onClick={() => {
-                      // Print only the modal content
-                      const printContents =
-                        document.querySelector(".print-area")?.innerHTML;
-                      const printWindow = window.open(
-                        "",
-                        "",
-                        "width=850,height=600"
-                      );
-                      if (printWindow && printContents) {
-                        printWindow.document.write(`
-                          <html>
-                          <head>
-                            <title>Print Invoice</title>
-                            <style>
-                              @media print {
-                                body { margin: 0; font-size: 16px; }
-                                .print-table th, .print-table td { padding: 8px 12px; }
-                                .print-table { width: 100%; border-collapse: collapse; }
-                                .print-table th, .print-table td { border: 1px solid #333; }
-                                .print-modal-content { box-shadow: none !important; border: none !important; }
-                              }
-                              @page { size: 8.5in 5in; margin: 0.5in; }
-                            </style>
-                          </head>
-                          <body>
-                            <div style="width: 100%; max-width: 8.5in; min-height: 5in;">
-                              ${printContents}
-                            </div>
-                          </body>
-                          </html>
-                        `);
-                        printWindow.document.close();
-                        printWindow.focus();
-                        setTimeout(() => {
-                          printWindow.print();
-                          printWindow.close();
-                        }, 300);
-                      }
-                    }}
-                  >
-                    Print
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Invoice Details Modal */}
@@ -2397,16 +2063,17 @@ export default function ActiveInvoices({
           invoice={selectedInvoice}
           client={clients.find((c) => c.id === selectedInvoice.clientId)}
           products={products}
+          onClose={() => setShowInvoiceDetailsModal(false)}
           onAddCart={async (cartName) => {
-            if (!selectedInvoice) return;
+            // Find invoice by id
             const invoice = invoices.find((inv) => inv.id === selectedInvoice.id);
-            if (!invoice) return;
+            if (!invoice) throw new Error("Invoice not found");
             // Handle delete cart
             if (cartName.startsWith("__delete__")) {
               const cartId = cartName.replace("__delete__", "");
               const updatedCarts = invoice.carts.filter((c) => c.id !== cartId);
-              await onUpdateInvoice(selectedInvoice.id, { carts: updatedCarts });
-              return;
+              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+              return { id: cartId, name: '', isActive: false };
             }
             // Handle edit cart name
             if (cartName.startsWith("__edit__")) {
@@ -2415,11 +2082,13 @@ export default function ActiveInvoices({
               const updatedCarts = invoice.carts.map((c) =>
                 c.id === cartId ? { ...c, name: newName } : c
               );
-              await onUpdateInvoice(selectedInvoice.id, { carts: updatedCarts });
-              return;
+              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+              return { id: cartId, name: newName, isActive: true };
             }
             // Prevent duplicate cart names
-            if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) return;
+            if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) {
+              throw new Error("Duplicate cart name");
+            }
             const newCart = {
               id: Date.now().toString(),
               name: cartName,
@@ -2427,38 +2096,40 @@ export default function ActiveInvoices({
               total: 0,
               createdAt: new Date().toISOString(),
             };
-            await onUpdateInvoice(selectedInvoice.id, { carts: [...invoice.carts, newCart] });
+            await onUpdateInvoice(invoice.id, { carts: [...invoice.carts, newCart] });
+            return { id: newCart.id, name: newCart.name, isActive: true };
           }}
-          onAddProductToCart={async (cartId, productId, quantity) => {
+          onAddProductToCart={(cartId, productId, quantity) => {
+            // Find invoice by id
             const invoice = invoices.find((inv) => inv.id === selectedInvoice.id);
             if (!invoice) return;
-            const carts = invoice.carts.map(cart => {
+            const updatedCarts = invoice.carts.map((cart) => {
               if (cart.id !== cartId) return cart;
-              const product = products.find(p => p.id === productId);
-              if (!product) return cart;
-              // Check if product already exists in cart
-              const existingIdx = cart.items.findIndex(item => item.productId === productId);
+              const existingIdx = cart.items.findIndex((item) => item.productId === productId);
               let newItems;
               if (existingIdx > -1) {
-                newItems = cart.items.map((item, idx) => idx === existingIdx ? { ...item, quantity: item.quantity + quantity } : item);
+                newItems = cart.items.map((item, idx) =>
+                  idx === existingIdx
+                    ? { ...item, quantity: (Number(item.quantity) || 0) + quantity }
+                    : item
+                );
               } else {
+                const prod = products.find((p) => p.id === productId);
                 newItems = [
                   ...cart.items,
                   {
-                    productId: product.id,
-                    productName: product.name,
+                    productId,
+                    productName: prod ? prod.name : '',
                     quantity,
-                    price: product.price,
-                    addedBy: user?.username || "Unknown",
-                    addedAt: new Date().toISOString(),
+                    price: prod ? prod.price : 0,
+                    addedBy: 'You',
                   },
                 ];
               }
               return { ...cart, items: newItems };
             });
-            await onUpdateInvoice(selectedInvoice.id, { carts });
+            onUpdateInvoice(invoice.id, { carts: updatedCarts });
           }}
-          onClose={() => setShowInvoiceDetailsModal(false)}
         />
       )}
     </div>

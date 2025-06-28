@@ -86,7 +86,7 @@ interface ActiveInvoicesProps {
   clients: Client[];
   products: Product[];
   invoices: Invoice[];
-  onAddInvoice: (invoice: Omit<Invoice, "id">) => Promise<void>;
+  onAddInvoice: (invoice: Omit<Invoice, "id">) => Promise<string>;
   onDeleteInvoice: (invoiceId: string) => Promise<void>;
   onUpdateInvoice: (
     invoiceId: string,
@@ -431,9 +431,10 @@ function App() {
 
   const handleAddInvoice = async (invoice: Omit<Invoice, "id">) => {
     try {
-      await addInvoice(invoice);
+      return await addInvoice(invoice);
     } catch (error) {
       console.error("Error adding invoice:", error);
+      throw error;
     }
   };
 
@@ -1446,7 +1447,7 @@ function App() {
           clients={clients}
           products={products}
           invoices={invoices}
-          onAddInvoice={addInvoice}
+          onAddInvoice={handleAddInvoice}
           onDeleteInvoice={deleteInvoice}
           onUpdateInvoice={updateInvoice}
         />

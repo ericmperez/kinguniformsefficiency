@@ -5,7 +5,7 @@ interface InvoiceFormProps {
   clients: Client[];
   products: Product[];
   onClose: () => void;
-  onAddInvoice: (invoice: Omit<Invoice, "id">) => Promise<void>;
+  onAddInvoice: (invoice: Omit<Invoice, "id">) => Promise<string>;
 }
 
 export default function InvoiceForm({
@@ -40,7 +40,7 @@ export default function InvoiceForm({
       carts: [],
     };
     try {
-      await onAddInvoice(newInvoice);
+      await onAddInvoice(newInvoice); // The parent will handle adding and return the ID
       onClose();
     } catch (error) {
       console.error("Error adding invoice:", error);

@@ -1,12 +1,12 @@
 import React from "react";
-import { Invoice, Product, Client, Cart } from "../types";
+import { Invoice, Product, Client, Cart, LaundryCart } from "../types";
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice;
   onClose: () => void;
   client: Client | undefined;
   products: Product[];
-  onAddCart: (cartName: string) => void;
+  onAddCart: (cartName: string) => Promise<LaundryCart>;
   onAddProductToCart: (cartId: string, productId: string, quantity: number) => void;
 }
 
@@ -121,14 +121,14 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     className="btn btn-success"
                     onClick={async () => {
                       if (newCartName.trim()) {
+                        const newCart: LaundryCart = await onAddCart(newCartName.trim());
                         setLocalCarts([...localCarts, {
-                          id: Date.now().toString(),
-                          name: newCartName.trim(),
+                          id: newCart.id,
+                          name: newCart.name,
                           items: [],
                           total: 0,
                           createdAt: new Date().toISOString(),
                         }]);
-                        await onAddCart(newCartName.trim());
                         setNewCartName("");
                         setShowNewCartInput(false);
                         setShowCartKeypad(false);
@@ -314,6 +314,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                       productId: showProductKeypad.productId,
                                       productName: prod ? prod.name : '',
                                       quantity: qty,
+                                      price: prod ? prod.price : 0,
                                       addedBy: 'You',
                                     },
                                   ];

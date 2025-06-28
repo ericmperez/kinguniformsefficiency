@@ -3,8 +3,74 @@ import { BrowserRouter as Router, Route, Routes, Link } from "react-router-dom";
 import ActiveInvoices from "./ActiveInvoices";
 import Supervisor from "./Supervisor";
 import "./App.css";
+import { Client, Invoice, Product, Cart } from "../types";
 
 function App() {
+  // Dummy data for clients and invoices (fully typed)
+  const clients: Client[] = [
+    {
+      id: "1",
+      name: "Client A",
+      selectedProducts: [],
+      image: null,
+      imageUrl: undefined,
+      isRented: false,
+      washingType: "Tunnel",
+      segregation: false,
+    },
+    {
+      id: "2",
+      name: "Client B",
+      selectedProducts: [],
+      image: null,
+      imageUrl: undefined,
+      isRented: false,
+      washingType: "Conventional",
+      segregation: false,
+    },
+  ];
+
+  const invoices: Invoice[] = [
+    {
+      id: "inv1",
+      clientId: "1",
+      clientName: "Client A",
+      date: new Date().toISOString(),
+      products: [],
+      total: 100,
+      carts: [],
+      status: "Tunnel",
+      invoiceNumber: 1,
+      locked: false,
+      verified: false,
+      verifiedBy: undefined,
+      verifiedAt: undefined,
+      verifiedProducts: undefined,
+      lockedBy: undefined,
+      lockedAt: undefined,
+      note: undefined,
+    },
+    {
+      id: "inv2",
+      clientId: "2",
+      clientName: "Client B",
+      date: new Date().toISOString(),
+      products: [],
+      total: 200,
+      carts: [],
+      status: "Conventional",
+      invoiceNumber: 2,
+      locked: false,
+      verified: false,
+      verifiedBy: undefined,
+      verifiedAt: undefined,
+      verifiedProducts: undefined,
+      lockedBy: undefined,
+      lockedAt: undefined,
+      note: undefined,
+    },
+  ];
+
   return (
     <Router>
       <div
@@ -22,14 +88,11 @@ function App() {
               <Link className="nav-link d-flex align-items-center" to="/supervisor">
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: '#fff', border: '2px solid #D72328', borderRadius: '50%', marginRight: 6 }}>
                   {/* Inline SVG for person icon */}
-                  <svg xmlns
-                  alt="Supervisor"
-                  style={{
-                    width: 22,
-                    height: 22,
-                    marginRight: 6,
-                  }}
-                />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#D72328" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 22, height: 22, marginRight: 0 }}>
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 20c0-4 8-4 8-4s8 0 8 4" />
+                  </svg>
+                </span>
                 <span className="d-none d-lg-inline">Supervisor</span>
               </Link>
             </li>
@@ -42,7 +105,7 @@ function App() {
         >
           <Routes>
             {/* ...existing routes... */}
-            <Route path="/supervisor" element={<Supervisor />} />
+            <Route path="/supervisor" element={<Supervisor clients={clients} invoices={invoices} />} />
             {/* Example: <Route path="/active-invoices" element={<ActiveInvoices />} /> */}
           </Routes>
         </main>

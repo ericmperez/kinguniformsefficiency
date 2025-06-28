@@ -115,10 +115,11 @@ export const getNextInvoiceNumber = async (): Promise<number> => {
   return max + 1;
 };
 
-export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<void> => {
+export const addInvoice = async (invoice: Omit<Invoice, "id">): Promise<string> => {
   try {
     const invoiceNumber = (invoice as any).invoiceNumber || await getNextInvoiceNumber();
-    await addDoc(collection(db, "invoices"), { ...invoice, invoiceNumber });
+    const docRef = await addDoc(collection(db, "invoices"), { ...invoice, invoiceNumber });
+    return docRef.id;
   } catch (error) {
     throw error;
   }
