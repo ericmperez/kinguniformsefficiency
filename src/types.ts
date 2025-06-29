@@ -16,6 +16,7 @@ export interface Client {
   washingType?: "Tunnel" | "Conventional";
   segregation?: boolean;
   billingCalculation?: "byWeight" | "byItem";
+  email?: string; // Optional email property
 }
 
 export interface CartItem {
