@@ -84,6 +84,7 @@ import RutasPorCamion from "./components/RutasPorCamion";
 import GlobalActivityLog from "./components/GlobalActivityLog";
 import BillingPage from "./components/BillingPage";
 import SendInvoicePage from "./components/SendInvoicePage";
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
 interface ActiveInvoicesProps {
   clients: Client[];

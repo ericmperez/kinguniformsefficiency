@@ -22,6 +22,8 @@ import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 import { AuthContext, useAuth } from "./AuthContext";
+import { getUsers } from "../services/firebaseService";
+import type { UserRecord } from "../services/firebaseService";
 import { db } from "../firebase";
 import { getClientAvatarUrl } from "../services/firebaseService";
 
@@ -151,6 +153,11 @@ export default function ActiveInvoices({
   const [unlockInput, setUnlockInput] = useState("");
   const [unlockError, setUnlockError] = useState("");
   const { user } = useAuth();
+  const [users, setUsers] = React.useState<UserRecord[]>([]);
+
+  React.useEffect(() => {
+    getUsers().then((userList) => setUsers(userList));
+  }, []);
 
   // --- Verification State ---
   const [verifyInvoiceId, setVerifyInvoiceId] = useState<string | null>(null);
@@ -765,6 +772,15 @@ export default function ActiveInvoices({
   // Add at the top-level of the component:
   const [highlightColors, setHighlightColors] = useState<{ [invoiceId: string]: 'yellow' | 'blue' }>({});
 
+  const getVerifierName = (verifierId: string) => {
+    if (!verifierId) return "-";
+    const found = users.find((u: UserRecord) => u.id === verifierId || u.username === verifierId);
+    if (found) return found.username;
+    // If already a name, just return
+    if (verifierId.length > 4 || /[a-zA-Z]/.test(verifierId)) return verifierId;
+    return verifierId;
+  };
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
@@ -1037,6 +1053,24 @@ export default function ActiveInvoices({
                         <i className="bi bi-truck" style={{ color: '#0ea5e9', fontSize: 22 }} />
                       </button>
                     </div>
+                    {/* Show verification status and details on invoice card */}
+                    {(invoice.verified || invoice.partiallyVerified) && (
+                      <div style={{ marginTop: 8 }}>
+                        <span style={{ fontWeight: 700, color: invoice.verified ? '#22c55e' : '#fbbf24' }}>
+                          {invoice.verified ? 'Fully Verified' : 'Partially Verified'}
+                        </span>
+                        {invoice.verifiedBy && (
+                          <span style={{ marginLeft: 12, color: '#888', fontWeight: 500 }}>
+                            Verifier: {getVerifierName(invoice.verifiedBy)}
+                          </span>
+                        )}
+                        {invoice.verifiedAt && (
+                          <span style={{ marginLeft: 12, color: '#888', fontWeight: 500 }}>
+                            Date: {new Date(invoice.verifiedAt).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ); // <-- close map function
@@ -2273,9 +2307,9 @@ export default function ActiveInvoices({
                 newItems = [
                   ...cart.items,
                   {
-                    productId,
+                    productId: productId,
                     productName: prod ? prod.name : '',
-                    quantity,
+                    quantity: quantity,
                     price: prod ? prod.price : 0,
                     addedBy: 'You',
                   },

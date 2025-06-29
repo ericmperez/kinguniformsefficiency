@@ -1,5 +1,6 @@
 import React from "react";
 import { Invoice, Product, Client, Cart, LaundryCart } from "../types";
+import { getUsers, UserRecord } from "../services/firebaseService";
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice;
@@ -29,11 +30,24 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
 
   // Local state for carts to enable instant UI update
   const [localCarts, setLocalCarts] = React.useState(invoice.carts);
+  const [users, setUsers] = React.useState<UserRecord[]>([]);
 
   // Sync local carts with invoice changes
   React.useEffect(() => {
     setLocalCarts(invoice.carts);
   }, [invoice.carts]);
+
+  React.useEffect(() => {
+    getUsers().then(setUsers);
+  }, []);
+
+  const getVerifierName = (verifierId: string) => {
+    if (!verifierId) return "-";
+    const found = users.find(u => u.id === verifierId || u.username === verifierId);
+    if (found) return found.username;
+    if (verifierId.length > 4 || /[a-zA-Z]/.test(verifierId)) return verifierId;
+    return verifierId;
+  };
 
   // Get only products associated with this client
   const clientProducts = React.useMemo(() => {
@@ -97,7 +111,14 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             <h6>Date: {invoice.date}</h6>
             {/* Show verifier if present */}
             {invoice.verifiedBy && (
-              <h6 className="text-success">Verificado por: {invoice.verifiedBy}</h6>
+              <h6 className="text-success">
+                Verificado por: {getVerifierName(invoice.verifiedBy)}
+                {invoice.verifiedAt && (
+                  <span style={{ marginLeft: 12, color: '#888', fontWeight: 500 }}>
+                    ({new Date(invoice.verifiedAt).toLocaleString()})
+                  </span>
+                )}
+              </h6>
             )}
             <h6>Total Carts: {invoice.carts.length}</h6>
             {/* Show group weight if available on invoice or client */}
@@ -114,7 +135,14 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   {invoice.verified ? 'Fully Verified' : 'Partially Verified'}
                 </span>
                 {invoice.verifiedBy && (
-                  <span className="ms-2 text-secondary">Verifier: {invoice.verifiedBy}</span>
+                  <span className="ms-2 text-secondary">
+                    Verifier: {getVerifierName(invoice.verifiedBy)}
+                    {invoice.verifiedAt && (
+                      <span style={{ marginLeft: 8 }}>
+                        ({new Date(invoice.verifiedAt).toLocaleString()})
+                      </span>
+                    )}
+                  </span>
                 )}
               </div>
             )}
