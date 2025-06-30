@@ -38,7 +38,7 @@ export default function LocalLoginForm() {
     ["1", "2", "3"],
     ["4", "5", "6"],
     ["7", "8", "9"],
-    ["", "0", "Login"],
+    ["C", "0", "Login"],
   ];
 
   const handleKeypadClick = async (key: string) => {
@@ -46,8 +46,19 @@ export default function LocalLoginForm() {
       if (id.length === 4 && !loading) {
         await handleSubmit({ preventDefault: () => {} } as any);
       }
+    } else if (key === "C") {
+      setId("");
+      setError(null);
     } else if (id.length < 4 && key && /\d/.test(key)) {
-      setId((prev) => prev + key);
+      const newId = id + key;
+      setId(newId);
+      setError(null);
+      if (newId.length === 4 && !loading) {
+        await handleSubmit({ preventDefault: () => {} } as any);
+      }
+    } else if (key === "←") {
+      setId((prev) => prev.slice(0, -1));
+      setError(null);
     }
   };
 
@@ -168,6 +179,8 @@ export default function LocalLoginForm() {
                   >
                     Login
                   </span>
+                ) : key === "C" ? (
+                  <span style={{ fontWeight: 700, color: '#b71c1c', fontSize: 22 }}>C</span>
                 ) : (
                   key
                 )}

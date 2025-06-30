@@ -2,6 +2,7 @@ import React, { useState } from "react";
 // Use canonical Product type from src/types.ts
 import type { Product as AppProduct } from "../types";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
+import { logActivity } from "../services/firebaseService";
 
 interface ProductFormProps {
   products: AppProduct[];
@@ -50,9 +51,17 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         console.log("Updating existing product:", editingProduct.id);
         await onUpdateProduct(editingProduct.id, productData);
         setEditingProduct(null);
+        await logActivity({
+          type: "Product",
+          message: `Product '${editingProduct.name}' updated`,
+        });
       } else {
         console.log("Adding new product");
         await onAddProduct(productData);
+        await logActivity({
+          type: "Product",
+          message: `Product '${newProductName}' added`,
+        });
       }
 
       // Clear the form
@@ -185,6 +194,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         onConfirm={async () => {
           if (productToDelete) {
             await onDeleteProduct(productToDelete.id);
+            await logActivity({
+              type: "Product",
+              message: `Product '${productToDelete.name}' deleted`,
+            });
             setProductToDelete(null);
           }
         }}

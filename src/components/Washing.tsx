@@ -12,6 +12,7 @@ import {
 import type { Client, Product } from "../types";
 import { addManualConventionalProduct } from "../services/firebaseService";
 import { getManualConventionalProductsForDate } from "../services/firebaseService";
+import { logActivity } from "../services/firebaseService";
 
 interface WashingProps {
   setSelectedInvoiceId?: (id: string | null) => void;
@@ -325,8 +326,11 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       setConventionalProductQty(1);
       setConventionalModalError("");
       setConventionalModalLoading(false);
-      // Optionally show a toast or success message
       alert("Manual product added successfully!");
+      await logActivity({
+        type: "Washing",
+        message: `Manual product '${product.name}' added for client '${client.name}' by user`,
+      });
     } catch (err: any) {
       setConventionalModalError(err.message || "Error adding manual product");
       setConventionalModalLoading(false);
@@ -536,6 +540,11 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     setManualConventionalProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, washed: true } : p))
     );
+    await logActivity({
+      type: "Washing",
+      message: `Manual product ${id} marked as washed by user`,
+      // Optionally, add user context if available
+    });
   };
 
   // Handler to mark a conventional client group as washed
@@ -588,6 +597,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
           g.id === group.id ? { ...g, status: "Empaque", washed: true } : g
         )
       );
+      await logActivity({
+        type: "Washing",
+        message: `Group ${group.clientName} marked as washed by user`,
+      });
     } catch (e) {
       alert("Error marking group as washed and creating invoice");
     }
@@ -622,6 +635,26 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     }
     // eslint-disable-next-line
   }, [loading, groups, clients]);
+
+  // Helper: check if a group or manual product is overdue (created > 1 day ago)
+  const isOverdue = (item: any) => {
+    let createdAt: Date | null = null;
+    if (item.createdAt) {
+      if (item.createdAt.seconds) {
+        createdAt = new Date(item.createdAt.seconds * 1000);
+      } else if (
+        typeof item.createdAt === "string" ||
+        typeof item.createdAt === "number"
+      ) {
+        createdAt = new Date(item.createdAt);
+      }
+    } else if (item.date) {
+      createdAt = new Date(item.date);
+    }
+    if (!createdAt) return false;
+    const now = new Date();
+    return now.getTime() - createdAt.getTime() > 24 * 60 * 60 * 1000;
+  };
 
   return (
     <div className="container py-4">
@@ -1329,14 +1362,22 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                     totalWeight = group.totalWeight || 0;
                     showMarkAsWashed = !group.washed;
                   }
+                  // Determine if overdue
+                  const overdue = isOverdue(group);
                   return (
                     <div
                       key={group.id}
                       className={`list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded ${
                         group.isManualProduct ? "bg-warning bg-opacity-25" : ""
-                      }`}
+                      } ${overdue ? "overdue-blink" : ""}`}
                       style={
-                        group.isManualProduct
+                        overdue
+                          ? {
+                              background: "#ff2222",
+                              border: "2px solid #b30000",
+                              animation: "overdue-blink 1s linear infinite",
+                            }
+                          : group.isManualProduct
                           ? { border: "1px solid #ffe066" }
                           : {
                               background: "#f8f9fa",

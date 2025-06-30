@@ -2,6 +2,7 @@ import React, { useState } from "react";
 // Use canonical types from src/types.ts
 import type { Client as AppClient, Product as AppProduct } from "../types";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
+import { logActivity } from "../services/firebaseService";
 
 interface Product {
   id: string;
@@ -68,10 +69,18 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     }
     if (editingClient) {
       await onUpdateClient(editingClient.id, clientData);
+      await logActivity({
+        type: "Client",
+        message: `Client '${editingClient.name}' updated`,
+      });
       setEditingClient(null);
     } else {
       clientData.image = newClientImage;
       await onAddClient(clientData);
+      await logActivity({
+        type: "Client",
+        message: `Client '${newClientName}' added`,
+      });
     }
     setNewClientName("");
     setNewClientImage(null); // Always reset after submit
@@ -783,6 +792,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
         onConfirm={async () => {
           if (clientToDelete) {
             await onDeleteClient(clientToDelete.id);
+            await logActivity({
+              type: "Client",
+              message: `Client '${clientToDelete.name}' deleted`,
+            });
             setClientToDelete(null);
           }
         }}

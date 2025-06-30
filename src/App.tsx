@@ -182,6 +182,9 @@ function App() {
     "clients" | "products" | "users" | "drivers" | "loginContent" | "rutas"
   >("clients");
 
+  // State for which process menu is open (string or null)
+  const [processMenuOpen, setProcessMenuOpen] = useState<string | null>(null);
+
   // Helper: check if current user can see a component (per-user or fallback to role)
   const canSee = (component: AppComponentKey) =>
     user && canUserSeeComponent(user, component);
@@ -551,31 +554,34 @@ function App() {
   const canManageProducts = canSee("Report"); // adjust if you have a separate key for products
   const canManageClients = true; // All roles, or use canSee('ClientForm') if you want to restrict
 
-  // Remove the Home button from navLinks and use the logo as the home button
+  // Refactored navLinks: Combine Entradas, Segregation, Washing under Process
   const navLinks = [
-    // {
-    //   label: "Home",
-    //   page: "home" as const,
-    //   icon: <HomeIcon />, // Remove HomeIcon
-    //   visible: canSee("ActiveInvoices"),
-    // },
     {
-      label: "Entradas",
-      page: "entradas" as const,
-      icon: <ListAltIcon />,
-      visible: canSee("PickupWashing"),
-    },
-    {
-      label: "Segregation",
-      page: "segregation" as const,
-      icon: <GroupWorkIcon />,
-      visible: canSee("Segregation"),
-    },
-    {
-      label: "Washing",
-      page: "washing" as const,
+      label: "Process",
+      page: "process" as const,
       icon: <LocalLaundryServiceIcon />,
-      visible: canSee("Washing"),
+      visible:
+        canSee("PickupWashing") || canSee("Segregation") || canSee("Washing"),
+      subpages: [
+        {
+          label: "Entradas",
+          page: "entradas" as const,
+          icon: <ListAltIcon />,
+          visible: canSee("PickupWashing"),
+        },
+        {
+          label: "Segregation",
+          page: "segregation" as const,
+          icon: <GroupWorkIcon />,
+          visible: canSee("Segregation"),
+        },
+        {
+          label: "Washing",
+          page: "washing" as const,
+          icon: <LocalLaundryServiceIcon />,
+          visible: canSee("Washing"),
+        },
+      ],
     },
     {
       label: "Reports",
@@ -918,6 +924,7 @@ function App() {
               King Uniforms
             </Typography>
           </Box>
+          {/* Navigation bar rendering: add Process dropdown as submenu */}
           <Box
             sx={{
               display: { xs: "none", md: "flex" },
@@ -929,9 +936,74 @@ function App() {
               whiteSpace: "nowrap",
             }}
           >
-            {navLinks
-              .filter((l) => l.visible)
-              .map((link) => (
+            {navLinks.filter((l) => l.visible).map((link) =>
+              link.subpages ? (
+                <Box key={link.page} sx={{ position: "relative" }}>
+                  <Button
+                    color={
+                      link.subpages.some((sp) => sp.page === activePage)
+                        ? "warning"
+                        : "inherit"
+                    }
+                    startIcon={link.icon}
+                    sx={{
+                      fontWeight: 600,
+                      color:
+                        link.subpages.some((sp) => sp.page === activePage)
+                          ? "var(--ku-yellow)"
+                          : "#fff",
+                      bgcolor:
+                        link.subpages.some((sp) => sp.page === activePage)
+                          ? "rgba(255,224,102,0.18)"
+                          : "transparent",
+                      borderRadius: 2,
+                      px: 1.5,
+                      fontSize: 13,
+                      minWidth: 0,
+                      boxShadow:
+                        link.subpages.some((sp) => sp.page === activePage)
+                          ? "0 2px 8px rgba(250,198,27,0.10)"
+                          : "none",
+                      borderBottom:
+                        link.subpages.some((sp) => sp.page === activePage)
+                          ? "2px solid var(--ku-yellow)"
+                          : "2px solid transparent",
+                      "&:hover": {
+                        bgcolor: "var(--ku-yellow)",
+                        color: "#222",
+                      },
+                      whiteSpace: "nowrap",
+                    }}
+                    onClick={() => setProcessMenuOpen(processMenuOpen === link.page ? null : link.page)}
+                  >
+                    {link.label}
+                  </Button>
+                  <Menu
+                    anchorEl={null}
+                    open={processMenuOpen === link.page}
+                    onClose={() => setProcessMenuOpen(null)}
+                    anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                    transformOrigin={{ vertical: "top", horizontal: "left" }}
+                    sx={{ mt: 1 }}
+                  >
+                    {link.subpages
+                      .filter((sp) => sp.visible)
+                      .map((sp) => (
+                        <MenuItem
+                          key={sp.page}
+                          selected={activePage === sp.page}
+                          onClick={() => {
+                            setActivePage(sp.page);
+                            setProcessMenuOpen(null);
+                          }}
+                        >
+                          {sp.icon}
+                          <span style={{ marginLeft: 8 }}>{sp.label}</span>
+                        </MenuItem>
+                      ))}
+                  </Menu>
+                </Box>
+              ) : (
                 <Button
                   key={link.page}
                   color={activePage === link.page ? "warning" : "inherit"}
@@ -952,7 +1024,6 @@ function App() {
                       activePage === link.page
                         ? "0 2px 8px rgba(250,198,27,0.10)"
                         : "none",
-                    transition: "all 0.2s",
                     borderBottom:
                       activePage === link.page
                         ? "2px solid var(--ku-yellow)"
@@ -967,7 +1038,8 @@ function App() {
                 >
                   {link.label}
                 </Button>
-              ))}
+              )
+            )}
           </Box>
           <Box
             sx={{
@@ -1020,9 +1092,25 @@ function App() {
           onClick={() => setDrawerOpen(false)}
         >
           <List>
-            {navLinks
-              .filter((l) => l.visible)
-              .map((link) => (
+            {navLinks.filter((l) => l.visible).map((link) =>
+              link.subpages ? (
+                <React.Fragment key={link.page}>
+                  <ListItem>
+                    <ListItemText primary={link.label} />
+                  </ListItem>
+                  {link.subpages.filter((sp) => sp.visible).map((sp) => (
+                    <ListItem key={sp.page} disablePadding sx={{ pl: 3 }}>
+                      <ListItemButton
+                        selected={activePage === sp.page}
+                        onClick={() => setActivePage(sp.page)}
+                      >
+                        <ListItemIcon>{sp.icon}</ListItemIcon>
+                        <ListItemText primary={sp.label} />
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </React.Fragment>
+              ) : (
                 <ListItem key={link.page} disablePadding>
                   <ListItemButton
                     selected={activePage === link.page}
@@ -1032,7 +1120,8 @@ function App() {
                     <ListItemText primary={link.label} />
                   </ListItemButton>
                 </ListItem>
-              ))}
+              )
+            )}
             <ListItem disablePadding>
               <ListItemButton onClick={logout}>
                 <ListItemIcon>

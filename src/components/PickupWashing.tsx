@@ -8,6 +8,7 @@ import {
   addPickupGroup,
   updatePickupGroupStatus,
   getTodayPickupGroups,
+  logActivity,
 } from "../services/firebaseService";
 import {
   collection,
@@ -234,6 +235,10 @@ export default function PickupWashing({
       // Do not clear clientId or driverId so they remain prepopulated
       setWeight("");
       setShowKeypad(false); // Hide keypad on submit
+      await logActivity({
+        type: "Pickup",
+        message: `Pickup entry added for client '${client.name}' by driver '${driver.name}'`,
+      });
     } catch (err) {
       alert("Error al guardar la entrada en Firebase");
     }
@@ -327,6 +332,10 @@ export default function PickupWashing({
       }
       setEditEntryId(null);
       setEditWeight("");
+      await logActivity({
+        type: "Pickup",
+        message: `Pickup entry edited for client '${entry.clientName}' by driver '${entry.driverName}'`,
+      });
     } catch (err) {
       alert("Error al editar la entrada");
     }
@@ -367,6 +376,10 @@ export default function PickupWashing({
           });
         }
       }
+      await logActivity({
+        type: "Pickup",
+        message: `Pickup entry deleted for client '${entry.clientName}' by driver '${entry.driverName}'`,
+      });
     } catch (err) {
       alert("Error al eliminar la entrada");
     }

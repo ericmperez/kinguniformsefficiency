@@ -194,6 +194,10 @@ const Segregation: React.FC<SegregationProps> = ({
     [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
     setGroupOrder(newOrder); // Optimistic UI update
     await setDoc(orderDocRef, { order: newOrder }, { merge: true });
+    await logActivity({
+      type: "Segregation",
+      message: `Group ${groupId} moved ${(direction === -1 ? 'up' : 'down')} by user`,
+    });
   };
 
   // Listen for order changes in Firestore and update local state immediately
@@ -242,12 +246,9 @@ const Segregation: React.FC<SegregationProps> = ({
       segregatedCarts: parseInt(newValue, 10),
       updatedAt: new Date().toISOString(),
     });
-    logActivity({
+    await logActivity({
       type: "Segregation",
-      message: `+1 to group ${
-        group?.clientName || groupId
-      } (${groupId}) by ${getCurrentUser()}`,
-      user: getCurrentUser(),
+      message: `+1 to group ${group?.clientName || groupId} (${groupId}) by user`,
     });
   };
 
@@ -263,12 +264,9 @@ const Segregation: React.FC<SegregationProps> = ({
       segregatedCarts: parseInt(newValue, 10),
       updatedAt: new Date().toISOString(),
     });
-    logActivity({
+    await logActivity({
       type: "Segregation",
-      message: `-1 to group ${
-        group?.clientName || groupId
-      } (${groupId}) by ${getCurrentUser()}`,
-      user: getCurrentUser(),
+      message: `-1 to group ${group?.clientName || groupId} (${groupId}) by user`,
     });
   };
 
@@ -331,6 +329,10 @@ const Segregation: React.FC<SegregationProps> = ({
       setStatusUpdating(groupId);
       setSegregatedCounts((prev) => ({ ...prev, [groupId]: "" }));
       if (onGroupComplete) onGroupComplete();
+      await logActivity({
+        type: "Segregation",
+        message: `Group ${group?.clientName || groupId} completed segregation by user`,
+      });
     } catch (err) {
       alert("Error completing segregation for this group");
     } finally {

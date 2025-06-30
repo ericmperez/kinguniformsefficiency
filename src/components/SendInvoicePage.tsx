@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getClients, getInvoices } from "../services/firebaseService";
+import { getClients, getInvoices, logActivity } from "../services/firebaseService";
 import { Client, Invoice } from "../types";
 import html2pdf from "html2pdf.js";
 
@@ -62,6 +62,10 @@ const SendInvoicePage: React.FC = () => {
       });
       if (res.ok) {
         setStatus("Email sent successfully.");
+        await logActivity({
+          type: "Invoice",
+          message: `Custom invoice email sent to ${emailTo} (subject: '${subject}')`,
+        });
       } else {
         setStatus("Failed to send email.");
       }

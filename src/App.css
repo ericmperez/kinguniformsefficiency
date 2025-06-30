@@ -240,3 +240,42 @@ input:focus, select:focus, textarea:focus {
 .mt-4 { margin-top: 2.5rem !important; }
 .mb-4 { margin-bottom: 2.5rem !important; }
 .p-4 { padding: 2rem !important; }
+
+/* Blinking effect for overdue invoices */
+@keyframes overdue-blink {
+  0%, 100% {
+    background: #D72328 !important;
+    color: #fff !important;
+    box-shadow: 0 0 0 0 #D72328, 0 8px 32px 0 rgba(0,0,0,0.10);
+    border-color: #D72328;
+  }
+  50% {
+    background: #fff !important;
+    color: #D72328 !important;
+    box-shadow: 0 0 24px 6px #D72328, 0 8px 32px 0 rgba(0,0,0,0.10);
+    border-color: #D72328;
+  }
+}
+
+.overdue-blink .modern-invoice-card,
+.modern-invoice-card.overdue-blink {
+  background: #D72328 !important;
+  color: #fff !important;
+  border: 3px solid #D72328 !important;
+  animation: overdue-blink 1s infinite;
+}
+
+.modern-invoice-card.overdue-blink {
+  animation: overdue-blink 1s linear infinite;
+  background: linear-gradient(135deg, #ff2222 0%, #b30000 100%) !important;
+  border: 2px solid #b30000 !important;
+}
+
+@keyframes overdue-blink {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.15);
+  }
+}

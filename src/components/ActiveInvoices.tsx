@@ -26,6 +26,7 @@ import { getUsers } from "../services/firebaseService";
 import type { UserRecord } from "../services/firebaseService";
 import { db } from "../firebase";
 import { getClientAvatarUrl } from "../services/firebaseService";
+import { logActivity } from "../services/firebaseService";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -353,8 +354,15 @@ export default function ActiveInvoices({
     })();
   }, []);
 
-  const handleAddInvoice = () => {
+  const handleAddInvoice = async () => {
     setShowInvoiceForm(true);
+    if (user?.username) {
+      await logActivity({
+        type: "Invoice",
+        message: `User ${user.username} opened Create New Invoice modal`,
+        user: user.username,
+      });
+    }
   };
 
   // --- Cart Selection Handler ---
@@ -413,6 +421,13 @@ export default function ActiveInvoices({
   const handleConfirmDelete = async () => {
     if (invoiceToDelete) {
       await onDeleteInvoice(invoiceToDelete.id);
+      if (user?.username) {
+        await logActivity({
+          type: "Invoice",
+          message: `User ${user.username} deleted invoice #${invoiceToDelete.invoiceNumber || invoiceToDelete.id}`,
+          user: user.username,
+        });
+      }
       setInvoiceToDelete(null);
     }
   };
@@ -421,6 +436,13 @@ export default function ActiveInvoices({
     setProductForKeypad(product);
     setKeypadQuantity(1);
     setShowProductKeypad(true);
+    if (user?.username) {
+      logActivity({
+        type: "Invoice",
+        message: `User ${user.username} opened keypad to add product '${product.name}'`,
+        user: user.username,
+      });
+    }
   };
 
   // --- Product Keypad Add Handler ---
@@ -452,6 +474,13 @@ export default function ActiveInvoices({
     const updatedCarts = [...invoice.carts];
     updatedCarts[cartIdx] = cart;
     await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
+    if (user?.username) {
+      await logActivity({
+        type: "Invoice",
+        message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to invoice #${selectedInvoiceId}`,
+        user: user.username,
+      });
+    }
     setShowProductKeypad(false);
     setProductForKeypad(null);
     setKeypadQuantity(1);
@@ -781,6 +810,20 @@ export default function ActiveInvoices({
     return verifierId;
   };
 
+  // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
+  const hasOverdue = invoices.some(inv => {
+    if (!inv.date) return false;
+    const created = new Date(inv.date);
+    const now = new Date();
+    return (now.getTime() - created.getTime()) > 24 * 60 * 60 * 1000;
+  });
+  let demoInvoices = invoices;
+  if (!hasOverdue && invoices.length > 0) {
+    // Clone the first invoice and set its date to 2 days ago
+    const demo = { ...invoices[0], id: 'demo-overdue', clientName: 'Demo Overdue Client', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() };
+    demoInvoices = [demo, ...invoices];
+  }
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
@@ -832,15 +875,27 @@ export default function ActiveInvoices({
               } else {
                 cardBackground = 'linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)'; // blue
               }
+
+              // --- Overdue logic: more than 1 day old ---
+              let isOverdue = false;
+              if (invoice.date) {
+                const created = new Date(invoice.date);
+                const now = new Date();
+                const diffMs = now.getTime() - created.getTime();
+                if (diffMs > 24 * 60 * 60 * 1000) {
+                  isOverdue = true;
+                }
+              }
+
               return (
                 <div
                   key={invoice.id}
-                  className="col-lg-4 col-md-6 mb-4"
+                  className={`col-lg-4 col-md-6 mb-4${isOverdue ? ' overdue-blink' : ''}`}
                   onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
                   onMouseLeave={() => setHoveredInvoiceId(null)}
                 >
                   <div
-                    className="modern-invoice-card shadow-lg"
+                    className={`modern-invoice-card shadow-lg${isOverdue ? ' overdue-blink' : ''}`}
                     style={{
                       borderRadius: 24,
                       background: cardBackground,
@@ -989,6 +1044,13 @@ export default function ActiveInvoices({
                             ...prev,
                             [invoice.id]: prev[invoice.id] === 'yellow' ? 'blue' : 'yellow',
                           }));
+                          if (user?.username) {
+                            logActivity({
+                              type: "Invoice",
+                              message: `User ${user.username} toggled highlight for invoice #${invoice.id}`,
+                              user: user.username,
+                            });
+                          }
                         }}
                         title={highlight === 'yellow' ? 'Highlight: Yellow' : 'Highlight: Blue'}
                       >
@@ -2172,6 +2234,13 @@ export default function ActiveInvoices({
                     const invoice = invoices.find(inv => inv.id === showShippedModal);
                     if (!invoice) return;
                     await onUpdateInvoice(invoice.id, { status: 'done', truckNumber: shippedTruckNumber });
+                    if (user?.username) {
+                      await logActivity({
+                        type: "Invoice",
+                        message: `User ${user.username} marked invoice #${invoice.id} as shipped (Truck #${shippedTruckNumber})`,
+                        user: user.username,
+                      });
+                    }
                     // Update group status if invoice has pickupGroupId
                     if (invoice.pickupGroupId) {
                       try {

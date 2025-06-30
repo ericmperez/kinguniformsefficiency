@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { UserRole, useAuth } from "./AuthContext";
-import { addUser, deleteUser, updateUser } from "../services/firebaseService";
+import { addUser, deleteUser, updateUser, logActivity } from "../services/firebaseService";
 import { AppComponentKey } from "../permissions";
 
 interface UserRecord {
@@ -103,6 +103,10 @@ export default function UserManagement(props: UserManagementProps) {
     };
     setLoading(true);
     await addUser(newUser);
+    await logActivity({
+      type: "User",
+      message: `User '${username.trim()}' added (role: ${role})`,
+    });
     setId("");
     setUsername("");
     setRole("Employee");
@@ -112,6 +116,10 @@ export default function UserManagement(props: UserManagementProps) {
   const handleDelete = async (id: string) => {
     setLoading(true);
     await deleteUser(id);
+    await logActivity({
+      type: "User",
+      message: `User with ID '${id}' deleted`,
+    });
     setLoading(false);
   };
 
@@ -162,6 +170,10 @@ export default function UserManagement(props: UserManagementProps) {
       allowedComponents:
         editAllowedComponents.length > 0 ? editAllowedComponents : undefined,
       defaultPage: editDefaultPage,
+    });
+    await logActivity({
+      type: "User",
+      message: `User '${editUsername.trim()}' updated (role: ${editRole})`,
     });
     setEditingId(null);
     setEditId("");
