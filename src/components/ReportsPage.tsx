@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Invoice, Client, Product } from "../types";
-import { getInvoices, getClients, getProducts } from "../services/firebaseService";
+import {
+  getInvoices,
+  getClients,
+  getProducts,
+} from "../services/firebaseService";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
 
 const ReportsPage: React.FC = () => {
@@ -34,10 +38,12 @@ const ReportsPage: React.FC = () => {
           return <div className="text-muted">No completed invoices found.</div>;
         }
         return Object.entries(grouped).map(([clientId, clientInvoices]) => {
-          const client = clients.find(c => c.id === clientId);
+          const client = clients.find((c) => c.id === clientId);
           return (
             <div key={clientId} className="mb-5">
-              <h5 style={{ fontWeight: 700, color: '#0ea5e9' }}>{client?.name || clientInvoices[0].clientName}</h5>
+              <h5 style={{ fontWeight: 700, color: "#0ea5e9" }}>
+                {client?.name || clientInvoices[0].clientName}
+              </h5>
               <div className="table-responsive">
                 <table className="table table-bordered table-hover">
                   <thead>
@@ -54,39 +60,64 @@ const ReportsPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {clientInvoices.sort((a, b) => {
-                      if (a.invoiceNumber && b.invoiceNumber) return a.invoiceNumber - b.invoiceNumber;
-                      if (a.date && b.date) return new Date(a.date).getTime() - new Date(b.date).getTime();
-                      return a.id.localeCompare(b.id);
-                    }).map(inv => (
-                      <tr key={inv.id}>
-                        <td>{inv.invoiceNumber || inv.id}</td>
-                        <td>{inv.date ? new Date(inv.date).toLocaleDateString() : '-'}</td>
-                        <td>{inv.status || '-'}</td>
-                        <td>{inv.truckNumber || '-'}</td>
-                        <td>{inv.totalWeight || '-'}</td>
-                        <td>
-                          {(inv.products && inv.products.length > 0)
-                            ? inv.products.map(p => `${p.name} (${p.price})`).join(', ')
-                            : '-'}
-                        </td>
-                        <td>
-                          {(inv.carts && inv.carts.length > 0)
-                            ? inv.carts.map(cart => (
-                                <div key={cart.id}>
-                                  <b>{cart.name}:</b> {cart.items.map(item => `${item.productName} x${item.quantity}`).join(', ')}
-                                </div>
-                              ))
-                            : '-'}
-                        </td>
-                        <td>{inv.name || '-'}</td>
-                        <td>
-                          <button className="btn btn-sm btn-outline-primary" onClick={() => { setSelectedInvoice(inv); setShowInvoiceDetailsModal(true); }}>
-                            Edit
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {clientInvoices
+                      .sort((a, b) => {
+                        if (a.invoiceNumber && b.invoiceNumber)
+                          return a.invoiceNumber - b.invoiceNumber;
+                        if (a.date && b.date)
+                          return (
+                            new Date(a.date).getTime() -
+                            new Date(b.date).getTime()
+                          );
+                        return a.id.localeCompare(b.id);
+                      })
+                      .map((inv) => (
+                        <tr key={inv.id}>
+                          <td>{inv.invoiceNumber || inv.id}</td>
+                          <td>
+                            {inv.date
+                              ? new Date(inv.date).toLocaleDateString()
+                              : "-"}
+                          </td>
+                          <td>{inv.status || "-"}</td>
+                          <td>{inv.truckNumber || "-"}</td>
+                          <td>{inv.totalWeight || "-"}</td>
+                          <td>
+                            {inv.products && inv.products.length > 0
+                              ? inv.products
+                                  .map((p) => `${p.name} (${p.price})`)
+                                  .join(", ")
+                              : "-"}
+                          </td>
+                          <td>
+                            {inv.carts && inv.carts.length > 0
+                              ? inv.carts.map((cart) => (
+                                  <div key={cart.id}>
+                                    <b>{cart.name}:</b>{" "}
+                                    {cart.items
+                                      .map(
+                                        (item) =>
+                                          `${item.productName} x${item.quantity}`
+                                      )
+                                      .join(", ")}
+                                  </div>
+                                ))
+                              : "-"}
+                          </td>
+                          <td>{inv.name || "-"}</td>
+                          <td>
+                            <button
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => {
+                                setSelectedInvoice(inv);
+                                setShowInvoiceDetailsModal(true);
+                              }}
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -98,10 +129,14 @@ const ReportsPage: React.FC = () => {
         <InvoiceDetailsModal
           invoice={selectedInvoice}
           onClose={() => setShowInvoiceDetailsModal(false)}
-          client={clients.find(c => c.id === selectedInvoice.clientId)}
+          client={clients.find((c) => c.id === selectedInvoice.clientId)}
           products={allProducts}
           onAddCart={async (cartName: string) => {
-            return { id: Date.now().toString(), name: cartName, isActive: true };
+            return {
+              id: Date.now().toString(),
+              name: cartName,
+              isActive: true,
+            };
           }}
           onAddProductToCart={() => {}}
         />

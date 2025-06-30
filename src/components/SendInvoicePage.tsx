@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { getClients, getInvoices, logActivity } from "../services/firebaseService";
+import {
+  getClients,
+  getInvoices,
+  logActivity,
+} from "../services/firebaseService";
 import { Client, Invoice } from "../types";
 import html2pdf from "html2pdf.js";
 
@@ -19,10 +23,14 @@ const SendInvoicePage: React.FC = () => {
 
   useEffect(() => {
     if (selectedClientId) {
-      getInvoices().then(all => {
-        setInvoices(all.filter(inv => inv.clientId === selectedClientId && inv.status === "done"));
+      getInvoices().then((all) => {
+        setInvoices(
+          all.filter(
+            (inv) => inv.clientId === selectedClientId && inv.status === "done"
+          )
+        );
       });
-      const client = clients.find(c => c.id === selectedClientId);
+      const client = clients.find((c) => c.id === selectedClientId);
       setEmailTo(client?.email || "");
     } else {
       setInvoices([]);
@@ -32,7 +40,9 @@ const SendInvoicePage: React.FC = () => {
   }, [selectedClientId, clients]);
 
   const handleInvoiceCheck = (id: string) => {
-    setSelectedInvoices(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    setSelectedInvoices((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
   };
 
   async function sendCustomInvoice() {
@@ -88,10 +98,16 @@ const SendInvoicePage: React.FC = () => {
       <h2>Send Custom Invoice Email</h2>
       <div className="mb-3" style={{ maxWidth: 350 }}>
         <label className="form-label">Select Client</label>
-        <select className="form-select" value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)}>
+        <select
+          className="form-select"
+          value={selectedClientId}
+          onChange={(e) => setSelectedClientId(e.target.value)}
+        >
           <option value="">-- Select Client --</option>
-          {clients.map(client => (
-            <option key={client.id} value={client.id}>{client.name}</option>
+          {clients.map((client) => (
+            <option key={client.id} value={client.id}>
+              {client.name}
+            </option>
           ))}
         </select>
       </div>
@@ -99,21 +115,50 @@ const SendInvoicePage: React.FC = () => {
         <>
           <div className="mb-3" style={{ maxWidth: 350 }}>
             <label className="form-label">Recipient Email</label>
-            <input type="email" className="form-control" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
+            <input
+              type="email"
+              className="form-control"
+              value={emailTo}
+              onChange={(e) => setEmailTo(e.target.value)}
+            />
           </div>
           <div className="mb-3" style={{ maxWidth: 500 }}>
             <label className="form-label">Email Subject</label>
-            <input type="text" className="form-control" value={subject} onChange={e => setSubject(e.target.value)} />
+            <input
+              type="text"
+              className="form-control"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
           </div>
           <div className="mb-3" style={{ maxWidth: 500 }}>
             <label className="form-label">Email Message</label>
-            <textarea className="form-control" rows={3} value={message} onChange={e => setMessage(e.target.value)} />
+            <textarea
+              className="form-control"
+              rows={3}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+            />
           </div>
           <div className="mb-3">
-            <label className="form-label">Select Invoices to Include in PDF</label>
-            <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #ddd', borderRadius: 4, padding: 8 }}>
-              {invoices.length === 0 && <div className="text-muted">No invoices found for this client.</div>}
-              {invoices.map(inv => (
+            <label className="form-label">
+              Select Invoices to Include in PDF
+            </label>
+            <div
+              style={{
+                maxHeight: 200,
+                overflowY: "auto",
+                border: "1px solid #ddd",
+                borderRadius: 4,
+                padding: 8,
+              }}
+            >
+              {invoices.length === 0 && (
+                <div className="text-muted">
+                  No invoices found for this client.
+                </div>
+              )}
+              {invoices.map((inv) => (
                 <div key={inv.id} className="form-check">
                   <input
                     className="form-check-input"
@@ -123,7 +168,10 @@ const SendInvoicePage: React.FC = () => {
                     onChange={() => handleInvoiceCheck(inv.id)}
                   />
                   <label className="form-check-label" htmlFor={inv.id}>
-                    <b>Invoice #:</b> {inv.invoiceNumber || inv.id} | <b>Name:</b> {inv.name || '-'} | <b>Date:</b> {inv.date ? new Date(inv.date).toLocaleDateString() : '-'} | <b>Status:</b> {inv.status || '-'}
+                    <b>Invoice #:</b> {inv.invoiceNumber || inv.id} |{" "}
+                    <b>Name:</b> {inv.name || "-"} | <b>Date:</b>{" "}
+                    {inv.date ? new Date(inv.date).toLocaleDateString() : "-"} |{" "}
+                    <b>Status:</b> {inv.status || "-"}
                   </label>
                 </div>
               ))}
@@ -131,22 +179,57 @@ const SendInvoicePage: React.FC = () => {
           </div>
           <div className="mb-3">
             <label className="form-label">PDF Preview</label>
-            <div id="pdf-preview" style={{ background: '#fff', border: '1px solid #ccc', padding: 16, minHeight: 100 }}>
-              <h3 style={{ color: '#0E62A0' }}>{subject || 'Invoice(s)'}</h3>
+            <div
+              id="pdf-preview"
+              style={{
+                background: "#fff",
+                border: "1px solid #ccc",
+                padding: 16,
+                minHeight: 100,
+              }}
+            >
+              <h3 style={{ color: "#0E62A0" }}>{subject || "Invoice(s)"}</h3>
               <div style={{ marginBottom: 12 }}>{message}</div>
-              {invoices.filter(inv => selectedInvoices.includes(inv.id)).map(inv => (
-                <div key={inv.id} style={{ borderBottom: '1px solid #eee', marginBottom: 8, paddingBottom: 8 }}>
-                  <div><b>Invoice #:</b> {inv.invoiceNumber || inv.id}</div>
-                  <div><b>Date:</b> {inv.date ? new Date(inv.date).toLocaleDateString() : '-'}</div>
-                  <div><b>Truck #:</b> {inv.truckNumber || '-'}</div>
-                  <div><b>Verifier:</b> {inv.verifiedBy || '-'}</div>
-                  {/* Add more invoice details as needed */}
-                </div>
-              ))}
+              {invoices
+                .filter((inv) => selectedInvoices.includes(inv.id))
+                .map((inv) => (
+                  <div
+                    key={inv.id}
+                    style={{
+                      borderBottom: "1px solid #eee",
+                      marginBottom: 8,
+                      paddingBottom: 8,
+                    }}
+                  >
+                    <div>
+                      <b>Invoice #:</b> {inv.invoiceNumber || inv.id}
+                    </div>
+                    <div>
+                      <b>Date:</b>{" "}
+                      {inv.date ? new Date(inv.date).toLocaleDateString() : "-"}
+                    </div>
+                    <div>
+                      <b>Truck #:</b> {inv.truckNumber || "-"}
+                    </div>
+                    <div>
+                      <b>Verifier:</b> {inv.verifiedBy || "-"}
+                    </div>
+                    {/* Add more invoice details as needed */}
+                  </div>
+                ))}
             </div>
           </div>
-          <button className="btn btn-primary" onClick={sendCustomInvoice}>Send Email with PDF</button>
-          {status && <div className="mt-2" style={{ color: status.includes('success') ? 'green' : 'red' }}>{status}</div>}
+          <button className="btn btn-primary" onClick={sendCustomInvoice}>
+            Send Email with PDF
+          </button>
+          {status && (
+            <div
+              className="mt-2"
+              style={{ color: status.includes("success") ? "green" : "red" }}
+            >
+              {status}
+            </div>
+          )}
         </>
       )}
     </div>

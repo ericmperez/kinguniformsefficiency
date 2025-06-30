@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { UserRole, useAuth } from "./AuthContext";
-import { addUser, deleteUser, updateUser, logActivity } from "../services/firebaseService";
+import {
+  addUser,
+  deleteUser,
+  updateUser,
+  logActivity,
+} from "../services/firebaseService";
 import { AppComponentKey } from "../permissions";
 
 interface UserRecord {
@@ -248,7 +253,7 @@ export default function UserManagement(props: UserManagementProps) {
             value={logoutTimeout}
             min={10}
             max={3600}
-            onChange={e => setLogoutTimeout(Number(e.target.value))}
+            onChange={(e) => setLogoutTimeout(Number(e.target.value))}
             required
           />
         </div>
@@ -423,7 +428,9 @@ export default function UserManagement(props: UserManagementProps) {
                           value={editLogoutTimeout}
                           min={10}
                           max={3600}
-                          onChange={e => setEditLogoutTimeout(Number(e.target.value))}
+                          onChange={(e) =>
+                            setEditLogoutTimeout(Number(e.target.value))
+                          }
                           required
                         />
                       ) : (

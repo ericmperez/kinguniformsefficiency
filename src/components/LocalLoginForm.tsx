@@ -180,7 +180,11 @@ export default function LocalLoginForm() {
                     Login
                   </span>
                 ) : key === "C" ? (
-                  <span style={{ fontWeight: 700, color: '#b71c1c', fontSize: 22 }}>C</span>
+                  <span
+                    style={{ fontWeight: 700, color: "#b71c1c", fontSize: 22 }}
+                  >
+                    C
+                  </span>
                 ) : (
                   key
                 )}

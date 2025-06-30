@@ -196,7 +196,9 @@ const Segregation: React.FC<SegregationProps> = ({
     await setDoc(orderDocRef, { order: newOrder }, { merge: true });
     await logActivity({
       type: "Segregation",
-      message: `Group ${groupId} moved ${(direction === -1 ? 'up' : 'down')} by user`,
+      message: `Group ${groupId} moved ${
+        direction === -1 ? "up" : "down"
+      } by user`,
     });
   };
 
@@ -221,7 +223,12 @@ const Segregation: React.FC<SegregationProps> = ({
 
   // Handler to delete a segregation group
   const handleDeleteSegregationGroup = async (groupId: string) => {
-    if (!window.confirm("Delete this group and all its data? This action cannot be undone.")) return;
+    if (
+      !window.confirm(
+        "Delete this group and all its data? This action cannot be undone."
+      )
+    )
+      return;
     // Optimistically update UI
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
     try {
@@ -261,7 +268,9 @@ const Segregation: React.FC<SegregationProps> = ({
     });
     await logActivity({
       type: "Segregation",
-      message: `+1 to group ${group?.clientName || groupId} (${groupId}) by user`,
+      message: `+1 to group ${
+        group?.clientName || groupId
+      } (${groupId}) by user`,
     });
   };
 
@@ -279,7 +288,9 @@ const Segregation: React.FC<SegregationProps> = ({
     });
     await logActivity({
       type: "Segregation",
-      message: `-1 to group ${group?.clientName || groupId} (${groupId}) by user`,
+      message: `-1 to group ${
+        group?.clientName || groupId
+      } (${groupId}) by user`,
     });
   };
 
@@ -344,7 +355,9 @@ const Segregation: React.FC<SegregationProps> = ({
       if (onGroupComplete) onGroupComplete();
       await logActivity({
         type: "Segregation",
-        message: `Group ${group?.clientName || groupId} completed segregation by user`,
+        message: `Group ${
+          group?.clientName || groupId
+        } completed segregation by user`,
       });
     } catch (err) {
       alert("Error completing segregation for this group");

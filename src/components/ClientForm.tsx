@@ -50,7 +50,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<AppClient | null>(null);
   const [segregation, setSegregation] = useState(false);
-  const [billingCalculation, setBillingCalculation] = useState<"byWeight" | "byItem">("byWeight");
+  const [billingCalculation, setBillingCalculation] = useState<
+    "byWeight" | "byItem"
+  >("byWeight");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,48 +191,50 @@ export const ClientForm: React.FC<ClientFormProps> = ({
             <div className="mb-3">
               <label className="form-label">Selected Products</label>
               <div className="row g-3">
-                {[...products].sort((a, b) => a.name.localeCompare(b.name)).map((product) => (
-                  <div key={product.id} className="col-6 col-md-4 col-lg-3">
-                    <label
-                      className={`card h-100 shadow-sm position-relative product-checkbox-card ${
-                        selectedProducts.includes(product.id)
-                          ? "border-primary"
-                          : "border-light"
-                      }`}
-                      style={{ cursor: "pointer", minHeight: 90 }}
-                    >
-                      <input
-                        type="checkbox"
-                        className="form-check-input position-absolute top-0 end-0 m-2"
-                        style={{ zIndex: 2, width: 22, height: 22 }}
-                        id={`product-${product.id}`}
-                        checked={selectedProducts.includes(product.id)}
-                        onChange={() => handleProductToggle(product.id)}
-                        disabled={isSaving}
-                      />
-                      <div className="card-body d-flex flex-column align-items-center justify-content-center p-2">
-                        {product.imageUrl && (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="mb-2 rounded"
-                            style={{
-                              width: 40,
-                              height: 40,
-                              objectFit: "cover",
-                            }}
-                          />
-                        )}
-                        <span
-                          className="fw-semibold text-center"
-                          style={{ fontSize: 15 }}
-                        >
-                          {product.name}
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-                ))}
+                {[...products]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((product) => (
+                    <div key={product.id} className="col-6 col-md-4 col-lg-3">
+                      <label
+                        className={`card h-100 shadow-sm position-relative product-checkbox-card ${
+                          selectedProducts.includes(product.id)
+                            ? "border-primary"
+                            : "border-light"
+                        }`}
+                        style={{ cursor: "pointer", minHeight: 90 }}
+                      >
+                        <input
+                          type="checkbox"
+                          className="form-check-input position-absolute top-0 end-0 m-2"
+                          style={{ zIndex: 2, width: 22, height: 22 }}
+                          id={`product-${product.id}`}
+                          checked={selectedProducts.includes(product.id)}
+                          onChange={() => handleProductToggle(product.id)}
+                          disabled={isSaving}
+                        />
+                        <div className="card-body d-flex flex-column align-items-center justify-content-center p-2">
+                          {product.imageUrl && (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="mb-2 rounded"
+                              style={{
+                                width: 40,
+                                height: 40,
+                                objectFit: "cover",
+                              }}
+                            />
+                          )}
+                          <span
+                            className="fw-semibold text-center"
+                            style={{ fontSize: 15 }}
+                          >
+                            {product.name}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  ))}
               </div>
             </div>
 
@@ -489,7 +493,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                         </span>
                       </td>
                       <td>
-                        {client.billingCalculation === "byItem" ? "Per Item" : "By Weight"}
+                        {client.billingCalculation === "byItem"
+                          ? "Per Item"
+                          : "By Weight"}
                       </td>
                       <td>
                         <div className="d-flex gap-2">
@@ -525,10 +531,13 @@ export const ClientForm: React.FC<ClientFormProps> = ({
             left: 0,
             right: 0,
             zIndex: 1050,
-            minHeight: "100vh"
+            minHeight: "100vh",
           }}
         >
-          <div className="modal-dialog" style={{ maxWidth: 600, width: "100%", margin: "2rem auto" }}>
+          <div
+            className="modal-dialog"
+            style={{ maxWidth: 600, width: "100%", margin: "2rem auto" }}
+          >
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Edit Client</h5>
@@ -572,51 +581,53 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   <div className="mb-3">
                     <label className="form-label">Selected Products</label>
                     <div className="row g-3">
-                      {[...products].sort((a, b) => a.name.localeCompare(b.name)).map((product) => (
-                        <div
-                          key={product.id}
-                          className="col-6 col-md-4 col-lg-3"
-                        >
-                          <label
-                            className={`card h-100 shadow-sm position-relative product-checkbox-card ${
-                              selectedProducts.includes(product.id)
-                                ? "border-primary"
-                                : "border-light"
-                            }`}
-                            style={{ cursor: "pointer", minHeight: 90 }}
+                      {[...products]
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((product) => (
+                          <div
+                            key={product.id}
+                            className="col-6 col-md-4 col-lg-3"
                           >
-                            <input
-                              type="checkbox"
-                              className="form-check-input position-absolute top-0 end-0 m-2"
-                              style={{ zIndex: 2, width: 22, height: 22 }}
-                              id={`product-${product.id}-edit`}
-                              checked={selectedProducts.includes(product.id)}
-                              onChange={() => handleProductToggle(product.id)}
-                              disabled={isSaving}
-                            />
-                            <div className="card-body d-flex flex-column align-items-center justify-content-center p-2">
-                              {product.imageUrl && (
-                                <img
-                                  src={product.imageUrl}
-                                  alt={product.name}
-                                  className="mb-2 rounded"
-                                  style={{
-                                    width: 40,
-                                    height: 40,
-                                    objectFit: "cover",
-                                  }}
-                                />
-                              )}
-                              <span
-                                className="fw-semibold text-center"
-                                style={{ fontSize: 15 }}
-                              >
-                                {product.name}
-                              </span>
-                            </div>
-                          </label>
-                        </div>
-                      ))}
+                            <label
+                              className={`card h-100 shadow-sm position-relative product-checkbox-card ${
+                                selectedProducts.includes(product.id)
+                                  ? "border-primary"
+                                  : "border-light"
+                              }`}
+                              style={{ cursor: "pointer", minHeight: 90 }}
+                            >
+                              <input
+                                type="checkbox"
+                                className="form-check-input position-absolute top-0 end-0 m-2"
+                                style={{ zIndex: 2, width: 22, height: 22 }}
+                                id={`product-${product.id}-edit`}
+                                checked={selectedProducts.includes(product.id)}
+                                onChange={() => handleProductToggle(product.id)}
+                                disabled={isSaving}
+                              />
+                              <div className="card-body d-flex flex-column align-items-center justify-content-center p-2">
+                                {product.imageUrl && (
+                                  <img
+                                    src={product.imageUrl}
+                                    alt={product.name}
+                                    className="mb-2 rounded"
+                                    style={{
+                                      width: 40,
+                                      height: 40,
+                                      objectFit: "cover",
+                                    }}
+                                  />
+                                )}
+                                <span
+                                  className="fw-semibold text-center"
+                                  style={{ fontSize: 15 }}
+                                >
+                                  {product.name}
+                                </span>
+                              </div>
+                            </label>
+                          </div>
+                        ))}
                     </div>
                   </div>
 

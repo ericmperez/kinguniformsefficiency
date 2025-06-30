@@ -158,7 +158,14 @@ function updateClientInInvoices(
 function App() {
   const { user, logout } = useAuth();
   const [activePage, setActivePage] = useState<
-    "home" | "entradas" | "washing" | "segregation" | "settings" | "reports" | "billing" | "activityLog"
+    | "home"
+    | "entradas"
+    | "washing"
+    | "segregation"
+    | "settings"
+    | "reports"
+    | "billing"
+    | "activityLog"
   >("home");
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -186,7 +193,8 @@ function App() {
   // State for which process menu is open (string or null)
   const [processMenuOpen, setProcessMenuOpen] = useState<string | null>(null);
   // Add state for anchor element
-  const [processMenuAnchorEl, setProcessMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [processMenuAnchorEl, setProcessMenuAnchorEl] =
+    useState<null | HTMLElement>(null);
   const processMenuOpenState = Boolean(processMenuAnchorEl);
 
   // Helper: check if current user can see a component (per-user or fallback to role)
@@ -602,13 +610,13 @@ function App() {
     {
       label: "Billing",
       page: "billing" as const,
-      icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />, 
+      icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
       visible: canSee("BillingPage"),
     },
     {
       label: "Activity Log",
       page: "activityLog" as const,
-      icon: <ListAltIcon style={{ fontSize: 38, color: "#0E62A0" }} />, 
+      icon: <ListAltIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
       visible: canSee("GlobalActivityLog"),
     },
     // Removed 'Rutas por Camión' from navLinks
@@ -806,8 +814,7 @@ function App() {
 
     if (loading)
       return <div className="card p-3 mb-3">Loading manual products...</div>;
-    if (manualProducts.length === 0)
-      return null;
+    if (manualProducts.length === 0) return null;
 
     return (
       <div className="card p-3 mb-3">
@@ -938,24 +945,126 @@ function App() {
               whiteSpace: "nowrap",
             }}
           >
-            {navLinks.filter((l) => l.visible).map((link) =>
-              link.subpages ? (
-                <Box key={link.page} sx={{ position: "relative" }}>
+            {navLinks
+              .filter((l) => l.visible)
+              .map((link) =>
+                link.subpages ? (
+                  <Box key={link.page} sx={{ position: "relative" }}>
+                    <Button
+                      color={
+                        link.subpages.some((sp) => sp.page === activePage)
+                          ? "warning"
+                          : "inherit"
+                      }
+                      startIcon={link.icon}
+                      sx={{
+                        fontWeight: 600,
+                        color: link.subpages.some(
+                          (sp) => sp.page === activePage
+                        )
+                          ? "var(--ku-yellow)"
+                          : "#fff",
+                        bgcolor: link.subpages.some(
+                          (sp) => sp.page === activePage
+                        )
+                          ? "rgba(255,224,102,0.18)"
+                          : "transparent",
+                        borderRadius: 2,
+                        px: 1.5,
+                        fontSize: 13,
+                        minWidth: 0,
+                        boxShadow: link.subpages.some(
+                          (sp) => sp.page === activePage
+                        )
+                          ? "0 2px 8px rgba(250,198,27,0.10)"
+                          : "none",
+                        borderBottom: link.subpages.some(
+                          (sp) => sp.page === activePage
+                        )
+                          ? "2px solid var(--ku-yellow)"
+                          : "2px solid transparent",
+                        "&:hover": {
+                          bgcolor: "var(--ku-yellow)",
+                          color: "#222",
+                        },
+                        whiteSpace: "nowrap",
+                      }}
+                      onClick={(e) => setProcessMenuAnchorEl(e.currentTarget)}
+                    >
+                      {link.label}
+                    </Button>
+                    <Menu
+                      anchorEl={processMenuAnchorEl}
+                      open={
+                        processMenuOpenState &&
+                        processMenuAnchorEl &&
+                        processMenuAnchorEl.textContent === link.label
+                          ? true
+                          : false
+                      }
+                      onClose={() => setProcessMenuAnchorEl(null)}
+                      anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                      transformOrigin={{ vertical: "top", horizontal: "left" }}
+                      PaperProps={{
+                        sx: {
+                          minWidth: 200,
+                          borderRadius: 2,
+                          boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+                          p: 0,
+                        },
+                      }}
+                    >
+                      {link.subpages
+                        .filter((sp) => sp.visible)
+                        .map((sp) => (
+                          <MenuItem
+                            key={sp.page}
+                            selected={activePage === sp.page}
+                            onClick={() => {
+                              setActivePage(sp.page);
+                              setProcessMenuAnchorEl(null);
+                            }}
+                            sx={{
+                              fontWeight: 600,
+                              fontSize: 15,
+                              color:
+                                activePage === sp.page
+                                  ? "var(--ku-yellow)"
+                                  : "#222",
+                              bgcolor:
+                                activePage === sp.page
+                                  ? "rgba(255,224,102,0.18)"
+                                  : "transparent",
+                              borderBottom:
+                                activePage === sp.page
+                                  ? "2px solid var(--ku-yellow)"
+                                  : "2px solid transparent",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1.5,
+                              "&:hover": {
+                                bgcolor: "var(--ku-yellow)",
+                                color: "#222",
+                              },
+                            }}
+                          >
+                            {sp.icon}
+                            <span style={{ marginLeft: 12 }}>{sp.label}</span>
+                          </MenuItem>
+                        ))}
+                    </Menu>
+                  </Box>
+                ) : (
                   <Button
-                    color={
-                      link.subpages.some((sp) => sp.page === activePage)
-                        ? "warning"
-                        : "inherit"
-                    }
+                    key={link.page}
+                    color={activePage === link.page ? "warning" : "inherit"}
                     startIcon={link.icon}
                     sx={{
                       fontWeight: 600,
                       color:
-                        link.subpages.some((sp) => sp.page === activePage)
-                          ? "var(--ku-yellow)"
-                          : "#fff",
+                        activePage === link.page ? "var(--ku-yellow)" : "#fff",
                       bgcolor:
-                        link.subpages.some((sp) => sp.page === activePage)
+                        activePage === link.page
                           ? "rgba(255,224,102,0.18)"
                           : "transparent",
                       borderRadius: 2,
@@ -963,11 +1072,11 @@ function App() {
                       fontSize: 13,
                       minWidth: 0,
                       boxShadow:
-                        link.subpages.some((sp) => sp.page === activePage)
+                        activePage === link.page
                           ? "0 2px 8px rgba(250,198,27,0.10)"
                           : "none",
                       borderBottom:
-                        link.subpages.some((sp) => sp.page === activePage)
+                        activePage === link.page
                           ? "2px solid var(--ku-yellow)"
                           : "2px solid transparent",
                       "&:hover": {
@@ -976,91 +1085,12 @@ function App() {
                       },
                       whiteSpace: "nowrap",
                     }}
-                    onClick={(e) => setProcessMenuAnchorEl(e.currentTarget)}
+                    onClick={() => setActivePage(link.page)}
                   >
                     {link.label}
                   </Button>
-                  <Menu
-                    anchorEl={processMenuAnchorEl}
-                    open={processMenuOpenState && processMenuAnchorEl && processMenuAnchorEl.textContent === link.label ? true : false}
-                    onClose={() => setProcessMenuAnchorEl(null)}
-                    anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-                    transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-                    PaperProps={{
-                      sx: {
-                        minWidth: 200,
-                        borderRadius: 2,
-                        boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                        p: 0,
-                      }
-                    }}
-                  >
-                    {link.subpages.filter((sp) => sp.visible).map((sp) => (
-                      <MenuItem
-                        key={sp.page}
-                        selected={activePage === sp.page}
-                        onClick={() => {
-                          setActivePage(sp.page);
-                          setProcessMenuAnchorEl(null);
-                        }}
-                        sx={{
-                          fontWeight: 600,
-                          fontSize: 15,
-                          color: activePage === sp.page ? 'var(--ku-yellow)' : '#222',
-                          bgcolor: activePage === sp.page ? 'rgba(255,224,102,0.18)' : 'transparent',
-                          borderBottom: activePage === sp.page ? '2px solid var(--ku-yellow)' : '2px solid transparent',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1.5,
-                          '&:hover': {
-                            bgcolor: 'var(--ku-yellow)',
-                            color: '#222',
-                          },
-                        }}
-                      >
-                        {sp.icon}
-                        <span style={{ marginLeft: 12 }}>{sp.label}</span>
-                      </MenuItem>
-                    ))}
-                  </Menu>
-                </Box>
-              ) : (
-                <Button
-                  key={link.page}
-                  color={activePage === link.page ? "warning" : "inherit"}
-                  startIcon={link.icon}
-                  sx={{
-                    fontWeight: 600,
-                    color:
-                      activePage === link.page ? "var(--ku-yellow)" : "#fff",
-                    bgcolor:
-                      activePage === link.page
-                        ? "rgba(255,224,102,0.18)"
-                        : "transparent",
-                    borderRadius: 2,
-                    px: 1.5,
-                    fontSize: 13,
-                    minWidth: 0,
-                    boxShadow:
-                      activePage === link.page
-                        ? "0 2px 8px rgba(250,198,27,0.10)"
-                        : "none",
-                    borderBottom:
-                      activePage === link.page
-                        ? "2px solid var(--ku-yellow)"
-                        : "2px solid transparent",
-                    "&:hover": {
-                      bgcolor: "var(--ku-yellow)",
-                      color: "#222",
-                    },
-                    whiteSpace: "nowrap",
-                  }}
-                  onClick={() => setActivePage(link.page)}
-                >
-                  {link.label}
-                </Button>
-              )
-            )}
+                )
+              )}
           </Box>
           <Box
             sx={{
@@ -1113,36 +1143,40 @@ function App() {
           onClick={() => setDrawerOpen(false)}
         >
           <List>
-            {navLinks.filter((l) => l.visible).map((link) =>
-              link.subpages ? (
-                <React.Fragment key={link.page}>
-                  <ListItem>
-                    <ListItemText primary={link.label} />
-                  </ListItem>
-                  {link.subpages.filter((sp) => sp.visible).map((sp) => (
-                    <ListItem key={sp.page} disablePadding sx={{ pl: 3 }}>
-                      <ListItemButton
-                        selected={activePage === sp.page}
-                        onClick={() => setActivePage(sp.page)}
-                      >
-                        <ListItemIcon>{sp.icon}</ListItemIcon>
-                        <ListItemText primary={sp.label} />
-                      </ListItemButton>
+            {navLinks
+              .filter((l) => l.visible)
+              .map((link) =>
+                link.subpages ? (
+                  <React.Fragment key={link.page}>
+                    <ListItem>
+                      <ListItemText primary={link.label} />
                     </ListItem>
-                  ))}
-                </React.Fragment>
-              ) : (
-                <ListItem key={link.page} disablePadding>
-                  <ListItemButton
-                    selected={activePage === link.page}
-                    onClick={() => setActivePage(link.page)}
-                  >
-                    <ListItemIcon>{link.icon}</ListItemIcon>
-                    <ListItemText primary={link.label} />
-                  </ListItemButton>
-                </ListItem>
-              )
-            )}
+                    {link.subpages
+                      .filter((sp) => sp.visible)
+                      .map((sp) => (
+                        <ListItem key={sp.page} disablePadding sx={{ pl: 3 }}>
+                          <ListItemButton
+                            selected={activePage === sp.page}
+                            onClick={() => setActivePage(sp.page)}
+                          >
+                            <ListItemIcon>{sp.icon}</ListItemIcon>
+                            <ListItemText primary={sp.label} />
+                          </ListItemButton>
+                        </ListItem>
+                      ))}
+                  </React.Fragment>
+                ) : (
+                  <ListItem key={link.page} disablePadding>
+                    <ListItemButton
+                      selected={activePage === link.page}
+                      onClick={() => setActivePage(link.page)}
+                    >
+                      <ListItemIcon>{link.icon}</ListItemIcon>
+                      <ListItemText primary={link.label} />
+                    </ListItemButton>
+                  </ListItem>
+                )
+              )}
             <ListItem disablePadding>
               <ListItemButton onClick={logout}>
                 <ListItemIcon>
@@ -1469,10 +1503,11 @@ function App() {
           {/* <PendingProductsWidget /> */}
           <div className="row justify-content-center g-4">
             {homePages
-              .filter((p) =>
-                navLinks.find((l) => l.page === p.page && l.visible) &&
-                p.page !== "reports" &&
-                p.page !== "settings"
+              .filter(
+                (p) =>
+                  navLinks.find((l) => l.page === p.page && l.visible) &&
+                  p.page !== "reports" &&
+                  p.page !== "settings"
               )
               .map((p) => (
                 <div

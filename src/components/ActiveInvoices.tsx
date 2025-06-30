@@ -175,7 +175,9 @@ export default function ActiveInvoices({
   }>({});
   const [showVerifyIdModal, setShowVerifyIdModal] = useState(false);
   const [verifyIdError, setVerifyIdError] = useState("");
-  const [partialVerifiedInvoices, setPartialVerifiedInvoices] = useState<{ [id: string]: boolean }>({});
+  const [partialVerifiedInvoices, setPartialVerifiedInvoices] = useState<{
+    [id: string]: boolean;
+  }>({});
 
   // Handler to lock invoice
   const handleLockInvoice = async (invoiceId: string) => {
@@ -440,7 +442,9 @@ export default function ActiveInvoices({
       if (user?.username) {
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} deleted invoice #${invoiceToDelete.invoiceNumber || invoiceToDelete.id}`,
+          message: `User ${user.username} deleted invoice #${
+            invoiceToDelete.invoiceNumber || invoiceToDelete.id
+          }`,
           user: user.username,
         });
       }
@@ -798,7 +802,9 @@ export default function ActiveInvoices({
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   // Add Ready state to invoice
-  const [readyInvoices, setReadyInvoices] = useState<{ [id: string]: boolean }>({});
+  const [readyInvoices, setReadyInvoices] = useState<{ [id: string]: boolean }>(
+    {}
+  );
 
   // Handler for Ready button
   const handleReadyClick = async (invoiceId: string) => {
@@ -806,7 +812,7 @@ export default function ActiveInvoices({
     // Optionally, persist this status in backend:
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (invoice) {
-      await onUpdateInvoice(invoiceId, { status: 'ready' });
+      await onUpdateInvoice(invoiceId, { status: "ready" });
     }
   };
 
@@ -815,11 +821,15 @@ export default function ActiveInvoices({
   const [shippedTruckNumber, setShippedTruckNumber] = useState("");
 
   // Add at the top-level of the component:
-  const [highlightColors, setHighlightColors] = useState<{ [invoiceId: string]: 'yellow' | 'blue' }>({});
+  const [highlightColors, setHighlightColors] = useState<{
+    [invoiceId: string]: "yellow" | "blue";
+  }>({});
 
   const getVerifierName = (verifierId: string) => {
     if (!verifierId) return "-";
-    const found = users.find((u: UserRecord) => u.id === verifierId || u.username === verifierId);
+    const found = users.find(
+      (u: UserRecord) => u.id === verifierId || u.username === verifierId
+    );
     if (found) return found.username;
     // If already a name, just return
     if (verifierId.length > 4 || /[a-zA-Z]/.test(verifierId)) return verifierId;
@@ -827,16 +837,21 @@ export default function ActiveInvoices({
   };
 
   // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
-  const hasOverdue = invoices.some(inv => {
+  const hasOverdue = invoices.some((inv) => {
     if (!inv.date) return false;
     const created = new Date(inv.date);
     const now = new Date();
-    return (now.getTime() - created.getTime()) > 24 * 60 * 60 * 1000;
+    return now.getTime() - created.getTime() > 24 * 60 * 60 * 1000;
   });
   let demoInvoices = invoices;
   if (!hasOverdue && invoices.length > 0) {
     // Clone the first invoice and set its date to 2 days ago
-    const demo = { ...invoices[0], id: 'demo-overdue', clientName: 'Demo Overdue Client', date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() };
+    const demo = {
+      ...invoices[0],
+      id: "demo-overdue",
+      clientName: "Demo Overdue Client",
+      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    };
     demoInvoices = [demo, ...invoices];
   }
 
@@ -854,13 +869,13 @@ export default function ActiveInvoices({
       </div>
 
       <div className="row">
-        {invoices.filter(inv => inv.status !== 'done').length === 0 ? (
+        {invoices.filter((inv) => inv.status !== "done").length === 0 ? (
           <div className="text-center text-muted py-5">
             No active invoices found. Create a new invoice to get started.
           </div>
         ) : (
           invoices
-            .filter(inv => inv.status !== 'done')
+            .filter((inv) => inv.status !== "done")
             .sort((a, b) => {
               if (a.invoiceNumber && b.invoiceNumber) {
                 return a.invoiceNumber - b.invoiceNumber;
@@ -873,23 +888,31 @@ export default function ActiveInvoices({
             .map((invoice, idx) => {
               const client = clients.find((c) => c.id === invoice.clientId);
               const avatarSrc = getClientAvatarUrl(client || {});
-              const isReady = invoice.status === 'ready' || readyInvoices[invoice.id];
+              const isReady =
+                invoice.status === "ready" || readyInvoices[invoice.id];
               const isVerified = invoice.verified;
-              const isPartiallyVerified = invoice.partiallyVerified || partialVerifiedInvoices[invoice.id];
+              const isPartiallyVerified =
+                invoice.partiallyVerified ||
+                partialVerifiedInvoices[invoice.id];
               // Determine highlight color for this invoice
-              const highlight = highlightColors[invoice.id] || 'blue';
+              const highlight = highlightColors[invoice.id] || "blue";
               // Compute background based on highlight color and status
-              let cardBackground = '';
+              let cardBackground = "";
               if (isVerified) {
-                cardBackground = 'linear-gradient(135deg, #bbf7d0 0%, #22c55e 100%)'; // green
+                cardBackground =
+                  "linear-gradient(135deg, #bbf7d0 0%, #22c55e 100%)"; // green
               } else if (isPartiallyVerified) {
-                cardBackground = 'linear-gradient(135deg, #fef9c3 0%, #fde047 100%)'; // yellow for partial
+                cardBackground =
+                  "linear-gradient(135deg, #fef9c3 0%, #fde047 100%)"; // yellow for partial
               } else if (isReady) {
-                cardBackground = 'linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)'; // yellow
-              } else if (highlight === 'yellow') {
-                cardBackground = 'linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)'; // yellow
+                cardBackground =
+                  "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)"; // yellow
+              } else if (highlight === "yellow") {
+                cardBackground =
+                  "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)"; // yellow
               } else {
-                cardBackground = 'linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)'; // blue
+                cardBackground =
+                  "linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)"; // blue
               }
 
               // --- Overdue logic: more than 1 day old ---
@@ -906,35 +929,39 @@ export default function ActiveInvoices({
               return (
                 <div
                   key={invoice.id}
-                  className={`col-lg-4 col-md-6 mb-4${isOverdue ? ' overdue-blink' : ''}`}
+                  className={`col-lg-4 col-md-6 mb-4${
+                    isOverdue ? " overdue-blink" : ""
+                  }`}
                   onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
                   onMouseLeave={() => setHoveredInvoiceId(null)}
                 >
                   <div
-                    className={`modern-invoice-card shadow-lg${isOverdue ? ' overdue-blink' : ''}`}
+                    className={`modern-invoice-card shadow-lg${
+                      isOverdue ? " overdue-blink" : ""
+                    }`}
                     style={{
                       borderRadius: 24,
                       background: cardBackground,
-                      color: '#222',
-                      boxShadow: '0 8px 32px 0 rgba(0,0,0,0.10)',
-                      border: 'none',
-                      position: 'relative',
+                      color: "#222",
+                      boxShadow: "0 8px 32px 0 rgba(0,0,0,0.10)",
+                      border: "none",
+                      position: "relative",
                       minHeight: 380,
                       maxWidth: 340,
-                      margin: '60px auto 0 auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      fontFamily: 'Inter, Segoe UI, Arial, sans-serif',
-                      padding: '2.5rem 1.5rem 1.5rem 1.5rem',
-                      transition: 'background 0.3s',
+                      margin: "60px auto 0 auto",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "flex-start",
+                      fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+                      padding: "2.5rem 1.5rem 1.5rem 1.5rem",
+                      transition: "background 0.3s",
                     }}
                     onClick={() => handleInvoiceClick(invoice.id)}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
+                      if (e.key === "Enter" || e.key === " ") {
                         handleInvoiceClick(invoice.id);
                       }
                     }}
@@ -1015,7 +1042,11 @@ export default function ActiveInvoices({
                         style={{
                           fontWeight: 800,
                           fontSize: 24,
-                          color: (invoice.carts || []).some(c => c.name.toUpperCase().startsWith('CARRO SIN NOMBRE')) ? 'red' : '#222',
+                          color: (invoice.carts || []).some((c) =>
+                            c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
+                          )
+                            ? "red"
+                            : "#222",
                           marginBottom: 4,
                         }}
                       >
@@ -1028,28 +1059,60 @@ export default function ActiveInvoices({
                       </div>
                     </div>
                     {/* Product summary (total qty per product) */}
-                    <div style={{ margin: '12px 0 0 0', width: '100%' }}>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: '#0ea5e9', marginBottom: 2 }}>Products</div>
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 15 }}>
+                    <div style={{ margin: "12px 0 0 0", width: "100%" }}>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 15,
+                          color: "#0ea5e9",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Products
+                      </div>
+                      <ul
+                        style={{
+                          listStyle: "none",
+                          padding: 0,
+                          margin: 0,
+                          fontSize: 15,
+                        }}
+                      >
                         {(() => {
                           // Build product totals across all carts
-                          const productTotals: { [productId: string]: { name: string; qty: number } } = {};
-                          (invoice.carts || []).forEach(cart => {
-                            (cart.items || []).forEach(item => {
+                          const productTotals: {
+                            [productId: string]: { name: string; qty: number };
+                          } = {};
+                          (invoice.carts || []).forEach((cart) => {
+                            (cart.items || []).forEach((item) => {
                               if (!productTotals[item.productId]) {
-                                productTotals[item.productId] = { name: item.productName, qty: 0 };
+                                productTotals[item.productId] = {
+                                  name: item.productName,
+                                  qty: 0,
+                                };
                               }
-                              productTotals[item.productId].qty += Number(item.quantity) || 0;
+                              productTotals[item.productId].qty +=
+                                Number(item.quantity) || 0;
                             });
                           });
                           // Show all products with qty > 0
                           return Object.values(productTotals)
-                            .filter(p => p.qty > 0)
+                            .filter((p) => p.qty > 0)
                             .sort((a, b) => a.name.localeCompare(b.name))
                             .map((prod, idx) => (
-                              <li key={prod.name + idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                              <li
+                                key={prod.name + idx}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "2px 0",
+                                }}
+                              >
                                 <span>{prod.name}</span>
-                                <span style={{ fontWeight: 800 }}>{prod.qty}</span>
+                                <span style={{ fontWeight: 800 }}>
+                                  {prod.qty}
+                                </span>
                               </li>
                             ));
                         })()}
@@ -1058,11 +1121,11 @@ export default function ActiveInvoices({
                     {/* Social-style action buttons */}
                     <div
                       style={{
-                        position: 'absolute',
+                        position: "absolute",
                         bottom: 24,
                         right: 24,
-                        display: 'flex',
-                        flexDirection: 'row',
+                        display: "flex",
+                        flexDirection: "row",
                         gap: 10,
                         zIndex: 10,
                       }}
@@ -1082,11 +1145,12 @@ export default function ActiveInvoices({
                           boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                           border: "none",
                         }}
-                        onClick={e => {
+                        onClick={(e) => {
                           e.stopPropagation();
-                          setHighlightColors(prev => ({
+                          setHighlightColors((prev) => ({
                             ...prev,
-                            [invoice.id]: prev[invoice.id] === 'yellow' ? 'blue' : 'yellow',
+                            [invoice.id]:
+                              prev[invoice.id] === "yellow" ? "blue" : "yellow",
                           }));
                           if (user?.username) {
                             logActivity({
@@ -1096,9 +1160,20 @@ export default function ActiveInvoices({
                             });
                           }
                         }}
-                        title={highlight === 'yellow' ? 'Highlight: Yellow' : 'Highlight: Blue'}
+                        title={
+                          highlight === "yellow"
+                            ? "Highlight: Yellow"
+                            : "Highlight: Blue"
+                        }
                       >
-                        <i className="bi bi-flag-fill" style={{ color: highlight === 'yellow' ? '#fbbf24' : '#0E62A0', fontSize: 22 }} />
+                        <i
+                          className="bi bi-flag-fill"
+                          style={{
+                            color:
+                              highlight === "yellow" ? "#fbbf24" : "#0E62A0",
+                            fontSize: 22,
+                          }}
+                        />
                       </button>
                       {/* Verified button */}
                       <button
@@ -1115,15 +1190,20 @@ export default function ActiveInvoices({
                           boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                           border: "none",
                         }}
-                        onClick={e => {
+                        onClick={(e) => {
                           e.stopPropagation();
                           if (hasUnnamedCart(invoice)) {
-                            alert('Cannot verify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.');
+                            alert(
+                              'Cannot verify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                            );
                             return;
                           }
                           setVerifyInvoiceId(invoice.id); // open verify modal
                           // Build initial check state for modal
-                          const checks: Record<string, Record<string, boolean>> = {};
+                          const checks: Record<
+                            string,
+                            Record<string, boolean>
+                          > = {};
                           for (const cart of invoice.carts) {
                             checks[cart.id] = {};
                             for (const item of cart.items) {
@@ -1133,9 +1213,21 @@ export default function ActiveInvoices({
                           setVerifyChecks(checks);
                         }}
                         disabled={invoice.verified || hasUnnamedCart(invoice)}
-                        title={invoice.verified ? "Verified" : hasUnnamedCart(invoice) ? 'Cannot verify with "CARRO SIN NOMBRE" cart' : "Verify"}
+                        title={
+                          invoice.verified
+                            ? "Verified"
+                            : hasUnnamedCart(invoice)
+                            ? 'Cannot verify with "CARRO SIN NOMBRE" cart'
+                            : "Verify"
+                        }
                       >
-                        <i className="bi bi-check-lg" style={{ color: invoice.verified ? '#22c55e' : '#166534', fontSize: 22 }} />
+                        <i
+                          className="bi bi-check-lg"
+                          style={{
+                            color: invoice.verified ? "#22c55e" : "#166534",
+                            fontSize: 22,
+                          }}
+                        />
                       </button>
                       {/* Shipped button */}
                       <button
@@ -1152,35 +1244,68 @@ export default function ActiveInvoices({
                           boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                           border: "none",
                         }}
-                        onClick={e => {
+                        onClick={(e) => {
                           e.stopPropagation();
                           if (hasUnnamedCart(invoice)) {
-                            alert('Cannot ship invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.');
+                            alert(
+                              'Cannot ship invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                            );
                             return;
                           }
                           setShowShippedModal(invoice.id);
                           setShippedTruckNumber("");
                         }}
-                        disabled={invoice.status === 'done' || hasUnnamedCart(invoice)}
-                        title={invoice.status === 'done' ? "Shipped" : hasUnnamedCart(invoice) ? 'Cannot ship with "CARRO SIN NOMBRE" cart' : "Mark as Shipped"}
+                        disabled={
+                          invoice.status === "done" || hasUnnamedCart(invoice)
+                        }
+                        title={
+                          invoice.status === "done"
+                            ? "Shipped"
+                            : hasUnnamedCart(invoice)
+                            ? 'Cannot ship with "CARRO SIN NOMBRE" cart'
+                            : "Mark as Shipped"
+                        }
                       >
-                        <i className="bi bi-truck" style={{ color: '#0ea5e9', fontSize: 22 }} />
+                        <i
+                          className="bi bi-truck"
+                          style={{ color: "#0ea5e9", fontSize: 22 }}
+                        />
                       </button>
                     </div>
                     {/* Show verification status and details on invoice card */}
                     {(invoice.verified || invoice.partiallyVerified) && (
                       <div style={{ marginTop: 8 }}>
-                        <span style={{ fontWeight: 700, color: invoice.verified ? '#22c55e' : '#fbbf24' }}>
-                          {invoice.verified ? 'Fully Verified' : 'Partially Verified'}
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color: invoice.verified ? "#22c55e" : "#fbbf24",
+                          }}
+                        >
+                          {invoice.verified
+                            ? "Fully Verified"
+                            : "Partially Verified"}
                         </span>
                         {invoice.verifiedBy && (
-                          <span style={{ marginLeft: 12, color: '#888', fontWeight: 500 }}>
+                          <span
+                            style={{
+                              marginLeft: 12,
+                              color: "#888",
+                              fontWeight: 500,
+                            }}
+                          >
                             Verifier: {getVerifierName(invoice.verifiedBy)}
                           </span>
                         )}
                         {invoice.verifiedAt && (
-                          <span style={{ marginLeft: 12, color: '#888', fontWeight: 500 }}>
-                            Date: {new Date(invoice.verifiedAt).toLocaleString()}
+                          <span
+                            style={{
+                              marginLeft: 12,
+                              color: "#888",
+                              fontWeight: 500,
+                            }}
+                          >
+                            Date:{" "}
+                            {new Date(invoice.verifiedAt).toLocaleString()}
                           </span>
                         )}
                       </div>
@@ -1350,12 +1475,21 @@ export default function ActiveInvoices({
                               {/* Show product image or icon */}
                               {(() => {
                                 const name = product.name.toLowerCase();
-                                if (name.includes("scrub shirt") || name.includes("scrub top") || name.includes("scrub")) {
+                                if (
+                                  name.includes("scrub shirt") ||
+                                  name.includes("scrub top") ||
+                                  name.includes("scrub")
+                                ) {
                                   return (
                                     <img
                                       src={"/images/products/scrubshirt.png"}
                                       alt="Scrub Shirt"
-                                      style={{ width: "100%", height: 90, objectFit: "contain", borderRadius: 8 }}
+                                      style={{
+                                        width: "100%",
+                                        height: 90,
+                                        objectFit: "contain",
+                                        borderRadius: 8,
+                                      }}
                                     />
                                   );
                                 }
@@ -1364,7 +1498,12 @@ export default function ActiveInvoices({
                                     <img
                                       src={product.imageUrl}
                                       alt={product.name}
-                                      style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8 }}
+                                      style={{
+                                        width: "100%",
+                                        height: 90,
+                                        objectFit: "cover",
+                                        borderRadius: 8,
+                                      }}
                                     />
                                   );
                                 }
@@ -2278,12 +2417,19 @@ export default function ActiveInvoices({
 
       {/* Shipped Modal */}
       {showShippedModal && (
-        <div className="modal show" style={{ display: 'block', background: 'rgba(0,0,0,0.3)' }}>
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Enter Truck Number</h5>
-                <button type="button" className="btn-close" onClick={() => setShowShippedModal(null)}></button>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowShippedModal(null)}
+                ></button>
               </div>
               <div className="modal-body">
                 <input
@@ -2291,21 +2437,33 @@ export default function ActiveInvoices({
                   className="form-control"
                   placeholder="Truck Number"
                   value={shippedTruckNumber}
-                  onChange={e => setShippedTruckNumber(e.target.value.replace(/[^0-9]/g, ""))}
+                  onChange={(e) =>
+                    setShippedTruckNumber(e.target.value.replace(/[^0-9]/g, ""))
+                  }
                   min={1}
                   autoFocus
                 />
               </div>
-                           <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowShippedModal(null)}>Cancel</button>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowShippedModal(null)}
+                >
+                  Cancel
+                </button>
                 <button
                   className="btn btn-info"
                   disabled={!shippedTruckNumber}
                   onClick={async () => {
                     // Update invoice and group status to done, store truck number
-                    const invoice = invoices.find(inv => inv.id === showShippedModal);
+                    const invoice = invoices.find(
+                      (inv) => inv.id === showShippedModal
+                    );
                     if (!invoice) return;
-                    await onUpdateInvoice(invoice.id, { status: 'done', truckNumber: shippedTruckNumber });
+                    await onUpdateInvoice(invoice.id, {
+                      status: "done",
+                      truckNumber: shippedTruckNumber,
+                    });
                     if (user?.username) {
                       await logActivity({
                         type: "Invoice",
@@ -2316,10 +2474,17 @@ export default function ActiveInvoices({
                     // Update group status if invoice has pickupGroupId
                     if (invoice.pickupGroupId) {
                       try {
-                        const { updatePickupGroupStatus } = await import("../services/firebaseService");
-                        const group = pickupGroups.find(g => g.id === invoice.pickupGroupId);
+                        const { updatePickupGroupStatus } = await import(
+                          "../services/firebaseService"
+                        );
+                        const group = pickupGroups.find(
+                          (g) => g.id === invoice.pickupGroupId
+                        );
                         if (group) {
-                          await updatePickupGroupStatus(invoice.pickupGroupId, 'done');
+                          await updatePickupGroupStatus(
+                            invoice.pickupGroupId,
+                            "done"
+                          );
                         }
                       } catch (err) {
                         console.error("Error updating group status:", err);
@@ -2348,14 +2513,16 @@ export default function ActiveInvoices({
           }}
           carts={cartSelectCarts.map(cartToLaundryCart)}
           onAddCart={async (cartName) => {
-            const invoice = invoices.find((inv) => inv.id === selectedInvoiceId);
+            const invoice = invoices.find(
+              (inv) => inv.id === selectedInvoiceId
+            );
             if (!invoice) throw new Error("Invoice not found");
             // Handle delete cart
             if (cartName.startsWith("__delete__")) {
               const cartId = cartName.replace("__delete__", "");
               const updatedCarts = invoice.carts.filter((c) => c.id !== cartId);
               await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-              return { id: cartId, name: '', isActive: false };
+              return { id: cartId, name: "", isActive: false };
             }
             // Handle edit cart name
             if (cartName.startsWith("__edit__")) {
@@ -2374,7 +2541,12 @@ export default function ActiveInvoices({
               await refreshInvoices();
               return { id: invoice.id, name: newInvoiceName, isActive: true };
             }
-            if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) {
+            if (
+              invoice.carts.some(
+                (c) =>
+                  c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
+              )
+            ) {
               throw new Error("Duplicate cart name");
             }
             const newCart = {
@@ -2384,7 +2556,9 @@ export default function ActiveInvoices({
               total: 0,
               createdAt: new Date().toISOString(),
             };
-            await onUpdateInvoice(invoice.id, { carts: [...invoice.carts, newCart] });
+            await onUpdateInvoice(invoice.id, {
+              carts: [...invoice.carts, newCart],
+            });
             await refreshInvoices();
             return { id: newCart.id, name: newCart.name, isActive: true };
           }}
@@ -2394,19 +2568,24 @@ export default function ActiveInvoices({
       {/* Invoice Details Modal */}
       {showInvoiceDetailsModal && selectedInvoice && (
         <InvoiceDetailsModal
-          invoice={invoicesState.find(inv => inv.id === selectedInvoice.id) || selectedInvoice}
+          invoice={
+            invoicesState.find((inv) => inv.id === selectedInvoice.id) ||
+            selectedInvoice
+          }
           client={clients.find((c) => c.id === selectedInvoice.clientId)}
           products={products}
           onClose={() => setShowInvoiceDetailsModal(false)}
           onAddCart={async (cartName) => {
-            const invoice = invoicesState.find((inv) => inv.id === selectedInvoice.id);
+            const invoice = invoicesState.find(
+              (inv) => inv.id === selectedInvoice.id
+            );
             if (!invoice) throw new Error("Invoice not found");
             if (cartName.startsWith("__delete__")) {
               const cartId = cartName.replace("__delete__", "");
               const updatedCarts = invoice.carts.filter((c) => c.id !== cartId);
               await onUpdateInvoice(invoice.id, { carts: updatedCarts });
               await refreshInvoices();
-              return { id: cartId, name: '', isActive: false };
+              return { id: cartId, name: "", isActive: false };
             }
             if (cartName.startsWith("__edit__")) {
               const [_, cartId, ...nameParts] = cartName.split("__");
@@ -2425,7 +2604,12 @@ export default function ActiveInvoices({
               await refreshInvoices();
               return { id: invoice.id, name: newInvoiceName, isActive: true };
             }
-            if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) {
+            if (
+              invoice.carts.some(
+                (c) =>
+                  c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
+              )
+            ) {
               throw new Error("Duplicate cart name");
             }
             const newCart = {
@@ -2435,56 +2619,30 @@ export default function ActiveInvoices({
               total: 0,
               createdAt: new Date().toISOString(),
             };
-            await onUpdateInvoice(invoice.id, { carts: [...invoice.carts, newCart] });
+            await onUpdateInvoice(invoice.id, {
+              carts: [...invoice.carts, newCart],
+            });
             await refreshInvoices();
             return { id: newCart.id, name: newCart.name, isActive: true };
           }}
-          onAddProductToCart={async (cartId, productId, quantity) => {
-            const invoice = invoicesState.find((inv) => inv.id === selectedInvoice.id);
+          onAddProductToCart={async (cartId, productId, quantity, _price, itemIdx) => {
+            const invoice = invoicesState.find(
+              (inv) => inv.id === selectedInvoice.id
+            );
             if (!invoice) return;
             const updatedCarts = invoice.carts.map((cart) => {
               if (cart.id !== cartId) return cart;
-              const existingIdx = cart.items.findIndex((item) => item.productId === productId);
               let newItems;
-              if (existingIdx > -1) {
-                newItems = cart.items.map((item, idx) =>
-                  idx === existingIdx
-                    ? {
-                        ...item,
-                        quantity: quantity,
-                        price: item.price,
-                      }
-                    : item
+              if (quantity === 0 && typeof itemIdx === "number") {
+                // Remove only the entry at the given index with matching productId
+                newItems = cart.items.filter(
+                  (item, idx) =>
+                    !(item.productId === productId && idx === itemIdx)
                 );
               } else {
-                const prod = products.find((p) => p.id === productId);
-                newItems = [
-                  ...cart.items,
-                  {
-                    productId: productId,
-                    productName: prod ? prod.name : '',
-                    quantity: quantity,
-                    price: prod ? prod.price : 0,
-                    addedBy: 'You',
-                  },
-                ];
-              }
-              return { ...cart, items: newItems };
-            });
-            await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-            await refreshInvoices();
-          }}
-          onAddProductToCart={async (cartId, productId, quantity, _price, itemIdx) => {
-            const invoice = invoicesState.find((inv) => inv.id === selectedInvoice.id);
-            if (!invoice) return;
-            const updatedCarts = invoice.carts.map((cart) => {
-              if (cart.id !== cartId) return cart;
-              let newItems;
-              if (quantity === 0 && typeof itemIdx === 'number') {
-                // Remove only the entry at the given index with matching productId
-                newItems = cart.items.filter((item, idx) => !(item.productId === productId && idx === itemIdx));
-              } else {
-                const existingIdx = cart.items.findIndex((item) => item.productId === productId);
+                const existingIdx = cart.items.findIndex(
+                  (item) => item.productId === productId
+                );
                 if (existingIdx > -1) {
                   newItems = cart.items.map((item, idx) =>
                     idx === existingIdx
@@ -2501,10 +2659,10 @@ export default function ActiveInvoices({
                     ...cart.items,
                     {
                       productId: productId,
-                      productName: prod ? prod.name : '',
+                      productName: prod ? prod.name : "",
                       quantity: quantity,
                       price: prod ? prod.price : 0,
-                      addedBy: 'You',
+                      addedBy: "You",
                     },
                   ];
                 }
@@ -2520,30 +2678,51 @@ export default function ActiveInvoices({
 
       {/* Verification Modal */}
       {verifyInvoiceId && (
-        <div className="modal show" style={{ display: 'block', background: 'rgba(0,0,0,0.3)' }}>
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Verify Invoice Items</h5>
-                <button type="button" className="btn-close" onClick={() => setVerifyInvoiceId(null)}></button>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setVerifyInvoiceId(null)}
+                ></button>
               </div>
               <div className="modal-body">
                 {(() => {
-                  const invoice = invoices.find(inv => inv.id === verifyInvoiceId);
+                  const invoice = invoices.find(
+                    (inv) => inv.id === verifyInvoiceId
+                  );
                   if (!invoice) return null;
-                  return invoice.carts.map(cart => (
+                  return invoice.carts.map((cart) => (
                     <div key={cart.id} className="mb-3">
                       <div className="fw-bold mb-1">{cart.name}</div>
                       <ul className="list-group">
-                        {cart.items.map(item => (
-                          <li key={item.productId} className="list-group-item d-flex align-items-center">
+                        {cart.items.map((item) => (
+                          <li
+                            key={item.productId}
+                            className="list-group-item d-flex align-items-center"
+                          >
                             <input
                               type="checkbox"
                               className="form-check-input me-2"
-                              checked={!!verifyChecks[cart.id]?.[item.productId]}
-                              onChange={() => toggleVerifyCheck(cart.id, item.productId)}
+                              checked={
+                                !!verifyChecks[cart.id]?.[item.productId]
+                              }
+                              onChange={() =>
+                                toggleVerifyCheck(cart.id, item.productId)
+                              }
                             />
-                            <span>{item.productName} <span className="text-muted">x{item.quantity}</span></span>
+                            <span>
+                              {item.productName}{" "}
+                              <span className="text-muted">
+                                x{item.quantity}
+                              </span>
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -2552,8 +2731,17 @@ export default function ActiveInvoices({
                 })()}
               </div>
               <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setVerifyInvoiceId(null)}>Cancel</button>
-                <button className="btn btn-success" onClick={handleVerifyDone} disabled={!anyVerified()}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setVerifyInvoiceId(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-success"
+                  onClick={handleVerifyDone}
+                  disabled={!anyVerified()}
+                >
                   Done
                 </button>
               </div>

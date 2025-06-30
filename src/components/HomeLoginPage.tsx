@@ -101,12 +101,12 @@ const HomeLoginPage: React.FC = () => {
   };
 
   const handleKeypad = (val: string) => {
-    if (val === 'C') {
+    if (val === "C") {
       setPassword("");
       setError(null);
       return;
     }
-    if (val === '←') {
+    if (val === "←") {
       setPassword((p) => p.slice(0, -1));
       setError(null);
       return;
@@ -152,27 +152,101 @@ const HomeLoginPage: React.FC = () => {
             </h3>
             <div style={{ marginBottom: 16 }}>
               {/* Keypad for numeric login */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{
-                  fontSize: 28,
-                  letterSpacing: 6,
-                  fontWeight: 700,
-                  marginBottom: 10,
-                  minHeight: 36,
-                  textAlign: 'center',
-                  border: '1px solid #ccc',
-                  borderRadius: 6,
-                  width: 180,
-                  background: '#f8f9fa',
-                  padding: 6
-                }}>{password || <span style={{ color: '#bbb' }}>Enter Number</span>}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 56px)', gap: 8 }}>
-                  {[1,2,3,4,5,6,7,8,9].map(n => (
-                    <button type="button" key={n} style={{ fontSize: 22, padding: 0, height: 48, width: 56, borderRadius: 8, border: '1px solid #ccc', background: '#fff' }} onClick={() => handleKeypad(String(n))}>{n}</button>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 28,
+                    letterSpacing: 6,
+                    fontWeight: 700,
+                    marginBottom: 10,
+                    minHeight: 36,
+                    textAlign: "center",
+                    border: "1px solid #ccc",
+                    borderRadius: 6,
+                    width: 180,
+                    background: "#f8f9fa",
+                    padding: 6,
+                  }}
+                >
+                  {password || (
+                    <span style={{ color: "#bbb" }}>Enter Number</span>
+                  )}
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 56px)",
+                    gap: 8,
+                  }}
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                    <button
+                      type="button"
+                      key={n}
+                      style={{
+                        fontSize: 22,
+                        padding: 0,
+                        height: 48,
+                        width: 56,
+                        borderRadius: 8,
+                        border: "1px solid #ccc",
+                        background: "#fff",
+                      }}
+                      onClick={() => handleKeypad(String(n))}
+                    >
+                      {n}
+                    </button>
                   ))}
-                  <button type="button" style={{ fontSize: 22, height: 48, width: 56, borderRadius: 8, border: '1px solid #ccc', background: '#fff' }} onClick={() => handleKeypad('←')}>&larr;</button>
-                  <button type="button" style={{ fontSize: 22, height: 48, width: 56, borderRadius: 8, border: '1px solid #ccc', background: '#fff' }} onClick={() => handleKeypad('0')}>0</button>
-                  <button type="button" style={{ fontSize: 22, height: 48, width: 56, borderRadius: 8, border: '1px solid #ccc', background: '#fff', color: '#b71c1c', fontWeight: 700 }} onClick={() => handleKeypad('C')}>C</button>
+                  <button
+                    type="button"
+                    style={{
+                      fontSize: 22,
+                      height: 48,
+                      width: 56,
+                      borderRadius: 8,
+                      border: "1px solid #ccc",
+                      background: "#fff",
+                    }}
+                    onClick={() => handleKeypad("←")}
+                  >
+                    &larr;
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      fontSize: 22,
+                      height: 48,
+                      width: 56,
+                      borderRadius: 8,
+                      border: "1px solid #ccc",
+                      background: "#fff",
+                    }}
+                    onClick={() => handleKeypad("0")}
+                  >
+                    0
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      fontSize: 22,
+                      height: 48,
+                      width: 56,
+                      borderRadius: 8,
+                      border: "1px solid #ccc",
+                      background: "#fff",
+                      color: "#b71c1c",
+                      fontWeight: 700,
+                    }}
+                    onClick={() => handleKeypad("C")}
+                  >
+                    C
+                  </button>
                 </div>
               </div>
             </div>

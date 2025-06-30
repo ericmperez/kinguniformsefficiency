@@ -112,10 +112,34 @@ function App() {
           <ul className="navbar-nav me-auto mb-2 mb-lg-0">
             {/* ...existing nav links... */}
             <li className="nav-item">
-              <Link className="nav-link d-flex align-items-center" to="/supervisor">
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: '#fff', border: '2px solid #D72328', borderRadius: '50%', marginRight: 6 }}>
+              <Link
+                className="nav-link d-flex align-items-center"
+                to="/supervisor"
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 28,
+                    height: 28,
+                    background: "#fff",
+                    border: "2px solid #D72328",
+                    borderRadius: "50%",
+                    marginRight: 6,
+                  }}
+                >
                   {/* Inline SVG for person icon */}
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#D72328" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: 22, height: 22, marginRight: 0 }}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#D72328"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ width: 22, height: 22, marginRight: 0 }}
+                  >
                     <circle cx="12" cy="8" r="4" />
                     <path d="M4 20c0-4 8-4 8-4s8 0 8 4" />
                   </svg>
@@ -124,9 +148,27 @@ function App() {
               </Link>
             </li>
             <li className="nav-item">
-              <Link className="nav-link d-flex align-items-center" to="/send-invoice">
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: '#fff', border: '2px solid #0ea5e9', borderRadius: '50%', marginRight: 6 }}>
-                  <i className="bi bi-envelope-paper" style={{ fontSize: 18, color: '#0ea5e9' }}></i>
+              <Link
+                className="nav-link d-flex align-items-center"
+                to="/send-invoice"
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 28,
+                    height: 28,
+                    background: "#fff",
+                    border: "2px solid #0ea5e9",
+                    borderRadius: "50%",
+                    marginRight: 6,
+                  }}
+                >
+                  <i
+                    className="bi bi-envelope-paper"
+                    style={{ fontSize: 18, color: "#0ea5e9" }}
+                  ></i>
                 </span>
                 <span className="d-none d-lg-inline">Send Invoice</span>
               </Link>
@@ -140,7 +182,10 @@ function App() {
         >
           <Routes>
             {/* ...existing routes... */}
-            <Route path="/supervisor" element={<Supervisor clients={clients} invoices={invoices} />} />
+            <Route
+              path="/supervisor"
+              element={<Supervisor clients={clients} invoices={invoices} />}
+            />
             <Route path="/send-invoice" element={<SendInvoicePage />} />
             {/* Example: <Route path="/active-invoices" element={<ActiveInvoices />} /> */}
           </Routes>
