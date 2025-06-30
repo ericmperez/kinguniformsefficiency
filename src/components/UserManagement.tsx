@@ -9,6 +9,7 @@ interface UserRecord {
   role: UserRole;
   allowedComponents?: AppComponentKey[];
   defaultPage?: AppComponentKey;
+  logoutTimeout?: number; // in seconds
 }
 
 type UserManagementProps = {};
@@ -43,6 +44,8 @@ export default function UserManagement(props: UserManagementProps) {
   const [editDefaultPage, setEditDefaultPage] = useState<
     AppComponentKey | undefined
   >(undefined);
+  const [logoutTimeout, setLogoutTimeout] = useState<number>(20);
+  const [editLogoutTimeout, setEditLogoutTimeout] = useState<number>(20);
 
   useEffect(() => {
     if (!user) return;
@@ -63,6 +66,7 @@ export default function UserManagement(props: UserManagementProps) {
                 role: (data.role as UserRole) || "Employee",
                 allowedComponents: data.allowedComponents,
                 defaultPage: data.defaultPage,
+                logoutTimeout: data.logoutTimeout,
               };
             })
             .filter((user) => /^\d{4}$/.test(user.id)) // Only show users with a valid 4-digit code
@@ -78,7 +82,7 @@ export default function UserManagement(props: UserManagementProps) {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!/^\d{4}$/.test(id)) {
+    if (!/^[0-9]{4}$/.test(id)) {
       setError("ID must be a 4-digit number");
       return;
     }
@@ -98,8 +102,9 @@ export default function UserManagement(props: UserManagementProps) {
       id,
       username: username.trim(),
       role,
-      allowedComponents: role === "Owner" ? undefined : [], // Always set for non-Owner
+      allowedComponents: role === "Owner" ? undefined : [],
       defaultPage: undefined,
+      logoutTimeout: logoutTimeout || 20,
     };
     setLoading(true);
     await addUser(newUser);
@@ -110,6 +115,7 @@ export default function UserManagement(props: UserManagementProps) {
     setId("");
     setUsername("");
     setRole("Employee");
+    setLogoutTimeout(20);
     setLoading(false);
   };
 
@@ -130,6 +136,7 @@ export default function UserManagement(props: UserManagementProps) {
     setEditRole(user.role);
     setEditAllowedComponents(user.allowedComponents || []);
     setEditDefaultPage(user.defaultPage);
+    setEditLogoutTimeout(user.logoutTimeout || 20);
   };
 
   const handleEditCancel = () => {
@@ -144,7 +151,7 @@ export default function UserManagement(props: UserManagementProps) {
 
   const handleEditSave = async (oldId: string) => {
     setError(null);
-    if (!/^\d{4}$/.test(editId)) {
+    if (!/^[0-9]{4}$/.test(editId)) {
       setError("ID must be a 4-digit number");
       return;
     }
@@ -170,6 +177,7 @@ export default function UserManagement(props: UserManagementProps) {
       allowedComponents:
         editAllowedComponents.length > 0 ? editAllowedComponents : undefined,
       defaultPage: editDefaultPage,
+      logoutTimeout: editLogoutTimeout || 20,
     });
     await logActivity({
       type: "User",
@@ -181,6 +189,7 @@ export default function UserManagement(props: UserManagementProps) {
     setEditRole("Employee");
     setEditAllowedComponents([]);
     setEditDefaultPage(undefined);
+    setEditLogoutTimeout(20);
     setLoading(false);
   };
 
@@ -226,6 +235,18 @@ export default function UserManagement(props: UserManagementProps) {
           </select>
         </div>
         <div className="col-md-2">
+          <label className="form-label">Auto-logout (seconds)</label>
+          <input
+            type="number"
+            className="form-control"
+            value={logoutTimeout}
+            min={10}
+            max={3600}
+            onChange={e => setLogoutTimeout(Number(e.target.value))}
+            required
+          />
+        </div>
+        <div className="col-md-2">
           <button
             className="btn btn-primary w-100"
             type="submit"
@@ -258,6 +279,7 @@ export default function UserManagement(props: UserManagementProps) {
                   <th>Role</th>
                   <th>Allowed Components</th>
                   <th>Default Page</th>
+                  <th>Auto-logout (s)</th>
                   <th></th>
                 </tr>
               </thead>
@@ -389,6 +411,21 @@ export default function UserManagement(props: UserManagementProps) {
                     </td>
                     <td>
                       {editingId === u.id ? (
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          value={editLogoutTimeout}
+                          min={10}
+                          max={3600}
+                          onChange={e => setEditLogoutTimeout(Number(e.target.value))}
+                          required
+                        />
+                      ) : (
+                        <span>{u.logoutTimeout || 20} s</span>
+                      )}
+                    </td>
+                    <td>
+                      {editingId === u.id ? (
                         <>
                           <button
                             className="btn btn-success btn-sm me-1"
@@ -429,7 +466,7 @@ export default function UserManagement(props: UserManagementProps) {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center text-muted">
+                    <td colSpan={7} className="text-center text-muted">
                       No users yet.
                     </td>
                   </tr>

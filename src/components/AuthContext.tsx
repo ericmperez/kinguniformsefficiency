@@ -9,6 +9,7 @@ interface AuthUser {
   username: string;
   allowedComponents?: import("../permissions").AppComponentKey[];
   defaultPage?: import("../permissions").AppComponentKey;
+  logoutTimeout?: number;
 }
 
 interface AuthContextType {
@@ -68,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       username: found.username,
       allowedComponents: found.allowedComponents,
       defaultPage: found.defaultPage,
+      logoutTimeout: found.logoutTimeout || 20,
     };
     setUser(userObj);
     localStorage.setItem("auth_user", JSON.stringify(userObj));

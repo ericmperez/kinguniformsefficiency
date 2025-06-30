@@ -5,8 +5,11 @@ import Supervisor from "./Supervisor";
 import SendInvoicePage from "./SendInvoicePage";
 import "./App.css";
 import { Client, Invoice, Product, Cart } from "../types";
+import { useAuth } from "./AuthContext";
 
 function App() {
+  const { user, logout } = useAuth();
+
   // Dummy data for clients and invoices (fully typed)
   const clients: Client[] = [
     {
@@ -71,6 +74,28 @@ function App() {
       note: undefined,
     },
   ];
+
+  // --- Auto-logout after user-defined inactivity timeout ---
+  React.useEffect(() => {
+    if (!user) return;
+    let timer: NodeJS.Timeout;
+    const timeout = (user.logoutTimeout || 20) * 1000;
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        logout();
+        alert("You have been logged out due to inactivity.");
+      }, timeout);
+    };
+    // Listen for user activity
+    const events = ["mousemove", "keydown", "mousedown", "touchstart"];
+    events.forEach((event) => window.addEventListener(event, resetTimer));
+    resetTimer();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
+    };
+  }, [user, logout]);
 
   return (
     <Router>

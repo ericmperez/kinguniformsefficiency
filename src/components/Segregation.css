@@ -77,3 +77,67 @@
     margin-right: 24px !important;
   }
 }
+
+/* --- Ensure action buttons (trash, arrows) always visible and aligned --- */
+.seg-row {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  align-items: center !important;
+}
+.seg-row > div {
+  min-width: unset !important;
+  flex: unset !important;
+  margin-bottom: 0 !important;
+  margin-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  font-size: 15px !important;
+  white-space: nowrap;
+}
+.seg-row .segregation-action-col,
+.seg-row .segregation-arrows-col {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  min-width: 36px !important;
+  flex: 0 0 36px !important;
+}
+.seg-row .btn,
+.seg-row .btn-sm,
+.seg-row .btn-outline-danger,
+.seg-row .btn-outline-secondary {
+  font-size: 15px !important;
+  min-width: 28px !important;
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .seg-row {
+    flex-wrap: wrap !important;
+  }
+  .seg-row > div {
+    min-width: 90px !important;
+    flex: 1 1 100% !important;
+    white-space: normal;
+  }
+  .seg-row .segregation-action-col,
+  .seg-row .segregation-arrows-col {
+    min-width: 36px !important;
+    flex: 0 0 36px !important;
+    gap: 6px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .seg-row > div {
+    min-width: 70px !important;
+  }
+}

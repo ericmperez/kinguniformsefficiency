@@ -219,6 +219,19 @@ const Segregation: React.FC<SegregationProps> = ({
     return () => unsub();
   }, [todayStr]);
 
+  // Handler to delete a segregation group
+  const handleDeleteSegregationGroup = async (groupId: string) => {
+    if (!window.confirm("Delete this group and all its data? This action cannot be undone.")) return;
+    // Optimistically update UI
+    setGroups((prev) => prev.filter((g) => g.id !== groupId));
+    try {
+      await updateDoc(doc(db, "pickup_groups", groupId), { status: "deleted" });
+    } catch (e) {
+      // Optionally show error and revert UI if needed
+      // For now, do nothing (UI will sync with Firestore on next snapshot)
+    }
+  };
+
   // Helper to get current user (from localStorage or context)
   const getCurrentUser = () => {
     try {
@@ -541,6 +554,25 @@ const Segregation: React.FC<SegregationProps> = ({
                   className="mb-2 mb-md-0"
                 >
                   Carros: <strong>{getCartCount(group.id)}</strong>
+                </div>
+                <div
+                  style={{
+                    flex: "0 0 48px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: 48,
+                  }}
+                  className="mb-2 mb-md-0"
+                >
+                  <button
+                    className="btn btn-outline-danger btn-sm rounded-circle"
+                    title="Delete group"
+                    onClick={() => handleDeleteSegregationGroup(group.id)}
+                    style={{ width: 36, height: 36, fontSize: 18 }}
+                  >
+                    <span aria-hidden="true">🗑️</span>
+                  </button>
                 </div>
                 <div
                   style={{

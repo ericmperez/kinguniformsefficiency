@@ -130,9 +130,10 @@ export interface UserRecord {
   id: string;
   username: string;
   role: string;
+  logoutTimeout?: number;
 }
 
-export type UserUpdate = Partial<UserRecord> & { allowedComponents?: AppComponentKey[]; defaultPage?: AppComponentKey };
+export type UserUpdate = Partial<UserRecord> & { allowedComponents?: AppComponentKey[]; defaultPage?: AppComponentKey; logoutTimeout?: number };
 
 export const addUser = async (user: UserRecord): Promise<void> => {
   // Always set the id field to the intended login ID
