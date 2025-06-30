@@ -72,6 +72,28 @@ export default function LaundryCartModal({
             ></button>
           </div>
           <div className="modal-body">
+            <button
+              className="btn btn-success mb-3"
+              style={{ width: "100%" }}
+              onClick={async () => {
+                try {
+                  // Find next available number for CARRO SIN NOMBRE
+                  const existingNumbers = carts
+                    .map((c) => c.name.match(/^CARRO SIN NOMBRE (\d+)$/i))
+                    .filter((m) => Boolean(m && m[1]))
+                    .map((m) => parseInt(m![1], 10));
+                  let nextNum = 1;
+                  while (existingNumbers.includes(nextNum)) nextNum++;
+                  const defaultName = `CARRO SIN NOMBRE ${nextNum}`;
+                  const newCart = await onAddCart(defaultName);
+                  await onSelect(newCart);
+                } catch (e) {
+                  alert("Error creating default cart");
+                }
+              }}
+            >
+              + Create Default Cart
+            </button>
             {!showNewCartForm ? (
               <>
                 <div className="mb-3">
@@ -82,6 +104,11 @@ export default function LaundryCartModal({
                         key={cart.id}
                         className="list-group-item list-group-item-action"
                         onClick={() => onSelect(cart)}
+                        style={
+                          cart.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
+                            ? { color: "red", fontWeight: 700 }
+                            : {}
+                        }
                       >
                         {cart.name}
                       </button>

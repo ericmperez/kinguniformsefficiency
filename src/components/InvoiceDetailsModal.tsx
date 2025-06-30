@@ -148,16 +148,44 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             )}
             <div className="mb-3">
               {!showNewCartInput ? (
-                <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    setShowNewCartInput(true);
-                    setShowCartKeypad(true);
-                    setNewCartName("");
-                  }}
-                >
-                  Create New Cart
-                </button>
+                <>
+                  <button
+                    className="btn btn-primary me-2"
+                    onClick={() => {
+                      setShowNewCartInput(true);
+                      setShowCartKeypad(true);
+                      setNewCartName("");
+                    }}
+                  >
+                    Create New Cart
+                  </button>
+                  <button
+                    className="btn btn-success"
+                    onClick={async () => {
+                      // Find next available number for CARRO SIN NOMBRE
+                      const existingNumbers = localCarts
+                        .map(c => c.name.match(/^CARRO SIN NOMBRE (\d+)$/i))
+                        .filter(m => Boolean(m && m[1]))
+                        .map(m => parseInt(m![1], 10));
+                      let nextNum = 1;
+                      while (existingNumbers.includes(nextNum)) nextNum++;
+                      const defaultName = `CARRO SIN NOMBRE ${nextNum}`;
+                      const newCart: LaundryCart = await onAddCart(defaultName);
+                      setLocalCarts([
+                        ...localCarts,
+                        {
+                          id: newCart.id,
+                          name: newCart.name,
+                          items: [],
+                          total: 0,
+                          createdAt: new Date().toISOString(),
+                        },
+                      ]);
+                    }}
+                  >
+                    + Create Default Cart
+                  </button>
+                </>
               ) : (
                 <div className="d-flex gap-2 align-items-center">
                   <input
@@ -234,7 +262,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               <div key={cart.id} className="cart-section mb-4 p-2 border rounded" style={{background: '#f8fafc', boxShadow: '0 2px 8px #e0e7ef'}}>
                 <div className="d-flex justify-content-between align-items-center mb-2">
                   <div>
-                    <h3 style={{ fontWeight: 800, color: '#0E62A0', marginBottom: 8 }}>CART #{cart.name}</h3>
+                    <h3 style={{ fontWeight: 800, color: cart.name.toUpperCase().startsWith('CARRO SIN NOMBRE') ? 'red' : '#0E62A0', marginBottom: 8 }}>
+                      CART #{cart.name}
+                    </h3>
                   </div>
                   <div className="d-flex gap-2">
                     <button

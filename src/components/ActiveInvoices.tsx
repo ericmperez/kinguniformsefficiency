@@ -79,6 +79,13 @@ function cartToLaundryCart(cart: Cart): LaundryCart {
   };
 }
 
+// Helper to check if invoice has any 'CARRO SIN NOMBRE' cart
+function hasUnnamedCart(invoice: Invoice) {
+  return (invoice.carts || []).some((c) =>
+    c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
+  );
+}
+
 export default function ActiveInvoices({
   clients,
   products,
@@ -999,7 +1006,7 @@ export default function ActiveInvoices({
                         style={{
                           fontWeight: 800,
                           fontSize: 24,
-                          color: "#222",
+                          color: (invoice.carts || []).some(c => c.name.toUpperCase().startsWith('CARRO SIN NOMBRE')) ? 'red' : '#222',
                           marginBottom: 4,
                         }}
                       >
@@ -1073,6 +1080,10 @@ export default function ActiveInvoices({
                         }}
                         onClick={e => {
                           e.stopPropagation();
+                          if (hasUnnamedCart(invoice)) {
+                            alert('Cannot verify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.');
+                            return;
+                          }
                           setVerifyInvoiceId(invoice.id); // open verify modal
                           // Build initial check state for modal
                           const checks: Record<string, Record<string, boolean>> = {};
@@ -1084,8 +1095,8 @@ export default function ActiveInvoices({
                           }
                           setVerifyChecks(checks);
                         }}
-                        disabled={invoice.verified}
-                        title={invoice.verified ? "Verified" : "Verify"}
+                        disabled={invoice.verified || hasUnnamedCart(invoice)}
+                        title={invoice.verified ? "Verified" : hasUnnamedCart(invoice) ? 'Cannot verify with "CARRO SIN NOMBRE" cart' : "Verify"}
                       >
                         <i className="bi bi-check-lg" style={{ color: invoice.verified ? '#22c55e' : '#166534', fontSize: 22 }} />
                       </button>
@@ -1106,11 +1117,15 @@ export default function ActiveInvoices({
                         }}
                         onClick={e => {
                           e.stopPropagation();
+                          if (hasUnnamedCart(invoice)) {
+                            alert('Cannot ship invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.');
+                            return;
+                          }
                           setShowShippedModal(invoice.id);
                           setShippedTruckNumber("");
                         }}
-                        disabled={invoice.status === 'done'}
-                        title={invoice.status === 'done' ? "Shipped" : "Mark as Shipped"}
+                        disabled={invoice.status === 'done' || hasUnnamedCart(invoice)}
+                        title={invoice.status === 'done' ? "Shipped" : hasUnnamedCart(invoice) ? 'Cannot ship with "CARRO SIN NOMBRE" cart' : "Mark as Shipped"}
                       >
                         <i className="bi bi-truck" style={{ color: '#0ea5e9', fontSize: 22 }} />
                       </button>
@@ -2080,18 +2095,37 @@ export default function ActiveInvoices({
                     </label>
                   </div>
                 </div>
-                {(addToGroupMode === "quantity" ||
-                  addToGroupMode === "pounds") && (
+                {addProductMode === "cart" && (
+                  <div className="mb-3">
+                    <label className="form-label">Select Cart</label>
+                    <select
+                      className="form-select"
+                      value={selectedCartId}
+                      onChange={(e) => setSelectedCartId(e.target.value)}
+                    >
+                      <option value="">-- Select a cart --</option>
+                      {(addProductGroup.carts || []).map(
+                        (cart: any, idx: number) => (
+                          <option key={cart.id || idx} value={cart.id}>
+                            {cart.name}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+                )}
+                {(addProductMode === "quantity" ||
+                  addProductMode === "pounds") && (
                   <div className="mb-3">
                     <label className="form-label">
-                      {addToGroupMode === "quantity" ? "Quantity" : "Pounds"}
+                      {addProductMode === "quantity" ? "Quantity" : "Pounds"}
                     </label>
                     <input
                       type="number"
                       className="form-control"
                       min={1}
-                      value={addToGroupValue}
-                      onChange={(e) => setAddToGroupValue(Number(e.target.value))}
+                      value={addProductQty}
+                      onChange={(e) => setAddProductQty(Number(e.target.value))}
                     />
                   </div>
                 )}
