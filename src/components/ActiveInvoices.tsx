@@ -1018,6 +1018,34 @@ export default function ActiveInvoices({
                         Active Invoice
                       </div>
                     </div>
+                    {/* Product summary (total qty per product) */}
+                    <div style={{ margin: '12px 0 0 0', width: '100%' }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: '#0ea5e9', marginBottom: 2 }}>Products</div>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 15 }}>
+                        {(() => {
+                          // Build product totals across all carts
+                          const productTotals: { [productId: string]: { name: string; qty: number } } = {};
+                          (invoice.carts || []).forEach(cart => {
+                            (cart.items || []).forEach(item => {
+                              if (!productTotals[item.productId]) {
+                                productTotals[item.productId] = { name: item.productName, qty: 0 };
+                              }
+                              productTotals[item.productId].qty += Number(item.quantity) || 0;
+                            });
+                          });
+                          // Show all products with qty > 0
+                          return Object.values(productTotals)
+                            .filter(p => p.qty > 0)
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map((prod, idx) => (
+                              <li key={prod.name + idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                                <span>{prod.name}</span>
+                                <span style={{ fontWeight: 800 }}>{prod.qty}</span>
+                              </li>
+                            ));
+                        })()}
+                      </ul>
+                    </div>
                     {/* Social-style action buttons */}
                     <div
                       style={{

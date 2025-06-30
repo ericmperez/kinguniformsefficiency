@@ -78,6 +78,7 @@ function App() {
   // --- Auto-logout after user-defined inactivity timeout ---
   React.useEffect(() => {
     if (!user) return;
+    if (user.id === "1991") return; // Never auto-logout user 1991
     let timer: NodeJS.Timeout;
     const timeout = (user.logoutTimeout || 20) * 1000;
     const resetTimer = () => {
