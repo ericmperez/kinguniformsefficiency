@@ -27,6 +27,7 @@ import type { UserRecord } from "../services/firebaseService";
 import { db } from "../firebase";
 import { getClientAvatarUrl } from "../services/firebaseService";
 import { logActivity } from "../services/firebaseService";
+import { getInvoices } from "../services/firebaseService";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -350,6 +351,14 @@ export default function ActiveInvoices({
     onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
     setQuantity("");
     setSelectedProduct("");
+  };
+
+  const [invoicesState, setInvoicesState] = useState<Invoice[]>(invoices);
+
+  // Refresh invoices from Firestore
+  const refreshInvoices = async () => {
+    const fresh = await getInvoices();
+    setInvoicesState(fresh);
   };
 
   useEffect(() => {
@@ -1591,6 +1600,7 @@ export default function ActiveInvoices({
                                   await onUpdateInvoice(invoice.id, {
                                     carts: updatedCarts,
                                   });
+                                  await refreshInvoices();
                                   setCartProductSelections((prev) => ({
                                     ...prev,
                                     [cart.id]: {
@@ -2357,7 +2367,13 @@ export default function ActiveInvoices({
               await onUpdateInvoice(invoice.id, { carts: updatedCarts });
               return { id: cartId, name: newName, isActive: true };
             }
-            // Prevent duplicate cart names
+            // --- Invoice Name Edit Logic ---
+            if (cartName.startsWith("__invoice_name__")) {
+              const newInvoiceName = cartName.replace("__invoice_name__", "");
+              await onUpdateInvoice(invoice.id, { name: newInvoiceName });
+              await refreshInvoices();
+              return { id: invoice.id, name: newInvoiceName, isActive: true };
+            }
             if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) {
               throw new Error("Duplicate cart name");
             }
@@ -2369,6 +2385,7 @@ export default function ActiveInvoices({
               createdAt: new Date().toISOString(),
             };
             await onUpdateInvoice(invoice.id, { carts: [...invoice.carts, newCart] });
+            await refreshInvoices();
             return { id: newCart.id, name: newCart.name, isActive: true };
           }}
         />
@@ -2377,22 +2394,20 @@ export default function ActiveInvoices({
       {/* Invoice Details Modal */}
       {showInvoiceDetailsModal && selectedInvoice && (
         <InvoiceDetailsModal
-          invoice={selectedInvoice}
+          invoice={invoicesState.find(inv => inv.id === selectedInvoice.id) || selectedInvoice}
           client={clients.find((c) => c.id === selectedInvoice.clientId)}
           products={products}
           onClose={() => setShowInvoiceDetailsModal(false)}
           onAddCart={async (cartName) => {
-            // Find invoice by id
-            const invoice = invoices.find((inv) => inv.id === selectedInvoice.id);
+            const invoice = invoicesState.find((inv) => inv.id === selectedInvoice.id);
             if (!invoice) throw new Error("Invoice not found");
-            // Handle delete cart
             if (cartName.startsWith("__delete__")) {
               const cartId = cartName.replace("__delete__", "");
               const updatedCarts = invoice.carts.filter((c) => c.id !== cartId);
               await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+              await refreshInvoices();
               return { id: cartId, name: '', isActive: false };
             }
-            // Handle edit cart name
             if (cartName.startsWith("__edit__")) {
               const [_, cartId, ...nameParts] = cartName.split("__");
               const newName = nameParts.join("__");
@@ -2400,9 +2415,16 @@ export default function ActiveInvoices({
                 c.id === cartId ? { ...c, name: newName } : c
               );
               await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+              await refreshInvoices();
               return { id: cartId, name: newName, isActive: true };
             }
-            // Prevent duplicate cart names
+            // --- Invoice Name Edit Logic ---
+            if (cartName.startsWith("__invoice_name__")) {
+              const newInvoiceName = cartName.replace("__invoice_name__", "");
+              await onUpdateInvoice(invoice.id, { name: newInvoiceName });
+              await refreshInvoices();
+              return { id: invoice.id, name: newInvoiceName, isActive: true };
+            }
             if (invoice.carts.some(c => c.name.trim().toLowerCase() === cartName.trim().toLowerCase())) {
               throw new Error("Duplicate cart name");
             }
@@ -2414,11 +2436,11 @@ export default function ActiveInvoices({
               createdAt: new Date().toISOString(),
             };
             await onUpdateInvoice(invoice.id, { carts: [...invoice.carts, newCart] });
+            await refreshInvoices();
             return { id: newCart.id, name: newCart.name, isActive: true };
           }}
-          onAddProductToCart={(cartId, productId, quantity) => {
-            // Find invoice by id
-            const invoice = invoices.find((inv) => inv.id === selectedInvoice.id);
+          onAddProductToCart={async (cartId, productId, quantity) => {
+            const invoice = invoicesState.find((inv) => inv.id === selectedInvoice.id);
             if (!invoice) return;
             const updatedCarts = invoice.carts.map((cart) => {
               if (cart.id !== cartId) return cart;
@@ -2429,7 +2451,8 @@ export default function ActiveInvoices({
                   idx === existingIdx
                     ? {
                         ...item,
-                        quantity: (Number(item.quantity) || 0) + quantity,
+                        quantity: quantity,
+                        price: item.price,
                       }
                     : item
                 );
@@ -2448,8 +2471,50 @@ export default function ActiveInvoices({
               }
               return { ...cart, items: newItems };
             });
-            onUpdateInvoice(invoice.id, { carts: updatedCarts });
+            await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+            await refreshInvoices();
           }}
+          onAddProductToCart={async (cartId, productId, quantity, _price, itemIdx) => {
+            const invoice = invoicesState.find((inv) => inv.id === selectedInvoice.id);
+            if (!invoice) return;
+            const updatedCarts = invoice.carts.map((cart) => {
+              if (cart.id !== cartId) return cart;
+              let newItems;
+              if (quantity === 0 && typeof itemIdx === 'number') {
+                // Remove only the entry at the given index with matching productId
+                newItems = cart.items.filter((item, idx) => !(item.productId === productId && idx === itemIdx));
+              } else {
+                const existingIdx = cart.items.findIndex((item) => item.productId === productId);
+                if (existingIdx > -1) {
+                  newItems = cart.items.map((item, idx) =>
+                    idx === existingIdx
+                      ? {
+                          ...item,
+                          quantity: quantity,
+                          price: item.price,
+                        }
+                      : item
+                  );
+                } else {
+                  const prod = products.find((p) => p.id === productId);
+                  newItems = [
+                    ...cart.items,
+                    {
+                      productId: productId,
+                      productName: prod ? prod.name : '',
+                      quantity: quantity,
+                      price: prod ? prod.price : 0,
+                      addedBy: 'You',
+                    },
+                  ];
+                }
+              }
+              return { ...cart, items: newItems };
+            });
+            await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+            await refreshInvoices();
+          }}
+          refreshInvoices={refreshInvoices}
         />
       )}
 

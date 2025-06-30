@@ -10,7 +10,13 @@ export type AppComponentKey =
   | 'Report'
   | 'Segregation'
   | 'Washing'
-  | 'GlobalActivityLog';
+  | 'GlobalActivityLog'
+  | 'InvoiceDetailsModal'
+  | 'LaundryCartModal'
+  | 'DriverManagement'
+  | 'BillingPage'
+  | 'RutasPorCamion'
+  | 'SendInvoicePage';
 
 // Map roles to allowed components
 export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
@@ -24,6 +30,12 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'Segregation',
     'Washing',
     'GlobalActivityLog',
+    'InvoiceDetailsModal',
+    'LaundryCartModal',
+    'DriverManagement',
+    'BillingPage',
+    'RutasPorCamion',
+    'SendInvoicePage',
   ],
   Owner: [
     'PickupWashing',
@@ -33,6 +45,12 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'Segregation',
     'Washing',
     'GlobalActivityLog',
+    'InvoiceDetailsModal',
+    'LaundryCartModal',
+    'DriverManagement',
+    'BillingPage',
+    'RutasPorCamion',
+    'SendInvoicePage',
   ],
 };
 

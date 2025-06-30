@@ -58,6 +58,7 @@ export interface Invoice {
   note?: string; // Public note for all users to see
   truckNumber?: string; // Add truck number for shipped invoices
   pickupGroupId?: string; // Link to pickup group if present
+  name?: string; // Optional invoice-level name
 }
 
 export interface LaundryCart {

@@ -24,6 +24,12 @@ const componentOptions: { key: AppComponentKey; label: string }[] = [
   { key: "Segregation", label: "Segregation" },
   { key: "Washing", label: "Washing" },
   { key: "GlobalActivityLog", label: "Global Activity Log" },
+  { key: "InvoiceDetailsModal", label: "Invoice Details Modal" },
+  { key: "LaundryCartModal", label: "Laundry Cart Modal" },
+  { key: "DriverManagement", label: "Driver Management" },
+  { key: "BillingPage", label: "Billing Page" },
+  { key: "RutasPorCamion", label: "Rutas Por Camion" },
+  { key: "SendInvoicePage", label: "Send Invoice Page" },
 ];
 
 export default function UserManagement(props: UserManagementProps) {

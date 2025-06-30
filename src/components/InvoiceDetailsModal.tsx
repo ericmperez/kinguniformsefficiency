@@ -8,7 +8,8 @@ interface InvoiceDetailsModalProps {
   client: Client | undefined;
   products: Product[];
   onAddCart: (cartName: string) => Promise<LaundryCart>;
-  onAddProductToCart: (cartId: string, productId: string, quantity: number) => void;
+  onAddProductToCart: (cartId: string, productId: string, quantity: number, price?: number, itemIdx?: number) => void;
+  refreshInvoices?: () => Promise<void>;
 }
 
 const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
@@ -18,6 +19,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   products,
   onAddCart,
   onAddProductToCart,
+  refreshInvoices,
 }) => {
   const [newCartName, setNewCartName] = React.useState("");
   const [addProductCartId, setAddProductCartId] = React.useState<string | null>(null);
@@ -32,6 +34,11 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [localCarts, setLocalCarts] = React.useState(invoice.carts);
   const [users, setUsers] = React.useState<UserRecord[]>([]);
 
+  // --- Invoice Name Editing ---
+  const [editingInvoiceName, setEditingInvoiceName] = React.useState(false);
+  const [invoiceName, setInvoiceName] = React.useState(invoice.name || "");
+  const [savingInvoiceName, setSavingInvoiceName] = React.useState(false);
+
   // Sync local carts with invoice changes
   React.useEffect(() => {
     setLocalCarts(invoice.carts);
@@ -40,6 +47,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   React.useEffect(() => {
     getUsers().then(setUsers);
   }, []);
+
+  React.useEffect(() => {
+    setInvoiceName(invoice.name || "");
+  }, [invoice.name]);
 
   const getVerifierName = (verifierId: string) => {
     if (!verifierId) return "-";
@@ -72,6 +83,61 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     '0', '←', 'OK',
   ];
 
+  // Save invoice name to Firestore
+  const handleSaveInvoiceName = async () => {
+    if (!invoiceName.trim() || invoiceName === invoice.name) {
+      setEditingInvoiceName(false);
+      return;
+    }
+    setSavingInvoiceName(true);
+    try {
+      // Use onAddCart with special key to trigger invoice name update
+      if (typeof onAddCart === 'function') {
+        // This is a hack: pass a special string to onAddCart to trigger invoice name update in parent
+        await onAddCart(`__invoice_name__${invoiceName.trim()}`);
+      }
+      if (refreshInvoices) await refreshInvoices();
+    } finally {
+      setSavingInvoiceName(false);
+      setEditingInvoiceName(false);
+    }
+  };
+
+  // Handler to delete a product from a cart
+  const handleDeleteCartItem = async (cartId: string, productId: string, itemIdx: number) => {
+    const updatedCarts = localCarts.map((cart) => {
+      if (cart.id !== cartId) return cart;
+      return {
+        ...cart,
+        items: cart.items.filter((item, idx) => !(item.productId === productId && idx === itemIdx)),
+      };
+    });
+    setLocalCarts(updatedCarts);
+    // Persist change
+    await onAddProductToCart(cartId, productId, 0, undefined, itemIdx);
+    if (refreshInvoices) await refreshInvoices();
+  };
+
+  // Handler to start editing a cart item
+  const handleEditCartItem = (cartId: string, productId: string, quantity: number, price: number) => {
+    setEditingCartItem({ cartId, productId, quantity, price });
+    setEditQty(quantity);
+    setEditPrice(price);
+  };
+
+  // Handler to save edit
+  const handleSaveEditCartItem = async () => {
+    if (!editingCartItem) return;
+    await onAddProductToCart(editingCartItem.cartId, editingCartItem.productId, editQty, editPrice);
+    setEditingCartItem(null);
+    if (refreshInvoices) await refreshInvoices();
+  };
+
+  // Handler to cancel edit
+  const handleCancelEditCartItem = () => {
+    setEditingCartItem(null);
+  };
+
   return (
     <div
       className="modal show"
@@ -99,7 +165,55 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       >
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">Invoice #{invoice.invoiceNumber}</h5>
+            <h5 className="modal-title">
+              Invoice #{invoice.invoiceNumber}
+              {editingInvoiceName ? (
+                <span style={{ marginLeft: 16 }}>
+                  <input
+                    type="text"
+                    className="form-control d-inline-block"
+                    style={{ width: 220, display: 'inline-block' }}
+                    value={invoiceName}
+                    onChange={e => setInvoiceName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleSaveInvoiceName();
+                      if (e.key === 'Escape') setEditingInvoiceName(false);
+                    }}
+                    autoFocus
+                    disabled={savingInvoiceName}
+                  />
+                  <button
+                    className="btn btn-success btn-sm ms-2"
+                    onClick={handleSaveInvoiceName}
+                    disabled={savingInvoiceName || !invoiceName.trim()}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm ms-2"
+                    onClick={() => setEditingInvoiceName(false)}
+                    disabled={savingInvoiceName}
+                  >
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <>
+                  {invoice.name && (
+                    <span style={{ marginLeft: 16, fontWeight: 600, color: '#0E62A0', fontSize: 18 }}>
+                      {invoice.name}
+                    </span>
+                  )}
+                  <button
+                    className="btn btn-outline-primary btn-sm ms-2"
+                    title="Edit Invoice Name"
+                    onClick={() => setEditingInvoiceName(true)}
+                  >
+                    <i className="bi bi-pencil" />
+                  </button>
+                </>
+              )}
+            </h5>
             <button
               type="button"
               className="btn-close"
@@ -181,6 +295,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           createdAt: new Date().toISOString(),
                         },
                       ]);
+                      if (refreshInvoices) await refreshInvoices();
                     }}
                   >
                     + Create Default Cart
@@ -212,6 +327,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                         setNewCartName("");
                         setShowNewCartInput(false);
                         setShowCartKeypad(false);
+                        if (refreshInvoices) await refreshInvoices();
                       }
                     }}
                     disabled={!newCartName.trim()}
@@ -274,6 +390,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                         if (window.confirm(`Delete cart '${cart.name}'?`)) {
                           setLocalCarts(localCarts.filter((c) => c.id !== cart.id));
                           await onAddCart("__delete__" + cart.id);
+                          if (refreshInvoices) await refreshInvoices();
                         }
                       }}
                     >
@@ -287,6 +404,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                         if (newName && newName.trim() && newName !== cart.name) {
                           setLocalCarts(localCarts.map((c) => c.id === cart.id ? { ...c, name: newName.trim() } : c));
                           await onAddCart(`__edit__${cart.id}__${newName.trim()}`);
+                          if (refreshInvoices) await refreshInvoices();
                         }
                       }}
                     >
@@ -366,67 +484,49 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     </div>
                   </div>
                 )}
-                {/* Product Cards */}
+                {/* Product summary cards */}
                 <div className="row g-2 mb-2">
-                  {/* Group items by productId, but keep each entry, and show as a single card with icon, name, total, and per-entry breakdown */}
-                  {(() => {
-                    // Group items by productId
-                    const itemsByProduct: Record<string, Array<typeof cart.items[0]>> = {};
-                    cart.items.forEach(item => {
-                      if (!itemsByProduct[item.productId]) itemsByProduct[item.productId] = [];
-                      itemsByProduct[item.productId].push(item);
-                    });
-                    // Helper: get icon for product (fallback to placeholder)
-                    const getProductIcon = (product: Product | undefined) => {
-                      if (!product) return <span role="img" aria-label="product">🖼️</span>;
-                      const name = product.name.toLowerCase();
-                      if (name.includes("scrub shirt") || name.includes("scrub top") || name.includes("scrub")) {
-                        return (
-                          <img
-                            src={"/images/products/scrubshirt.png"}
-                            alt="Scrub Shirt"
-                            style={{ width: 40, height: 40, objectFit: 'contain' }}
-                          />
-                        );
-                      }
-                      if (name.includes("sábanas")) return <span role="img" aria-label="sheets">🛏️</span>;
-                      if (name.includes("fundas")) return <span role="img" aria-label="covers">🧺</span>;
-                      if (name.includes("toallas de baño")) return <span role="img" aria-label="bath towel">🛁</span>;
-                      if (name.includes("toalla de piso")) return <span role="img" aria-label="floor towel">🧍</span>;
-                      if (name.includes("toalla de cara")) return <span role="img" aria-label="face towel">🧻</span>;
-                      if (name.includes("frisas")) return <span role="img" aria-label="frisas">🦢</span>;
-                      if (name.includes("cortinas")) return <span role="img" aria-label="curtains">🪟</span>;
-                      return <span role="img" aria-label="product">🖼️</span>;
-                    };
-                    return Object.entries(itemsByProduct).map(([productId, entries]) => {
-                      const product = clientProducts.find(p => p.id === productId);
-                      const totalQty = entries.reduce((sum, e) => sum + Number(e.quantity), 0);
-                      return (
-                        <div key={productId} className="col-12 col-md-6">
-                          <div className="d-flex align-items-center border rounded p-2 mb-2" style={{background: '#fff', minHeight: 72}}>
-                            <div style={{width: 48, height: 48, marginRight: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32}}>
-                              {getProductIcon(product)}
-                            </div>
-                            <div style={{flex: 1}}>
-                              <div style={{fontWeight: 700, fontSize: 18, color: '#222'}}>{entries[0].productName}</div>
-                              <div style={{fontSize: 13, color: '#888'}}>
-                                Added by {entries[0].addedBy || 'You'}
-                              </div>
-                            </div>
-                            <div style={{fontWeight: 700, fontSize: 22, color: '#0E62A0', marginLeft: 8, minWidth: 60, textAlign: 'right'}}>{totalQty}</div>
+                  {clientProducts.filter(prod => cart.items.some(i => i.productId === prod.id)).map(product => {
+                    // All entries for this product in this cart
+                    const entries = cart.items
+                      .map((item, idx) => ({...item, idx}))
+                      .filter(item => item.productId === product.id);
+                    const totalQty = entries.reduce((sum, item) => sum + Number(item.quantity), 0);
+                    return (
+                      <div key={product.id} className="col-12 col-md-6">
+                        <div className="d-flex align-items-center border rounded p-2 mb-1" style={{background: '#fff', minHeight: 72}}>
+                          <div style={{width: 48, height: 48, marginRight: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32}}>
+                            {product.imageUrl ? (
+                              <img src={product.imageUrl} alt={product.name} style={{ width: 40, height: 40, objectFit: 'contain' }} />
+                            ) : (() => {
+                              const name = product.name.toLowerCase();
+                              if (name.includes("scrub shirt") || name.includes("scrub top") || name.includes("scrub")) return <img src="/images/products/scrubshirt.png" alt="Scrub Shirt" style={{ width: 40, height: 40, objectFit: 'contain' }} />;
+                              if (name.includes("sábanas")) return <span role="img" aria-label="sheets">🛏️</span>;
+                              if (name.includes("fundas")) return <span role="img" aria-label="covers">🧺</span>;
+                              if (name.includes("toallas de baño")) return <span role="img" aria-label="bath towel">🛁</span>;
+                              if (name.includes("toalla de piso")) return <span role="img" aria-label="floor towel">🧍</span>;
+                              if (name.includes("toalla de cara")) return <span role="img" aria-label="face towel">🧻</span>;
+                              if (name.includes("frisas")) return <span role="img" aria-label="frisas">🦢</span>;
+                              if (name.includes("cortinas")) return <span role="img" aria-label="curtains">🪟</span>;
+                              return <span role="img" aria-label="product">🖼️</span>;
+                            })()}
                           </div>
-                          {/* Per-entry breakdown */}
-                          {entries.length > 1 && (
-                            <div style={{marginLeft: 60, fontSize: 13, color: '#888', marginTop: -8, marginBottom: 8}}>
-                              {entries.map((entry, idx) => (
-                                <span key={idx} style={{marginRight: 8}}>+{entry.quantity}</span>
+                          <div style={{flex: 1}}>
+                            <div style={{fontWeight: 700, fontSize: 18, color: '#222'}}>{product.name}</div>
+                            {/* Entry summary for this product */}
+                            <div style={{fontSize: 13, color: '#888', marginTop: 2, whiteSpace: 'normal'}}>
+                              {entries.map((item, i) => (
+                                <span key={item.idx} style={{marginRight: 8}}>
+                                  + {item.quantity} added by {item.addedBy || 'You'}
+                                </span>
                               ))}
                             </div>
-                          )}
+                          </div>
+                          <div style={{fontWeight: 700, fontSize: 22, color: '#0E62A0', marginLeft: 8, minWidth: 60, textAlign: 'right'}}>{totalQty}</div>
                         </div>
-                      );
-                    });
-                  })()}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}

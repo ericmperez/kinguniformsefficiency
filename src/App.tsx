@@ -24,6 +24,7 @@ import {
   assignCartToInvoice,
   getUsers,
   getManualConventionalProductsForDate,
+  propagateProductUpdateToInvoices,
 } from "./services/firebaseService";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "./firebase";
@@ -419,13 +420,13 @@ function App() {
           `products/${Date.now()}_${updatedProduct.image.name}`
         );
       }
-
       const productToUpdate = {
         ...updatedProduct,
         imageUrl,
       };
-
       await updateProduct(productId, productToUpdate);
+      // Propagate product changes to all invoices
+      await propagateProductUpdateToInvoices(productId, productToUpdate);
     } catch (error) {
       console.error("Error updating product:", error);
     }
@@ -601,14 +602,14 @@ function App() {
     {
       label: "Billing",
       page: "billing" as const,
-      icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
-      visible: true,
+      icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />, 
+      visible: canSee("BillingPage"),
     },
     {
       label: "Activity Log",
       page: "activityLog" as const,
-      icon: <ListAltIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
-      visible: true, // Adjust permission as needed
+      icon: <ListAltIcon style={{ fontSize: 38, color: "#0E62A0" }} />, 
+      visible: canSee("GlobalActivityLog"),
     },
     // Removed 'Rutas por Camión' from navLinks
   ];
@@ -1531,8 +1532,8 @@ function App() {
         </div>
       )}
       {activePage === "reports" && <Report />}
-      {activePage === "billing" && <BillingPage />}
-      {activePage === "activityLog" && (
+      {activePage === "billing" && canSee("BillingPage") && <BillingPage />}
+      {activePage === "activityLog" && canSee("GlobalActivityLog") && (
         <div className="container py-5">
           <div className="row justify-content-center">
             <div className="col-12 col-md-10 col-lg-8">

@@ -123,7 +123,7 @@ const SendInvoicePage: React.FC = () => {
                     onChange={() => handleInvoiceCheck(inv.id)}
                   />
                   <label className="form-check-label" htmlFor={inv.id}>
-                    #{inv.invoiceNumber || inv.id} - {inv.date ? new Date(inv.date).toLocaleDateString() : '-'}
+                    <b>Invoice #:</b> {inv.invoiceNumber || inv.id} | <b>Name:</b> {inv.name || '-'} | <b>Date:</b> {inv.date ? new Date(inv.date).toLocaleDateString() : '-'} | <b>Status:</b> {inv.status || '-'}
                   </label>
                 </div>
               ))}

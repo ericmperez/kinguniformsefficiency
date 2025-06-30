@@ -49,6 +49,7 @@ const ReportsPage: React.FC = () => {
                       <th>Total Weight</th>
                       <th>Products</th>
                       <th>Carts</th>
+                      <th>Invoice Name</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -78,6 +79,7 @@ const ReportsPage: React.FC = () => {
                               ))
                             : '-'}
                         </td>
+                        <td>{inv.name || '-'}</td>
                         <td>
                           <button className="btn btn-sm btn-outline-primary" onClick={() => { setSelectedInvoice(inv); setShowInvoiceDetailsModal(true); }}>
                             Edit

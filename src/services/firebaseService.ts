@@ -515,3 +515,45 @@ export function getClientAvatarUrl(client: { imageUrl?: string }): string {
   }
   return '/images/clients/default-avatar.png';
 }
+
+// Batch update all invoices that reference a product when the product is updated
+export const propagateProductUpdateToInvoices = async (productId: string, updatedProduct: Partial<Product>) => {
+  // Fetch all invoices
+  const invoicesSnapshot = await getDocs(collection(db, "invoices"));
+  const batchUpdates: Promise<any>[] = [];
+  invoicesSnapshot.forEach((docSnap) => {
+    const invoice = docSnap.data() as Invoice;
+    let needsUpdate = false;
+    // Update products array
+    const newProducts = (invoice.products || []).map((p: any) => {
+      if (p.id === productId) {
+        needsUpdate = true;
+        return { ...p, ...updatedProduct };
+      }
+      return p;
+    });
+    // Update carts/items
+    const newCarts = (invoice.carts || []).map((cart: any) => ({
+      ...cart,
+      items: (cart.items || []).map((item: any) => {
+        if (item.productId === productId) {
+          needsUpdate = true;
+          return {
+            ...item,
+            productName: updatedProduct.name ?? item.productName,
+            price: updatedProduct.price ?? item.price,
+          };
+        }
+        return item;
+      }),
+    }));
+    if (needsUpdate) {
+      batchUpdates.push(updateDoc(doc(db, "invoices", docSnap.id), {
+        products: newProducts,
+        carts: newCarts,
+        updatedAt: new Date().toISOString(),
+      }));
+    }
+  });
+  await Promise.all(batchUpdates);
+};
