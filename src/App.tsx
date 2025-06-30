@@ -184,6 +184,9 @@ function App() {
 
   // State for which process menu is open (string or null)
   const [processMenuOpen, setProcessMenuOpen] = useState<string | null>(null);
+  // Add state for anchor element
+  const [processMenuAnchorEl, setProcessMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const processMenuOpenState = Boolean(processMenuAnchorEl);
 
   // Helper: check if current user can see a component (per-user or fallback to role)
   const canSee = (component: AppComponentKey) =>
@@ -803,9 +806,7 @@ function App() {
     if (loading)
       return <div className="card p-3 mb-3">Loading manual products...</div>;
     if (manualProducts.length === 0)
-      return (
-        <div className="card p-3 mb-3">No manual products added today.</div>
-      );
+      return null;
 
     return (
       <div className="card p-3 mb-3">
@@ -974,33 +975,52 @@ function App() {
                       },
                       whiteSpace: "nowrap",
                     }}
-                    onClick={() => setProcessMenuOpen(processMenuOpen === link.page ? null : link.page)}
+                    onClick={(e) => setProcessMenuAnchorEl(e.currentTarget)}
                   >
                     {link.label}
                   </Button>
                   <Menu
-                    anchorEl={null}
-                    open={processMenuOpen === link.page}
-                    onClose={() => setProcessMenuOpen(null)}
-                    anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-                    transformOrigin={{ vertical: "top", horizontal: "left" }}
-                    sx={{ mt: 1 }}
+                    anchorEl={processMenuAnchorEl}
+                    open={processMenuOpenState && processMenuAnchorEl && processMenuAnchorEl.textContent === link.label ? true : false}
+                    onClose={() => setProcessMenuAnchorEl(null)}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                    PaperProps={{
+                      sx: {
+                        minWidth: 200,
+                        borderRadius: 2,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                        p: 0,
+                      }
+                    }}
                   >
-                    {link.subpages
-                      .filter((sp) => sp.visible)
-                      .map((sp) => (
-                        <MenuItem
-                          key={sp.page}
-                          selected={activePage === sp.page}
-                          onClick={() => {
-                            setActivePage(sp.page);
-                            setProcessMenuOpen(null);
-                          }}
-                        >
-                          {sp.icon}
-                          <span style={{ marginLeft: 8 }}>{sp.label}</span>
-                        </MenuItem>
-                      ))}
+                    {link.subpages.filter((sp) => sp.visible).map((sp) => (
+                      <MenuItem
+                        key={sp.page}
+                        selected={activePage === sp.page}
+                        onClick={() => {
+                          setActivePage(sp.page);
+                          setProcessMenuAnchorEl(null);
+                        }}
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: 15,
+                          color: activePage === sp.page ? 'var(--ku-yellow)' : '#222',
+                          bgcolor: activePage === sp.page ? 'rgba(255,224,102,0.18)' : 'transparent',
+                          borderBottom: activePage === sp.page ? '2px solid var(--ku-yellow)' : '2px solid transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.5,
+                          '&:hover': {
+                            bgcolor: 'var(--ku-yellow)',
+                            color: '#222',
+                          },
+                        }}
+                      >
+                        {sp.icon}
+                        <span style={{ marginLeft: 12 }}>{sp.label}</span>
+                      </MenuItem>
+                    ))}
                   </Menu>
                 </Box>
               ) : (
@@ -1443,45 +1463,15 @@ function App() {
       )}
       {activePage === "home" && (
         <div className="container py-5">
-          <div className="row justify-content-center mb-4">
-            <div className="col-12 col-md-6 col-lg-4">
-              <div
-                className="card shadow text-center"
-                style={{
-                  background: "#fffbe6",
-                  border: "1px solid #ffe066",
-                }}
-              >
-                <div className="card-body">
-                  <h5
-                    className="card-title mb-2"
-                    style={{
-                      color: "#FFB300",
-                      fontWeight: 700,
-                      letterSpacing: 1,
-                    }}
-                  >
-                    Total Pounds Entered Today
-                  </h5>
-                  <div
-                    style={{
-                      fontSize: 36,
-                      fontWeight: 700,
-                      color: "#333",
-                    }}
-                  >
-                    {todayTotalLbs.toLocaleString()} lbs
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Removed Total Pounds Entered Today widget */}
           <ManualConventionalProductsWidget />
           {/* <PendingProductsWidget /> */}
           <div className="row justify-content-center g-4">
             {homePages
               .filter((p) =>
-                navLinks.find((l) => l.page === p.page && l.visible)
+                navLinks.find((l) => l.page === p.page && l.visible) &&
+                p.page !== "reports" &&
+                p.page !== "settings"
               )
               .map((p) => (
                 <div
@@ -1534,18 +1524,6 @@ function App() {
           {/* Removed 'Welcome to the App' and instructions text */}
         </div>
       )}
-      {activePage === "entradas" && (
-        <ActiveInvoices
-          clients={clients}
-          products={products}
-          invoices={invoices}
-          onAddInvoice={handleAddInvoice}
-          onDeleteInvoice={deleteInvoice}
-          onUpdateInvoice={updateInvoice}
-        />
-      )}
-      {activePage === "washing" && <Washing />}
-      {activePage === "segregation" && <Segregation />}
       {activePage === "settings" && (
         <div className="settings-page">
           <h2>Settings</h2>
