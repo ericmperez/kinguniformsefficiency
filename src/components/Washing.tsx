@@ -71,6 +71,11 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   const [showTunnelRedAlert, setShowTunnelRedAlert] = useState(false);
   const tunnelRedAlertTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  // New state for per-group verification mode
+  const [verifyingGroupIds, setVerifyingGroupIds] = useState<{
+    [groupId: string]: boolean;
+  }>({});
+
   useEffect(() => {
     setLoading(true);
     // Load ALL pickup_groups (no date filter)
@@ -669,6 +674,19 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     return now.getTime() - createdAt.getTime() > 24 * 60 * 60 * 1000;
   };
 
+  // Add handler for deleting a group (Tunnel or Conventional)
+  const handleDeleteGroup = async (groupId: string) => {
+    if (!window.confirm("Delete this group and all its data? This action cannot be undone.")) return;
+    // Optimistically update UI
+    setGroups((prev) => prev.filter((g) => g.id !== groupId));
+    try {
+      await updateDoc(doc(db, "pickup_groups", groupId), { status: "deleted" });
+    } catch (e) {
+      // Optionally show error and revert UI if needed
+      // For now, do nothing (UI will sync with Firestore on next snapshot)
+    }
+  };
+
   return (
     <div className="container py-4">
       <h2 className="mb-4 text-center">Washing</h2>
@@ -740,13 +758,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                 style={{ maxWidth: 1000, margin: "0 auto" }}
               >
                 {tunnelGroups.map((group, idx) => {
-                  const isSelected =
-                    selectedTunnelGroup && selectedTunnelGroup.id === group.id;
                   const isVerified = !!verifiedGroups[group.id];
                   const cartCounter = cartCounters[group.id] || 0;
                   const isLocked =
                     group.showInTunnel && group.segregationComplete;
                   const maxCarts = getSegregatedCarts(group);
+                  const isVerifying = verifyingGroupIds[group.id];
                   return (
                     <div
                       key={group.id}
@@ -868,10 +885,17 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               </button>
                             )}
                           </div>
-                        ) : (
-                          <>
-                            {/* Verification step: input for cart count */}
-                            {!isVerified && isSelected && (
+                        ) : !isVerified ? (
+                          <div style={{ minWidth: 220 }}>
+                            {/* Always show the button, and show the input if verifying */}
+                            {!isVerifying ? (
+                              <button
+                                className="btn btn-outline-primary btn-sm"
+                                onClick={() => setVerifyingGroupIds(ids => ({ ...ids, [group.id]: true }))}
+                              >
+                                Verify Cart Count
+                              </button>
+                            ) : (
                               <>
                                 <div className="mb-2 text-secondary small">
                                   Segregated Carts:{" "}
@@ -884,9 +908,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   style={{ width: 110, maxWidth: "100%" }}
                                   placeholder="How many carts did you count?"
                                   value={tunnelCartInput}
-                                  onChange={(e) =>
-                                    setTunnelCartInput(e.target.value)
-                                  }
+                                  onChange={e => setTunnelCartInput(e.target.value)}
                                   autoFocus
                                 />
                                 {tunnelCartError && (
@@ -930,13 +952,15 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                       ...prev,
                                       [group.id]: 0,
                                     }));
+                                    setVerifyingGroupIds(ids => ({ ...ids, [group.id]: false }));
+                                    setTunnelCartInput("");
                                     // Save verification and counter to Firestore
                                     await updateDoc(
                                       doc(db, "pickup_groups", group.id),
                                       {
                                         tunnelVerified: true,
                                         tunnelCartCount: 0,
-                                        segregatedCarts: val, // <-- Ensure segregatedCarts is set to the verified value
+                                        segregatedCarts: val,
                                       }
                                     );
                                   }}
@@ -945,132 +969,133 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 </button>
                                 <button
                                   className="btn btn-secondary btn-sm ms-2"
-                                  onClick={() => setSelectedTunnelGroup(null)}
+                                  onClick={() => {
+                                    setVerifyingGroupIds(ids => ({ ...ids, [group.id]: false }));
+                                    setTunnelCartInput("");
+                                    setTunnelCartError("");
+                                  }}
                                 >
                                   Cancel
                                 </button>
                               </>
                             )}
-                            {/* Counting step: show counter if verified */}
-                            {isVerified && (
-                              <div className="d-flex align-items-center gap-2">
-                                <span
-                                  style={{ fontSize: "1.1rem", color: "#333" }}
-                                >
-                                  {cartCounter} / {getSegregatedCarts(group)}
-                                </span>
-                                <button
-                                  className="btn btn-outline-primary btn-sm"
-                                  disabled={
-                                    cartCounter >= getSegregatedCarts(group)
+                          </div>
+                        ) : (
+                          // Counting step: show counter if verified
+                          <div className="d-flex align-items-center gap-2">
+                            <span style={{ fontSize: "1.1rem", color: "#333" }}>
+                              {cartCounter} / {getSegregatedCarts(group)}
+                            </span>
+                            <button
+                              className="btn btn-outline-primary btn-sm"
+                              disabled={
+                                cartCounter >= getSegregatedCarts(group)
+                              }
+                              onClick={async () => {
+                                const newCount = Math.min(
+                                  cartCounter + 1,
+                                  getSegregatedCarts(group)
+                                );
+                                setCartCounters((prev) => ({
+                                  ...prev,
+                                  [group.id]: newCount,
+                                }));
+                                await updateDoc(
+                                  doc(db, "pickup_groups", group.id),
+                                  {
+                                    tunnelCartCount: newCount,
                                   }
-                                  onClick={async () => {
-                                    const newCount = Math.min(
-                                      cartCounter + 1,
-                                      getSegregatedCarts(group)
+                                );
+                              }}
+                            >
+                              +
+                            </button>
+                            <button
+                              className="btn btn-outline-secondary btn-sm"
+                              disabled={cartCounter <= 0}
+                              onClick={async () => {
+                                const newCount = Math.max(
+                                  cartCounter - 1,
+                                  0
+                                );
+                                setCartCounters((prev) => ({
+                                  ...prev,
+                                  [group.id]: newCount,
+                                }));
+                                await updateDoc(
+                                  doc(db, "pickup_groups", group.id),
+                                  {
+                                    tunnelCartCount: newCount,
+                                  }
+                                );
+                              }}
+                            >
+                              -
+                            </button>
+                            {cartCounter === getSegregatedCarts(group) && (
+                              <button
+                                className="btn btn-success btn-sm ms-2"
+                                onClick={async () => {
+                                  // If locked and segregationComplete, use segregatedCarts as the value
+                                  if (
+                                    group.showInTunnel &&
+                                    group.segregationComplete
+                                  ) {
+                                    const { updatePickupGroupStatus } =
+                                      await import(
+                                        "../services/firebaseService"
+                                      );
+                                    await updatePickupGroupStatus(
+                                      group.id,
+                                      "procesandose"
                                     );
-                                    setCartCounters((prev) => ({
-                                      ...prev,
-                                      [group.id]: newCount,
-                                    }));
+                                    // Optionally, clear lock and segregationComplete
                                     await updateDoc(
                                       doc(db, "pickup_groups", group.id),
                                       {
-                                        tunnelCartCount: newCount,
+                                        showInTunnel: false,
+                                        segregationComplete: false,
                                       }
                                     );
-                                  }}
-                                >
-                                  +
-                                </button>
-                                <button
-                                  className="btn btn-outline-secondary btn-sm"
-                                  disabled={cartCounter <= 0}
-                                  onClick={async () => {
-                                    const newCount = Math.max(
-                                      cartCounter - 1,
-                                      0
+                                    setSelectedTunnelGroup(null);
+                                    setTunnelCartInput("");
+                                    setTunnelCartError("");
+                                  } else {
+                                    // Always create a new invoice for this group
+                                    const {
+                                      addInvoice,
+                                      updatePickupGroupStatus,
+                                    } = await import(
+                                      "../services/firebaseService"
                                     );
-                                    setCartCounters((prev) => ({
-                                      ...prev,
-                                      [group.id]: newCount,
-                                    }));
-                                    await updateDoc(
-                                      doc(db, "pickup_groups", group.id),
-                                      {
-                                        tunnelCartCount: newCount,
-                                      }
+                                    const newInvoice = {
+                                      clientId: group.clientId,
+                                      clientName: group.clientName,
+                                      date: new Date().toISOString(),
+                                      products: [],
+                                      total: 0,
+                                      carts: [],
+                                      totalWeight: group.totalWeight || 0, // Save the group's total weight in the invoice
+                                    };
+                                    const invoiceId = await addInvoice(
+                                      newInvoice
                                     );
-                                  }}
-                                >
-                                  -
-                                </button>
-                                {cartCounter === getSegregatedCarts(group) && (
-                                  <button
-                                    className="btn btn-success btn-sm ms-2"
-                                    onClick={async () => {
-                                      // If locked and segregationComplete, use segregatedCarts as the value
-                                      if (
-                                        group.showInTunnel &&
-                                        group.segregationComplete
-                                      ) {
-                                        const { updatePickupGroupStatus } =
-                                          await import(
-                                            "../services/firebaseService"
-                                          );
-                                        await updatePickupGroupStatus(
-                                          group.id,
-                                          "procesandose"
-                                        );
-                                        // Optionally, clear lock and segregationComplete
-                                        await updateDoc(
-                                          doc(db, "pickup_groups", group.id),
-                                          {
-                                            showInTunnel: false,
-                                            segregationComplete: false,
-                                          }
-                                        );
-                                        setSelectedTunnelGroup(null);
-                                        setTunnelCartInput("");
-                                        setTunnelCartError("");
-                                      } else {
-                                        // Always create a new invoice for this group
-                                        const {
-                                          addInvoice,
-                                          updatePickupGroupStatus,
-                                        } = await import(
-                                          "../services/firebaseService"
-                                        );
-                                        const newInvoice = {
-                                          clientId: group.clientId,
-                                          clientName: group.clientName,
-                                          date: new Date().toISOString(),
-                                          products: [],
-                                          total: 0,
-                                          carts: [],
-                                          totalWeight: group.totalWeight || 0, // Save the group's total weight in the invoice
-                                        };
-                                        const invoiceId = await addInvoice(
-                                          newInvoice
-                                        );
-                                        await updatePickupGroupStatus(
-                                          group.id,
-                                          "procesandose"
-                                        );
-                                        if (setSelectedInvoiceId)
-                                          setSelectedInvoiceId(invoiceId);
-                                        setSelectedTunnelGroup(null);
-                                        setTunnelCartInput("");
-                                        setTunnelCartError("");
-                                      }
-                                    }}
-                                  >
-                                    Done
-                                  </button>
-                                )}
-                              </div>
+                                    await updatePickupGroupStatus(
+                                      group.id,
+                                      "procesandose"
+                                    );
+                                    if (setSelectedInvoiceId)
+                                      setSelectedInvoiceId(invoiceId);
+                                    setSelectedTunnelGroup(null);
+                                    setTunnelCartInput("");
+                                    setTunnelCartError("");
+                                  }
+                                }}
+                              >
+                                Done
+                              </button>
                             )}
-                          </>
+                          </div>
                         )}
                       </div>
                       <div
@@ -1094,7 +1119,14 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         >
                           <span aria-hidden="true">▼</span>
                         </button>
-                        {/* ...existing code for Count Carts button, etc... */}
+                        {/* Delete group button */}
+                        <button
+                          className="btn btn-outline-danger btn-sm"
+                          title="Delete group"
+                          onClick={() => handleDeleteGroup(group.id)}
+                        >
+                          <span aria-hidden="true">🗑️</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -1452,6 +1484,14 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               Mark as Washed
                             </button>
                           ))}
+                        {/* Delete group button */}
+                        <button
+                          className="btn btn-outline-danger btn-sm"
+                          title="Delete group"
+                          onClick={() => handleDeleteGroup(group.id)}
+                        >
+                          <span aria-hidden="true">🗑️</span>
+                        </button>
                       </div>
                     </div>
                   );
