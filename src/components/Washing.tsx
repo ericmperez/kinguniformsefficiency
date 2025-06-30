@@ -184,7 +184,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   // Only show groups with status 'Tunnel' and not 'Entregado' in Tunnel tab
   // Show ALL Tunnel groups regardless of date or delivery status
   const tunnelGroups = groups
-    .filter((g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel")
+    .filter(
+      (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
+    )
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)); // Always sort by order for smooth UI
   // Only show groups with status 'Conventional' and not 'Entregado' in Conventional tab
   const conventionalGroups = groups
@@ -309,20 +311,39 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       );
       if (!client) throw new Error("Client not found");
       if (!product) throw new Error("Product not found");
-      // Save manual product entry
-      await addManualConventionalProduct({
+      // Instead of manual product, create a new group for this client
+      const { collection, addDoc, Timestamp } = await import(
+        "firebase/firestore"
+      );
+      const { db } = await import("../firebase");
+      // Build a cart with the product as an item
+      const cart = {
+        id: Math.random().toString(36).slice(2), // local unique id
+        name: `Cart 1`,
+        items: [
+          {
+            productId: product.id,
+            productName: product.name,
+            quantity: conventionalProductQty,
+            type:
+              conventionalAddMode === "cart"
+                ? "cart"
+                : conventionalAddMode === "quantity"
+                ? "qty"
+                : "lbs",
+            addedAt: new Date().toISOString(),
+          },
+        ],
+      };
+      // Create the group
+      await addDoc(collection(db, "pickup_groups"), {
         clientId: client.id,
         clientName: client.name,
-        productId: product.id,
-        productName: product.name,
-        quantity: conventionalProductQty,
-        type:
-          conventionalAddMode === "cart"
-            ? "cart"
-            : conventionalAddMode === "quantity"
-            ? "qty"
-            : "lbs",
-        createdAt: new Date(),
+        status: "Conventional",
+        washingType: "Conventional",
+        carts: [cart],
+        createdAt: Timestamp.now(),
+        order: conventionalGroups.length, // add to end
       });
       setShowAddConventionalModal(false);
       setSelectedConventionalClientId("");
@@ -331,13 +352,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       setConventionalProductQty(1);
       setConventionalModalError("");
       setConventionalModalLoading(false);
-      alert("Manual product added successfully!");
       await logActivity({
         type: "Washing",
-        message: `Manual product '${product.name}' added for client '${client.name}' by user`,
+        message: `Conventional group with product '${product.name}' added for client '${client.name}' by user`,
       });
     } catch (err: any) {
-      setConventionalModalError(err.message || "Error adding manual product");
+      setConventionalModalError(err.message || "Error adding product to group");
       setConventionalModalLoading(false);
     }
   };
@@ -439,7 +459,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     });
   };
 
-  const [tunnelReorderLoading, setTunnelReorderLoading] = useState<string | null>(null);
+  const [tunnelReorderLoading, setTunnelReorderLoading] = useState<
+    string | null
+  >(null);
 
   // Ensure Tunnel groups have a unique, consecutive 'order' property after every move
   const normalizeTunnelOrders = (groupsArr: any[]) => {
@@ -450,7 +472,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       (g) => g.status !== "Tunnel" || getWashingType(g.clientId) !== "Tunnel"
     );
     const sorted = [...tunnel].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    sorted.forEach((g, idx) => { g.order = idx; });
+    sorted.forEach((g, idx) => {
+      g.order = idx;
+    });
     return [...others, ...sorted];
   };
 
@@ -464,7 +488,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       const others = prevGroups.filter(
         (g) => g.status !== "Tunnel" || getWashingType(g.clientId) !== "Tunnel"
       );
-      const sorted = [...tunnel].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const sorted = [...tunnel].sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0)
+      );
       const idx = sorted.findIndex((g) => g.id === groupId);
       if (idx === -1) return prevGroups;
       let newIdx = direction === "up" ? idx - 1 : idx + 1;
@@ -472,7 +498,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       // Swap order values
       [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
       // Re-assign order values to be consecutive
-      sorted.forEach((g, i) => { g.order = i; });
+      sorted.forEach((g, i) => {
+        g.order = i;
+      });
       // Optimistically update UI
       const newGroups = [...others, ...sorted];
       // Persist order changes to Firestore in background
@@ -676,7 +704,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
 
   // Add handler for deleting a group (Tunnel or Conventional)
   const handleDeleteGroup = async (groupId: string) => {
-    if (!window.confirm("Delete this group and all its data? This action cannot be undone.")) return;
+    if (
+      !window.confirm(
+        "Delete this group and all its data? This action cannot be undone."
+      )
+    )
+      return;
     // Optimistically update UI
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
     try {
@@ -891,7 +924,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             {!isVerifying ? (
                               <button
                                 className="btn btn-outline-primary btn-sm"
-                                onClick={() => setVerifyingGroupIds(ids => ({ ...ids, [group.id]: true }))}
+                                onClick={() =>
+                                  setVerifyingGroupIds((ids) => ({
+                                    ...ids,
+                                    [group.id]: true,
+                                  }))
+                                }
                               >
                                 Verify Cart Count
                               </button>
@@ -908,7 +946,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   style={{ width: 110, maxWidth: "100%" }}
                                   placeholder="How many carts did you count?"
                                   value={tunnelCartInput}
-                                  onChange={e => setTunnelCartInput(e.target.value)}
+                                  onChange={(e) =>
+                                    setTunnelCartInput(e.target.value)
+                                  }
                                   autoFocus
                                 />
                                 {tunnelCartError && (
@@ -952,7 +992,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                       ...prev,
                                       [group.id]: 0,
                                     }));
-                                    setVerifyingGroupIds(ids => ({ ...ids, [group.id]: false }));
+                                    setVerifyingGroupIds((ids) => ({
+                                      ...ids,
+                                      [group.id]: false,
+                                    }));
                                     setTunnelCartInput("");
                                     // Save verification and counter to Firestore
                                     await updateDoc(
@@ -970,7 +1013,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 <button
                                   className="btn btn-secondary btn-sm ms-2"
                                   onClick={() => {
-                                    setVerifyingGroupIds(ids => ({ ...ids, [group.id]: false }));
+                                    setVerifyingGroupIds((ids) => ({
+                                      ...ids,
+                                      [group.id]: false,
+                                    }));
                                     setTunnelCartInput("");
                                     setTunnelCartError("");
                                   }}
@@ -1014,10 +1060,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               className="btn btn-outline-secondary btn-sm"
                               disabled={cartCounter <= 0}
                               onClick={async () => {
-                                const newCount = Math.max(
-                                  cartCounter - 1,
-                                  0
-                                );
+                                const newCount = Math.max(cartCounter - 1, 0);
                                 setCartCounters((prev) => ({
                                   ...prev,
                                   [group.id]: newCount,
@@ -1106,7 +1149,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         <button
                           className="btn btn-outline-secondary btn-sm"
                           title="Move up"
-                          disabled={tunnelReorderLoading === group.id || idx === 0}
+                          disabled={
+                            tunnelReorderLoading === group.id || idx === 0
+                          }
                           onClick={() => moveTunnelGroup(group.id, "up")}
                         >
                           <span aria-hidden="true">▲</span>
@@ -1114,7 +1159,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         <button
                           className="btn btn-outline-secondary btn-sm"
                           title="Move down"
-                          disabled={tunnelReorderLoading === group.id || idx === tunnelGroups.length - 1}
+                          disabled={
+                            tunnelReorderLoading === group.id ||
+                            idx === tunnelGroups.length - 1
+                          }
                           onClick={() => moveTunnelGroup(group.id, "down")}
                         >
                           <span aria-hidden="true">▼</span>
