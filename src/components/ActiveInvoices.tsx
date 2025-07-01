@@ -855,6 +855,9 @@ export default function ActiveInvoices({
     demoInvoices = [demo, ...invoices];
   }
 
+  const [noteInputs, setNoteInputs] = useState<{ [invoiceId: string]: string }>({});
+  const [editingNote, setEditingNote] = useState<{ [invoiceId: string]: boolean }>({});
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
@@ -926,383 +929,470 @@ export default function ActiveInvoices({
                 }
               }
 
+              // Show note above the card if present
               return (
-                <div
-                  key={invoice.id}
-                  className={`col-lg-4 col-md-6 mb-4${
-                    isOverdue ? " overdue-blink" : ""
-                  }`}
-                  onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
-                  onMouseLeave={() => setHoveredInvoiceId(null)}
-                >
-                  <div
-                    className={`modern-invoice-card shadow-lg${
-                      isOverdue ? " overdue-blink" : ""
-                    }`}
-                    style={{
-                      borderRadius: 24,
-                      background: cardBackground,
-                      color: "#222",
-                      boxShadow: "0 8px 32px 0 rgba(0,0,0,0.10)",
-                      border: "none",
-                      position: "relative",
-                      minHeight: 380,
+                <React.Fragment key={invoice.id}>
+                  {invoice.note && (
+                    <div style={{
                       maxWidth: 340,
-                      margin: "60px auto 0 auto",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "flex-start",
-                      fontFamily: "Inter, Segoe UI, Arial, sans-serif",
-                      padding: "2.5rem 1.5rem 1.5rem 1.5rem",
-                      transition: "background 0.3s",
-                    }}
-                    onClick={() => handleInvoiceClick(invoice.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        handleInvoiceClick(invoice.id);
-                      }
-                    }}
+                      margin: '0 auto',
+                      marginBottom: 4,
+                      background: '#f8fafc',
+                      borderRadius: 12,
+                      padding: '8px 16px',
+                      color: '#0E62A0',
+                      fontWeight: 600,
+                      fontSize: 15,
+                      boxShadow: '0 2px 8px #e0e7ef',
+                    }}>
+                      {invoice.note}
+                    </div>
+                  )}
+                  <div
+                    key={invoice.id}
+                    className={`col-lg-4 col-md-6 mb-4${isOverdue ? " overdue-blink" : ""}`}
+                    onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
+                    onMouseLeave={() => setHoveredInvoiceId(null)}
                   >
-                    {/* Delete button in top left corner */}
-                    <button
-                      className="btn"
+                    <div
+                      className={`modern-invoice-card shadow-lg${isOverdue ? " overdue-blink" : ""}`}
                       style={{
-                        position: "absolute",
-                        top: 16,
-                        left: 16,
-                        background: "#fff",
-                        borderRadius: "50%",
-                        width: 44,
-                        height: 44,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                        borderRadius: 24,
+                        background: cardBackground,
+                        color: "#222",
+                        boxShadow: "0 8px 32px 0 rgba(0,0,0,0.10)",
                         border: "none",
-                        color: "#ef4444",
-                        fontSize: 22,
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(invoice);
-                      }}
-                      title="Delete"
-                      disabled={!!invoice.locked}
-                    >
-                      <i className="bi bi-trash" />
-                    </button>
-                    {/* Avatar */}
-                    <div
-                      style={{
-                        width: 110,
-                        height: 110,
-                        position: "absolute",
-                        left: "50%",
-                        top: -55,
-                        transform: "translateX(-50%)",
-                        zIndex: 2,
+                        position: "relative",
+                        minHeight: 380,
+                        maxWidth: 340,
+                        margin: "60px auto 0 auto",
                         display: "flex",
-                        justifyContent: "center",
+                        flexDirection: "column",
                         alignItems: "center",
-                        pointerEvents: "none",
+                        justifyContent: "flex-start",
+                        fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+                        padding: "2.5rem 1.5rem 1.5rem 1.5rem",
+                        transition: "background 0.3s",
                       }}
-                    >
-                      <img
-                        src={avatarSrc}
-                        alt="avatar"
-                        style={{
-                          width: 100,
-                          height: 100,
-                          borderRadius: "50%",
-                          border: "4px solid #fff",
-                          objectFit: "cover",
-                          boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
-                          background: "#e0f2fe",
-                        }}
-                        onError={() =>
-                          setAvatarErrorMap((prev) => ({
-                            ...prev,
-                            [invoice.id]: true,
-                          }))
+                      onClick={() => handleInvoiceClick(invoice.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          handleInvoiceClick(invoice.id);
                         }
-                      />
-                    </div>
-                    {/* Name and subtitle */}
-                    <div
-                      style={{
-                        textAlign: "center",
-                        marginTop: 16,
-                        marginBottom: 8,
                       }}
                     >
-                      <div
-                        style={{
-                          fontWeight: 800,
-                          fontSize: 24,
-                          color: (invoice.carts || []).some((c) =>
-                            c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
-                          )
-                            ? "red"
-                            : "#222",
-                          marginBottom: 4,
-                        }}
-                      >
-                        {client?.name || invoice.clientName}
-                      </div>
-                      <div
-                        style={{ fontSize: 15, color: "#555", marginBottom: 0 }}
-                      >
-                        Active Invoice
-                      </div>
-                    </div>
-                    {/* Product summary (total qty per product) */}
-                    <div style={{ margin: "12px 0 0 0", width: "100%" }}>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 15,
-                          color: "#0ea5e9",
-                          marginBottom: 2,
-                        }}
-                      >
-                        Products
-                      </div>
-                      <ul
-                        style={{
-                          listStyle: "none",
-                          padding: 0,
-                          margin: 0,
-                          fontSize: 15,
-                          marginBottom: 24, // Add margin below the last item
-                        }}
-                      >
-                        {(() => {
-                          // Show each cart and its items as rows, with user and time
-                          return (invoice.carts || []).flatMap((cart) =>
-                            cart.items.map((item, idx) => (
-                              <li
-                                key={cart.id + '-' + idx}
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  padding: "2px 0",
-                                  borderBottom: "1px solid #eee",
-                                }}
-                              >
-                                <span>
-                                  <b>{item.productName}</b> (Cart: {cart.name})
-                                  <span style={{ color: '#888', marginLeft: 8 }}>
-                                    {item.addedBy ? `by ${item.addedBy}` : ''}
-                                    {item.addedAt ? `, ${new Date(item.addedAt).toLocaleString()}` : ''}
-                                  </span>
-                                </span>
-                                <span style={{ fontWeight: 800 }}>{item.quantity}</span>
-                              </li>
-                            ))
-                          );
-                        })()}
-                        {/* Always render a last empty row for spacing after the last item */}
-                        <li style={{ height: 32, background: "transparent", border: "none", boxShadow: "none", listStyle: "none" }} />
-                      </ul>
-                    </div>
-                    {/* Social-style action buttons */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        bottom: 24,
-                        right: 24,
-                        display: "flex",
-                        flexDirection: "row",
-                        gap: 10,
-                        zIndex: 10,
-                      }}
-                    >
-                      {/* Mark as Ready button (now toggles highlight color) */}
+                      {/* Delete button in top left corner */}
                       <button
-                        className="btn btn-warning btn-sm"
+                        className="btn"
                         style={{
-                          fontSize: 16,
+                          position: "absolute",
+                          top: 16,
+                          left: 16,
+                          background: "#fff",
+                          borderRadius: "50%",
                           width: 44,
                           height: 44,
-                          borderRadius: "50%",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          padding: 0,
                           boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                           border: "none",
+                          color: "#ef4444",
+                          fontSize: 22,
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setHighlightColors((prev) => ({
-                            ...prev,
-                            [invoice.id]:
-                              prev[invoice.id] === "yellow" ? "blue" : "yellow",
-                          }));
-                          if (user?.username) {
-                            logActivity({
-                              type: "Invoice",
-                              message: `User ${user.username} toggled highlight for invoice #${invoice.id}`,
-                              user: user.username,
-                            });
-                          }
+                          handleDeleteClick(invoice);
                         }}
-                        title={
-                          highlight === "yellow"
-                            ? "Highlight: Yellow"
-                            : "Highlight: Blue"
-                        }
+                        title="Delete"
+                        disabled={!!invoice.locked}
                       >
-                        <i
-                          className="bi bi-flag-fill"
+                        <i className="bi bi-trash" />
+                      </button>
+                      {/* Avatar */}
+                      <div
+                        style={{
+                          width: 110,
+                          height: 110,
+                          position: "absolute",
+                          left: "50%",
+                          top: -55,
+                          transform: "translateX(-50%)",
+                          zIndex: 2,
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <img
+                          src={avatarSrc}
+                          alt="avatar"
                           style={{
-                            color:
-                              highlight === "yellow" ? "#fbbf24" : "#0E62A0",
-                            fontSize: 22,
+                            width: 100,
+                            height: 100,
+                            borderRadius: "50%",
+                            border: "4px solid #fff",
+                            objectFit: "cover",
+                            boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
+                            background: "#e0f2fe",
                           }}
+                          onError={() =>
+                            setAvatarErrorMap((prev) => ({
+                              ...prev,
+                              [invoice.id]: true,
+                            }))
+                          }
                         />
-                      </button>
-                      {/* Verified button */}
-                      <button
-                        className="btn btn-success btn-sm"
+                      </div>
+                      {/* Name and subtitle */}
+                      <div
                         style={{
-                          fontSize: 16,
-                          width: 44,
-                          height: 44,
-                          borderRadius: "50%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: 0,
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                          border: "none",
+                          textAlign: "center",
+                          marginTop: 16,
+                          marginBottom: 8,
                         }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (hasUnnamedCart(invoice)) {
-                            alert(
-                              'Cannot verify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                            );
-                            return;
-                          }
-                          setVerifyInvoiceId(invoice.id); // open verify modal
-                          // Build initial check state for modal
-                          const checks: Record<
-                            string,
-                            Record<string, boolean>
-                          > = {};
-                          for (const cart of invoice.carts) {
-                            checks[cart.id] = {};
-                            for (const item of cart.items) {
-                              checks[cart.id][item.productId] = false;
-                            }
-                          }
-                          setVerifyChecks(checks);
-                        }}
-                        disabled={invoice.verified || hasUnnamedCart(invoice)}
-                        title={
-                          invoice.verified
-                            ? "Verified"
-                            : hasUnnamedCart(invoice)
-                            ? 'Cannot verify with "CARRO SIN NOMBRE" cart'
-                            : "Verify"
-                        }
                       >
-                        <i
-                          className="bi bi-check-lg"
+                        <div
                           style={{
-                            color: invoice.verified ? "#22c55e" : "#166534",
-                            fontSize: 22,
-                          }}
-                        />
-                      </button>
-                      {/* Shipped button */}
-                      <button
-                        className="btn btn-info btn-sm"
-                        style={{
-                          fontSize: 16,
-                          width: 44,
-                          height: 44,
-                          borderRadius: "50%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: 0,
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                          border: "none",
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (hasUnnamedCart(invoice)) {
-                            alert(
-                              'Cannot ship invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                            );
-                            return;
-                          }
-                          setShowShippedModal(invoice.id);
-                          setShippedTruckNumber("");
-                        }}
-                        disabled={
-                          invoice.status === "done" || hasUnnamedCart(invoice)
-                        }
-                        title={
-                          invoice.status === "done"
-                            ? "Shipped"
-                            : hasUnnamedCart(invoice)
-                            ? 'Cannot ship with "CARRO SIN NOMBRE" cart'
-                            : "Mark as Shipped"
-                        }
-                      >
-                        <i
-                          className="bi bi-truck"
-                          style={{ color: "#0ea5e9", fontSize: 22 }}
-                        />
-                      </button>
-                    </div>
-                    {/* Show verification status and details on invoice card */}
-                    {(invoice.verified || invoice.partiallyVerified) && (
-                      <div style={{ marginTop: 8 }}>
-                        <span
-                          style={{
-                            fontWeight: 700,
-                            color: invoice.verified ? "#22c55e" : "#fbbf24",
+                            fontWeight: 800,
+                            fontSize: 24,
+                            color: (invoice.carts || []).some((c) =>
+                              c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
+                            )
+                              ? "red"
+                              : "#222",
+                            marginBottom: 4,
                           }}
                         >
-                          {invoice.verified
-                            ? "Fully Verified"
-                            : "Partially Verified"}
-                        </span>
-                        {invoice.verifiedBy && (
-                          <span
-                            style={{
-                              marginLeft: 12,
-                              color: "#888",
-                              fontWeight: 500,
-                            }}
-                          >
-                            Verifier: {getVerifierName(invoice.verifiedBy)}
-                          </span>
-                        )}
-                        {invoice.verifiedAt && (
-                          <span
-                            style={{
-                              marginLeft: 12,
-                              color: "#888",
-                              fontWeight: 500,
-                            }}
-                          >
-                            Date:{" "}
-                            {new Date(invoice.verifiedAt).toLocaleString()}
-                          </span>
-                        )}
+                          {client?.name || invoice.clientName}
+                        </div>
+                        <div
+                          style={{ fontSize: 15, color: "#555", marginBottom: 0 }}
+                        >
+                          Active Invoice
+                        </div>
                       </div>
-                    )}
+                      {/* Product summary (total qty per product) */}
+                      <div style={{ margin: "12px 0 0 0", width: "100%" }}>
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 15,
+                            color: "#0ea5e9",
+                            marginBottom: 2,
+                          }}
+                        >
+                          Products
+                        </div>
+                        <ul
+                          style={{
+                            listStyle: "none",
+                            padding: 0,
+                            margin: 0,
+                            fontSize: 15,
+                            marginBottom: 24, // Add margin below the last item
+                          }}
+                        >
+                          {(() => {
+                            // Show each cart and its items as rows, with user and time
+                            return (invoice.carts || []).flatMap((cart) =>
+                              cart.items.map((item, idx) => (
+                                <li
+                                  key={cart.id + "-" + idx}
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    padding: "2px 0",
+                                    borderBottom: "1px solid #eee",
+                                  }}
+                                >
+                                  <span>
+                                    <b>{item.productName}</b> (Cart: {cart.name})
+                                    <span
+                                      style={{ color: "#888", marginLeft: 8 }}
+                                    >
+                                      {item.addedBy ? `by ${item.addedBy}` : ""}
+                                      {item.addedAt
+                                        ? `, ${new Date(
+                                            item.addedAt
+                                          ).toLocaleString()}`
+                                        : ""}
+                                    </span>
+                                  </span>
+                                  <span style={{ fontWeight: 800 }}>
+                                    {item.quantity}
+                                  </span>
+                                </li>
+                              ))
+                            );
+                          })()}
+                          {/* Always render a last empty row for spacing after the last item */}
+                          <li
+                            style={{
+                              height: 32,
+                              background: "transparent",
+                              border: "none",
+                              boxShadow: "none",
+                              listStyle: "none",
+                            }}
+                          />
+                        </ul>
+                      </div>
+                      {/* Social-style action buttons */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: 24,
+                          right: 24,
+                          display: "flex",
+                          flexDirection: "row",
+                          gap: 10,
+                          zIndex: 10,
+                        }}
+                      >
+                        {/* Note Button and Input */}
+                        {editingNote[invoice.id] ? (
+                          <>
+                            <input
+                              type="text"
+                              className="form-control"
+                              style={{ width: 120, marginRight: 4, fontSize: 14, display: 'inline-block' }}
+                              value={noteInputs[invoice.id] ?? invoice.note ?? ''}
+                              onChange={e => setNoteInputs({ ...noteInputs, [invoice.id]: e.target.value })}
+                              autoFocus
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  onUpdateInvoice(invoice.id, { note: noteInputs[invoice.id] });
+                                  setEditingNote({ ...editingNote, [invoice.id]: false });
+                                } else if (e.key === 'Escape') {
+                                  setEditingNote({ ...editingNote, [invoice.id]: false });
+                                }
+                              }}
+                            />
+                            <button
+                              className="btn btn-success btn-sm"
+                              style={{ fontSize: 14, marginRight: 2 }}
+                              onClick={e => {
+                                e.stopPropagation();
+                                onUpdateInvoice(invoice.id, { note: noteInputs[invoice.id] });
+                                setEditingNote({ ...editingNote, [invoice.id]: false });
+                              }}
+                              disabled={!noteInputs[invoice.id] || noteInputs[invoice.id] === invoice.note}
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: 14 }}
+                              onClick={e => {
+                                e.stopPropagation();
+                                setEditingNote({ ...editingNote, [invoice.id]: false });
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="btn btn-link text-primary fw-bold"
+                            style={{ fontSize: 14, textDecoration: 'none', marginRight: 2, padding: 0, minWidth: 0 }}
+                            onClick={e => {
+                              e.stopPropagation();
+                              setEditingNote({ ...editingNote, [invoice.id]: true });
+                              setNoteInputs({ ...noteInputs, [invoice.id]: invoice.note ?? '' });
+                            }}
+                            title={invoice.note ? 'Edit Note' : 'Add Note'}
+                          >
+                            {invoice.note ? 'Edit Note' : 'Add Note'}
+                          </button>
+                        )}
+                        {/* Mark as Ready button (now toggles highlight color) */}
+                        <button
+                          className="btn btn-warning btn-sm"
+                          style={{
+                            fontSize: 16,
+                            width: 44,
+                            height: 44,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border: "none",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHighlightColors((prev) => ({
+                              ...prev,
+                              [invoice.id]:
+                                prev[invoice.id] === "yellow" ? "blue" : "yellow",
+                            }));
+                            if (user?.username) {
+                              logActivity({
+                                type: "Invoice",
+                                message: `User ${user.username} toggled highlight for invoice #${invoice.id}`,
+                                user: user.username,
+                              });
+                            }
+                          }}
+                          title={
+                            highlight === "yellow"
+                              ? "Highlight: Yellow"
+                              : "Highlight: Blue"
+                          }
+                        >
+                          <i
+                            className="bi bi-flag-fill"
+                            style={{
+                              color:
+                                highlight === "yellow" ? "#fbbf24" : "#0E62A0",
+                              fontSize: 22,
+                            }}
+                          />
+                        </button>
+                        {/* Verified button */}
+                        <button
+                          className="btn btn-success btn-sm"
+                          style={{
+                            fontSize: 16,
+                            width: 44,
+                            height: 44,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border: "none",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasUnnamedCart(invoice)) {
+                              alert(
+                                'Cannot verify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                              );
+                              return;
+                            }
+                            setVerifyInvoiceId(invoice.id); // open verify modal
+                            // Build initial check state for modal
+                            const checks: Record<
+                              string,
+                              Record<string, boolean>
+                            > = {};
+                            for (const cart of invoice.carts) {
+                              checks[cart.id] = {};
+                              for (const item of cart.items) {
+                                checks[cart.id][item.productId] = false;
+                              }
+                            }
+                            setVerifyChecks(checks);
+                          }}
+                          disabled={invoice.verified || hasUnnamedCart(invoice)}
+                          title={
+                            invoice.verified
+                              ? "Verified"
+                              : hasUnnamedCart(invoice)
+                              ? 'Cannot verify with "CARRO SIN NOMBRE" cart'
+                              : "Verify"
+                          }
+                        >
+                          <i
+                            className="bi bi-check-lg"
+                            style={{
+                              color: invoice.verified ? "#22c55e" : "#166534",
+                              fontSize: 22,
+                            }}
+                          />
+                        </button>
+                        {/* Shipped button */}
+                        <button
+                          className="btn btn-info btn-sm"
+                          style={{
+                            fontSize: 16,
+                            width: 44,
+                            height: 44,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border: "none",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasUnnamedCart(invoice)) {
+                              alert(
+                                'Cannot ship invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                              );
+                              return;
+                            }
+                            setShowShippedModal(invoice.id);
+                            setShippedTruckNumber("");
+                          }}
+                          disabled={
+                            invoice.status === "done" || hasUnnamedCart(invoice)
+                          }
+                          title={
+                            invoice.status === "done"
+                              ? "Shipped"
+                              : hasUnnamedCart(invoice)
+                              ? 'Cannot ship with "CARRO SIN NOMBRE" cart'
+                              : "Mark as Shipped"
+                          }
+                        >
+                          <i
+                            className="bi bi-truck"
+                            style={{ color: "#0ea5e9", fontSize: 22 }}
+                          />
+                        </button>
+                      </div>
+                      {/* Show verification status and details on invoice card */}
+                      {(invoice.verified || invoice.partiallyVerified) && (
+                        <div style={{ marginTop: 8 }}>
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: invoice.verified ? "#22c55e" : "#fbbf24",
+                            }}
+                          >
+                            {invoice.verified
+                              ? "Fully Verified"
+                              : "Partially Verified"}
+                          </span>
+                          {invoice.verifiedBy && (
+                            <span
+                              style={{
+                                marginLeft: 12,
+                                color: "#888",
+                                fontWeight: 500,
+                              }}
+                            >
+                              Verifier: {getVerifierName(invoice.verifiedBy)}
+                            </span>
+                          )}
+                          {invoice.verifiedAt && (
+                            <span
+                              style={{
+                                marginLeft: 12,
+                                color: "#888",
+                                fontWeight: 500,
+                              }}
+                            >
+                              Date:{" "}
+                              {new Date(invoice.verifiedAt).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </React.Fragment>
               ); // <-- close map function
             })
         )}
@@ -1859,11 +1949,7 @@ export default function ActiveInvoices({
                 )}
               </div>
               <div className="modal-footer">
-                <button
-                  onClick={() => setShowLogModal(false)}
-                >
-                  Close
-                </button>
+                <button onClick={() => setShowLogModal(false)}>Close</button>
               </div>
             </div>
           </div>
@@ -2615,7 +2701,13 @@ export default function ActiveInvoices({
             await refreshInvoices();
             return { id: newCart.id, name: newCart.name, isActive: true };
           }}
-          onAddProductToCart={async (cartId, productId, quantity, _price, itemIdx) => {
+          onAddProductToCart={async (
+            cartId,
+            productId,
+            quantity,
+            _price,
+            itemIdx
+          ) => {
             const invoice = invoicesState.find(
               (inv) => inv.id === selectedInvoice.id
             );

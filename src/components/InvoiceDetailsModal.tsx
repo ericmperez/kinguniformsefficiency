@@ -167,14 +167,22 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
         zIndex: 2000,
         overflowY: "auto",
       }}
+      onClick={e => {
+        // Only close if the click is on the overlay, not inside the modal-dialog
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <div
         className="modal-dialog modal-lg"
         style={{
-          margin: 0,
+          margin: "auto",
           maxWidth: 800,
           width: "100%",
+          pointerEvents: "auto",
         }}
+        onClick={e => e.stopPropagation()}
       >
         <div className="modal-content">
           <div className="modal-header">
