@@ -430,7 +430,9 @@ const Segregation: React.FC<SegregationProps> = ({
             Libras:{" "}
             <strong>
               {typeof topGroup.totalWeight === "number"
-                ? topGroup.totalWeight.toFixed(2)
+                ? topGroup.totalWeight.toLocaleString("en-US", {
+                    maximumFractionDigits: 0,
+                  })
                 : "?"}{" "}
               lbs
             </strong>{" "}
@@ -510,136 +512,154 @@ const Segregation: React.FC<SegregationProps> = ({
         </div>
       ) : (
         <div
-          className="mb-4 mx-auto"
-          style={{ maxWidth: "100%", overflowX: "visible" }}
+          className="card shadow p-3 mb-4 mx-auto"
+          style={{
+            maxWidth: 720, // was 600
+            minWidth: 320, // was 260
+            width: "100%",
+            background: "#f8f9fa",
+            border: "2px solid #0E62A0",
+            borderRadius: 16,
+            boxShadow: "0 4px 16px rgba(14,98,160,0.10)",
+            padding: "2rem 1rem 1.5rem 1rem",
+            marginBottom: 24,
+            marginTop: 10,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
         >
-          <div className="d-flex flex-column w-100 gap-3">
+          <h4
+            className="mb-3 text-center"
+            style={{
+              letterSpacing: 1,
+              fontSize: 22,
+              fontWeight: 800,
+              color: "#0E62A0",
+            }}
+          >
+            Groups for Segregation
+          </h4>
+          <div
+            className="list-group list-group-flush w-100"
+            style={{ maxWidth: 640, margin: "0 auto" }} // was 520
+          >
             {displayGroups.map((group, idx) => (
               <div
                 key={group.id}
-                className="shadow-sm rounded bg-white d-flex align-items-center px-4 py-3 mb-3 flex-wrap flex-md-nowrap seg-row"
+                className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-3 mb-2 shadow-sm rounded"
                 style={{
-                  border: "1.5px solid #e0e0e0",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                  fontSize: 18,
-                  transition: "box-shadow 0.2s",
-                  minHeight: 72,
+                  background: "#fff",
+                  border: "1.5px solid #e3e3e3",
+                  fontSize: 14,
+                  minHeight: 56,
+                  boxShadow: "0 1px 6px rgba(14,98,160,0.06)",
+                  alignItems: "center",
                 }}
               >
+                {/* Info section */}
                 <div
-                  style={{
-                    flex: "2 1 180px",
-                    fontWeight: 700,
-                    color: "#007bff",
-                    fontSize: 22,
-                    wordBreak: "break-word",
-                    minWidth: 120,
-                  }}
-                  className="mb-2 mb-md-0"
+                  className="d-flex flex-row align-items-center gap-2 flex-grow-1"
+                  style={{ flex: 1, minWidth: 0 }}
                 >
-                  {group.clientName}
-                </div>
-                <div
-                  style={{
-                    flex: "1 1 120px",
-                    textAlign: "center",
-                    color: "#333",
-                    fontSize: 17,
-                    minWidth: 90,
-                  }}
-                  className="mb-2 mb-md-0"
-                >
-                  Libras:{" "}
-                  <strong>
-                    {typeof group.totalWeight === "number"
-                      ? group.totalWeight.toFixed(2)
-                      : "?"}
-                  </strong>
-                </div>
-                <div
-                  style={{
-                    flex: "1 1 120px",
-                    textAlign: "center",
-                    color: "#333",
-                    fontSize: 17,
-                    minWidth: 90,
-                  }}
-                  className="mb-2 mb-md-0"
-                >
-                  Carros: <strong>{getCartCount(group.id)}</strong>
-                </div>
-                <div
-                  style={{
-                    flex: "0 0 48px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: 48,
-                  }}
-                  className="mb-2 mb-md-0"
-                >
-                  <button
-                    className="btn btn-outline-danger btn-sm rounded-circle"
-                    title="Delete group"
-                    onClick={() => handleDeleteSegregationGroup(group.id)}
-                    style={{ width: 36, height: 36, fontSize: 18 }}
+                  <div
+                    className="d-flex flex-column flex-grow-1 justify-content-center"
+                    style={{ flex: 1, minWidth: 0 }}
                   >
-                    <span aria-hidden="true">🗑️</span>
-                  </button>
+                    <span
+                      style={{
+                        fontSize: "1.1rem",
+                        fontWeight: 700,
+                        color: "#007bff",
+                        minWidth: 90,
+                        textAlign: "left",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        lineHeight: 1.1,
+                        maxWidth: 180,
+                        display: "block",
+                      }}
+                      title={group.clientName}
+                    >
+                      {group.clientName}
+                    </span>
+                    <span
+                      style={{
+                        color: "#333",
+                        opacity: 0.7,
+                        fontSize: "11px",
+                        fontWeight: 500,
+                        letterSpacing: 0.2,
+                        marginTop: 1,
+                        textAlign: "left",
+                        display: "block",
+                      }}
+                    >
+                      Carros:{" "}
+                      <strong style={{ fontSize: "11px", fontWeight: 600 }}>
+                        {getCartCount(group.id)}
+                      </strong>
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: "0.95rem",
+                      color: "#28a745",
+                      minWidth: 70,
+                      textAlign: "center",
+                    }}
+                  >
+                    Total:{" "}
+                    <strong>
+                      {typeof group.totalWeight === "number"
+                        ? group.totalWeight.toLocaleString(undefined, {
+                            maximumFractionDigits: 0,
+                          })
+                        : "?"}{" "}
+                      lbs
+                    </strong>
+                  </span>
                 </div>
+                {/* Controls section */}
                 <div
-                  style={{
-                    flex: "1 1 100px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 16, // More gap to ensure no overlap with other buttons
-                    minWidth: 90,
-                  }}
-                  className="mb-2 mb-md-0 segregation-arrows-col"
+                  className="d-flex flex-row align-items-center justify-content-end gap-1"
+                  style={{ minWidth: 90, maxWidth: 120 }}
                 >
                   <button
-                    className="btn btn-outline-secondary btn-sm rounded-circle segregation-arrow-btn"
+                    className="btn btn-outline-secondary btn-sm"
                     title="Move up"
                     disabled={idx === 0}
                     onClick={() => moveGroup(group.id, -1)}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      fontSize: 18,
-                      marginRight: 2,
-                    }}
+                    style={{ padding: "2px 7px", fontSize: 13 }}
                   >
                     <span aria-hidden="true">▲</span>
                   </button>
                   <button
-                    className="btn btn-outline-secondary btn-sm rounded-circle segregation-arrow-btn"
+                    className="btn btn-outline-secondary btn-sm"
                     title="Move down"
                     disabled={idx === displayGroups.length - 1}
                     onClick={() => moveGroup(group.id, 1)}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      fontSize: 18,
-                      marginLeft: 2,
-                    }}
+                    style={{ padding: "2px 7px", fontSize: 13 }}
                   >
                     <span aria-hidden="true">▼</span>
                   </button>
+                  <button
+                    className="btn btn-outline-danger btn-sm"
+                    title="Delete group"
+                    onClick={() => handleDeleteSegregationGroup(group.id)}
+                    style={{ padding: "2px 7px", fontSize: 13 }}
+                  >
+                    <span aria-hidden="true">🗑️</span>
+                  </button>
                 </div>
+                {/* Input and action section */}
                 <div
-                  style={{
-                    flex: "2 1 220px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "flex-end",
-                    gap: 8,
-                    minWidth: 180,
-                  }}
-                  className="mt-2 mt-md-0"
+                  className="d-flex flex-row align-items-center gap-1"
+                  style={{ minWidth: 120, maxWidth: 160, justifyContent: "flex-end" }}
                 >
                   <button
-                    className="btn btn-outline-secondary btn-lg d-flex align-items-center justify-content-center"
+                    className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
                     onClick={() =>
                       handleInputChange(
                         group.id,
@@ -653,40 +673,35 @@ const Segregation: React.FC<SegregationProps> = ({
                     }
                     disabled={completingGroup === group.id}
                     style={{
-                      minWidth: 40,
-                      width: 40,
-                      height: 40,
-                      fontSize: 22,
-                      borderRadius: 6,
+                      minWidth: 28,
+                      width: 28,
+                      height: 28,
+                      fontSize: 16,
+                      borderRadius: 5,
                       aspectRatio: "1 / 1",
                       padding: 0,
                     }}
                   >
-                    <span
-                      style={{ fontWeight: 700, fontSize: 28, lineHeight: 1 }}
-                    >
-                      -
-                    </span>
+                    <span style={{ fontWeight: 700, fontSize: 18, lineHeight: 1 }}>-</span>
                   </button>
                   <input
                     type="number"
                     min={0}
-                    className="form-control form-control-lg text-center"
+                    className="form-control form-control-sm text-center"
                     style={{
-                      width: 80,
-                      fontSize: 20,
+                      width: 44,
+                      fontSize: 14,
                       fontWeight: 700,
                       maxWidth: "100%",
+                      padding: "2px 4px",
                     }}
-                    placeholder="# segregated"
+                    placeholder="#"
                     value={segregatedCounts[group.id] || ""}
-                    onChange={(e) =>
-                      handleInputChange(group.id, e.target.value)
-                    }
+                    onChange={(e) => handleInputChange(group.id, e.target.value)}
                     disabled={completingGroup === group.id}
                   />
                   <button
-                    className="btn btn-outline-secondary btn-lg d-flex align-items-center justify-content-center"
+                    className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
                     onClick={() =>
                       handleInputChange(
                         group.id,
@@ -697,31 +712,27 @@ const Segregation: React.FC<SegregationProps> = ({
                     }
                     disabled={completingGroup === group.id}
                     style={{
-                      minWidth: 40,
-                      width: 40,
-                      height: 40,
-                      fontSize: 22,
-                      borderRadius: 6,
+                      minWidth: 28,
+                      width: 28,
+                      height: 28,
+                      fontSize: 16,
+                      borderRadius: 5,
                       aspectRatio: "1 / 1",
                       padding: 0,
                     }}
                   >
-                    <span
-                      style={{ fontWeight: 700, fontSize: 28, lineHeight: 1 }}
-                    >
-                      +
-                    </span>
+                    <span style={{ fontWeight: 700, fontSize: 18, lineHeight: 1 }}>+</span>
                   </button>
                   <button
-                    className="btn btn-success btn-lg ms-2 px-4"
+                    className="btn btn-success btn-sm ms-1 px-2"
                     disabled={
                       completingGroup === group.id ||
                       !segregatedCounts[group.id]
                     }
                     onClick={() => handleComplete(group.id)}
-                    style={{ fontWeight: 700, fontSize: 18, minWidth: 100 }}
+                    style={{ fontWeight: 700, fontSize: 13, minWidth: 54 }}
                   >
-                    {completingGroup === group.id ? "Saving..." : "Completed"}
+                    {completingGroup === group.id ? "Saving..." : "Done"}
                   </button>
                 </div>
               </div>
