@@ -1076,46 +1076,37 @@ export default function ActiveInvoices({
                           padding: 0,
                           margin: 0,
                           fontSize: 15,
+                          marginBottom: 24, // Add margin below the last item
                         }}
                       >
                         {(() => {
-                          // Build product totals across all carts
-                          const productTotals: {
-                            [productId: string]: { name: string; qty: number };
-                          } = {};
-                          (invoice.carts || []).forEach((cart) => {
-                            (cart.items || []).forEach((item) => {
-                              if (!productTotals[item.productId]) {
-                                productTotals[item.productId] = {
-                                  name: item.productName,
-                                  qty: 0,
-                                };
-                              }
-                              productTotals[item.productId].qty +=
-                                Number(item.quantity) || 0;
-                            });
-                          });
-                          // Show all products with qty > 0
-                          return Object.values(productTotals)
-                            .filter((p) => p.qty > 0)
-                            .sort((a, b) => a.name.localeCompare(b.name))
-                            .map((prod, idx) => (
+                          // Show each cart and its items as rows, with user and time
+                          return (invoice.carts || []).flatMap((cart) =>
+                            cart.items.map((item, idx) => (
                               <li
-                                key={prod.name + idx}
+                                key={cart.id + '-' + idx}
                                 style={{
                                   display: "flex",
                                   justifyContent: "space-between",
                                   alignItems: "center",
                                   padding: "2px 0",
+                                  borderBottom: "1px solid #eee",
                                 }}
                               >
-                                <span>{prod.name}</span>
-                                <span style={{ fontWeight: 800 }}>
-                                  {prod.qty}
+                                <span>
+                                  <b>{item.productName}</b> (Cart: {cart.name})
+                                  <span style={{ color: '#888', marginLeft: 8 }}>
+                                    {item.addedBy ? `by ${item.addedBy}` : ''}
+                                    {item.addedAt ? `, ${new Date(item.addedAt).toLocaleString()}` : ''}
+                                  </span>
                                 </span>
+                                <span style={{ fontWeight: 800 }}>{item.quantity}</span>
                               </li>
-                            ));
+                            ))
+                          );
                         })()}
+                        {/* Always render a last empty row for spacing after the last item */}
+                        <li style={{ height: 32, background: "transparent", border: "none", boxShadow: "none", listStyle: "none" }} />
                       </ul>
                     </div>
                     {/* Social-style action buttons */}
@@ -1869,7 +1860,6 @@ export default function ActiveInvoices({
               </div>
               <div className="modal-footer">
                 <button
-                  className="btn btn-secondary"
                   onClick={() => setShowLogModal(false)}
                 >
                   Close

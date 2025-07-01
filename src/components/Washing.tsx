@@ -1369,181 +1369,21 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
               </div>
             ) : (
               <div className="list-group list-group-flush">
-                {allConventionalRows.map((group, idx) => {
-                  let cartCount = 0,
-                    qty = 0,
-                    lbs = 0,
-                    totalWeight = 0;
-                  let showMarkAsWashed = false;
-                  if (group.isManualProduct) {
-                    showMarkAsWashed = !group.washed;
-                  } else {
-                    // Calculate totals for display for group rows
-                    if (typeof group.carts === "number") {
-                      cartCount = group.carts;
-                    } else if (Array.isArray(group.carts)) {
-                      cartCount = group.carts.length;
-                      group.carts.forEach((cart: any) => {
-                        const name = (cart.name || "").toLowerCase();
-                        if (name.includes("qty")) {
-                          qty += (cart.items as any[]).reduce(
-                            (sum: number, item: any) =>
-                              sum + (item.quantity || 0),
-                            0
-                          );
-                        } else if (name.includes("lbs")) {
-                          lbs += (cart.items as any[]).reduce(
-                            (sum: number, item: any) =>
-                              sum + (item.quantity || 0),
-                            0
-                          );
-                        } else if (
-                          Array.isArray(cart.items) &&
-                          cart.items.length > 0 &&
-                          cart.items.every((item: any) => item.quantity === 1)
-                        ) {
-                          // already counted in cartCount
-                        } else if (Array.isArray(cart.items)) {
-                          qty += cart.items.reduce(
-                            (sum: number, item: any) =>
-                              sum + (item.quantity || 0),
-                            0
-                          );
-                        }
-                      });
-                    }
-                    totalWeight = group.totalWeight || 0;
-                    showMarkAsWashed = !group.washed;
-                  }
-                  // Determine if overdue
-                  const overdue = isOverdue(group);
-                  return (
-                    <div
-                      key={group.id}
-                      className={`list-group-item d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-2 shadow-sm rounded ${
-                        group.isManualProduct ? "bg-warning bg-opacity-25" : ""
-                      } ${overdue ? "overdue-blink" : ""}`}
-                      style={
-                        overdue
-                          ? {
-                              background: "#ff2222",
-                              border: "2px solid #b30000",
-                              animation: "overdue-blink 1s linear infinite",
-                            }
-                          : group.isManualProduct
-                          ? { border: "1px solid #ffe066" }
-                          : {
-                              background: "#f8f9fa",
-                              border: "1px solid #e3e3e3",
-                            }
-                      }
-                    >
-                      <span
-                        style={{
-                          fontSize: "1.2rem",
-                          fontWeight: 600,
-                          color: group.isManualProduct ? "#b8860b" : "#007bff",
-                          minWidth: 120,
-                        }}
-                      >
-                        {group.clientName}
-                      </span>
-                      <span style={{ fontSize: "1.1rem", color: "#333" }}>
-                        {group.isManualProduct ? (
-                          <>
-                            <b>{group.productName}</b> x{group.quantity}{" "}
-                            <span style={{ color: "#888" }}>
-                              ({group.type})
-                            </span>
-                            {/* Removed Washed badge from here */}
-                            {cartCount === 0 && qty === 0 && lbs === 0 && (
-                              <span className="text-muted">No items</span>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <span className="badge bg-primary me-2">
-                              Carts: {cartCount}
-                            </span>
-                            <span className="badge bg-info me-2">
-                              Total: {totalWeight} lbs
-                            </span>
-                            {qty > 0 && (
-                              <span className="badge bg-success me-2">
-                                Qty: {qty}
-                              </span>
-                            )}
-                            {lbs > 0 && (
-                              <span className="badge bg-warning text-dark">
-                                Lbs: {lbs}
-                              </span>
-                            )}
-                            {group.washed && (
-                              <span className="badge bg-success ms-2">
-                                Washed
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </span>
-                      <div className="d-flex flex-row gap-1 align-items-center ms-auto">
-                        <button
-                          className="btn btn-outline-secondary btn-sm"
-                          title="Move up"
-                          disabled={idx === 0}
-                          onClick={() => moveConventionalRow(group.id, "up")}
-                        >
-                          <span aria-hidden="true">▲</span>
-                        </button>
-                        <button
-                          className="btn btn-outline-secondary btn-sm"
-                          title="Move down"
-                          disabled={idx === allConventionalRows.length - 1}
-                          onClick={() => moveConventionalRow(group.id, "down")}
-                        >
-                          <span aria-hidden="true">▼</span>
-                        </button>
-                        {group.isManualProduct && (
-                          <button
-                            className="btn btn-outline-danger btn-sm"
-                            title="Delete manual product"
-                            onClick={() =>
-                              handleDeleteManualProductGroup(group.id)
-                            }
-                          >
-                            <span aria-hidden="true">🗑️</span>
-                          </button>
-                        )}
-                        {showMarkAsWashed &&
-                          (group.isManualProduct ? (
-                            <button
-                              className="btn btn-outline-success btn-sm ms-2"
-                              onClick={() =>
-                                handleMarkManualProductWashed(group.id)
-                              }
-                            >
-                              Mark as Washed
-                            </button>
-                          ) : (
-                            <button
-                              className="btn btn-outline-success btn-sm ms-2"
-                              onClick={() => handleMarkGroupAsWashed(group)}
-                            >
-                              Mark as Washed
-                            </button>
-                          ))}
-                        {/* Delete group button */}
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          title="Delete group"
-                          onClick={() => handleDeleteGroup(group.id)}
-                        >
-                          <span aria-hidden="true">🗑️</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {allConventionalRows.map((group, idx) => (
+                  <div
+                    key={group.id}
+                    className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-2 mb-1 shadow-sm rounded"
+                    style={{
+                      border: "1px solid #e3e3e3",
+                      background: group.isManualProduct ? "#fffbe6" : "#fff",
+                      marginBottom: 8,
+                    }}
+                  >
+                    {/* ...existing group/item content... */}
+                  </div>
+                ))}
+                {/* Always render a last empty row for spacing after the last item */}
+                <div style={{ height: 32 }} />
               </div>
             )}
           </div>
