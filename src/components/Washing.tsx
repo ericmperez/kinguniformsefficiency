@@ -973,9 +973,11 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     }
                                     if (val !== getSegregatedCarts(group)) {
                                       setTunnelCartError(
-                                        `Cart count does not match segregation value (${getSegregatedCarts(
-                                          group
-                                        )}).`
+                                        canReorder
+                                          ? `Cart count does not match segregation value (${getSegregatedCarts(
+                                              group
+                                            )}).`
+                                          : "Cart count does not match segregation value."
                                       );
                                       setShowTunnelRedAlert(true);
                                       if (tunnelRedAlertTimerRef.current)
