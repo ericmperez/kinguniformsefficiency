@@ -59,6 +59,7 @@ export interface Invoice {
   truckNumber?: string; // Add truck number for shipped invoices
   pickupGroupId?: string; // Link to pickup group if present
   name?: string; // Optional invoice-level name
+  highlight?: "yellow" | "blue"; // Real-time highlight sync
 }
 
 export interface LaundryCart {

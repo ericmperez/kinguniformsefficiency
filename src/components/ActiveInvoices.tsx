@@ -212,7 +212,7 @@ export default function ActiveInvoices({
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (!invoice) return;
     // Build initial check state
-    const checks: { [cartId: string]: { [productId: string]: boolean } } = {};
+    const checks: { [cartId: string]: { [productId: string] : boolean } } = {};
     for (const cart of invoice.carts) {
       checks[cart.id] = {};
       for (const item of cart.items) {
@@ -820,22 +820,6 @@ export default function ActiveInvoices({
   const [showShippedModal, setShowShippedModal] = useState<string | null>(null);
   const [shippedTruckNumber, setShippedTruckNumber] = useState("");
 
-  // Add at the top-level of the component:
-  const [highlightColors, setHighlightColors] = useState<{
-    [invoiceId: string]: "yellow" | "blue";
-  }>({});
-
-  const getVerifierName = (verifierId: string) => {
-    if (!verifierId) return "-";
-    const found = users.find(
-      (u: UserRecord) => u.id === verifierId || u.username === verifierId
-    );
-    if (found) return found.username;
-    // If already a name, just return
-    if (verifierId.length > 4 || /[a-zA-Z]/.test(verifierId)) return verifierId;
-    return verifierId;
-  };
-
   // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
   const hasOverdue = invoices.some((inv) => {
     if (!inv.date) return false;
@@ -857,6 +841,16 @@ export default function ActiveInvoices({
 
   const [noteInputs, setNoteInputs] = useState<{ [invoiceId: string]: string }>({});
   const [editingNote, setEditingNote] = useState<{ [invoiceId: string]: boolean }>({});
+
+  const getVerifierName = (verifierId: string) => {
+    if (!verifierId) return "-";
+    const found = users.find(
+      (u: UserRecord) => u.id === verifierId || u.username === verifierId
+    );
+    if (found) return found.username;
+    if (verifierId.length > 4 || /[a-zA-Z]/.test(verifierId)) return verifierId;
+    return verifierId;
+  };
 
   return (
     <div className="container-fluid py-4">
@@ -898,7 +892,7 @@ export default function ActiveInvoices({
                 invoice.partiallyVerified ||
                 partialVerifiedInvoices[invoice.id];
               // Determine highlight color for this invoice
-              const highlight = highlightColors[invoice.id] || "blue";
+              const highlight = invoice.highlight || "blue";
               // Compute background based on highlight color and status
               let cardBackground = "";
               if (isVerified) {
@@ -1225,13 +1219,10 @@ export default function ActiveInvoices({
                             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                             border: "none",
                           }}
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            setHighlightColors((prev) => ({
-                              ...prev,
-                              [invoice.id]:
-                                prev[invoice.id] === "yellow" ? "blue" : "yellow",
-                            }));
+                            const newHighlight = highlight === "yellow" ? "blue" : "yellow";
+                            await onUpdateInvoice(invoice.id, { highlight: newHighlight });
                             if (user?.username) {
                               logActivity({
                                 type: "Invoice",
@@ -1249,8 +1240,7 @@ export default function ActiveInvoices({
                           <i
                             className="bi bi-flag-fill"
                             style={{
-                              color:
-                                highlight === "yellow" ? "#fbbf24" : "#0E62A0",
+                              color: highlight === "yellow" ? "#fbbf24" : "#0E62A0",
                               fontSize: 22,
                             }}
                           />
@@ -2159,17 +2149,6 @@ export default function ActiveInvoices({
                     } else {
                       // If group exists but status is not 'Pending Products', update it
                       if (pendingGroup.status !== "Pending Products") {
-                        await import("../firebase").then(({ db }) =>
-                          import("firebase/firestore").then(
-                            ({ doc, updateDoc }) =>
-                              updateDoc(
-                                doc(db, "pickup_groups", pendingGroup.id),
-                                {
-                                  status: "Pending Products",
-                                }
-                              )
-                          )
-                        );
                         pendingGroup.status = "Pending Products";
                       }
                     }
