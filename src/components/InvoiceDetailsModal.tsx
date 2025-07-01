@@ -482,15 +482,15 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                         ) {
                           setLocalCarts(
                             localCarts.map((c) =>
-                              c.id === cart.id
-                                ? { ...c, name: newName.trim() }
-                                : c
+                              c.id === cart.id ? { ...c, name: newName.trim() } : c
                             )
                           );
-                          await onAddCart(
-                            `__edit__${cart.id}__${newName.trim()}`
-                          );
+                          await onAddCart(`__edit__${cart.id}__${newName.trim()}`);
                           if (refreshInvoices) await refreshInvoices();
+                          // Sync localCarts with latest invoice.carts after refresh
+                          setLocalCarts(
+                            typeof invoice.carts === 'object' ? [...invoice.carts] : []
+                          );
                         }
                       }}
                     >
