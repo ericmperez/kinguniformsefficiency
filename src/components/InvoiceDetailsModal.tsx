@@ -502,7 +502,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 <div className="mb-2">
                   <button
                     className="btn btn-link text-primary fw-bold"
-                    style={{ fontSize: 18, textDecoration: "none" }}
+                    style={{ fontSize: 28, textDecoration: "none", padding: "18px 0", width: "100%", display: "block", background: "#eaf4ff", borderRadius: 12, border: "2.5px dashed #0E62A0", fontWeight: 900, letterSpacing: 1, boxShadow: "0 2px 12px rgba(14,98,160,0.08)", margin: "18px 0" }}
                     onClick={() => setAddProductCartId(cart.id)}
                   >
                     + Add New Item
