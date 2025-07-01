@@ -20,6 +20,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import "./Segregation.css";
+import { useAuth } from "./AuthContext";
 
 interface SegregationProps {
   hideArrows?: boolean;
@@ -401,6 +402,8 @@ const Segregation: React.FC<SegregationProps> = ({
     });
   }, [groups]);
 
+  const { user } = useAuth();
+
   // --- UI ---
   // Highlight the top group (first in displayGroups) in a big bold box at the top
   const topGroup = displayGroups[0];
@@ -626,24 +629,29 @@ const Segregation: React.FC<SegregationProps> = ({
                   className="d-flex flex-row align-items-center justify-content-end gap-1"
                   style={{ minWidth: 90, maxWidth: 120 }}
                 >
-                  <button
-                    className="btn btn-outline-secondary btn-sm"
-                    title="Move up"
-                    disabled={idx === 0}
-                    onClick={() => moveGroup(group.id, -1)}
-                    style={{ padding: "2px 7px", fontSize: 13 }}
-                  >
-                    <span aria-hidden="true">▲</span>
-                  </button>
-                  <button
-                    className="btn btn-outline-secondary btn-sm"
-                    title="Move down"
-                    disabled={idx === displayGroups.length - 1}
-                    onClick={() => moveGroup(group.id, 1)}
-                    style={{ padding: "2px 7px", fontSize: 13 }}
-                  >
-                    <span aria-hidden="true">▼</span>
-                  </button>
+                  {/* Only show arrows for Supervisor or higher */}
+                  {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
+                    <>
+                      <button
+                        className="btn btn-outline-secondary btn-sm"
+                        title="Move up"
+                        disabled={idx === 0}
+                        onClick={() => moveGroup(group.id, -1)}
+                        style={{ padding: "2px 7px", fontSize: 13 }}
+                      >
+                        <span aria-hidden="true">▲</span>
+                      </button>
+                      <button
+                        className="btn btn-outline-secondary btn-sm"
+                        title="Move down"
+                        disabled={idx === displayGroups.length - 1}
+                        onClick={() => moveGroup(group.id, 1)}
+                        style={{ padding: "2px 7px", fontSize: 13 }}
+                      >
+                        <span aria-hidden="true">▼</span>
+                      </button>
+                    </>
+                  )}
                   <button
                     className="btn btn-outline-danger btn-sm"
                     title="Delete group"

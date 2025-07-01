@@ -13,6 +13,7 @@ import type { Client, Product } from "../types";
 import { addManualConventionalProduct } from "../services/firebaseService";
 import { getManualConventionalProductsForDate } from "../services/firebaseService";
 import { logActivity } from "../services/firebaseService";
+import { useAuth } from "./AuthContext";
 
 interface WashingProps {
   setSelectedInvoiceId?: (id: string | null) => void;
@@ -75,6 +76,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   const [verifyingGroupIds, setVerifyingGroupIds] = useState<{
     [groupId: string]: boolean;
   }>({});
+
+  const { user } = useAuth();
+  const canReorder = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
 
   useEffect(() => {
     setLoading(true);
@@ -935,10 +939,13 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               </button>
                             ) : (
                               <>
-                                <div className="mb-2 text-secondary small">
-                                  Segregated Carts:{" "}
-                                  <strong>{getSegregatedCarts(group)}</strong>
-                                </div>
+                                {/* Only show segregated carts value for Supervisor or higher */}
+                                {canReorder && (
+                                  <div className="mb-2 text-secondary small">
+                                    Segregated Carts:{" "}
+                                    <strong>{getSegregatedCarts(group)}</strong>
+                                  </div>
+                                )}
                                 <input
                                   type="number"
                                   min={0}
@@ -946,9 +953,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   style={{ width: 110, maxWidth: "100%" }}
                                   placeholder="How many carts did you count?"
                                   value={tunnelCartInput}
-                                  onChange={(e) =>
-                                    setTunnelCartInput(e.target.value)
-                                  }
+                                  onChange={(e) => setTunnelCartInput(e.target.value)}
                                   autoFocus
                                 />
                                 {tunnelCartError && (
@@ -1145,28 +1150,27 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         className="d-flex flex-row align-items-center justify-content-end gap-2"
                         style={{ minWidth: 220, maxWidth: 260 }}
                       >
-                        {/* Move up/down arrows */}
-                        <button
-                          className="btn btn-outline-secondary btn-sm"
-                          title="Move up"
-                          disabled={
-                            tunnelReorderLoading === group.id || idx === 0
-                          }
-                          onClick={() => moveTunnelGroup(group.id, "up")}
-                        >
-                          <span aria-hidden="true">▲</span>
-                        </button>
-                        <button
-                          className="btn btn-outline-secondary btn-sm"
-                          title="Move down"
-                          disabled={
-                            tunnelReorderLoading === group.id ||
-                            idx === tunnelGroups.length - 1
-                          }
-                          onClick={() => moveTunnelGroup(group.id, "down")}
-                        >
-                          <span aria-hidden="true">▼</span>
-                        </button>
+                        {/* Move up/down arrows - only for Supervisor or higher */}
+                        {canReorder && (
+                          <>
+                            <button
+                              className="btn btn-outline-secondary btn-sm"
+                              title="Move up"
+                              disabled={tunnelReorderLoading === group.id || idx === 0}
+                              onClick={() => moveTunnelGroup(group.id, "up")}
+                            >
+                              <span aria-hidden="true">▲</span>
+                            </button>
+                            <button
+                              className="btn btn-outline-secondary btn-sm"
+                              title="Move down"
+                              disabled={tunnelReorderLoading === group.id || idx === tunnelGroups.length - 1}
+                              onClick={() => moveTunnelGroup(group.id, "down")}
+                            >
+                              <span aria-hidden="true">▼</span>
+                            </button>
+                          </>
+                        )}
                         {/* Delete group button */}
                         <button
                           className="btn btn-outline-danger btn-sm"
@@ -1453,8 +1457,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                     )}
                     {/* Actions section */}
                     <div className="d-flex flex-row align-items-center gap-1" style={{ minWidth: 90, maxWidth: 120 }}>
-                      {/* Move up/down arrows for groups only */}
-                      {!group.isManualProduct && (
+                      {/* Move up/down arrows for groups only, Supervisor or higher */}
+                      {!group.isManualProduct && canReorder && (
                         <>
                           <button
                             className="btn btn-outline-secondary btn-sm"
