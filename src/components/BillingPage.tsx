@@ -291,6 +291,19 @@ const BillingPage: React.FC = () => {
     setInvoices(all.filter((inv: Invoice) => inv.status === "done"));
   };
 
+  // Delete handler
+  const handleDeleteInvoice = async (invoice: Invoice) => {
+    if (!window.confirm("Are you sure you want to delete this invoice?")) return;
+    try {
+      const docRef = doc(db, "invoices", invoice.id);
+      await setDoc(docRef, { status: "deleted" }, { merge: true });
+      setInvoices((prev) => prev.filter((inv) => inv.id !== invoice.id));
+      setEmailStatus("Invoice deleted successfully.");
+    } catch (e) {
+      setEmailStatus("Error deleting invoice.");
+    }
+  };
+
   return (
     <div className="container py-4">
       {/* Client Dropdown Filter - moved to top */}
@@ -700,6 +713,12 @@ const BillingPage: React.FC = () => {
                                 onClick={() => setInvoiceToPrint(inv)}
                               >
                                 Print
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-danger ms-2"
+                                onClick={() => handleDeleteInvoice(inv)}
+                              >
+                                Delete
                               </button>
                             </td>
                           </tr>

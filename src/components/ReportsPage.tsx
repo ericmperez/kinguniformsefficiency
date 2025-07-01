@@ -115,6 +115,30 @@ const ReportsPage: React.FC = () => {
                             >
                               Edit
                             </button>
+                            <button
+                              className="btn btn-sm btn-outline-danger ms-2"
+                              onClick={async () => {
+                                if (
+                                  !window.confirm(
+                                    "Are you sure you want to delete this invoice?"
+                                  )
+                                )
+                                  return;
+                                try {
+                                  const { doc, setDoc } = await import(
+                                    "firebase/firestore"
+                                  );
+                                  const { db } = await import("../firebase");
+                                  const docRef = doc(db, "invoices", inv.id);
+                                  await setDoc(docRef, { status: "deleted" }, { merge: true });
+                                  setInvoices((prev) => prev.filter((i) => i.id !== inv.id));
+                                } catch (e) {
+                                  alert("Error deleting invoice.");
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       ))}

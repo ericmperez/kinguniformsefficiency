@@ -611,9 +611,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 {/* Product summary cards */}
                 <div className="row g-2 mb-2">
                   {clientProducts
-                    .filter((prod) =>
-                      cart.items.some((i) => i.productId === prod.id)
-                    )
+                    .filter((prod) => cart.items.some((i) => i.productId === prod.id))
                     .map((product) => {
                       // All entries for this product in this cart
                       const entries = cart.items
@@ -626,140 +624,154 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       return (
                         <div key={product.id} className="col-12 col-md-6">
                           <div
-                            className="d-flex align-items-center border rounded p-2 mb-1"
+                            className="d-flex flex-column border rounded p-2 mb-1"
                             style={{ background: "#fff", minHeight: 72 }}
                           >
-                            <div
-                              style={{
-                                width: 48,
-                                height: 48,
-                                marginRight: 12,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 32,
-                              }}
-                            >
-                              {product.imageUrl ? (
-                                <img
-                                  src={product.imageUrl}
-                                  alt={product.name}
+                            <div className="d-flex align-items-center mb-2">
+                              <div
+                                style={{
+                                  width: 48,
+                                  height: 48,
+                                  marginRight: 12,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 32,
+                                }}
+                              >
+                                {product.imageUrl ? (
+                                  <img
+                                    src={product.imageUrl}
+                                    alt={product.name}
+                                    style={{
+                                      width: 40,
+                                      height: 40,
+                                      objectFit: "contain",
+                                    }}
+                                  />
+                                ) : (
+                                  (() => {
+                                    const name = product.name.toLowerCase();
+                                    if (
+                                      name.includes("scrub shirt") ||
+                                      name.includes("scrub top") ||
+                                      name.includes("scrub")
+                                    )
+                                      return (
+                                        <img
+                                          src="/images/products/scrubshirt.png"
+                                          alt="Scrub Shirt"
+                                          style={{
+                                            width: 40,
+                                            height: 40,
+                                            objectFit: "contain",
+                                          }}
+                                        />
+                                      );
+                                    if (name.includes("sábanas"))
+                                      return (
+                                        <span role="img" aria-label="sheets">
+                                          🛏️
+                                        </span>
+                                      );
+                                    if (name.includes("fundas"))
+                                      return (
+                                        <span role="img" aria-label="covers">
+                                          🧺
+                                        </span>
+                                      );
+                                    if (name.includes("toallas de baño"))
+                                      return (
+                                        <span role="img" aria-label="bath towel">
+                                          🛁
+                                        </span>
+                                      );
+                                    if (name.includes("toalla de piso"))
+                                      return (
+                                        <span role="img" aria-label="floor towel">
+                                          🧍
+                                        </span>
+                                      );
+                                    if (name.includes("toalla de cara"))
+                                      return (
+                                        <span role="img" aria-label="face towel">
+                                          🧻
+                                        </span>
+                                      );
+                                    if (name.includes("frisas"))
+                                      return (
+                                        <span role="img" aria-label="frisas">
+                                          🦢
+                                        </span>
+                                      );
+                                    if (name.includes("cortinas"))
+                                      return (
+                                        <span role="img" aria-label="curtains">
+                                          🪟
+                                        </span>
+                                      );
+                                    return (
+                                      <span role="img" aria-label="product">
+                                        🖼️
+                                      </span>
+                                    );
+                                  })()
+                                )}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div
                                   style={{
-                                    width: 40,
-                                    height: 40,
-                                    objectFit: "contain",
+                                    fontWeight: 700,
+                                    fontSize: 18,
+                                    color: "#222",
                                   }}
-                                />
-                              ) : (
-                                (() => {
-                                  const name = product.name.toLowerCase();
-                                  if (
-                                    name.includes("scrub shirt") ||
-                                    name.includes("scrub top") ||
-                                    name.includes("scrub")
-                                  )
-                                    return (
-                                      <img
-                                        src="/images/products/scrubshirt.png"
-                                        alt="Scrub Shirt"
-                                        style={{
-                                          width: 40,
-                                          height: 40,
-                                          objectFit: "contain",
-                                        }}
-                                      />
-                                    );
-                                  if (name.includes("sábanas"))
-                                    return (
-                                      <span role="img" aria-label="sheets">
-                                        🛏️
-                                      </span>
-                                    );
-                                  if (name.includes("fundas"))
-                                    return (
-                                      <span role="img" aria-label="covers">
-                                        🧺
-                                      </span>
-                                    );
-                                  if (name.includes("toallas de baño"))
-                                    return (
-                                      <span role="img" aria-label="bath towel">
-                                        🛁
-                                      </span>
-                                    );
-                                  if (name.includes("toalla de piso"))
-                                    return (
-                                      <span role="img" aria-label="floor towel">
-                                        🧍
-                                      </span>
-                                    );
-                                  if (name.includes("toalla de cara"))
-                                    return (
-                                      <span role="img" aria-label="face towel">
-                                        🧻
-                                      </span>
-                                    );
-                                  if (name.includes("frisas"))
-                                    return (
-                                      <span role="img" aria-label="frisas">
-                                        🦢
-                                      </span>
-                                    );
-                                  if (name.includes("cortinas"))
-                                    return (
-                                      <span role="img" aria-label="curtains">
-                                        🪟
-                                      </span>
-                                    );
-                                  return (
-                                    <span role="img" aria-label="product">
-                                      🖼️
-                                    </span>
-                                  );
-                                })()
-                              )}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <div
-                                style={{
-                                  fontWeight: 700,
-                                  fontSize: 18,
-                                  color: "#222",
-                                }}
-                              >
-                                {product.name}
+                                >
+                                  {product.name}
+                                </div>
                               </div>
-                              {/* Entry summary for this product */}
-                              <div
-                                style={{
-                                  fontSize: 13,
-                                  color: "#888",
-                                  marginTop: 2,
-                                  whiteSpace: "normal",
-                                }}
-                              >
-                                {entries.map((item, i) => (
-                                  <span
-                                    key={item.idx}
-                                    style={{ marginRight: 8 }}
-                                  >
-                                    + {item.quantity} added by{" "}
-                                    {item.addedBy || "You"}
+                            </div>
+                            {/* List each entry for this product in this cart */}
+                            <div style={{ fontSize: 14, color: "#444", marginBottom: 4 }}>
+                              {entries.map((item, i) => (
+                                <div
+                                  key={item.idx}
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    padding: "2px 0",
+                                    borderBottom: "1px solid #f0f0f0",
+                                  }}
+                                >
+                                  <span>
+                                    +{item.quantity} by {item.addedBy || "You"}
+                                    {item.addedAt && (
+                                      <span style={{ color: "#888", marginLeft: 6, fontSize: 12 }}>
+                                        {new Date(item.addedAt).toLocaleString()}
+                                      </span>
+                                    )}
                                   </span>
-                                ))}
-                              </div>
+                                  <button
+                                    className="btn btn-sm btn-outline-danger"
+                                    style={{ padding: "2px 8px", fontSize: 12 }}
+                                    onClick={() => handleDeleteCartItem(cart.id, product.id, item.idx)}
+                                    title="Delete entry"
+                                  >
+                                    <i className="bi bi-x" />
+                                  </button>
+                                </div>
+                              ))}
                             </div>
+                            {/* Total for this product */}
                             <div
                               style={{
                                 fontWeight: 700,
-                                fontSize: 22,
+                                fontSize: 18,
                                 color: "#0E62A0",
-                                marginLeft: 8,
-                                minWidth: 60,
                                 textAlign: "right",
                               }}
                             >
-                              {totalQty}
+                              Total: {totalQty}
                             </div>
                           </div>
                         </div>

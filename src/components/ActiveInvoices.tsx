@@ -212,7 +212,7 @@ export default function ActiveInvoices({
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (!invoice) return;
     // Build initial check state
-    const checks: { [cartId: string]: { [productId: string] : boolean } } = {};
+    const checks: { [cartId: string]: { [productId: string]: boolean } } = {};
     for (const cart of invoice.carts) {
       checks[cart.id] = {};
       for (const item of cart.items) {
@@ -1791,6 +1791,7 @@ export default function ActiveInvoices({
                                             : item
                                         );
                                       } else {
+                                        const prod = products.find((p) => p.id === product.id);
                                         newItems = [
                                           ...c.items,
                                           {
@@ -2681,11 +2682,11 @@ export default function ActiveInvoices({
             return { id: newCart.id, name: newCart.name, isActive: true };
           }}
           onAddProductToCart={async (
-            cartId,
-            productId,
-            quantity,
-            _price,
-            itemIdx
+            cartId: string,
+            prodId: string,
+            quantity: number,
+            _price?: number,
+            itemIdx?: number
           ) => {
             const invoice = invoicesState.find(
               (inv) => inv.id === selectedInvoice.id
@@ -2698,35 +2699,28 @@ export default function ActiveInvoices({
                 // Remove only the entry at the given index with matching productId
                 newItems = cart.items.filter(
                   (item, idx) =>
-                    !(item.productId === productId && idx === itemIdx)
+                    !(item.productId === prodId && idx === itemIdx)
                 );
               } else {
-                const existingIdx = cart.items.findIndex(
-                  (item) => item.productId === productId
-                );
-                if (existingIdx > -1) {
-                  newItems = cart.items.map((item, idx) =>
-                    idx === existingIdx
-                      ? {
-                          ...item,
-                          quantity: quantity,
-                          price: item.price,
-                        }
-                      : item
-                  );
-                } else {
-                  const prod = products.find((p) => p.id === productId);
-                  newItems = [
-                    ...cart.items,
-                    {
-                      productId: productId,
-                      productName: prod ? prod.name : "",
-                      quantity: quantity,
-                      price: prod ? prod.price : 0,
-                      addedBy: "You",
-                    },
-                  ];
+                // Always add a new entry (do not merge with existing)
+                let prodName = "";
+                let prodPrice = 0;
+                const prod = products.find((p) => p.id === prodId);
+                if (prod) {
+                  prodName = prod.name;
+                  prodPrice = prod.price;
                 }
+                newItems = [
+                  ...cart.items,
+                  {
+                    productId: prodId,
+                    productName: prodName,
+                    quantity: quantity,
+                    price: prodPrice,
+                    addedBy: "You",
+                    addedAt: new Date().toISOString(),
+                  },
+                ];
               }
               return { ...cart, items: newItems };
             });
