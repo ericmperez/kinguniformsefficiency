@@ -1184,141 +1184,155 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
           </div>
         )}
         {activeTab === "conventional" && (
-          <div
-            className="card shadow p-4 mb-4 mx-auto"
-            style={{ maxWidth: 600 }}
-          >
-            <form
-              className="row g-2 align-items-end mb-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleAddConventionalProduct();
-              }}
-            >
-              <div className="col-12 col-md-4">
-                <label className="form-label mb-1">Client</label>
-                <select
-                  className="form-select"
-                  value={selectedConventionalClientId}
-                  onChange={(e) =>
-                    setSelectedConventionalClientId(e.target.value)
-                  }
-                  required
-                >
-                  <option value="">-- Select a client --</option>
-                  {clientsNotInConventional.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-12 col-md-4">
-                <label className="form-label mb-1">Product</label>
-                <select
-                  className="form-select"
-                  value={selectedConventionalProductId}
-                  onChange={(e) =>
-                    setSelectedConventionalProductId(e.target.value)
-                  }
-                  required
-                >
-                  <option value="">-- Select a product --</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-12 col-md-4">
-                <label className="form-label mb-1">Add By</label>
-                <div className="d-flex gap-2">
-                  <div className="form-check form-check-inline">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      name="addByMode"
-                      id="addByCart"
-                      value="cart"
-                      checked={conventionalAddMode === "cart"}
-                      onChange={() => setConventionalAddMode("cart")}
-                    />
-                    <label className="form-check-label" htmlFor="addByCart">
-                      Carts
-                    </label>
-                  </div>
-                  <div className="form-check form-check-inline">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      name="addByMode"
-                      id="addByQty"
-                      value="quantity"
-                      checked={conventionalAddMode === "quantity"}
-                      onChange={() => setConventionalAddMode("quantity")}
-                    />
-                    <label className="form-check-label" htmlFor="addByQty">
-                      Quantity
-                    </label>
-                  </div>
-                  <div className="form-check form-check-inline">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      name="addByMode"
-                      id="addByLbs"
-                      value="pounds"
-                      checked={conventionalAddMode === "pounds"}
-                      onChange={() => setConventionalAddMode("pounds")}
-                    />
-                    <label className="form-check-label" htmlFor="addByLbs">
-                      Pounds
-                    </label>
+          <div className="card shadow p-4 mb-4 mx-auto" style={{ maxWidth: 820 }}>
+            {/* Collapsible input form */}
+            <div className="mb-3 w-100" style={{ textAlign: "right" }}>
+              <button
+                className="btn btn-primary"
+                style={{ fontWeight: 700, fontSize: 18, borderRadius: 8, minWidth: 44 }}
+                onClick={() => setShowAddConventionalModal((v) => !v)}
+                aria-expanded={showAddConventionalModal}
+                aria-controls="conventional-input-form"
+                type="button"
+              >
+                <span style={{ fontSize: 22, fontWeight: 900, marginRight: 6 }}>+</span> Add Entry
+              </button>
+            </div>
+            {showAddConventionalModal && (
+              <form
+                id="conventional-input-form"
+                className="row g-2 align-items-end mb-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAddConventionalProduct();
+                }}
+                style={{ background: "#f8f9fa", borderRadius: 12, padding: 18, marginBottom: 18, boxShadow: "0 2px 8px rgba(14,98,160,0.06)" }}
+              >
+                <div className="col-12 col-md-4">
+                  <label className="form-label mb-1">Client</label>
+                  <select
+                    className="form-select"
+                    value={selectedConventionalClientId}
+                    onChange={(e) =>
+                      setSelectedConventionalClientId(e.target.value)
+                    }
+                    required
+                  >
+                    <option value="">-- Select a client --</option>
+                    {clientsNotInConventional.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-12 col-md-4">
+                  <label className="form-label mb-1">Product</label>
+                  <select
+                    className="form-select"
+                    value={selectedConventionalProductId}
+                    onChange={(e) =>
+                      setSelectedConventionalProductId(e.target.value)
+                    }
+                    required
+                  >
+                    <option value="">-- Select a product --</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-12 col-md-4">
+                  <label className="form-label mb-1">Add By</label>
+                  <div className="d-flex gap-2">
+                    <div className="form-check form-check-inline">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="addByMode"
+                        id="addByCart"
+                        value="cart"
+                        checked={conventionalAddMode === "cart"}
+                        onChange={() => setConventionalAddMode("cart")}
+                      />
+                      <label className="form-check-label" htmlFor="addByCart">
+                        Carts
+                      </label>
+                    </div>
+                    <div className="form-check form-check-inline">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="addByMode"
+                        id="addByQty"
+                        value="quantity"
+                        checked={conventionalAddMode === "quantity"}
+                        onChange={() => setConventionalAddMode("quantity")}
+                      />
+                      <label className="form-check-label" htmlFor="addByQty">
+                        Quantity
+                      </label>
+                    </div>
+                    <div className="form-check form-check-inline">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="addByMode"
+                        id="addByLbs"
+                        value="pounds"
+                        checked={conventionalAddMode === "pounds"}
+                        onChange={() => setConventionalAddMode("pounds")}
+                      />
+                      <label className="form-check-label" htmlFor="addByLbs">
+                        Pounds
+                      </label>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="col-12 col-md-4">
-                <label className="form-label mb-1">
-                  {conventionalAddMode === "cart"
-                    ? "Number of Carts"
-                    : conventionalAddMode === "quantity"
-                    ? "Quantity"
-                    : "Pounds"}
-                </label>
-                <input
-                  type="number"
-                  className="form-control"
-                  min={1}
-                  value={conventionalProductQty}
-                  onChange={(e) =>
-                    setConventionalProductQty(Number(e.target.value))
-                  }
-                  required
-                />
-              </div>
-              <div className="col-12 col-md-4 d-flex align-items-end">
-                <button
-                  type="submit"
-                  className="btn btn-primary w-100"
-                  disabled={
-                    !selectedConventionalClientId ||
-                    !selectedConventionalProductId ||
-                    conventionalProductQty < 1 ||
-                    conventionalModalLoading
-                  }
-                >
-                  + Add Manual Product
-                </button>
-              </div>
-              {conventionalModalError && (
-                <div className="col-12">
-                  <div className="alert alert-danger py-1 my-1">
-                    {conventionalModalError}
-                  </div>
+                <div className="col-12 col-md-4">
+                  <label className="form-label mb-1">
+                    {conventionalAddMode === "cart"
+                      ? "Number of Carts"
+                      : conventionalAddMode === "quantity"
+                      ? "Quantity"
+                      : "Pounds"}
+                  </label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min={1}
+                    value={conventionalProductQty}
+                    onChange={(e) =>
+                      setConventionalProductQty(Number(e.target.value))
+                    }
+                    required
+                  />
                 </div>
-              )}
-            </form>
+                <div className="col-12 col-md-4 d-flex align-items-end">
+                  <button
+                    type="submit"
+                    className="btn btn-primary w-100"
+                    disabled={
+                      !selectedConventionalClientId ||
+                      !selectedConventionalProductId ||
+                      conventionalProductQty < 1 ||
+                      conventionalModalLoading
+                    }
+                  >
+                    + Add Manual Product
+                  </button>
+                </div>
+                {conventionalModalError && (
+                  <div className="col-12">
+                    <div className="alert alert-danger py-1 my-1">
+                      {conventionalModalError}
+                    </div>
+                  </div>
+                )}
+              </form>
+            )}
             {manualProductsLoading ? (
               <div className="text-center py-2">Loading manual products...</div>
             ) : (
@@ -1368,7 +1382,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                 No conventional groups ready for washing.
               </div>
             ) : (
-              <div className="list-group list-group-flush">
+              <div className="list-group list-group-flush" style={{ maxWidth: 820, margin: "0 auto" }}>
                 {allConventionalRows.map((group, idx) => (
                   <div
                     key={group.id}
@@ -1377,9 +1391,122 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                       border: "1px solid #e3e3e3",
                       background: group.isManualProduct ? "#fffbe6" : "#fff",
                       marginBottom: 8,
+                      minHeight: 60,
+                      fontSize: 15,
+                      alignItems: "center",
+                      maxWidth: 800,
+                      width: "100%",
                     }}
                   >
-                    {/* ...existing group/item content... */}
+                    {/* Info section */}
+                    <div className="d-flex flex-column flex-grow-1 justify-content-center" style={{ minWidth: 0 }}>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          color: group.isManualProduct ? "#b8860b" : "#007bff",
+                          fontSize: 16,
+                          maxWidth: 180,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          lineHeight: 1.1,
+                          display: "block",
+                        }}
+                        title={group.clientName}
+                      >
+                        {group.clientName}
+                      </span>
+                      {group.isManualProduct ? null : (
+                        <span
+                          style={{
+                            color: "#333",
+                            opacity: 0.7,
+                            fontSize: "11px",
+                            fontWeight: 500,
+                            letterSpacing: 0.2,
+                            marginTop: 1,
+                            textAlign: "left",
+                            display: "block",
+                          }}
+                        >
+                          Carros: <strong style={{ fontSize: "11px", fontWeight: 600 }}>{getConventionalCartCount(group.id)}</strong>
+                        </span>
+                      )}
+                      {group.isManualProduct && (
+                        <span style={{ color: "#888", fontSize: 13, marginTop: 1 }}>
+                          <b>{group.productName}</b> x{group.quantity} <span style={{ color: "#888" }}>({group.type})</span>
+                        </span>
+                      )}
+                    </div>
+                    {/* Weight section */}
+                    {!group.isManualProduct && (
+                      <span
+                        style={{
+                          fontSize: "0.95rem",
+                          color: "#28a745",
+                          minWidth: 70,
+                          textAlign: "center",
+                        }}
+                      >
+                        Total: <strong>{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "?"} lbs</strong>
+                      </span>
+                    )}
+                    {/* Actions section */}
+                    <div className="d-flex flex-row align-items-center gap-1" style={{ minWidth: 90, maxWidth: 120 }}>
+                      {/* Move up/down arrows for groups only */}
+                      {!group.isManualProduct && (
+                        <>
+                          <button
+                            className="btn btn-outline-secondary btn-sm"
+                            title="Move up"
+                            disabled={idx === 0}
+                            onClick={() => moveConventionalRow(group.id, "up")}
+                            style={{ padding: "2px 7px", fontSize: 13 }}
+                          >
+                            <span aria-hidden="true">▲</span>
+                          </button>
+                          <button
+                            className="btn btn-outline-secondary btn-sm"
+                            title="Move down"
+                            disabled={idx === allConventionalRows.length - 1}
+                            onClick={() => moveConventionalRow(group.id, "down")}
+                            style={{ padding: "2px 7px", fontSize: 13 }}
+                          >
+                            <span aria-hidden="true">▼</span>
+                          </button>
+                        </>
+                      )}
+                      {/* Delete button for both types */}
+                      <button
+                        className="btn btn-outline-danger btn-sm"
+                        title="Delete group"
+                        onClick={() => group.isManualProduct ? handleDeleteManualProductGroup(group.id) : handleDeleteGroup(group.id)}
+                        style={{ padding: "2px 7px", fontSize: 13 }}
+                      >
+                        <span aria-hidden="true">🗑️</span>
+                      </button>
+                      {/* Mark as washed for manual products */}
+                      {group.isManualProduct && !group.washed && (
+                        <button
+                          className="btn btn-outline-success btn-sm ms-1"
+                          onClick={() => handleMarkManualProductWashed(group.id)}
+                        >
+                          Done
+                        </button>
+                      )}
+                      {group.isManualProduct && group.washed && (
+                        <span className="text-muted ms-2">Pending Invoice</span>
+                      )}
+                      {/* Mark as washed for conventional groups */}
+                      {!group.isManualProduct && (
+                        <button
+                          className="btn btn-success btn-sm ms-1 px-2"
+                          onClick={() => handleMarkConventionalGroupWashed(group)}
+                        >
+                          Done
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {/* Always render a last empty row for spacing after the last item */}
