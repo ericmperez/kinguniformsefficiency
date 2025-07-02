@@ -1,6 +1,7 @@
 import React from "react";
 import { Invoice, Product, Client, Cart, LaundryCart } from "../types";
-import { getUsers, UserRecord } from "../services/firebaseService";
+import { getUsers, UserRecord, logActivity } from "../services/firebaseService";
+import { useAuth } from "./AuthContext";
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice;
@@ -44,6 +45,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   // Local state for carts to enable instant UI update
   const [localCarts, setLocalCarts] = React.useState(invoice.carts);
   const [users, setUsers] = React.useState<UserRecord[]>([]);
+  const { user } = useAuth();
 
   // --- Invoice Name Editing ---
   const [editingInvoiceName, setEditingInvoiceName] = React.useState(false);
@@ -149,6 +151,19 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     // Persist change
     await onAddProductToCart(cartId, productId, 0, undefined, itemIdx);
     if (refreshInvoices) await refreshInvoices();
+  };
+
+  // Add logActivity to cart creation (new cart and default cart)
+  const handleAddCart = async (cartName: string) => {
+    const newCart: LaundryCart = await onAddCart(cartName);
+    if (typeof logActivity === "function") {
+      await logActivity({
+        type: "Cart",
+        message: `Cart '${cartName}' created in invoice '${invoice.name || invoice.invoiceNumber}'`,
+        user: user?.username,
+      });
+    }
+    return newCart;
   };
 
   return (
@@ -326,7 +341,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       let nextNum = 1;
                       while (existingNumbers.includes(nextNum)) nextNum++;
                       const defaultName = `CARRO SIN NOMBRE ${nextNum}`;
-                      const newCart: LaundryCart = await onAddCart(defaultName);
+                      const newCart: LaundryCart = await handleAddCart(defaultName);
                       setLocalCarts([
                         ...localCarts,
                         {
@@ -358,7 +373,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     className="btn btn-success"
                     onClick={async () => {
                       if (newCartName.trim()) {
-                        const newCart: LaundryCart = await onAddCart(
+                        const newCart: LaundryCart = await handleAddCart(
                           newCartName.trim()
                         );
                         setLocalCarts([
@@ -464,6 +479,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                             localCarts.filter((c) => c.id !== cart.id)
                           );
                           await onAddCart("__delete__" + cart.id);
+                          if (typeof logActivity === "function") {
+                            await logActivity({
+                              type: "Cart",
+                              message: `Cart '${cart.name}' deleted from invoice '${invoice.name || invoice.invoiceNumber}'`,
+                              user: user?.username,
+                            });
+                          }
                           if (refreshInvoices) await refreshInvoices();
                         }
                       }}
@@ -486,6 +508,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                             )
                           );
                           await onAddCart(`__edit__${cart.id}__${newName.trim()}`);
+                          if (typeof logActivity === "function") {
+                            await logActivity({
+                              type: "Cart",
+                              message: `Cart '${cart.name}' renamed to '${newName.trim()}' in invoice '${invoice.name || invoice.invoiceNumber}'`,
+                              user: user?.username,
+                            });
+                          }
                           if (refreshInvoices) await refreshInvoices();
                           // Sync localCarts with latest invoice.carts after refresh
                           setLocalCarts(
@@ -744,7 +773,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                   }}
                                 >
                                   <span>
-                                    +{item.quantity} by {item.addedBy || "You"}
+                                    +{item.quantity} by {item.addedBy}
                                     {item.addedAt && (
                                       <span style={{ color: "#888", marginLeft: 6, fontSize: 12 }}>
                                         {new Date(item.addedAt).toLocaleString()}

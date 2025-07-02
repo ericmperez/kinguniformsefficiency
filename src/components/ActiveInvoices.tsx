@@ -426,6 +426,14 @@ export default function ActiveInvoices({
       carts: [...(invoice.carts || []), newCart],
     });
     setCartSelectCarts([...(invoice.carts || []), newCart]);
+    // Log cart creation
+    if (user?.username) {
+      await logActivity({
+        type: "Cart",
+        message: `User ${user.username} created cart '${newCart.name}' in invoice #${invoice.invoiceNumber || invoice.id}`,
+        user: user.username,
+      });
+    }
     // Immediately select the new cart
     await handleCartSelect(newCart);
     return newCart;
@@ -438,7 +446,6 @@ export default function ActiveInvoices({
 
   const handleConfirmDelete = async () => {
     if (invoiceToDelete) {
-     
       if (user?.username) {
         await logActivity({
           type: "Invoice",
@@ -448,6 +455,10 @@ export default function ActiveInvoices({
           user: user.username,
         });
       }
+      // Remove from local state immediately
+      setInvoicesState((prev) => prev.filter((inv) => inv.id !== invoiceToDelete.id));
+      // Call backend deletion if needed
+      await onDeleteInvoice(invoiceToDelete.id);
       setInvoiceToDelete(null);
     }
   };
@@ -2126,7 +2137,7 @@ export default function ActiveInvoices({
                       (p) => p.id === selectedAddProductId
                     );
                     if (!product) return;
-                    // Find or create 'Pending Products' group for this client
+                                       // Find or create 'Pending Products' group for this client
                     let pendingGroup = pickupGroups.find(
                       (g) =>
                         g.clientId === addProductGroup.clientId &&
@@ -2630,6 +2641,14 @@ export default function ActiveInvoices({
               carts: [...invoice.carts, newCart],
             });
             await refreshInvoices();
+            // Log cart creation
+            if (user?.username) {
+              await logActivity({
+                type: "Cart",
+                message: `User ${user.username} created cart '${newCart.name}' in invoice #${invoice.invoiceNumber || invoice.id}`,
+                user: user.username,
+              });
+            }
             return { id: newCart.id, name: newCart.name, isActive: true };
           }}
         />
