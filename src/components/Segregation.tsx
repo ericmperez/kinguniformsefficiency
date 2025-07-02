@@ -367,6 +367,34 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   };
 
+  // Handler to skip segregation for a group
+  const handleSkipSegregation = async (groupId: string) => {
+    setCompletingGroup(groupId);
+    try {
+      const group = groups.find((g) => g.id === groupId);
+      const client = clients.find((c) => c.id === group?.clientId);
+      // Use the current cart count as the segregatedCarts value
+      const cartCount = getCartCount(groupId);
+      let newStatus = "Conventional";
+      if (client?.washingType === "Tunnel") newStatus = "Tunnel";
+      await updateDoc(doc(db, "pickup_groups", groupId), {
+        segregatedCarts: cartCount,
+        status: newStatus,
+      });
+      setStatusUpdating(groupId);
+      setSegregatedCounts((prev) => ({ ...prev, [groupId]: String(cartCount) }));
+      if (onGroupComplete) onGroupComplete();
+      await logActivity({
+        type: "Segregation",
+        message: `Group ${group?.clientName || groupId} skipped segregation by user`,
+      });
+    } catch (err) {
+      alert("Error skipping segregation for this group");
+    } finally {
+      setCompletingGroup(null);
+    }
+  };
+
   // Real-time listener for all pickup_groups (no date filter)
   useEffect(() => {
     const q = collection(db, "pickup_groups");
@@ -549,125 +577,122 @@ const Segregation: React.FC<SegregationProps> = ({
           >
             {displayGroups.map((group, idx) => {
               const disableActions = !!group.segregationTomorrow;
-              const isSupervisorOrAbove = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
-              // If group is flagged for tomorrow and user is Employee, hide the Tomorrow button and make the row unclickable
-              if (group.segregationTomorrow && (!isSupervisorOrAbove)) {
+              const isSupervisorOrAbove =
+                user && ["Supervisor", "Admin", "Owner"].includes(user.role);
+              if (group.segregationTomorrow && !isSupervisorOrAbove) {
                 return (
                   <div
                     key={group.id}
-                    className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-3 mb-2 shadow-sm rounded"
+                    className="list-group-item d-flex flex-column py-3 mb-2 shadow-sm rounded"
                     style={{
-                      background: '#ffe066',
-                      border: '2.5px solid #ffa600',
+                      background: "#ffe066",
+                      border: "2.5px solid #ffa600",
                       fontSize: 14,
                       minHeight: 56,
-                      boxShadow: '0 1px 6px rgba(14,98,160,0.06)',
-                      alignItems: 'center',
-                      transition: 'background 0.2s, border 0.2s',
-                      pointerEvents: 'none', // disables all interaction
+                      boxShadow: "0 1px 6px rgba(14,98,160,0.06)",
+                      transition: "background 0.2s, border 0.2s",
+                      pointerEvents: "none",
                       opacity: 0.7,
                     }}
                   >
-                    {/* Info section */}
-                    <div className="d-flex flex-row align-items-center gap-2 flex-grow-1" style={{ flex: 1, minWidth: 0 }}>
-                      <div className="d-flex flex-column flex-grow-1 justify-content-center" style={{ flex: 1, minWidth: 0 }}>
-                        <span
-                          style={{
-                            fontSize: "1.1rem",
-                            fontWeight: 700,
-                            color: "#007bff",
-                            minWidth: 90,
-                            textAlign: "left",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            lineHeight: 1.1,
-                            maxWidth: 180,
-                            display: "block",
-                          }}
-                          title={group.clientName}
-                        >
-                          {group.clientName}
-                        </span>
-                        <span
-                          style={{
-                            color: "#333",
-                            opacity: 0.7,
-                            fontSize: "11px",
-                            fontWeight: 500,
-                            letterSpacing: 0.2,
-                            marginTop: 1,
-                            textAlign: "left",
-                            display: "block",
-                          }}
-                        >
-                          Carros:{" "}
-                          <strong style={{ fontSize: "11px", fontWeight: 600 }}>
-                            {getCartCount(group.id)}
-                          </strong>
-                        </span>
-                      </div>
+                    {/* Client name on top, no arrows for employees */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        width: "100%",
+                        marginBottom: 4,
+                      }}
+                    >
                       <span
                         style={{
-                          fontSize: "0.95rem",
-                          color: "#28a745",
-                          minWidth: 70,
-                          textAlign: "center",
-                        }}
-                      >
-                        Total:{" "}
-                        <strong>
-                          {typeof group.totalWeight === "number"
-                            ? group.totalWeight.toLocaleString(undefined, {
-                                maximumFractionDigits: 0,
-                              })
-                            : "?"}{" "}
-                          lbs
-                        </strong>
-                      </span>
-                    </div>
-                    {/* Controls section - hidden for employees */}
-                    <div style={{ minWidth: 90, maxWidth: 120 }} />
-                    {/* Input and action section - hidden for employees */}
-                    <div style={{ minWidth: 120, maxWidth: 160 }} />
-                  </div>
-                );
-              }
-              return (
-                <div
-                  key={group.id}
-                  className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-3 mb-2 shadow-sm rounded"
-                  style={{
-                    background: group.segregationTomorrow ? '#ffe066' : '#fff',
-                    border: group.segregationTomorrow ? '2.5px solid #ffa600' : '1.5px solid #e3e3e3',
-                    fontSize: 14,
-                    minHeight: 56,
-                    boxShadow: '0 1px 6px rgba(14,98,160,0.06)',
-                    alignItems: 'center',
-                    transition: 'background 0.2s, border 0.2s',
-                  }}
-                >
-                  {/* Info section */}
-                  <div className="d-flex flex-row align-items-center gap-2 flex-grow-1" style={{ flex: 1, minWidth: 0 }}>
-                    <div className="d-flex flex-column flex-grow-1 justify-content-center" style={{ flex: 1, minWidth: 0 }}>
-                      <span
-                        style={{
-                          fontSize: "1.1rem",
                           fontWeight: 700,
+                          fontSize: 20,
                           color: "#007bff",
-                          minWidth: 90,
                           textAlign: "left",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          lineHeight: 1.1,
-                          maxWidth: 180,
-                          display: "block",
                         }}
-                        title={group.clientName}
                       >
                         {group.clientName}
                       </span>
+                    </div>
+                    {/* Info and controls row (empty for employees when flagged) */}
+                    <div className="d-flex flex-row align-items-center justify-content-between gap-2 w-100">
+                      <div style={{ minWidth: 90, maxWidth: 120 }} />
+                      <div style={{ minWidth: 120, maxWidth: 160 }} />
+                    </div>
+                  </div>
+                );
+              }
+              // For supervisors/admins/owners and non-flagged groups
+              return (
+                <div
+                  key={group.id}
+                  className="list-group-item d-flex flex-column py-3 mb-2 shadow-sm rounded"
+                  style={{
+                    background: group.segregationTomorrow ? "#ffe066" : "#fff",
+                    border: group.segregationTomorrow
+                      ? "2.5px solid #ffa600"
+                      : "1.5px solid #e3e3e3",
+                    fontSize: 14,
+                    minHeight: 56,
+                    boxShadow: "0 1px 6px rgba(14,98,160,0.06)",
+                    transition: "background 0.2s, border 0.2s",
+                  }}
+                >
+                  {/* Top row: arrows (if allowed) and client name */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      width: "100%",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {isSupervisorOrAbove && (
+                      <div
+                        className="d-flex flex-row gap-1"
+                        style={{ marginRight: 10 }}
+                      >
+                        <button
+                          className="btn btn-outline-secondary btn-sm"
+                          title="Move up"
+                          disabled={disableActions || idx === 0}
+                          onClick={() => moveGroup(group.id, -1)}
+                          style={{ padding: "2px 7px", fontSize: 13 }}
+                        >
+                          <span aria-hidden="true">▲</span>
+                        </button>
+                        <button
+                          className="btn btn-outline-secondary btn-sm"
+                          title="Move down"
+                          disabled={
+                            disableActions || idx === displayGroups.length - 1
+                          }
+                          onClick={() => moveGroup(group.id, 1)}
+                          style={{ padding: "2px 7px", fontSize: 13 }}
+                        >
+                          <span aria-hidden="true">▼</span>
+                        </button>
+                      </div>
+                    )}
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 20,
+                        color: "#007bff",
+                        textAlign: "left",
+                      }}
+                    >
+                      {group.clientName}
+                    </span>
+                  </div>
+                  {/* Info and controls row below */}
+                  <div className="d-flex flex-row align-items-center justify-content-between gap-2 w-100">
+                    {/* Info section */}
+                    <div
+                      className="d-flex flex-column flex-grow-1 justify-content-center"
+                      style={{ flex: 1, minWidth: 0 }}
+                    >
                       <span
                         style={{
                           color: "#333",
@@ -685,157 +710,204 @@ const Segregation: React.FC<SegregationProps> = ({
                           {getCartCount(group.id)}
                         </strong>
                       </span>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "0.95rem",
-                        color: "#28a745",
-                        minWidth: 70,
-                        textAlign: "center",
-                      }}
-                    >
-                      Total:{" "}
-                      <strong>
-                        {typeof group.totalWeight === "number"
-                          ? group.totalWeight.toLocaleString(undefined, {
-                              maximumFractionDigits: 0,
-                            })
-                          : "?"}{" "}
-                        lbs
-                      </strong>
-                    </span>
-                  </div>
-                  {/* Controls section */}
-                  <div className="d-flex flex-row align-items-center justify-content-end gap-1" style={{ minWidth: 90, maxWidth: 120 }}>
-                    {/* Only show arrows for Supervisor or higher */}
-                    {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
-                      <>
-                        <button
-                          className="btn btn-outline-secondary btn-sm"
-                          title="Move up"
-                          disabled={disableActions || idx === 0}
-                          onClick={() => moveGroup(group.id, -1)}
-                          style={{ padding: "2px 7px", fontSize: 13 }}
-                        >
-                          <span aria-hidden="true">▲</span>
-                        </button>
-                        <button
-                          className="btn btn-outline-secondary btn-sm"
-                          title="Move down"
-                          disabled={disableActions || idx === displayGroups.length - 1}
-                          onClick={() => moveGroup(group.id, 1)}
-                          style={{ padding: "2px 7px", fontSize: 13 }}
-                        >
-                          <span aria-hidden="true">▼</span>
-                        </button>
-                      </>
-                    )}
-                    <button
-                      className="btn btn-outline-danger btn-sm"
-                      title="Delete group"
-                      onClick={() => handleDeleteSegregationGroup(group.id)}
-                      style={{ padding: "2px 7px", fontSize: 13 }}
-                      disabled={disableActions}
-                    >
-                      <span aria-hidden="true">🗑️</span>
-                    </button>
-                  </div>
-                  {/* Input and action section */}
-                  <div className="d-flex flex-row align-items-center gap-1" style={{ minWidth: 120, maxWidth: 160, justifyContent: "flex-end" }}>
-                    <button
-                      className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
-                      onClick={() =>
-                        handleInputChange(
-                          group.id,
-                          String(
-                            Math.max(
-                              0,
-                              parseInt(segregatedCounts[group.id] || "0", 10) - 1
-                            )
-                          )
-                        )
-                      }
-                      disabled={disableActions || completingGroup === group.id}
-                      style={{
-                        minWidth: 28,
-                        width: 28,
-                        height: 28,
-                        fontSize: 16,
-                        borderRadius: 5,
-                        aspectRatio: "1 / 1",
-                        padding: 0,
-                      }}
-                    >
-                      <span style={{ fontWeight: 700, fontSize: 18, lineHeight: 1 }}>-</span>
-                    </button>
-                    <input
-                      type="number"
-                      min={0}
-                      className="form-control form-control-sm text-center"
-                      style={{
-                        width: 44,
-                        fontSize: 14,
-                        fontWeight: 700,
-                        maxWidth: "100%",
-                        padding: "2px 4px",
-                      }}
-                      placeholder="#"
-                      value={segregatedCounts[group.id] || ""}
-                      onChange={(e) => handleInputChange(group.id, e.target.value)}
-                      disabled={disableActions || completingGroup === group.id}
-                    />
-                    <button
-                      className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
-                      onClick={() =>
-                        handleInputChange(
-                          group.id,
-                          String(
-                            parseInt(segregatedCounts[group.id] || "0", 10) + 1
-                          )
-                        )
-                      }
-                      disabled={disableActions || completingGroup === group.id}
-                      style={{
-                        minWidth: 28,
-                        width: 28,
-                        height: 28,
-                        fontSize: 16,
-                        borderRadius: 5,
-                        aspectRatio: "1 / 1",
-                        padding: 0,
-                      }}
-                    >
-                      <span style={{ fontWeight: 700, fontSize: 18, lineHeight: 1 }}>+</span>
-                    </button>
-                    <button
-                      className="btn btn-success btn-sm ms-1 px-2"
-                      disabled={
-                        disableActions ||
-                        completingGroup === group.id ||
-                        !segregatedCounts[group.id]
-                      }
-                      onClick={() => handleComplete(group.id)}
-                      style={{ fontWeight: 700, fontSize: 13, minWidth: 54 }}
-                    >
-                      {completingGroup === group.id ? "Saving..." : "Done"}
-                    </button>
-                    {user && ['Supervisor', 'Admin', 'Owner'].includes(user.role) && (
-                      <button
-                        className="btn btn-warning btn-sm ms-2"
-                        style={{ fontWeight: 700, fontSize: 13, minWidth: 54, background: '#ffa600', color: '#222', border: 'none' }}
-                        onClick={async () => {
-                          // Toggle segregationTomorrow flag in Firestore
-                          const newValue = !group.segregationTomorrow;
-                          await updateDoc(doc(db, 'pickup_groups', group.id), { segregationTomorrow: newValue });
-                          await logActivity({
-                            type: 'Segregation',
-                            message: `${newValue ? 'Flagged' : 'Unflagged'} group ${group.clientName || group.id} for segregation tomorrow by ${user.username || user.id}`,
-                          });
+                      <span
+                        style={{
+                          fontSize: "0.95rem",
+                          color: "#28a745",
+                          minWidth: 70,
+                          textAlign: "left",
                         }}
                       >
-                        {group.segregationTomorrow ? 'Unflag Tomorrow' : 'Tomorrow'}
+                        Total:{" "}
+                        <strong>
+                          {typeof group.totalWeight === "number"
+                            ? group.totalWeight.toLocaleString(undefined, {
+                                maximumFractionDigits: 0,
+                              })
+                            : "?"}{" "}
+                          lbs
+                        </strong>
+                      </span>
+                    </div>
+                    {/* Controls section: only trash button */}
+                    <div
+                      className="d-flex flex-row align-items-center gap-2"
+                      style={{ minWidth: 90, maxWidth: 120 }}
+                    ></div>
+                    {/* Input and action section */}
+                    <div
+                      className="d-flex flex-row align-items-center gap-1"
+                      style={{
+                        minWidth: 120,
+                        maxWidth: 160,
+                        justifyContent: "flex-end",
+                      }}
+                    >
+                      <button
+                        className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
+                        onClick={() =>
+                          handleInputChange(
+                            group.id,
+                            String(
+                              Math.max(
+                                0,
+                                parseInt(
+                                  segregatedCounts[group.id] || "0",
+                                  10
+                                ) - 1
+                              )
+                            )
+                          )
+                        }
+                        disabled={
+                          disableActions || completingGroup === group.id
+                        }
+                        style={{
+                          minWidth: 28,
+                          width: 28,
+                          height: 28,
+                          fontSize: 16,
+                          borderRadius: 5,
+                          aspectRatio: "1 / 1",
+                          padding: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 18,
+                            lineHeight: 1,
+                          }}
+                        >
+                          -
+                        </span>
                       </button>
-                    )}
+                      <input
+                        type="number"
+                        min={0}
+                        className="form-control form-control-sm text-center"
+                        style={{
+                          width: 44,
+                          fontSize: 14,
+                          fontWeight: 700,
+                          maxWidth: "100%",
+                          padding: "2px 4px",
+                        }}
+                        placeholder="#"
+                        value={segregatedCounts[group.id] || ""}
+                        onChange={(e) =>
+                          handleInputChange(group.id, e.target.value)
+                        }
+                        disabled={
+                          disableActions || completingGroup === group.id
+                        }
+                      />
+                      <button
+                        className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
+                        onClick={() =>
+                          handleInputChange(
+                            group.id,
+                            String(
+                              parseInt(segregatedCounts[group.id] || "0", 10) +
+                                1
+                            )
+                          )
+                        }
+                        disabled={
+                          disableActions || completingGroup === group.id
+                        }
+                        style={{
+                          minWidth: 28,
+                          width: 28,
+                          height: 28,
+                          fontSize: 16,
+                          borderRadius: 5,
+                          aspectRatio: "1 / 1",
+                          padding: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 18,
+                            lineHeight: 1,
+                          }}
+                        >
+                          +
+                        </span>
+                      </button>
+                      <button
+                        className="btn btn-success btn-sm ms-1 px-2"
+                        disabled={
+                          disableActions ||
+                          completingGroup === group.id ||
+                          !segregatedCounts[group.id]
+                        }
+                        onClick={() => handleComplete(group.id)}
+                        style={{ fontWeight: 700, fontSize: 13, minWidth: 54 }}
+                      >
+                        {completingGroup === group.id ? "Saving..." : "Done"}
+                      </button>
+                      {/* Skip Segregation button for supervisors/admins/owners */}
+                      {isSupervisorOrAbove && (
+                        <button
+                          className="btn btn-outline-primary btn-sm ms-2"
+                          style={{ fontWeight: 700, fontSize: 18, minWidth: 36, padding: 0 }}
+                          disabled={disableActions || completingGroup === group.id}
+                          onClick={() => handleSkipSegregation(group.id)}
+                          title="Skip segregation and send to Tunnel or Conventional"
+                        >
+                          <span aria-hidden="true">➡️</span>
+                        </button>
+                      )}
+                      {isSupervisorOrAbove && (
+                        <>
+                          <button
+                            className="btn btn-warning btn-sm ms-2"
+                            style={{
+                              fontWeight: 700,
+                              fontSize: 13,
+                              minWidth: 54,
+                              background: "#ffa600",
+                              color: "#222",
+                              border: "none",
+                            }}
+                            onClick={async () => {
+                              const newValue = !group.segregationTomorrow;
+                              await updateDoc(
+                                doc(db, "pickup_groups", group.id),
+                                { segregationTomorrow: newValue }
+                              );
+                              await logActivity({
+                                type: "Segregation",
+                                message: `${
+                                  newValue ? "Flagged" : "Unflagged"
+                                } group ${
+                                  group.clientName || group.id
+                                } for segregation tomorrow by ${
+                                  user.username || user.id
+                                }`,
+                              });
+                            }}
+                          >
+                            {group.segregationTomorrow
+                              ? "Unflag Tomorrow"
+                              : "Tomorrow"}
+                          </button>
+                          <button
+                            className="btn btn-outline-danger btn-sm ms-1"
+                            title="Delete group"
+                            onClick={() =>
+                              handleDeleteSegregationGroup(group.id)
+                            }
+                            style={{ padding: "2px 7px", fontSize: 13 }}
+                            disabled={disableActions}
+                          >
+                            <span aria-hidden="true">🗑️</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

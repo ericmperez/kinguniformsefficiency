@@ -213,7 +213,7 @@ export default function ActiveInvoices({
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (!invoice) return;
     // Build initial check state
-    const checks: { [cartId: string]: { [productId: string] : boolean } } = {};
+    const checks: { [cartId: string]: { [productId: string]: boolean } } = {};
     for (const cart of invoice.carts) {
       checks[cart.id] = {};
       for (const item of cart.items) {
@@ -361,7 +361,10 @@ export default function ActiveInvoices({
   // Real-time Firestore listener for invoices
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "invoices"), (snapshot) => {
-      const updated = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Invoice[];
+      const updated = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Invoice[];
       setInvoicesState(updated);
     });
     return () => unsub();
@@ -440,7 +443,9 @@ export default function ActiveInvoices({
     if (user?.username) {
       await logActivity({
         type: "Cart",
-        message: `User ${user.username} created cart '${newCart.name}' in invoice #${invoice.invoiceNumber || invoice.id}`,
+        message: `User ${user.username} created cart '${
+          newCart.name
+        }' in invoice #${invoice.invoiceNumber || invoice.id}`,
         user: user.username,
       });
     }
@@ -466,7 +471,9 @@ export default function ActiveInvoices({
         });
       }
       // Remove from local state immediately
-      setInvoicesState((prev) => prev.filter((inv) => inv.id !== invoiceToDelete.id));
+      setInvoicesState((prev) =>
+        prev.filter((inv) => inv.id !== invoiceToDelete.id)
+      );
       // Call backend deletion if needed
       await onDeleteInvoice(invoiceToDelete.id);
       setInvoiceToDelete(null);
@@ -562,7 +569,9 @@ export default function ActiveInvoices({
       (newStatus === "Entregado" || newStatus === "Boleta Impresa") &&
       group
     ) {
-      const invoice = invoicesState.find((inv) => inv.clientId === group.clientId);
+      const invoice = invoicesState.find(
+        (inv) => inv.clientId === group.clientId
+      );
       if (invoice && !invoiceHasAllRequiredManualProducts(invoice)) {
         alert(
           "You must add all required manual products to the invoice before delivering."
@@ -943,12 +952,16 @@ export default function ActiveInvoices({
                 <React.Fragment key={invoice.id}>
                   <div
                     key={invoice.id}
-                    className={`col-lg-4 col-md-6 mb-4${isOverdue ? " overdue-blink" : ""}`}
+                    className={`col-lg-4 col-md-6 mb-4${
+                      isOverdue ? " overdue-blink" : ""
+                    }`}
                     onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
                     onMouseLeave={() => setHoveredInvoiceId(null)}
                   >
                     <div
-                      className={`modern-invoice-card shadow-lg${isOverdue ? " overdue-blink" : ""}`}
+                      className={`modern-invoice-card shadow-lg${
+                        isOverdue ? " overdue-blink" : ""
+                      }`}
                       style={{
                         borderRadius: 24,
                         background: cardBackground,
@@ -1053,7 +1066,9 @@ export default function ActiveInvoices({
                             fontWeight: 800,
                             fontSize: 24,
                             color: (invoice.carts || []).some((c) =>
-                              c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
+                              c.name
+                                .toUpperCase()
+                                .startsWith("CARRO SIN NOMBRE")
                             )
                               ? "red"
                               : "#222",
@@ -1063,7 +1078,11 @@ export default function ActiveInvoices({
                           {client?.name || invoice.clientName}
                         </div>
                         <div
-                          style={{ fontSize: 15, color: "#555", marginBottom: 0 }}
+                          style={{
+                            fontSize: 15,
+                            color: "#555",
+                            marginBottom: 0,
+                          }}
                         >
                           Active Invoice
                         </div>
@@ -1091,18 +1110,31 @@ export default function ActiveInvoices({
                         >
                           {(() => {
                             // Aggregate product totals across all carts
-                            const productTotals: { [productId: string]: { name: string; qty: number } } = {};
-                            (invoice.carts || []).forEach(cart => {
-                              cart.items.forEach(item => {
+                            const productTotals: {
+                              [productId: string]: {
+                                name: string;
+                                qty: number;
+                              };
+                            } = {};
+                            (invoice.carts || []).forEach((cart) => {
+                              cart.items.forEach((item) => {
                                 if (!productTotals[item.productId]) {
-                                  productTotals[item.productId] = { name: item.productName, qty: 0 };
+                                  productTotals[item.productId] = {
+                                    name: item.productName,
+                                    qty: 0,
+                                  };
                                 }
-                                productTotals[item.productId].qty += Number(item.quantity) || 0;
+                                productTotals[item.productId].qty +=
+                                  Number(item.quantity) || 0;
                               });
                             });
-                            const sorted = Object.values(productTotals).sort((a, b) => a.name.localeCompare(b.name));
+                            const sorted = Object.values(productTotals).sort(
+                              (a, b) => a.name.localeCompare(b.name)
+                            );
                             if (sorted.length === 0) {
-                              return <li className="text-muted">No products yet.</li>;
+                              return (
+                                <li className="text-muted">No products yet.</li>
+                              );
                             }
                             return sorted.map((prod, idx) => (
                               <li key={prod.name + idx}>
@@ -1141,8 +1173,11 @@ export default function ActiveInvoices({
                           }}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            const newHighlight = highlight === "yellow" ? "blue" : "yellow";
-                            await onUpdateInvoice(invoice.id, { highlight: newHighlight });
+                            const newHighlight =
+                              highlight === "yellow" ? "blue" : "yellow";
+                            await onUpdateInvoice(invoice.id, {
+                              highlight: newHighlight,
+                            });
                             if (user?.username) {
                               logActivity({
                                 type: "Invoice",
@@ -1161,7 +1196,8 @@ export default function ActiveInvoices({
                           <i
                             className="bi bi-flag-fill"
                             style={{
-                              color: highlight === "yellow" ? "#fbbf24" : "#0E62A0",
+                              color:
+                                highlight === "yellow" ? "#fbbf24" : "#0E62A0",
                               fontSize: 22,
                             }}
                           />
@@ -1295,7 +1331,8 @@ export default function ActiveInvoices({
                                 fontWeight: 500,
                               }}
                             >
-                              Date: {new Date(invoice.verifiedAt).toLocaleString()}
+                              Date:{" "}
+                              {new Date(invoice.verifiedAt).toLocaleString()}
                             </span>
                           )}
                         </div>
@@ -1409,27 +1446,55 @@ export default function ActiveInvoices({
                             Number(item.quantity) || 0;
                         });
                         return (
-                          <div key={cart.id} className="mb-2 d-flex align-items-center gap-2">
-                            <div className="fw-bold" style={{ color: cart.name.toUpperCase().startsWith("CARRO SIN NOMBRE") ? "red" : undefined }}>{cart.name}</div>
+                          <div
+                            key={cart.id}
+                            className="mb-2 d-flex align-items-center gap-2"
+                          >
+                            <div
+                              className="fw-bold"
+                              style={{
+                                color: cart.name
+                                  .toUpperCase()
+                                  .startsWith("CARRO SIN NOMBRE")
+                                  ? "red"
+                                  : undefined,
+                              }}
+                            >
+                              {cart.name}
+                            </div>
                             <button
                               className="btn btn-outline-primary btn-sm"
                               title="Edit Cart Name"
-                              style={{ padding: '2px 6px', fontSize: 13 }}
+                              style={{ padding: "2px 6px", fontSize: 13 }}
                               onClick={async (e) => {
                                 e.stopPropagation();
-                                const newName = prompt("Edit cart name:", cart.name);
-                                if (newName && newName.trim() && newName !== cart.name) {
+                                const newName = prompt(
+                                  "Edit cart name:",
+                                  cart.name
+                                );
+                                if (
+                                  newName &&
+                                  newName.trim() &&
+                                  newName !== cart.name
+                                ) {
                                   const updatedCarts = (carts || []).map((c) =>
-                                    c.id === cart.id ? { ...c, name: newName.trim() } : c
+                                    c.id === cart.id
+                                      ? { ...c, name: newName.trim() }
+                                      : c
                                   );
-                                  await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+                                  await onUpdateInvoice(invoice.id, {
+                                    carts: updatedCarts,
+                                  });
                                   await refreshInvoices(); // <-- Ensure UI syncs with Firestore
                                 }
                               }}
                             >
                               <i className="bi bi-pencil" />
                             </button>
-                            <ul className="mb-1" style={{ fontSize: 15, paddingLeft: 18 }}>
+                            <ul
+                              className="mb-1"
+                              style={{ fontSize: 15, paddingLeft: 18 }}
+                            >
                               {Object.values(productTotals).map((prod, idx) => (
                                 <li key={prod.name + idx}>
                                   <span>{prod.name}</span>: <b>{prod.qty}</b>
@@ -1604,7 +1669,8 @@ export default function ActiveInvoices({
                     })()}
                   </ul>
                   <div className="fw-bold text-end">
-                    Global Total: {(() => {
+                    Global Total:{" "}
+                    {(() => {
                       const invoice = invoicesState.find(
                         (inv) => inv.id === selectedInvoiceId
                       );
@@ -1725,7 +1791,9 @@ export default function ActiveInvoices({
                                             : item
                                         );
                                       } else {
-                                        const prod = products.find((p) => p.id === product.id);
+                                        const prod = products.find(
+                                          (p) => p.id === product.id
+                                        );
                                         newItems = [
                                           ...c.items,
                                           {
@@ -2046,7 +2114,7 @@ export default function ActiveInvoices({
                       (p) => p.id === selectedAddProductId
                     );
                     if (!product) return;
-                                       // Find or create 'Pending Products' group for this client
+                    // Find or create 'Pending Products' group for this client
                     let pendingGroup = pickupGroups.find(
                       (g) =>
                         g.clientId === addProductGroup.clientId &&
@@ -2113,7 +2181,6 @@ export default function ActiveInvoices({
                       if (existingItemIdx > -1) {
                         cart.items[existingItemIdx].quantity += addProductQty;
                       } else {
-
                         cart.items.push({
                           productId: product.id,
                           productName: product.name,
@@ -2124,7 +2191,7 @@ export default function ActiveInvoices({
                         });
                       }
                       updatedCarts[cartIdx] = cart;
-                                       } else {
+                    } else {
                       const newCart = {
                         id: Date.now().toString(),
                         name: `${
@@ -2555,7 +2622,9 @@ export default function ActiveInvoices({
             if (user?.username) {
               await logActivity({
                 type: "Cart",
-                message: `User ${user.username} created cart '${newCart.name}' in invoice #${invoice.invoiceNumber || invoice.id}`,
+                message: `User ${user.username} created cart '${
+                  newCart.name
+                }' in invoice #${invoice.invoiceNumber || invoice.id}`,
                 user: user.username,
               });
             }
@@ -2641,8 +2710,7 @@ export default function ActiveInvoices({
               if (quantity === 0 && typeof itemIdx === "number") {
                 // Remove only the entry at the given index with matching productId
                 newItems = cart.items.filter(
-                  (item, idx) =>
-                    !(item.productId === prodId && idx === itemIdx)
+                  (item, idx) => !(item.productId === prodId && idx === itemIdx)
                 );
               } else {
                 // Always add a new entry (do not merge with existing)

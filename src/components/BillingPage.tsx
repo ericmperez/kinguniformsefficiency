@@ -293,7 +293,8 @@ const BillingPage: React.FC = () => {
 
   // Delete handler
   const handleDeleteInvoice = async (invoice: Invoice) => {
-    if (!window.confirm("Are you sure you want to delete this invoice?")) return;
+    if (!window.confirm("Are you sure you want to delete this invoice?"))
+      return;
     try {
       const docRef = doc(db, "invoices", invoice.id);
       await setDoc(docRef, { status: "deleted" }, { merge: true });
