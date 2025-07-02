@@ -725,6 +725,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     }
   };
 
+  const [tunnelInvoiceInProgress, setTunnelInvoiceInProgress] = useState<{ [groupId: string]: boolean }>({});
+
   return (
     <div className="container py-4">
       <h2 className="mb-4 text-center">Washing</h2>
@@ -1086,60 +1088,45 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             {cartCounter === getSegregatedCarts(group) && (
                               <button
                                 className="btn btn-success btn-sm ms-2"
+                                disabled={!!group.invoiceId || group.washed || tunnelInvoiceInProgress[group.id]}
                                 onClick={async () => {
-                                  // If locked and segregationComplete, use segregatedCarts as the value
-                                  if (
-                                    group.showInTunnel &&
-                                    group.segregationComplete
-                                  ) {
-                                    const { updatePickupGroupStatus } =
-                                      await import(
-                                        "../services/firebaseService"
-                                      );
-                                    await updatePickupGroupStatus(
-                                      group.id,
-                                      "procesandose"
-                                    );
-                                    // Optionally, clear lock and segregationComplete
-                                    await updateDoc(
-                                      doc(db, "pickup_groups", group.id),
-                                      {
-                                        showInTunnel: false,
-                                        segregationComplete: false,
-                                      }
-                                    );
-                                    setSelectedTunnelGroup(null);
-                                    setTunnelCartInput("");
-                                    setTunnelCartError("");
-                                  } else {
-                                    // Always create a new invoice for this group
-                                    const {
-                                      addInvoice,
-                                      updatePickupGroupStatus,
-                                    } = await import(
-                                      "../services/firebaseService"
-                                    );
+                                  if (group.invoiceId || group.washed || tunnelInvoiceInProgress[group.id]) return;
+                                  setTunnelInvoiceInProgress((prev) => ({ ...prev, [group.id]: true }));
+                                  try {
+                                    // Refetch group from Firestore to check for invoiceId/washed
+                                    const { getDoc, doc: firestoreDoc, updateDoc } = await import("firebase/firestore");
+                                    const { db } = await import("../firebase");
+                                    const groupSnap = await getDoc(firestoreDoc(db, "pickup_groups", group.id));
+                                    const latestGroup = groupSnap.exists() ? groupSnap.data() : {};
+                                    if (latestGroup.invoiceId || latestGroup.washed) {
+                                      setTunnelInvoiceInProgress((prev) => ({ ...prev, [group.id]: false }));
+                                      return;
+                                    }
+                                    // Create invoice
+                                    const { addInvoice, updatePickupGroupStatus } = await import("../services/firebaseService");
                                     const newInvoice = {
                                       clientId: group.clientId,
                                       clientName: group.clientName,
                                       date: new Date().toISOString(),
                                       products: [],
                                       total: 0,
-                                      carts: [],
-                                      totalWeight: group.totalWeight || 0, // Save the group's total weight in the invoice
+                                      carts: group.carts || [],
+                                      totalWeight: group.totalWeight || 0,
+                                      pickupGroupId: group.id,
                                     };
-                                    const invoiceId = await addInvoice(
-                                      newInvoice
-                                    );
-                                    await updatePickupGroupStatus(
-                                      group.id,
-                                      "procesandose"
-                                    );
-                                    if (setSelectedInvoiceId)
-                                      setSelectedInvoiceId(invoiceId);
-                                    setSelectedTunnelGroup(null);
-                                    setTunnelCartInput("");
-                                    setTunnelCartError("");
+                                    const invoiceId = await addInvoice(newInvoice);
+                                    await updateDoc(firestoreDoc(db, "pickup_groups", group.id), {
+                                      invoiceId,
+                                      washed: true,
+                                      status: "Empaque",
+                                    });
+                                    await updatePickupGroupStatus(group.id, "procesandose");
+                                    if (setSelectedInvoiceId) setSelectedInvoiceId(invoiceId);
+                                    setGroups((prev) => prev.map((g) => g.id === group.id ? { ...g, invoiceId, washed: true, status: "Empaque" } : g));
+                                  } catch (e) {
+                                    alert("Error marking group as washed and creating invoice");
+                                  } finally {
+                                    setTunnelInvoiceInProgress((prev) => ({ ...prev, [group.id]: false }));
                                   }
                                 }}
                               >
