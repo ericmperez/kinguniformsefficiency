@@ -318,10 +318,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       );
       const { db } = await import("../firebase");
       // Build a cart with the product as an item
-      const cartNum = typeof client.numCarts === "number" && client.numCarts > 0 ? client.numCarts : 1;
+      // Try to get numCarts from the most recent group for this client, or fallback to 1
+      const existingGroup = groups.find(g => g.clientId === client.id && typeof g.numCarts === "number");
+      const numCarts = existingGroup ? existingGroup.numCarts : 1;
       const cart = {
         id: Math.random().toString(36).slice(2), // local unique id
-        name: `Cart ${cartNum}`,
+        name: `Cart ${numCarts}`,
         items: [
           {
             productId: product.id,
@@ -344,6 +346,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         status: "Conventional",
         washingType: "Conventional",
         carts: [cart],
+        numCarts: numCarts,
         createdAt: Timestamp.now(),
         order: conventionalGroups.length, // add to end
       });
