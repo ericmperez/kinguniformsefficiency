@@ -318,9 +318,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       );
       const { db } = await import("../firebase");
       // Build a cart with the product as an item
+      const cartNum = typeof client.numCarts === "number" && client.numCarts > 0 ? client.numCarts : 1;
       const cart = {
         id: Math.random().toString(36).slice(2), // local unique id
-        name: `Cart 1`,
+        name: `Cart ${cartNum}`,
         items: [
           {
             productId: product.id,
@@ -1384,40 +1385,51 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
               </div>
             ) : (
               <div className="list-group list-group-flush" style={{ maxWidth: 820, margin: "0 auto" }}>
-                {allConventionalRows.map((group, idx) => (
-                  <div
-                    key={group.id}
-                    className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-2 mb-1 shadow-sm rounded"
-                    style={{
-                      border: "1px solid #e3e3e3",
-                      background: group.isManualProduct ? "#fffbe6" : "#fff",
-                      marginBottom: 8,
-                      minHeight: 60,
-                      fontSize: 15,
-                      alignItems: "center",
-                      maxWidth: 800,
-                      width: "100%",
-                    }}
-                  >
-                    {/* Info section */}
-                    <div className="d-flex flex-column flex-grow-1 justify-content-center" style={{ minWidth: 0 }}>
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          color: group.isManualProduct ? "#b8860b" : "#007bff",
-                          fontSize: 16,
-                          maxWidth: 180,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          lineHeight: 1.1,
-                          display: "block",
-                        }}
-                        title={group.clientName}
-                      >
-                        {group.clientName}
-                      </span>
-                      {group.isManualProduct ? null : (
+                {allConventionalRows.map((group, idx) => {
+                  // Determine number of carts for this entry
+                  let numCarts = 1;
+                  if (group.isManualProduct) {
+                    if (group.type === "cart") {
+                      numCarts = Number(group.quantity) || 1;
+                    } else {
+                      numCarts = 1;
+                    }
+                  } else if (Array.isArray(group.carts)) {
+                    numCarts = group.carts.length || 1;
+                  }
+                  return (
+                    <div
+                      key={group.id}
+                      className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-2 mb-1 shadow-sm rounded"
+                      style={{
+                        border: "1px solid #e3e3e3",
+                        background: group.isManualProduct ? "#fffbe6" : "#fff",
+                        marginBottom: 8,
+                        minHeight: 60,
+                        fontSize: 15,
+                        alignItems: "center",
+                        maxWidth: 800,
+                        width: "100%",
+                      }}
+                    >
+                      {/* Info section */}
+                      <div className="d-flex flex-column flex-grow-1 justify-content-center" style={{ minWidth: 0 }}>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color: group.isManualProduct ? "#b8860b" : "#007bff",
+                            fontSize: 16,
+                            maxWidth: 180,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            lineHeight: 1.1,
+                            display: "block",
+                          }}
+                          title={group.clientName}
+                        >
+                          {group.clientName}
+                        </span>
                         <span
                           style={{
                             color: "#333",
@@ -1430,86 +1442,86 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             display: "block",
                           }}
                         >
-                          Carros: <strong style={{ fontSize: "11px", fontWeight: 600 }}>{getConventionalCartCount(group.id)}</strong>
+                          Carros: <strong style={{ fontSize: "11px", fontWeight: 600 }}>{numCarts}</strong>
                         </span>
-                      )}
-                      {group.isManualProduct && (
-                        <span style={{ color: "#888", fontSize: 13, marginTop: 1 }}>
-                          <b>{group.productName}</b> x{group.quantity} <span style={{ color: "#888" }}>({group.type})</span>
-                        </span>
-                      )}
-                    </div>
-                    {/* Weight section */}
-                    {!group.isManualProduct && (
-                      <span
-                        style={{
-                          fontSize: "0.95rem",
-                          color: "#28a745",
-                          minWidth: 70,
-                          textAlign: "center",
-                        }}
-                      >
-                        Total: <strong>{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "?"} lbs</strong>
-                      </span>
-                    )}
-                    {/* Actions section */}
-                    <div className="d-flex flex-row align-items-center gap-1" style={{ minWidth: 90, maxWidth: 120 }}>
-                      {/* Move up/down arrows for groups only, Supervisor or higher */}
-                      {!group.isManualProduct && canReorder && (
-                        <>
-                          <button
-                            className="btn btn-outline-secondary btn-sm"
-                            title="Move up"
-                            disabled={idx === 0}
-                            onClick={() => moveConventionalRow(group.id, "up")}
-                            style={{ padding: "2px 7px", fontSize: 13 }}
-                          >
-                            <span aria-hidden="true">▲</span>
-                          </button>
-                          <button
-                            className="btn btn-outline-secondary btn-sm"
-                            title="Move down"
-                            disabled={idx === allConventionalRows.length - 1}
-                            onClick={() => moveConventionalRow(group.id, "down")}
-                            style={{ padding: "2px 7px", fontSize: 13 }}
-                          >
-                            <span aria-hidden="true">▼</span>
-                          </button>
-                        </>
-                      )}
-                      {/* Delete button for both types */}
-                      <button
-                        className="btn btn-outline-danger btn-sm"
-                        title="Delete group"
-                        onClick={() => group.isManualProduct ? handleDeleteManualProductGroup(group.id) : handleDeleteGroup(group.id)}
-                        style={{ padding: "2px 7px", fontSize: 13 }}
-                      >
-                        <span aria-hidden="true">🗑️</span>
-                      </button>
-                      {/* Mark as washed for manual products */}
-                      {group.isManualProduct && !group.washed && (
-                        <button
-                          className="btn btn-outline-success btn-sm ms-1"
-                          onClick={() => handleMarkManualProductWashed(group.id)}
-                        >
-                          Done
-                        </button>
-                      )}
-                      {group.isManualProduct && group.washed && (
-                        <span className="text-muted ms-2">Pending Invoice</span>
-                      )}
-                      {/* Mark as washed for conventional groups */}
+                        {group.isManualProduct && (
+                          <span style={{ color: "#888", fontSize: 13, marginTop: 1 }}>
+                            <b>{group.productName}</b> x{group.quantity} <span style={{ color: "#888" }}>({group.type})</span>
+                          </span>
+                        )}
+                      </div>
+                      {/* Weight section */}
                       {!group.isManualProduct && (
-                        <button
-                          className="btn btn-success btn-sm ms-1 px-2"
-                          onClick={() => handleMarkConventionalGroupWashed(group)}
+                        <span
+                          style={{
+                            fontSize: "0.95rem",
+                            color: "#28a745",
+                            minWidth: 70,
+                            textAlign: "center",
+                          }}
                         >
-                          Done
-                        </button>
+                          Total: <strong>{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "?"} lbs</strong>
+                        </span>
                       )}
+                      {/* Actions section */}
+                      <div className="d-flex flex-row align-items-center gap-1" style={{ minWidth: 90, maxWidth: 120 }}>
+                        {/* Move up/down arrows for groups only, Supervisor or higher */}
+                        {!group.isManualProduct && canReorder && (
+                          <>
+                            <button
+                              className="btn btn-outline-secondary btn-sm"
+                              title="Move up"
+                              disabled={idx === 0}
+                              onClick={() => moveConventionalRow(group.id, "up")}
+                              style={{ padding: "2px 7px", fontSize: 13 }}
+                            >
+                              <span aria-hidden="true">▲</span>
+                            </button>
+                            <button
+                              className="btn btn-outline-secondary btn-sm"
+                              title="Move down"
+                              disabled={idx === allConventionalRows.length - 1}
+                              onClick={() => moveConventionalRow(group.id, "down")}
+                              style={{ padding: "2px 7px", fontSize: 13 }}
+                            >
+                              <span aria-hidden="true">▼</span>
+                            </button>
+                          </>
+                        )}
+                        {/* Delete button for both types */}
+                        <button
+                          className="btn btn-outline-danger btn-sm"
+                          title="Delete group"
+                          onClick={() => group.isManualProduct ? handleDeleteManualProductGroup(group.id) : handleDeleteGroup(group.id)}
+                          style={{ padding: "2px 7px", fontSize: 13 }}
+                        >
+                          <span aria-hidden="true">🗑️</span>
+                        </button>
+                        {/* Mark as washed for manual products */}
+                        {group.isManualProduct && !group.washed && (
+                          <button
+                            className="btn btn-outline-success btn-sm ms-1"
+                            onClick={() => handleMarkManualProductWashed(group.id)}
+                          >
+                            Done
+                          </button>
+                        )}
+                        {group.isManualProduct && group.washed && (
+                          <span className="text-muted ms-2">Pending Invoice</span>
+                        )}
+                        {/* Mark as washed for conventional groups */}
+                        {!group.isManualProduct && (
+                          <button
+                            className="btn btn-success btn-sm ms-1 px-2"
+                            onClick={() => handleMarkConventionalGroupWashed(group)}
+                          >
+                            Done
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {/* Always render a last empty row for spacing after the last item */}
                 <div style={{ height: 32 }} />
               </div>
