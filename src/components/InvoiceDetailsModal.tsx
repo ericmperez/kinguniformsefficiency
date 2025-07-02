@@ -159,7 +159,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     if (typeof logActivity === "function") {
       await logActivity({
         type: "Cart",
-        message: `Cart '${cartName}' created in invoice '${invoice.name || invoice.invoiceNumber}'`,
+        message: `Cart '${cartName}' created in invoice '${
+          invoice.name || invoice.invoiceNumber
+        }'`,
         user: user?.username,
       });
     }
@@ -182,7 +184,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
         zIndex: 2000,
         overflowY: "auto",
       }}
-      onClick={e => {
+      onClick={(e) => {
         // Only close if the click is on the overlay, not inside the modal-dialog
         if (e.target === e.currentTarget) {
           onClose();
@@ -197,7 +199,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           width: "100%",
           pointerEvents: "auto",
         }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-content">
           <div className="modal-header">
@@ -341,7 +343,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       let nextNum = 1;
                       while (existingNumbers.includes(nextNum)) nextNum++;
                       const defaultName = `CARRO SIN NOMBRE ${nextNum}`;
-                      const newCart: LaundryCart = await handleAddCart(defaultName);
+                      const newCart: LaundryCart = await handleAddCart(
+                        defaultName
+                      );
                       setLocalCarts([
                         ...localCarts,
                         {
@@ -482,7 +486,11 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           if (typeof logActivity === "function") {
                             await logActivity({
                               type: "Cart",
-                              message: `Cart '${cart.name}' deleted from invoice '${invoice.name || invoice.invoiceNumber}'`,
+                              message: `Cart '${
+                                cart.name
+                              }' deleted from invoice '${
+                                invoice.name || invoice.invoiceNumber
+                              }'`,
                               user: user?.username,
                             });
                           }
@@ -504,21 +512,31 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                         ) {
                           setLocalCarts(
                             localCarts.map((c) =>
-                              c.id === cart.id ? { ...c, name: newName.trim() } : c
+                              c.id === cart.id
+                                ? { ...c, name: newName.trim() }
+                                : c
                             )
                           );
-                          await onAddCart(`__edit__${cart.id}__${newName.trim()}`);
+                          await onAddCart(
+                            `__edit__${cart.id}__${newName.trim()}`
+                          );
                           if (typeof logActivity === "function") {
                             await logActivity({
                               type: "Cart",
-                              message: `Cart '${cart.name}' renamed to '${newName.trim()}' in invoice '${invoice.name || invoice.invoiceNumber}'`,
+                              message: `Cart '${
+                                cart.name
+                              }' renamed to '${newName.trim()}' in invoice '${
+                                invoice.name || invoice.invoiceNumber
+                              }'`,
                               user: user?.username,
                             });
                           }
                           if (refreshInvoices) await refreshInvoices();
                           // Sync localCarts with latest invoice.carts after refresh
                           setLocalCarts(
-                            typeof invoice.carts === 'object' ? [...invoice.carts] : []
+                            typeof invoice.carts === "object"
+                              ? [...invoice.carts]
+                              : []
                           );
                         }
                       }}
@@ -531,7 +549,20 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 <div className="mb-2">
                   <button
                     className="btn btn-link text-primary fw-bold"
-                    style={{ fontSize: 28, textDecoration: "none", padding: "18px 0", width: "100%", display: "block", background: "#eaf4ff", borderRadius: 12, border: "2.5px dashed #0E62A0", fontWeight: 900, letterSpacing: 1, boxShadow: "0 2px 12px rgba(14,98,160,0.08)", margin: "18px 0" }}
+                    style={{
+                      fontSize: 28,
+                      textDecoration: "none",
+                      padding: "18px 0",
+                      width: "100%",
+                      display: "block",
+                      background: "#eaf4ff",
+                      borderRadius: 12,
+                      border: "2.5px dashed #0E62A0",
+                      fontWeight: 900,
+                      letterSpacing: 1,
+                      boxShadow: "0 2px 12px rgba(14,98,160,0.08)",
+                      margin: "18px 0",
+                    }}
                     onClick={() => setAddProductCartId(cart.id)}
                   >
                     + Add New Item
@@ -640,7 +671,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 {/* Product summary cards */}
                 <div className="row g-2 mb-2">
                   {clientProducts
-                    .filter((prod) => cart.items.some((i) => i.productId === prod.id))
+                    .filter((prod) =>
+                      cart.items.some((i) => i.productId === prod.id)
+                    )
                     .map((product) => {
                       // All entries for this product in this cart
                       const entries = cart.items
@@ -711,19 +744,28 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                       );
                                     if (name.includes("toallas de baño"))
                                       return (
-                                        <span role="img" aria-label="bath towel">
+                                        <span
+                                          role="img"
+                                          aria-label="bath towel"
+                                        >
                                           🛁
                                         </span>
                                       );
                                     if (name.includes("toalla de piso"))
                                       return (
-                                        <span role="img" aria-label="floor towel">
+                                        <span
+                                          role="img"
+                                          aria-label="floor towel"
+                                        >
                                           🧍
                                         </span>
                                       );
                                     if (name.includes("toalla de cara"))
                                       return (
-                                        <span role="img" aria-label="face towel">
+                                        <span
+                                          role="img"
+                                          aria-label="face towel"
+                                        >
                                           🧻
                                         </span>
                                       );
@@ -760,7 +802,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                               </div>
                             </div>
                             {/* List each entry for this product in this cart */}
-                            <div style={{ fontSize: 14, color: "#444", marginBottom: 4 }}>
+                            <div
+                              style={{
+                                fontSize: 14,
+                                color: "#444",
+                                marginBottom: 4,
+                              }}
+                            >
                               {entries.map((item, i) => (
                                 <div
                                   key={item.idx}
@@ -775,15 +823,29 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                   <span>
                                     +{item.quantity} by {item.addedBy}
                                     {item.addedAt && (
-                                      <span style={{ color: "#888", marginLeft: 6, fontSize: 12 }}>
-                                        {new Date(item.addedAt).toLocaleString()}
+                                      <span
+                                        style={{
+                                          color: "#888",
+                                          marginLeft: 6,
+                                          fontSize: 12,
+                                        }}
+                                      >
+                                        {new Date(
+                                          item.addedAt
+                                        ).toLocaleString()}
                                       </span>
                                     )}
                                   </span>
                                   <button
                                     className="btn btn-sm btn-outline-danger"
                                     style={{ padding: "2px 8px", fontSize: 12 }}
-                                    onClick={() => handleDeleteCartItem(cart.id, product.id, item.idx)}
+                                    onClick={() =>
+                                      handleDeleteCartItem(
+                                        cart.id,
+                                        product.id,
+                                        item.idx
+                                      )
+                                    }
                                     title="Delete entry"
                                   >
                                     <i className="bi bi-x" />

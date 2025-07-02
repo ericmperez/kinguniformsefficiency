@@ -3,6 +3,7 @@ import { useAuth } from "./AuthContext";
 import Segregation from "./Segregation";
 import Washing from "./Washing";
 import kingUniformsLogo from "../assets/King Uniforms Logo.png";
+import { logActivity } from "../services/firebaseService";
 
 export default function LocalLoginForm() {
   const { login } = useAuth();
@@ -22,7 +23,14 @@ export default function LocalLoginForm() {
       return;
     }
     const success = await login(id);
-    if (!success) {
+    if (success) {
+      // Log successful login
+      await logActivity({
+        type: "Login",
+        message: `User with ID '${id}' logged in`,
+        user: id,
+      });
+    } else {
       setError("Please enter a valid 4-digit ID number");
     }
     setLoading(false);
