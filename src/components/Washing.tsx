@@ -852,70 +852,45 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               {cartCounter} / {maxCarts}
                             </span>
                             <button
-                              className="btn btn-outline-primary btn-sm"
+                              className="btn btn-outline-primary btn-lg"
+                              style={{ fontSize: 30, minWidth: 60, minHeight: 60, borderRadius: 12 }}
                               disabled={cartCounter >= maxCarts}
                               onClick={async () => {
-                                const newCount = Math.min(
-                                  cartCounter + 1,
-                                  maxCarts
-                                );
-                                setCartCounters((prev) => ({
-                                  ...prev,
-                                  [group.id]: newCount,
-                                }));
-                                await updateDoc(
-                                  doc(db, "pickup_groups", group.id),
-                                  {
-                                    tunnelCartCount: newCount,
-                                  }
-                                );
+                                const newCount = Math.min(cartCounter + 1, maxCarts);
+                                setCartCounters((prev) => ({ ...prev, [group.id]: newCount }));
+                                await updateDoc(doc(db, "pickup_groups", group.id), { tunnelCartCount: newCount });
                               }}
                             >
                               +
                             </button>
                             <button
-                              className="btn btn-outline-secondary btn-sm"
+                              className="btn btn-outline-secondary btn-lg"
+                              style={{ fontSize: 30, minWidth: 60, minHeight: 60, borderRadius: 12 }}
                               disabled={cartCounter <= 0}
                               onClick={async () => {
                                 const newCount = Math.max(cartCounter - 1, 0);
-                                setCartCounters((prev) => ({
-                                  ...prev,
-                                  [group.id]: newCount,
-                                }));
-                                await updateDoc(
-                                  doc(db, "pickup_groups", group.id),
-                                  {
-                                    tunnelCartCount: newCount,
-                                  }
-                                );
+                                setCartCounters((prev) => ({ ...prev, [group.id]: newCount }));
+                                await updateDoc(doc(db, "pickup_groups", group.id), { tunnelCartCount: newCount });
                               }}
                             >
                               -
                             </button>
                             {cartCounter === maxCarts && (
                               <button
-                                className="btn btn-success btn-sm ms-2"
+                                className="btn btn-success btn-lg ms-3 px-4"
+                                style={{ fontSize: 28, fontWeight: 800, minWidth: 100, borderRadius: 12 }}
                                 onClick={async () => {
                                   // Only allow if value matches segregatedCarts
                                   if (cartCounter !== maxCarts) {
-                                    alert(
-                                      "Error: The number of carts does not match the segregation value."
-                                    );
+                                    alert("Error: The number of carts does not match the segregation value.");
                                     return;
                                   }
-                                  const { updatePickupGroupStatus } =
-                                    await import("../services/firebaseService");
-                                  await updatePickupGroupStatus(
-                                    group.id,
-                                    "procesandose"
-                                  );
-                                  await updateDoc(
-                                    doc(db, "pickup_groups", group.id),
-                                    {
-                                      showInTunnel: false,
-                                      segregationComplete: false,
-                                    }
-                                  );
+                                  const { updatePickupGroupStatus } = await import("../services/firebaseService");
+                                  await updatePickupGroupStatus(group.id, "procesandose");
+                                  await updateDoc(doc(db, "pickup_groups", group.id), {
+                                    showInTunnel: false,
+                                    segregationComplete: false,
+                                  });
                                   setSelectedTunnelGroup(null);
                                   setTunnelCartInput("");
                                   setTunnelCartError("");
@@ -1374,7 +1349,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                 No conventional groups ready for washing.
               </div>
             ) : (
-              <div className="list-group list-group-flush" style={{ maxWidth: 820, margin: "0 auto" }}>
+              <div className="list-group list-group-flush" style={{ maxWidth: 1100, margin: "0 auto" }}>
                 {allConventionalRows.map((group, idx) => {
                   // Determine number of carts for this entry
                   let numCarts = 1;
@@ -1390,31 +1365,32 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                   return (
                     <div
                       key={group.id}
-                      className="list-group-item d-flex flex-row align-items-center justify-content-between gap-2 py-2 mb-1 shadow-sm rounded"
+                      className="list-group-item d-flex flex-row align-items-center justify-content-between gap-4 py-4 mb-3 shadow-sm rounded"
                       style={{
-                        border: "1px solid #e3e3e3",
+                        border: "2px solid #e3e3e3",
                         background: group.isManualProduct ? "#fffbe6" : "#fff",
                         marginBottom: 8,
-                        minHeight: 60,
-                        fontSize: 15,
+                        minHeight: 90,
+                        fontSize: 20,
                         alignItems: "center",
-                        maxWidth: 800,
+                        maxWidth: 1000,
                         width: "100%",
                       }}
                     >
                       {/* Info section */}
-                      <div className="d-flex flex-column flex-grow-1 justify-content-center" style={{ minWidth: 0 }}>
+                      <div className="d-flex flex-column flex-md-row align-items-md-center gap-4 flex-grow-1" style={{ minWidth: 0 }}>
                         <span
                           style={{
                             fontWeight: 700,
                             color: group.isManualProduct ? "#b8860b" : "#007bff",
-                            fontSize: 16,
+                            fontSize: "1.5rem",
                             maxWidth: 180,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             lineHeight: 1.1,
                             display: "block",
+                            minWidth: 180,
                           }}
                           title={group.clientName}
                         >
@@ -1424,37 +1400,38 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           style={{
                             color: "#333",
                             opacity: 0.7,
-                            fontSize: "11px",
+                            fontSize: "1.2rem",
                             fontWeight: 500,
                             letterSpacing: 0.2,
                             marginTop: 1,
                             textAlign: "left",
                             display: "block",
+                            minWidth: 120,
                           }}
                         >
-                          Carros: <strong style={{ fontSize: "11px", fontWeight: 600 }}>{numCarts}</strong>
+                          Carros: <strong style={{ fontSize: "1.2rem", fontWeight: 600 }}>{numCarts}</strong>
                         </span>
                         {group.isManualProduct && (
-                          <span style={{ color: "#888", fontSize: 13, marginTop: 1 }}>
+                          <span style={{ color: "#888", fontSize: 15, marginTop: 1 }}>
                             <b>{group.productName}</b> x{group.quantity} <span style={{ color: "#888" }}>({group.type})</span>
                           </span>
                         )}
+                        {/* Weight section */}
+                        {!group.isManualProduct && (
+                          <span
+                            style={{
+                              fontSize: "1.2rem",
+                              color: "#28a745",
+                              minWidth: 120,
+                              textAlign: "center",
+                            }}
+                          >
+                            Total: <strong>{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "?"} lbs</strong>
+                          </span>
+                        )}
                       </div>
-                      {/* Weight section */}
-                      {!group.isManualProduct && (
-                        <span
-                          style={{
-                            fontSize: "0.95rem",
-                            color: "#28a745",
-                            minWidth: 70,
-                            textAlign: "center",
-                          }}
-                        >
-                          Total: <strong>{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "?"} lbs</strong>
-                        </span>
-                      )}
                       {/* Actions section */}
-                      <div className="d-flex flex-row align-items-center gap-1" style={{ minWidth: 90, maxWidth: 120 }}>
+                      <div className="d-flex flex-row align-items-center gap-2" style={{ minWidth: 220, maxWidth: 260 }}>
                         {/* Move up/down arrows for groups only, Supervisor or higher */}
                         {!group.isManualProduct && canReorder && (
                           <>
