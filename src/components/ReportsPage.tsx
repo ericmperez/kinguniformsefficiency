@@ -4,6 +4,7 @@ import {
   getInvoices,
   getClients,
   getProducts,
+  updateInvoice,
 } from "../services/firebaseService";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
 
@@ -22,6 +23,12 @@ const ReportsPage: React.FC = () => {
       setAllProducts(await getProducts());
     })();
   }, []);
+
+  // Refresh invoices from Firestore
+  const refreshInvoices = async () => {
+    const all = await getInvoices();
+    setInvoices(all.filter((inv: Invoice) => inv.status === "done"));
+  };
 
   return (
     <div className="container py-4">
@@ -118,11 +125,20 @@ const ReportsPage: React.FC = () => {
                             <button
                               className="btn btn-sm btn-outline-danger ms-2"
                               onClick={async () => {
-                                if (!window.confirm("Are you sure you want to permanently delete this invoice? This cannot be undone.")) return;
+                                if (
+                                  !window.confirm(
+                                    "Are you sure you want to permanently delete this invoice? This cannot be undone."
+                                  )
+                                )
+                                  return;
                                 try {
-                                  const { deleteInvoice } = await import("../services/firebaseService");
+                                  const { deleteInvoice } = await import(
+                                    "../services/firebaseService"
+                                  );
                                   await deleteInvoice(inv.id);
-                                  setInvoices((prev) => prev.filter((i) => i.id !== inv.id));
+                                  setInvoices((prev) =>
+                                    prev.filter((i) => i.id !== inv.id)
+                                  );
                                 } catch (e) {
                                   alert("Error deleting invoice.");
                                 }
@@ -147,13 +163,81 @@ const ReportsPage: React.FC = () => {
           client={clients.find((c) => c.id === selectedInvoice.clientId)}
           products={allProducts}
           onAddCart={async (cartName: string) => {
-            return {
+            // Handle special keys for invoice name and cart name edits
+            if (cartName.startsWith("__invoice_name__")) {
+              const newInvoiceName = cartName.replace("__invoice_name__", "");
+              await updateInvoice(selectedInvoice.id, { name: newInvoiceName });
+              await refreshInvoices();
+              return {
+                id: selectedInvoice.id,
+                name: newInvoiceName,
+                isActive: true,
+              };
+            }
+            if (cartName.startsWith("__edit__")) {
+              const [_, cartId, ...nameParts] = cartName.split("__");
+              const newName = nameParts.join("__");
+              const updatedCarts = (selectedInvoice.carts || []).map((c) =>
+                c.id === cartId ? { ...c, name: newName } : c
+              );
+              await updateInvoice(selectedInvoice.id, { carts: updatedCarts });
+              await refreshInvoices();
+              return { id: cartId, name: newName, isActive: true };
+            }
+            // Add new cart
+            const newCart = {
               id: Date.now().toString(),
               name: cartName,
-              isActive: true,
+              items: [],
+              total: 0,
+              createdAt: new Date().toISOString(),
             };
+            const updatedCarts = [...(selectedInvoice.carts || []), newCart];
+            await updateInvoice(selectedInvoice.id, { carts: updatedCarts });
+            await refreshInvoices();
+            return { id: newCart.id, name: newCart.name, isActive: true };
           }}
-          onAddProductToCart={() => {}}
+          onAddProductToCart={async (
+            cartId,
+            productId,
+            quantity,
+            price,
+            itemIdx
+          ) => {
+            const invoice = invoices.find(
+              (inv) => inv.id === selectedInvoice.id
+            );
+            if (!invoice) return;
+            const updatedCarts = invoice.carts.map((cart) => {
+              if (cart.id !== cartId) return cart;
+              let newItems;
+              if (typeof itemIdx === "number") {
+                // Delete only the entry at the given index for this product
+                newItems = cart.items.filter(
+                  (item, idx) =>
+                    !(item.productId === productId && idx === itemIdx)
+                );
+              } else {
+                // Always add as a new entry (do not merge)
+                const prod = allProducts.find((p) => p.id === productId);
+                newItems = [
+                  ...cart.items,
+                  {
+                    productId: productId,
+                    productName: prod ? prod.name : "",
+                    quantity: quantity,
+                    price: price !== undefined ? price : prod ? prod.price : 0,
+                    addedBy: "You",
+                    addedAt: new Date().toISOString(),
+                  },
+                ];
+              }
+              return { ...cart, items: newItems };
+            });
+            await updateInvoice(invoice.id, { carts: updatedCarts });
+            await refreshInvoices();
+          }}
+          refreshInvoices={refreshInvoices}
         />
       )}
     </div>

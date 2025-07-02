@@ -650,12 +650,39 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           <button
                             className="btn btn-primary"
                             disabled={!selectedProductId || productQty < 1}
-                            onClick={() => {
-                              onAddProductToCart(
+                            onClick={async () => {
+                              // 1. Update localCarts immediately for instant UI update
+                              setLocalCarts((prevCarts) =>
+                                prevCarts.map((cartObj) => {
+                                  if (cartObj.id !== cart.id) return cartObj;
+                                  // Always add as a new entry (do not merge)
+                                  const prod = clientProducts.find(
+                                    (p) => p.id === selectedProductId
+                                  );
+                                  return {
+                                    ...cartObj,
+                                    items: [
+                                      ...cartObj.items,
+                                      {
+                                        productId: selectedProductId,
+                                        productName: prod ? prod.name : "",
+                                        quantity: productQty,
+                                        price: prod ? prod.price : 0,
+                                        addedBy: user?.username || "You",
+                                        addedAt: new Date().toISOString(),
+                                      },
+                                    ],
+                                  };
+                                })
+                              );
+                              // 2. Persist to Firestore (parent handler)
+                              await onAddProductToCart(
                                 cart.id,
                                 selectedProductId,
                                 productQty
                               );
+                              // 3. Optionally refresh invoices
+                              if (refreshInvoices) await refreshInvoices();
                               setAddProductCartId(null);
                               setSelectedProductId("");
                               setProductQty(1);

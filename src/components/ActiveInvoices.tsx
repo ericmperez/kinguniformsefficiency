@@ -870,6 +870,13 @@ export default function ActiveInvoices({
     return verifierId;
   };
 
+  // Sort invoices so that green (verified) invoices are at the bottom
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    if (a.verified && !b.verified) return 1;
+    if (!a.verified && b.verified) return -1;
+    return 0;
+  });
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
@@ -889,17 +896,8 @@ export default function ActiveInvoices({
             No active invoices found. Create a new invoice to get started.
           </div>
         ) : (
-          invoicesState
+          sortedInvoices
             .filter((inv) => inv.status !== "done")
-            .sort((a, b) => {
-              if (a.invoiceNumber && b.invoiceNumber) {
-                return a.invoiceNumber - b.invoiceNumber;
-              }
-              if (a.date && b.date) {
-                return new Date(a.date).getTime() - new Date(b.date).getTime();
-              }
-              return a.id.localeCompare(b.id);
-            })
             .map((invoice, idx) => {
               const client = clients.find((c) => c.id === invoice.clientId);
               const avatarSrc = getClientAvatarUrl(client || {});
@@ -1080,7 +1078,7 @@ export default function ActiveInvoices({
                             marginBottom: 2,
                           }}
                         >
-                          Products
+                          Productos Total global
                         </div>
                         <ul
                           style={{
@@ -1088,53 +1086,30 @@ export default function ActiveInvoices({
                             padding: 0,
                             margin: 0,
                             fontSize: 15,
-                            marginBottom: 24, // Add margin below the last item
+                            marginBottom: 8,
                           }}
                         >
                           {(() => {
-                            // Show each cart and its items as rows, with user and time
-                            return (invoice.carts || []).flatMap((cart) =>
-                              cart.items.map((item, idx) => (
-                                <li
-                                  key={cart.id + "-" + idx}
-                                  style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    padding: "2px 0",
-                                    borderBottom: "1px solid #eee",
-                                  }}
-                                >
-                                  <span>
-                                    <b>{item.productName}</b> (Cart: {cart.name})
-                                    <span
-                                      style={{ color: "#888", marginLeft: 8 }}
-                                    >
-                                      {item.addedBy ? `by ${item.addedBy}` : ""}
-                                      {item.addedAt
-                                        ? `, ${new Date(
-                                            item.addedAt
-                                          ).toLocaleString()}`
-                                        : ""}
-                                    </span>
-                                  </span>
-                                  <span style={{ fontWeight: 800 }}>
-                                    {item.quantity}
-                                  </span>
-                                </li>
-                              ))
-                            );
+                            // Aggregate product totals across all carts
+                            const productTotals: { [productId: string]: { name: string; qty: number } } = {};
+                            (invoice.carts || []).forEach(cart => {
+                              cart.items.forEach(item => {
+                                if (!productTotals[item.productId]) {
+                                  productTotals[item.productId] = { name: item.productName, qty: 0 };
+                                }
+                                productTotals[item.productId].qty += Number(item.quantity) || 0;
+                              });
+                            });
+                            const sorted = Object.values(productTotals).sort((a, b) => a.name.localeCompare(b.name));
+                            if (sorted.length === 0) {
+                              return <li className="text-muted">No products yet.</li>;
+                            }
+                            return sorted.map((prod, idx) => (
+                              <li key={prod.name + idx}>
+                                <span>{prod.name}</span>: <b>{prod.qty}</b>
+                              </li>
+                            ));
                           })()}
-                          {/* Always render a last empty row for spacing after the last item */}
-                          <li
-                            style={{
-                              height: 32,
-                              background: "transparent",
-                              border: "none",
-                              boxShadow: "none",
-                              listStyle: "none",
-                            }}
-                          />
                         </ul>
                       </div>
                       {/* Social-style action buttons */}
@@ -2138,6 +2113,7 @@ export default function ActiveInvoices({
                       if (existingItemIdx > -1) {
                         cart.items[existingItemIdx].quantity += addProductQty;
                       } else {
+
                         cart.items.push({
                           productId: product.id,
                           productName: product.name,
