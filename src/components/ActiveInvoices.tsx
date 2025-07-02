@@ -28,6 +28,7 @@ import { db } from "../firebase";
 import { getClientAvatarUrl } from "../services/firebaseService";
 import { logActivity } from "../services/firebaseService";
 import { getInvoices } from "../services/firebaseService";
+import { collection, onSnapshot } from "firebase/firestore";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -212,7 +213,7 @@ export default function ActiveInvoices({
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (!invoice) return;
     // Build initial check state
-    const checks: { [cartId: string]: { [productId: string]: boolean } } = {};
+    const checks: { [cartId: string]: { [productId: string] : boolean } } = {};
     for (const cart of invoice.carts) {
       checks[cart.id] = {};
       for (const item of cart.items) {
@@ -356,6 +357,15 @@ export default function ActiveInvoices({
   };
 
   const [invoicesState, setInvoicesState] = useState<Invoice[]>(invoices);
+
+  // Real-time Firestore listener for invoices
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "invoices"), (snapshot) => {
+      const updated = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Invoice[];
+      setInvoicesState(updated);
+    });
+    return () => unsub();
+  }, []);
 
   // Refresh invoices from Firestore
   const refreshInvoices = async () => {
@@ -850,9 +860,6 @@ export default function ActiveInvoices({
     demoInvoices = [demo, ...invoices];
   }
 
-  const [noteInputs, setNoteInputs] = useState<{ [invoiceId: string]: string }>({});
-  const [editingNote, setEditingNote] = useState<{ [invoiceId: string]: boolean }>({});
-
   const getVerifierName = (verifierId: string) => {
     if (!verifierId) return "-";
     const found = users.find(
@@ -934,25 +941,8 @@ export default function ActiveInvoices({
                 }
               }
 
-              // Show note above the card if present
               return (
                 <React.Fragment key={invoice.id}>
-                  {invoice.note && (
-                    <div style={{
-                      maxWidth: 340,
-                      margin: '0 auto',
-                      marginBottom: 4,
-                      background: '#f8fafc',
-                      borderRadius: 12,
-                      padding: '8px 16px',
-                      color: '#0E62A0',
-                      fontWeight: 600,
-                      fontSize: 15,
-                      boxShadow: '0 2px 8px #e0e7ef',
-                    }}>
-                      {invoice.note}
-                    </div>
-                  )}
                   <div
                     key={invoice.id}
                     className={`col-lg-4 col-md-6 mb-4${isOverdue ? " overdue-blink" : ""}`}
@@ -1159,62 +1149,6 @@ export default function ActiveInvoices({
                           zIndex: 10,
                         }}
                       >
-                        {/* Note Button and Input */}
-                        {editingNote[invoice.id] ? (
-                          <>
-                            <input
-                              type="text"
-                              className="form-control"
-                              style={{ width: 120, marginRight: 4, fontSize: 14, display: 'inline-block' }}
-                              value={noteInputs[invoice.id] ?? invoice.note ?? ''}
-                              onChange={e => setNoteInputs({ ...noteInputs, [invoice.id]: e.target.value })}
-                              autoFocus
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                  onUpdateInvoice(invoice.id, { note: noteInputs[invoice.id] });
-                                  setEditingNote({ ...editingNote, [invoice.id]: false });
-                                } else if (e.key === 'Escape') {
-                                  setEditingNote({ ...editingNote, [invoice.id]: false });
-                                }
-                              }}
-                            />
-                            <button
-                              className="btn btn-success btn-sm"
-                              style={{ fontSize: 14, marginRight: 2 }}
-                              onClick={e => {
-                                e.stopPropagation();
-                                onUpdateInvoice(invoice.id, { note: noteInputs[invoice.id] });
-                                setEditingNote({ ...editingNote, [invoice.id]: false });
-                              }}
-                              disabled={!noteInputs[invoice.id] || noteInputs[invoice.id] === invoice.note}
-                            >
-                              Save
-                            </button>
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              style={{ fontSize: 14 }}
-                              onClick={e => {
-                                e.stopPropagation();
-                                setEditingNote({ ...editingNote, [invoice.id]: false });
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            className="btn btn-link text-primary fw-bold"
-                            style={{ fontSize: 14, textDecoration: 'none', marginRight: 2, padding: 0, minWidth: 0 }}
-                            onClick={e => {
-                              e.stopPropagation();
-                              setEditingNote({ ...editingNote, [invoice.id]: true });
-                              setNoteInputs({ ...noteInputs, [invoice.id]: invoice.note ?? '' });
-                            }}
-                            title={invoice.note ? 'Edit Note' : 'Add Note'}
-                          >
-                            {invoice.note ? 'Edit Note' : 'Add Note'}
-                          </button>
-                        )}
                         {/* Mark as Ready button (now toggles highlight color) */}
                         <button
                           className="btn btn-warning btn-sm"
@@ -1241,6 +1175,7 @@ export default function ActiveInvoices({
                                 user: user.username,
                               });
                             }
+                            await refreshInvoices(); // Ensure UI updates after highlight change
                           }}
                           title={
                             highlight === "yellow"
@@ -1385,8 +1320,7 @@ export default function ActiveInvoices({
                                 fontWeight: 500,
                               }}
                             >
-                              Date:{" "}
-                              {new Date(invoice.verifiedAt).toLocaleString()}
+                              Date: {new Date(invoice.verifiedAt).toLocaleString()}
                             </span>
                           )}
                         </div>
@@ -2214,7 +2148,7 @@ export default function ActiveInvoices({
                         });
                       }
                       updatedCarts[cartIdx] = cart;
-                    } else {
+                                       } else {
                       const newCart = {
                         id: Date.now().toString(),
                         name: `${

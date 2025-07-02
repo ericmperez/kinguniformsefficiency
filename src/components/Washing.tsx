@@ -1359,8 +1359,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                     } else {
                       numCarts = 1;
                     }
-                  } else if (Array.isArray(group.carts)) {
-                    numCarts = group.carts.length || 1;
+                  } else {
+                    numCarts = getConventionalCartCount(group.id) || 1;
                   }
                   return (
                     <div
