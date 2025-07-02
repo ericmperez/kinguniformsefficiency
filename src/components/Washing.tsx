@@ -197,7 +197,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     .filter(
       (g) =>
         g.status === "Conventional" &&
-        getWashingType(g.clientId) === "Conventional" &&
         g.status !== "Entregado"
     )
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)); // Sort by order property
@@ -282,9 +281,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   }, [loading, tunnelGroups.length, conventionalGroups.length]);
 
   // Helper: get clients not already in a conventional group today
-  const clientsNotInConventional = clients.filter(
-    (client) => !conventionalGroups.some((g) => g.clientId === client.id)
-  );
+  const clientsForConventional = clients;
 
   // Helper: get carts for a group
   const getGroupCarts = (groupId: string) => {
@@ -1219,13 +1216,11 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                   <select
                     className="form-select"
                     value={selectedConventionalClientId}
-                    onChange={(e) =>
-                      setSelectedConventionalClientId(e.target.value)
-                    }
+                    onChange={(e) => setSelectedConventionalClientId(e.target.value)}
                     required
                   >
                     <option value="">-- Select a client --</option>
-                    {clientsNotInConventional.map((client) => (
+                    {clientsForConventional.map((client) => (
                       <option key={client.id} value={client.id}>
                         {client.name}
                       </option>
