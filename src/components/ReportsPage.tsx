@@ -5,8 +5,10 @@ import {
   getClients,
   getProducts,
   updateInvoice,
+  addInvoice,
 } from "../services/firebaseService";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
+import InvoiceForm from "./InvoiceForm";
 
 const ReportsPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -14,6 +16,7 @@ const ReportsPage: React.FC = () => {
   const [showInvoiceDetailsModal, setShowInvoiceDetailsModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -33,6 +36,12 @@ const ReportsPage: React.FC = () => {
   return (
     <div className="container py-4">
       <h2>Shipped/Done Invoices</h2>
+      <button
+        className="btn btn-primary mb-3"
+        onClick={() => setShowInvoiceForm(true)}
+      >
+        New Invoice
+      </button>
       {/* Grouped Table by Client */}
       {(() => {
         // Group invoices by clientId
@@ -238,6 +247,19 @@ const ReportsPage: React.FC = () => {
             await refreshInvoices();
           }}
           refreshInvoices={refreshInvoices}
+        />
+      )}
+      {showInvoiceForm && (
+        <InvoiceForm
+          clients={clients}
+          products={allProducts}
+          onClose={() => setShowInvoiceForm(false)}
+          onAddInvoice={async (invoice) => {
+            await addInvoice(invoice);
+            await refreshInvoices();
+            setShowInvoiceForm(false);
+            return "";
+          }}
         />
       )}
     </div>

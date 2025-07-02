@@ -16,6 +16,10 @@ export default function InvoiceForm({
 }: InvoiceFormProps) {
   const [selectedClient, setSelectedClient] = useState<string>("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const [invoiceDate, setInvoiceDate] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [invoiceStatus, setInvoiceStatus] = useState<string>("done");
 
   // Sort clients alphabetically by name
   const sortedClients = [...clients].sort((a, b) =>
@@ -34,10 +38,11 @@ export default function InvoiceForm({
     const newInvoice: Omit<Invoice, "id"> = {
       clientId: client.id,
       clientName: client.name,
-      date: new Date().toISOString(),
+      date: new Date(invoiceDate + "T00:00:00").toISOString(),
       products: [],
       total: 0,
       carts: [],
+      status: invoiceStatus,
     };
     try {
       await onAddInvoice(newInvoice); // The parent will handle adding and return the ID
@@ -125,6 +130,28 @@ export default function InvoiceForm({
                     </div>
                   ))}
                 </div>
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Invoice Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                  max={new Date().toISOString().slice(0, 10)}
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Invoice Status</label>
+                <select
+                  className="form-select"
+                  value={invoiceStatus}
+                  onChange={(e) => setInvoiceStatus(e.target.value)}
+                >
+                  <option value="done">Done (Shipped)</option>
+                  <option value="ready">Ready</option>
+                  <option value="active">Active</option>
+                </select>
               </div>
             </div>
           </form>
