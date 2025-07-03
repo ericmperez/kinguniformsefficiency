@@ -247,7 +247,10 @@ export default function PickupWashing({
       }
       setSuccess(true);
       setShowFullScreenSuccess(true); // Show full-screen confirmation
-      setTimeout(() => setShowFullScreenSuccess(false), 5000); // Hide after 5 seconds
+      setTimeout(() => {
+        setShowFullScreenSuccess(false); // Hide after 5 seconds
+        setSubmitting(false); // <-- Re-enable submit button after green screen
+      }, 5000);
       setTimeout(() => setSuccess(false), 2000);
       // Do not clear clientId or driverId so they remain prepopulated
       setWeight("");
