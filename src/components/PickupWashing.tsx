@@ -151,7 +151,7 @@ export default function PickupWashing({
     const driver = drivers.find((d) => d.id === driverId);
     if (!client || !driver || !weight) return;
     const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60000);
+    const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
 
     // Find the most recent entry for this client and driver
     const recentEntry = entries
@@ -161,7 +161,17 @@ export default function PickupWashing({
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       )[0];
     let groupId: string | null = null;
-    if (recentEntry && new Date(recentEntry.timestamp) >= oneHourAgo) {
+    if (recentEntry && new Date(recentEntry.timestamp) >= twoMinutesAgo) {
+      // Check for duplicate entry in the last 2 minutes for this client, driver, group, and weight
+      if (
+        recentEntry.weight === parseFloat(weight) &&
+        recentEntry.groupId
+      ) {
+        alert(
+          "Ya existe una entrada similar registrada recientemente. Por favor, verifique."
+        );
+        return;
+      }
       groupId = recentEntry.groupId;
     }
     let groupData: PickupGroup | null = null;
