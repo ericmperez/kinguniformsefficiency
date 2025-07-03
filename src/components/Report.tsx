@@ -32,6 +32,8 @@ export default function Report() {
     driverId: "",
     startDate: todayStr,
     endDate: todayStr,
+    minWeight: "",
+    maxWeight: "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -94,24 +96,32 @@ export default function Report() {
     }
     const qFinal = constraints.length ? query(q, ...constraints) : q;
     const snap = await getDocs(qFinal);
-    setEntries(
-      snap.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          clientId: data.clientId || "",
-          clientName: data.clientName || "",
-          driverId: data.driverId || "",
-          driverName: data.driverName || "",
-          groupId: data.groupId || "",
-          weight: typeof data.weight === "number" ? data.weight : 0,
-          timestamp:
-            data.timestamp instanceof Timestamp
-              ? data.timestamp.toDate()
-              : new Date(data.timestamp),
-        };
-      })
-    );
+    let filteredEntries = snap.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        clientId: data.clientId || "",
+        clientName: data.clientName || "",
+        driverId: data.driverId || "",
+        driverName: data.driverName || "",
+        groupId: data.groupId || "",
+        weight: typeof data.weight === "number" ? data.weight : 0,
+        timestamp:
+          data.timestamp instanceof Timestamp
+            ? data.timestamp.toDate()
+            : new Date(data.timestamp),
+      };
+    });
+    // Filter by weight if set
+    if (filters.minWeight)
+      filteredEntries = filteredEntries.filter(
+        (e) => e.weight >= Number(filters.minWeight)
+      );
+    if (filters.maxWeight)
+      filteredEntries = filteredEntries.filter(
+        (e) => e.weight <= Number(filters.maxWeight)
+      );
+    setEntries(filteredEntries);
     setLoading(false);
   };
 
@@ -128,90 +138,121 @@ export default function Report() {
     <div className="container py-4">
       <h2 className="mb-4">Pickup Entries Report</h2>
       <div className="card p-3 mb-4">
-        <div className="row g-3">
-          <div className="col-md-3">
-            <label className="form-label">Client</label>
-            <select
-              className="form-select"
-              value={filters.clientId}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, clientId: e.target.value }))
-              }
-            >
-              <option value="">All</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            fetchEntries();
+          }}
+        >
+          <div className="row g-3">
+            <div className="col-md-3">
+              <label className="form-label">Client</label>
+              <select
+                className="form-select"
+                value={filters.clientId}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, clientId: e.target.value }))
+                }
+              >
+                <option value="">All</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-3">
+              <label className="form-label">Group</label>
+              <select
+                className="form-select"
+                value={filters.groupId}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, groupId: e.target.value }))
+                }
+              >
+                <option value="">All</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.clientName} ({g.id.slice(-4)})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-3">
+              <label className="form-label">Driver</label>
+              <select
+                className="form-select"
+                value={filters.driverId}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, driverId: e.target.value }))
+                }
+              >
+                <option value="">All</option>
+                {drivers.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-3">
+              <label className="form-label">Start Date</label>
+              <input
+                type="date"
+                className="form-control"
+                value={filters.startDate}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, startDate: e.target.value }))
+                }
+              />
+            </div>
+            <div className="col-md-3 mt-2">
+              <label className="form-label">End Date</label>
+              <input
+                type="date"
+                className="form-control"
+                value={filters.endDate}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, endDate: e.target.value }))
+                }
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label">Min Weight (lbs)</label>
+              <input
+                type="number"
+                className="form-control"
+                value={filters.minWeight}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, minWeight: e.target.value }))
+                }
+                min={0}
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label">Max Weight (lbs)</label>
+              <input
+                type="number"
+                className="form-control"
+                value={filters.maxWeight}
+                onChange={(e) =>
+                  setFilters((f) => ({ ...f, maxWeight: e.target.value }))
+                }
+                min={0}
+              />
+            </div>
+            <div className="col-md-3 d-flex align-items-end mt-2">
+              <button
+                className="btn btn-primary w-100"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? "Loading..." : "Filter"}
+              </button>
+            </div>
           </div>
-          <div className="col-md-3">
-            <label className="form-label">Group</label>
-            <select
-              className="form-select"
-              value={filters.groupId}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, groupId: e.target.value }))
-              }
-            >
-              <option value="">All</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.clientName} ({g.id.slice(-4)})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col-md-3">
-            <label className="form-label">Driver</label>
-            <select
-              className="form-select"
-              value={filters.driverId}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, driverId: e.target.value }))
-              }
-            >
-              <option value="">All</option>
-              {drivers.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col-md-3">
-            <label className="form-label">Start Date</label>
-            <input
-              type="date"
-              className="form-control"
-              value={filters.startDate}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, startDate: e.target.value }))
-              }
-            />
-          </div>
-          <div className="col-md-3 mt-2">
-            <label className="form-label">End Date</label>
-            <input
-              type="date"
-              className="form-control"
-              value={filters.endDate}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, endDate: e.target.value }))
-              }
-            />
-          </div>
-          <div className="col-md-3 d-flex align-items-end mt-2">
-            <button
-              className="btn btn-primary w-100"
-              onClick={fetchEntries}
-              disabled={loading}
-            >
-              {loading ? "Loading..." : "Filter"}
-            </button>
-          </div>
-        </div>
+        </form>
       </div>
       <div className="card p-3">
         <h5>Results ({entries.length})</h5>
