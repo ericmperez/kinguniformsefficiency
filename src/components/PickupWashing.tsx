@@ -74,6 +74,7 @@ export default function PickupWashing({
   const weightInputRef = useRef<HTMLInputElement>(null);
   const [showKeypad, setShowKeypad] = useState(false);
   const [showFullScreenSuccess, setShowFullScreenSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Fetch today's groups in real time
   useEffect(() => {
@@ -146,10 +147,15 @@ export default function PickupWashing({
   // When adding a new entry, check if it fits an existing group or needs a new group
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // Prevent double submit
+    setSubmitting(true);
     setSuccess(false);
     const client = sortedClients.find((c) => c.id === clientId);
     const driver = drivers.find((d) => d.id === driverId);
-    if (!client || !driver || !weight) return;
+    if (!client || !driver || !weight) {
+      setSubmitting(false);
+      return;
+    }
     const now = new Date();
     const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
 
@@ -170,6 +176,7 @@ export default function PickupWashing({
         alert(
           "Ya existe una entrada similar registrada recientemente. Por favor, verifique."
         );
+        setSubmitting(false);
         return;
       }
       groupId = recentEntry.groupId;
@@ -251,6 +258,7 @@ export default function PickupWashing({
       });
     } catch (err) {
       alert("Error al guardar la entrada en Firebase");
+      setSubmitting(false);
     }
   };
 
@@ -628,7 +636,7 @@ export default function PickupWashing({
             </div>
           )}
         </div>
-        <button className="btn btn-primary w-100" type="submit">
+        <button className="btn btn-primary w-100" type="submit" disabled={submitting}>
           Registrar Entrada
         </button>
         {success && (

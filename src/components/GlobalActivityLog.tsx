@@ -13,27 +13,58 @@ interface LogEntry {
 export default function GlobalActivityLog() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [date, setDate] = useState("");
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const q = query(
-        collection(db, "activity_log"),
-        orderBy("createdAt", "desc")
-      );
-      const snap = await getDocs(q);
-      setLogs(
-        snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as LogEntry[]
-      );
+      let qBase = collection(db, "activity_log");
+      let qFinal = query(qBase, orderBy("createdAt", "desc"));
+      const snap = await getDocs(qFinal);
+      const allLogs = snap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          type: data.type || "",
+          message: data.message || "",
+          user: data.user || "",
+          createdAt: data.createdAt,
+        };
+      });
+      if (date) {
+        const start = new Date(date);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(date);
+        end.setHours(23, 59, 59, 999);
+        setLogs(
+          allLogs.filter((log) => {
+            if (!log.createdAt?.seconds) return false;
+            const logDate = new Date(log.createdAt.seconds * 1000);
+            return logDate >= start && logDate <= end;
+          })
+        );
+      } else {
+        setLogs(allLogs);
+      }
       setLoading(false);
     };
     fetchLogs();
-  }, []);
+  }, [date]);
 
   return (
     <div className="card p-4 mb-4" style={{ maxWidth: 700, margin: "0 auto" }}>
       <h4 className="mb-3" style={{ fontWeight: 700, letterSpacing: 1 }}>
         Global Activity Log
       </h4>
+      <div className="mb-3">
+        <label className="form-label">Filter by Date</label>
+        <input
+          type="date"
+          className="form-control"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          max={new Date().toISOString().slice(0, 10)}
+        />
+      </div>
       {loading ? (
         <div>Loading...</div>
       ) : logs.length === 0 ? (
