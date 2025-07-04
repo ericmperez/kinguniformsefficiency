@@ -1801,8 +1801,7 @@ export default function ActiveInvoices({
                                             productName: product.name,
                                             quantity: selection.qty,
                                             price: product.price,
-                                            addedBy:
-                                              user?.username || "Unknown",
+                                            addedBy: user?.username || "Unknown",
                                             addedAt: new Date().toISOString(),
                                           },
                                         ];
@@ -2728,7 +2727,7 @@ export default function ActiveInvoices({
                     productName: prodName,
                     quantity: quantity,
                     price: prodPrice,
-                    addedBy: "You",
+                    addedBy: user?.username || "Unknown",
                     addedAt: new Date().toISOString(),
                   },
                 ];

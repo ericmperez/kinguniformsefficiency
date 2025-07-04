@@ -453,8 +453,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 key={cart.id}
                 className="cart-section mb-4 p-2 border rounded"
                 style={{
-                  background: "#f8fafc",
-                  boxShadow: "0 2px 8px #e0e7ef",
+                  background: "#bae6fd", // Darker blue background
+                  boxShadow: "0 2px 12px #60a5fa",
+                  borderLeft: "6px solid #0ea5e9",
                 }}
               >
                 <div className="d-flex justify-content-between align-items-center mb-2">
@@ -848,7 +849,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                   }}
                                 >
                                   <span>
-                                    +{item.quantity} by {item.addedBy}
+                                    +{item.quantity} by {item.addedBy || "Unknown"}
                                     {item.addedAt && (
                                       <span
                                         style={{
