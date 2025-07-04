@@ -948,19 +948,22 @@ export default function ActiveInvoices({
                 }
               }
 
+              // Only apply overdue-blink if overdue AND not verified
+              const showOverdueBlink = isOverdue && !isVerified;
+
               return (
                 <React.Fragment key={invoice.id}>
                   <div
                     key={invoice.id}
                     className={`col-lg-4 col-md-6 mb-4${
-                      isOverdue ? " overdue-blink" : ""
+                      showOverdueBlink ? " overdue-blink" : ""
                     }`}
                     onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
                     onMouseLeave={() => setHoveredInvoiceId(null)}
                   >
                     <div
                       className={`modern-invoice-card shadow-lg${
-                        isOverdue ? " overdue-blink" : ""
+                        showOverdueBlink ? " overdue-blink" : ""
                       }`}
                       style={{
                         borderRadius: 24,
@@ -2174,6 +2177,7 @@ export default function ActiveInvoices({
                         updatedCarts.push(newCart);
                         cartIdx = updatedCarts.length - 1;
                       }
+
                       const cart = { ...updatedCarts[cartIdx] };
                       const existingItemIdx = cart.items.findIndex(
                         (item: any) => item.productId === product.id
