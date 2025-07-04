@@ -382,11 +382,16 @@ const Segregation: React.FC<SegregationProps> = ({
         status: newStatus,
       });
       setStatusUpdating(groupId);
-      setSegregatedCounts((prev) => ({ ...prev, [groupId]: String(cartCount) }));
+      setSegregatedCounts((prev) => ({
+        ...prev,
+        [groupId]: String(cartCount),
+      }));
       if (onGroupComplete) onGroupComplete();
       await logActivity({
         type: "Segregation",
-        message: `Group ${group?.clientName || groupId} skipped segregation by user`,
+        message: `Group ${
+          group?.clientName || groupId
+        } skipped segregation by user`,
       });
     } catch (err) {
       alert("Error skipping segregation for this group");
@@ -852,8 +857,15 @@ const Segregation: React.FC<SegregationProps> = ({
                       {isSupervisorOrAbove && (
                         <button
                           className="btn btn-outline-primary btn-sm ms-2"
-                          style={{ fontWeight: 700, fontSize: 18, minWidth: 36, padding: 0 }}
-                          disabled={disableActions || completingGroup === group.id}
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 18,
+                            minWidth: 36,
+                            padding: 0,
+                          }}
+                          disabled={
+                            disableActions || completingGroup === group.id
+                          }
                           onClick={() => handleSkipSegregation(group.id)}
                           title="Skip segregation and send to Tunnel or Conventional"
                         >

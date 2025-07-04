@@ -849,7 +849,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                   }}
                                 >
                                   <span>
-                                    +{item.quantity} by {item.addedBy || "Unknown"}
+                                    +{item.quantity} by{" "}
+                                    {item.addedBy || "Unknown"}
                                     {item.addedAt && (
                                       <span
                                         style={{

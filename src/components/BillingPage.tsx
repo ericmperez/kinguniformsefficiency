@@ -526,7 +526,9 @@ const BillingPage: React.FC = () => {
           });
           productColumns = allProducts.filter((p) => productIds.has(p.id));
         }
-        pesoProduct = productColumns.find((prod) => prod.name.toLowerCase().includes("peso"));
+        pesoProduct = productColumns.find((prod) =>
+          prod.name.toLowerCase().includes("peso")
+        );
         return Object.entries(grouped)
           .sort(([idA], [idB]) => {
             const clientA = clients.find((c) => c.id === idA);
@@ -583,17 +585,23 @@ const BillingPage: React.FC = () => {
                         .map((inv) => {
                           // Check if any product in this invoice has qty > 0 and no price set
                           const missingPrice = productColumns.some((prod) => {
-                            const qty = (inv.carts || []).reduce((sum, cart) => {
-                              return (
-                                sum +
-                                (cart.items || [])
-                                  .filter((item) => item.productId === prod.id)
-                                  .reduce(
-                                    (s, item) => s + (Number(item.quantity) || 0),
-                                    0
-                                  )
-                              );
-                            }, 0);
+                            const qty = (inv.carts || []).reduce(
+                              (sum, cart) => {
+                                return (
+                                  sum +
+                                  (cart.items || [])
+                                    .filter(
+                                      (item) => item.productId === prod.id
+                                    )
+                                    .reduce(
+                                      (s, item) =>
+                                        s + (Number(item.quantity) || 0),
+                                      0
+                                    )
+                                );
+                              },
+                              0
+                            );
                             const price = productPrices[prod.id];
                             return qty > 0 && (!price || price <= 0);
                           });
@@ -602,12 +610,15 @@ const BillingPage: React.FC = () => {
                           const productCells = productColumns.map((prod) => {
                             if (prod.name.toLowerCase().includes("peso")) {
                               let pesoValue = "";
-                              if (pesoProduct && typeof inv.totalWeight === "number") {
+                              if (
+                                pesoProduct &&
+                                typeof inv.totalWeight === "number"
+                              ) {
                                 const pesoPrice = productPrices[pesoProduct.id];
                                 if (pesoPrice && pesoPrice > 0) {
-                                  pesoValue = `$${(inv.totalWeight * pesoPrice).toFixed(
-                                    2
-                                  )}`;
+                                  pesoValue = `$${(
+                                    inv.totalWeight * pesoPrice
+                                  ).toFixed(2)}`;
                                   pesoSubtotal = inv.totalWeight * pesoPrice;
                                 }
                               }
@@ -617,17 +628,23 @@ const BillingPage: React.FC = () => {
                                 </td>
                               );
                             }
-                            const qty = (inv.carts || []).reduce((sum, cart) => {
-                              return (
-                                sum +
-                                (cart.items || [])
-                                  .filter((item) => item.productId === prod.id)
-                                  .reduce(
-                                    (s, item) => s + (Number(item.quantity) || 0),
-                                    0
-                                  )
-                              );
-                            }, 0);
+                            const qty = (inv.carts || []).reduce(
+                              (sum, cart) => {
+                                return (
+                                  sum +
+                                  (cart.items || [])
+                                    .filter(
+                                      (item) => item.productId === prod.id
+                                    )
+                                    .reduce(
+                                      (s, item) =>
+                                        s + (Number(item.quantity) || 0),
+                                      0
+                                    )
+                                );
+                              },
+                              0
+                            );
                             const price = productPrices[prod.id];
                             let cell = null;
                             if (qty > 0 && price > 0) {
@@ -678,7 +695,8 @@ const BillingPage: React.FC = () => {
                             Number(fuelChargePercent) > 0
                           ) {
                             fuelCharge =
-                              displaySubtotal * (Number(fuelChargePercent) / 100);
+                              displaySubtotal *
+                              (Number(fuelChargePercent) / 100);
                           }
                           if (
                             surchargeEnabled &&
@@ -686,17 +704,21 @@ const BillingPage: React.FC = () => {
                             Number(surchargePercent) > 0
                           ) {
                             surchargeValue =
-                              displaySubtotal * (Number(surchargePercent) / 100);
+                              displaySubtotal *
+                              (Number(surchargePercent) / 100);
                           }
                           // Calculate Peso value
                           // Use the already defined pesoProduct from above, do not redeclare it here
                           let pesoValue = "";
-                          if (pesoProduct && typeof inv.totalWeight === "number") {
+                          if (
+                            pesoProduct &&
+                            typeof inv.totalWeight === "number"
+                          ) {
                             const pesoPrice = productPrices[pesoProduct.id];
                             if (pesoPrice && pesoPrice > 0) {
-                              pesoValue = `$${(inv.totalWeight * pesoPrice).toFixed(
-                                2
-                              )}`;
+                              pesoValue = `$${(
+                                inv.totalWeight * pesoPrice
+                              ).toFixed(2)}`;
                             }
                           }
                           return (
@@ -759,17 +781,23 @@ const BillingPage: React.FC = () => {
                                     </td>
                                   );
                                 }
-                                const qty = (inv.carts || []).reduce((sum, cart) => {
-                                  return (
-                                    sum +
-                                    (cart.items || [])
-                                      .filter((item) => item.productId === prod.id)
-                                      .reduce(
-                                        (s, item) => s + (Number(item.quantity) || 0),
-                                        0
-                                      )
-                                  );
-                                }, 0);
+                                const qty = (inv.carts || []).reduce(
+                                  (sum, cart) => {
+                                    return (
+                                      sum +
+                                      (cart.items || [])
+                                        .filter(
+                                          (item) => item.productId === prod.id
+                                        )
+                                        .reduce(
+                                          (s, item) =>
+                                            s + (Number(item.quantity) || 0),
+                                          0
+                                        )
+                                    );
+                                  },
+                                  0
+                                );
                                 const price = productPrices[prod.id];
                                 let cell = null;
                                 if (qty > 0 && price > 0) {

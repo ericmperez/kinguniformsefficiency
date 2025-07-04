@@ -865,9 +865,18 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               disabled={cartCounter >= maxCarts || !canVerify}
                               onClick={async () => {
                                 if (!canVerify) return;
-                                const newCount = Math.min(cartCounter + 1, maxCarts);
-                                setCartCounters((prev) => ({ ...prev, [group.id]: newCount }));
-                                await updateDoc(doc(db, "pickup_groups", group.id), { tunnelCartCount: newCount });
+                                const newCount = Math.min(
+                                  cartCounter + 1,
+                                  maxCarts
+                                );
+                                setCartCounters((prev) => ({
+                                  ...prev,
+                                  [group.id]: newCount,
+                                }));
+                                await updateDoc(
+                                  doc(db, "pickup_groups", group.id),
+                                  { tunnelCartCount: newCount }
+                                );
                               }}
                             >
                               +
@@ -884,8 +893,14 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               onClick={async () => {
                                 if (!canVerify) return;
                                 const newCount = Math.max(cartCounter - 1, 0);
-                                setCartCounters((prev) => ({ ...prev, [group.id]: newCount }));
-                                await updateDoc(doc(db, "pickup_groups", group.id), { tunnelCartCount: newCount });
+                                setCartCounters((prev) => ({
+                                  ...prev,
+                                  [group.id]: newCount,
+                                }));
+                                await updateDoc(
+                                  doc(db, "pickup_groups", group.id),
+                                  { tunnelCartCount: newCount }
+                                );
                               }}
                             >
                               -
@@ -903,15 +918,24 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 onClick={async () => {
                                   if (!canVerify) return;
                                   if (cartCounter !== maxCarts) {
-                                    alert("Error: The number of carts does not match the segregation value.");
+                                    alert(
+                                      "Error: The number of carts does not match the segregation value."
+                                    );
                                     return;
                                   }
-                                  const { updatePickupGroupStatus } = await import("../services/firebaseService");
-                                  await updatePickupGroupStatus(group.id, "procesandose");
-                                  await updateDoc(doc(db, "pickup_groups", group.id), {
-                                    showInTunnel: false,
-                                    segregationComplete: false,
-                                  });
+                                  const { updatePickupGroupStatus } =
+                                    await import("../services/firebaseService");
+                                  await updatePickupGroupStatus(
+                                    group.id,
+                                    "procesandose"
+                                  );
+                                  await updateDoc(
+                                    doc(db, "pickup_groups", group.id),
+                                    {
+                                      showInTunnel: false,
+                                      segregationComplete: false,
+                                    }
+                                  );
                                   setSelectedTunnelGroup(null);
                                   setTunnelCartInput("");
                                   setTunnelCartError("");
@@ -927,7 +951,13 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             {!isVerifying ? (
                               <button
                                 className="btn btn-outline-primary btn-sm"
-                                onClick={() => canVerify && setVerifyingGroupIds((ids) => ({ ...ids, [group.id]: true }))}
+                                onClick={() =>
+                                  canVerify &&
+                                  setVerifyingGroupIds((ids) => ({
+                                    ...ids,
+                                    [group.id]: true,
+                                  }))
+                                }
                                 disabled={!canVerify}
                               >
                                 Verify Cart Count
@@ -948,7 +978,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   style={{ width: 110, maxWidth: "100%" }}
                                   placeholder="How many carts did you count?"
                                   value={tunnelCartInput}
-                                  onChange={(e) => setTunnelCartInput(e.target.value)}
+                                  onChange={(e) =>
+                                    setTunnelCartInput(e.target.value)
+                                  }
                                   autoFocus
                                   disabled={!canVerify}
                                 />
@@ -963,34 +995,53 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     if (!canVerify) return;
                                     const val = parseInt(tunnelCartInput);
                                     if (isNaN(val)) {
-                                      setTunnelCartError("Please enter a valid number.");
+                                      setTunnelCartError(
+                                        "Please enter a valid number."
+                                      );
                                       return;
                                     }
                                     if (val !== getSegregatedCarts(group)) {
                                       setTunnelCartError(
                                         canReorder
-                                          ? `Cart count does not match segregation value (${getSegregatedCarts(group)}).`
+                                          ? `Cart count does not match segregation value (${getSegregatedCarts(
+                                              group
+                                            )}).`
                                           : "Cart count does not match segregation value."
                                       );
                                       setShowTunnelRedAlert(true);
                                       if (tunnelRedAlertTimerRef.current)
-                                        clearTimeout(tunnelRedAlertTimerRef.current);
-                                      tunnelRedAlertTimerRef.current = setTimeout(() => {
-                                        setShowTunnelRedAlert(false);
-                                      }, 5000);
+                                        clearTimeout(
+                                          tunnelRedAlertTimerRef.current
+                                        );
+                                      tunnelRedAlertTimerRef.current =
+                                        setTimeout(() => {
+                                          setShowTunnelRedAlert(false);
+                                        }, 5000);
                                       return;
                                     }
                                     setTunnelCartError("");
-                                    setVerifiedGroups((prev) => ({ ...prev, [group.id]: true }));
-                                    setCartCounters((prev) => ({ ...prev, [group.id]: 0 }));
-                                    setVerifyingGroupIds((ids) => ({ ...ids, [group.id]: false }));
+                                    setVerifiedGroups((prev) => ({
+                                      ...prev,
+                                      [group.id]: true,
+                                    }));
+                                    setCartCounters((prev) => ({
+                                      ...prev,
+                                      [group.id]: 0,
+                                    }));
+                                    setVerifyingGroupIds((ids) => ({
+                                      ...ids,
+                                      [group.id]: false,
+                                    }));
                                     setTunnelCartInput("");
                                     // Save verification and counter to Firestore
-                                    await updateDoc(doc(db, "pickup_groups", group.id), {
-                                      tunnelVerified: true,
-                                      tunnelCartCount: 0,
-                                      segregatedCarts: val,
-                                    });
+                                    await updateDoc(
+                                      doc(db, "pickup_groups", group.id),
+                                      {
+                                        tunnelVerified: true,
+                                        tunnelCartCount: 0,
+                                        segregatedCarts: val,
+                                      }
+                                    );
                                   }}
                                   disabled={!canVerify}
                                 >
@@ -998,7 +1049,13 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 </button>
                                 <button
                                   className="btn btn-secondary btn-sm ms-2"
-                                  onClick={() => canVerify && setVerifyingGroupIds((ids) => ({ ...ids, [group.id]: false }))}
+                                  onClick={() =>
+                                    canVerify &&
+                                    setVerifyingGroupIds((ids) => ({
+                                      ...ids,
+                                      [group.id]: false,
+                                    }))
+                                  }
                                   disabled={!canVerify}
                                 >
                                   Cancel
@@ -1014,14 +1071,26 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             </span>
                             <button
                               className="btn btn-outline-primary btn-sm"
-                              disabled={cartCounter >= getSegregatedCarts(group) || !canVerify}
+                              disabled={
+                                cartCounter >= getSegregatedCarts(group) ||
+                                !canVerify
+                              }
                               onClick={async () => {
                                 if (!canVerify) return;
-                                const newCount = Math.min(cartCounter + 1, getSegregatedCarts(group));
-                                setCartCounters((prev) => ({ ...prev, [group.id]: newCount }));
-                                await updateDoc(doc(db, "pickup_groups", group.id), {
-                                  tunnelCartCount: newCount,
-                                });
+                                const newCount = Math.min(
+                                  cartCounter + 1,
+                                  getSegregatedCarts(group)
+                                );
+                                setCartCounters((prev) => ({
+                                  ...prev,
+                                  [group.id]: newCount,
+                                }));
+                                await updateDoc(
+                                  doc(db, "pickup_groups", group.id),
+                                  {
+                                    tunnelCartCount: newCount,
+                                  }
+                                );
                               }}
                             >
                               +
@@ -1032,10 +1101,16 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               onClick={async () => {
                                 if (!canVerify) return;
                                 const newCount = Math.max(cartCounter - 1, 0);
-                                setCartCounters((prev) => ({ ...prev, [group.id]: newCount }));
-                                await updateDoc(doc(db, "pickup_groups", group.id), {
-                                  tunnelCartCount: newCount,
-                                });
+                                setCartCounters((prev) => ({
+                                  ...prev,
+                                  [group.id]: newCount,
+                                }));
+                                await updateDoc(
+                                  doc(db, "pickup_groups", group.id),
+                                  {
+                                    tunnelCartCount: newCount,
+                                  }
+                                );
                               }}
                             >
                               -
@@ -1043,23 +1118,59 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             {cartCounter === getSegregatedCarts(group) && (
                               <button
                                 className="btn btn-success btn-sm ms-2"
-                                disabled={!!group.invoiceId || group.washed || tunnelInvoiceInProgress[group.id] || !canVerify}
+                                disabled={
+                                  !!group.invoiceId ||
+                                  group.washed ||
+                                  tunnelInvoiceInProgress[group.id] ||
+                                  !canVerify
+                                }
                                 onClick={async () => {
                                   if (!canVerify) return;
-                                  if (group.invoiceId || group.washed || tunnelInvoiceInProgress[group.id]) return;
-                                  setTunnelInvoiceInProgress((prev) => ({ ...prev, [group.id]: true }));
+                                  if (
+                                    group.invoiceId ||
+                                    group.washed ||
+                                    tunnelInvoiceInProgress[group.id]
+                                  )
+                                    return;
+                                  setTunnelInvoiceInProgress((prev) => ({
+                                    ...prev,
+                                    [group.id]: true,
+                                  }));
                                   try {
                                     // Refetch group from Firestore to check for invoiceId/washed
-                                    const { getDoc, doc: firestoreDoc, updateDoc } = await import("firebase/firestore");
+                                    const {
+                                      getDoc,
+                                      doc: firestoreDoc,
+                                      updateDoc,
+                                    } = await import("firebase/firestore");
                                     const { db } = await import("../firebase");
-                                    const groupSnap = await getDoc(firestoreDoc(db, "pickup_groups", group.id));
-                                    const latestGroup = groupSnap.exists() ? groupSnap.data() : {};
-                                    if (latestGroup.invoiceId || latestGroup.washed) {
-                                      setTunnelInvoiceInProgress((prev) => ({ ...prev, [group.id]: false }));
+                                    const groupSnap = await getDoc(
+                                      firestoreDoc(
+                                        db,
+                                        "pickup_groups",
+                                        group.id
+                                      )
+                                    );
+                                    const latestGroup = groupSnap.exists()
+                                      ? groupSnap.data()
+                                      : {};
+                                    if (
+                                      latestGroup.invoiceId ||
+                                      latestGroup.washed
+                                    ) {
+                                      setTunnelInvoiceInProgress((prev) => ({
+                                        ...prev,
+                                        [group.id]: false,
+                                      }));
                                       return;
                                     }
                                     // Create invoice
-                                    const { addInvoice, updatePickupGroupStatus } = await import("../services/firebaseService");
+                                    const {
+                                      addInvoice,
+                                      updatePickupGroupStatus,
+                                    } = await import(
+                                      "../services/firebaseService"
+                                    );
                                     const newInvoice = {
                                       clientId: group.clientId,
                                       clientName: group.clientName,
@@ -1070,25 +1181,48 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                       totalWeight: group.totalWeight || 0,
                                       pickupGroupId: group.id,
                                     };
-                                    const invoiceId = await addInvoice(newInvoice);
-                                    await updateDoc(firestoreDoc(db, "pickup_groups", group.id), {
-                                      invoiceId,
-                                      washed: true,
-                                      status: "Empaque",
-                                    });
-                                    await updatePickupGroupStatus(group.id, "procesandose");
-                                    if (setSelectedInvoiceId) setSelectedInvoiceId(invoiceId);
+                                    const invoiceId = await addInvoice(
+                                      newInvoice
+                                    );
+                                    await updateDoc(
+                                      firestoreDoc(
+                                        db,
+                                        "pickup_groups",
+                                        group.id
+                                      ),
+                                      {
+                                        invoiceId,
+                                        washed: true,
+                                        status: "Empaque",
+                                      }
+                                    );
+                                    await updatePickupGroupStatus(
+                                      group.id,
+                                      "procesandose"
+                                    );
+                                    if (setSelectedInvoiceId)
+                                      setSelectedInvoiceId(invoiceId);
                                     setGroups((prev) =>
                                       prev.map((g) =>
                                         g.id === group.id
-                                          ? { ...g, invoiceId, washed: true, status: "Empaque" }
+                                          ? {
+                                              ...g,
+                                              invoiceId,
+                                              washed: true,
+                                              status: "Empaque",
+                                            }
                                           : g
                                       )
                                     );
                                   } catch (e) {
-                                    alert("Error marking group as washed and creating invoice");
+                                    alert(
+                                      "Error marking group as washed and creating invoice"
+                                    );
                                   } finally {
-                                    setTunnelInvoiceInProgress((prev) => ({ ...prev, [group.id]: false }));
+                                    setTunnelInvoiceInProgress((prev) => ({
+                                      ...prev,
+                                      [group.id]: false,
+                                    }));
                                   }
                                 }}
                               >
@@ -1108,7 +1242,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             <button
                               className="btn btn-outline-secondary btn-sm"
                               title="Move up"
-                              disabled={tunnelReorderLoading === group.id || idx === 0}
+                              disabled={
+                                tunnelReorderLoading === group.id || idx === 0
+                              }
                               onClick={() => moveTunnelGroup(group.id, "up")}
                             >
                               <span aria-hidden="true">▲</span>
@@ -1116,7 +1252,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             <button
                               className="btn btn-outline-secondary btn-sm"
                               title="Move down"
-                              disabled={tunnelReorderLoading === group.id || idx === tunnelGroups.length - 1}
+                              disabled={
+                                tunnelReorderLoading === group.id ||
+                                idx === tunnelGroups.length - 1
+                              }
                               onClick={() => moveTunnelGroup(group.id, "down")}
                             >
                               <span aria-hidden="true">▼</span>

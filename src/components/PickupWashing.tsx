@@ -169,10 +169,7 @@ export default function PickupWashing({
     let groupId: string | null = null;
     if (recentEntry && new Date(recentEntry.timestamp) >= twoMinutesAgo) {
       // Check for duplicate entry in the last 2 minutes for this client, driver, group, and weight
-      if (
-        recentEntry.weight === parseFloat(weight) &&
-        recentEntry.groupId
-      ) {
+      if (recentEntry.weight === parseFloat(weight) && recentEntry.groupId) {
         alert(
           "Ya existe una entrada similar registrada recientemente. Por favor, verifique."
         );
@@ -639,7 +636,11 @@ export default function PickupWashing({
             </div>
           )}
         </div>
-        <button className="btn btn-primary w-100" type="submit" disabled={submitting}>
+        <button
+          className="btn btn-primary w-100"
+          type="submit"
+          disabled={submitting}
+        >
           Registrar Entrada
         </button>
         {success && (
