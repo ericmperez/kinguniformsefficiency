@@ -414,9 +414,27 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                               key={btn + idx}
                               className="btn btn-light m-1"
                               style={{ width: 60, height: 48, fontSize: 22, fontWeight: 600 }}
-                              onClick={() => {
+                              onClick={async () => {
                                 if (btn === "OK") {
-                                  setShowCartKeypad(false);
+                                  if (newCartName.trim()) {
+                                    const newCart: LaundryCart = await handleAddCart(newCartName.trim());
+                                    setLocalCarts([
+                                      ...localCarts,
+                                      {
+                                        id: newCart.id,
+                                        name: newCart.name,
+                                        items: [],
+                                        total: 0,
+                                        createdAt: new Date().toISOString(),
+                                      },
+                                    ]);
+                                    setNewCartName("");
+                                    setShowNewCartInput(false);
+                                    setShowCartKeypad(false);
+                                    if (refreshInvoices) await refreshInvoices();
+                                  } else {
+                                    setShowCartKeypad(false);
+                                  }
                                 } else if (btn === "←") {
                                   setNewCartName((prev) => prev.slice(0, -1));
                                 } else {
@@ -566,7 +584,11 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           <button
                             type="button"
                             className="btn-close"
-                            onClick={() => setAddProductCartId(null)}
+                            onClick={() => {
+                              setAddProductCartId(null);
+                              setSelectedProductId("");
+                              setKeypadQty("");
+                            }}
                           ></button>
                         </div>
                         <div className="modal-body">
@@ -574,107 +596,116 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                             {clientProducts.map((product) => (
                               <div key={product.id} className="col-12 col-md-4">
                                 <div
-                                  className={`card mb-2 shadow-sm h-100${
-                                    selectedProductId === product.id
-                                      ? " border-primary"
-                                      : " border-light"
-                                  }`}
-                                  style={{
-                                    cursor: "pointer",
-                                    minHeight: 120,
-                                    borderWidth: 2,
+                                  className={`card mb-2 shadow-sm h-100${selectedProductId === product.id ? " border-primary" : " border-light"}`}
+                                  style={{ cursor: "pointer", minHeight: 120, borderWidth: 2 }}
+                                  onClick={() => {
+                                    setSelectedProductId(product.id);
+                                    setShowProductKeypad({ cartId: cart.id, productId: product.id });
+                                    setKeypadQty("");
                                   }}
-                                  onClick={() =>
-                                    setSelectedProductId(product.id)
-                                  }
                                 >
                                   {product.imageUrl && (
                                     <img
                                       src={product.imageUrl}
                                       alt={product.name}
-                                      style={{
-                                        width: "100%",
-                                        height: 90,
-                                        objectFit: "cover",
-                                        borderRadius: 8,
-                                      }}
+                                      style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8 }}
                                     />
                                   )}
                                   <div className="card-body py-2 px-3 text-center">
-                                    <div
-                                      className="fw-bold"
-                                      style={{ fontSize: 18 }}
-                                    >
-                                      {product.name}
-                                    </div>
+                                    <div className="fw-bold" style={{ fontSize: 18 }}>{product.name}</div>
                                   </div>
                                 </div>
                               </div>
                             ))}
                           </div>
-                          <div className="mt-3">
-                            <label className="form-label">Quantity</label>
-                            <input
-                              type="number"
-                              className="form-control"
-                              min={1}
-                              value={productQty}
-                              onChange={(e) =>
-                                setProductQty(Number(e.target.value))
-                              }
-                            />
-                          </div>
                         </div>
-                        <div className="modal-footer">
-                          <button
-                            className="btn btn-secondary"
-                            onClick={() => setAddProductCartId(null)}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            className="btn btn-primary"
-                            disabled={!selectedProductId || productQty < 1}
-                            onClick={async () => {
-                              // 1. Update localCarts immediately for instant UI update
-                              setLocalCarts((prevCarts) =>
-                                prevCarts.map((cartObj) => {
-                                  if (cartObj.id !== cart.id) return cartObj;
-                                  // Always add as a new entry (do not merge)
-                                  const prod = clientProducts.find(
-                                    (p) => p.id === selectedProductId
-                                  );
-                                  return {
-                                    ...cartObj,
-                                    items: [
-                                      ...cartObj.items,
-                                      {
-                                        productId: selectedProductId,
-                                        productName: prod ? prod.name : "",
-                                        quantity: productQty,
-                                        price: prod ? prod.price : 0,
-                                        addedBy: user?.username || "You",
-                                        addedAt: new Date().toISOString(),
-                                      },
-                                    ],
-                                  };
-                                })
-                              );
-                              // 2. Persist to Firestore (parent handler)
-                              await onAddProductToCart(
-                                cart.id,
-                                selectedProductId,
-                                productQty
-                              );
-                              // 3. Optionally refresh invoices
-                              if (refreshInvoices) await refreshInvoices();
-                              setAddProductCartId(null);
-                              setSelectedProductId("");
-                              setProductQty(1);
-                            }}
-                          >
-                            Add
-                          </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Product quantity keypad modal */}
+                {showProductKeypad && (
+                  <div
+                    className="modal show d-block"
+                    tabIndex={-1}
+                    style={{ background: "rgba(0,0,0,0.25)", zIndex: 2100 }}
+                    onClick={e => {
+                      if (e.target === e.currentTarget) setShowProductKeypad(null);
+                    }}
+                  >
+                    <div className="modal-dialog" style={{ maxWidth: 320, margin: "120px auto" }}>
+                      <div className="modal-content">
+                        <div className="modal-header">
+                          <h5 className="modal-title">Enter Quantity</h5>
+                          <button type="button" className="btn-close" onClick={() => setShowProductKeypad(null)}></button>
+                        </div>
+                        <div className="modal-body">
+                          <input
+                            type="text"
+                            className="form-control mb-3 text-center"
+                            value={keypadQty}
+                            readOnly
+                            style={{ fontSize: 28, letterSpacing: 2, background: "#f8fafc" }}
+                          />
+                          <div className="d-flex flex-wrap justify-content-center">
+                            {keypadButtons.map((btn, idx) => (
+                              <button
+                                key={btn + idx}
+                                className="btn btn-light m-1"
+                                style={{ width: 60, height: 48, fontSize: 22, fontWeight: 600 }}
+                                onClick={async () => {
+                                  if (btn === "OK") {
+                                    const qty = parseInt(keypadQty, 10);
+                                    if (showProductKeypad && qty > 0) {
+                                      // 1. Update localCarts immediately for instant UI update
+                                      setLocalCarts((prevCarts) =>
+                                        prevCarts.map((cartObj) => {
+                                          if (cartObj.id !== showProductKeypad.cartId) return cartObj;
+                                          const prod = clientProducts.find((p) => p.id === showProductKeypad.productId);
+                                          return {
+                                            ...cartObj,
+                                            items: [
+                                              ...cartObj.items,
+                                              {
+                                                productId: showProductKeypad.productId,
+                                                productName: prod ? prod.name : "",
+                                                quantity: qty,
+                                                price: prod ? prod.price : 0,
+                                                addedBy: user?.username || "You",
+                                                addedAt: new Date().toISOString(),
+                                              },
+                                            ],
+                                          };
+                                        })
+                                      );
+                                      // 2. Persist to Firestore (parent handler)
+                                      await onAddProductToCart(
+                                        showProductKeypad.cartId,
+                                        showProductKeypad.productId,
+                                        qty
+                                      );
+                                      if (refreshInvoices) await refreshInvoices();
+                                      setAddProductCartId(null);
+                                      setSelectedProductId("");
+                                      setShowProductKeypad(null);
+                                      setKeypadQty("");
+                                    } else {
+                                      setShowProductKeypad(null);
+                                      setKeypadQty("");
+                                    }
+                                  } else if (btn === "←") {
+                                    setKeypadQty((prev) => prev.slice(0, -1));
+                                  } else {
+                                    setKeypadQty((prev) => prev + btn);
+                                  }
+                                }}
+                                tabIndex={-1}
+                                type="button"
+                              >
+                                {btn}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
