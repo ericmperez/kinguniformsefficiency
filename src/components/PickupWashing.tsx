@@ -75,6 +75,12 @@ export default function PickupWashing({
   const [showKeypad, setShowKeypad] = useState(false);
   const [showFullScreenSuccess, setShowFullScreenSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showAddEntryGroupId, setShowAddEntryGroupId] = useState<string | null>(
+    null
+  );
+  const [addEntryWeight, setAddEntryWeight] = useState("");
+  const [addEntryDriverId, setAddEntryDriverId] = useState("");
+  const [addEntrySubmitting, setAddEntrySubmitting] = useState(false);
 
   // Fetch today's groups in real time
   useEffect(() => {
@@ -157,7 +163,8 @@ export default function PickupWashing({
       return;
     }
     const now = new Date();
-    const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+    // Change window from 2 minutes to 60 minutes (1 hour)
+    const sixtyMinutesAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
     // Find the most recent entry for this client and driver
     const recentEntry = entries
@@ -167,8 +174,8 @@ export default function PickupWashing({
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       )[0];
     let groupId: string | null = null;
-    if (recentEntry && new Date(recentEntry.timestamp) >= twoMinutesAgo) {
-      // Check for duplicate entry in the last 2 minutes for this client, driver, group, and weight
+    if (recentEntry && new Date(recentEntry.timestamp) >= sixtyMinutesAgo) {
+      // Check for duplicate entry in the last 60 minutes for this client, driver, group, and weight
       if (recentEntry.weight === parseFloat(weight) && recentEntry.groupId) {
         alert(
           "Ya existe una entrada similar registrada recientemente. Por favor, verifique."
@@ -505,6 +512,63 @@ export default function PickupWashing({
     }
   };
 
+  // Handler to add entry directly to a group
+  const handleAddEntryToGroup = async (group: any) => {
+    if (!addEntryWeight || !addEntryDriverId) return;
+    setAddEntrySubmitting(true);
+    const driver = drivers.find((d) => d.id === addEntryDriverId);
+    if (!driver) {
+      setAddEntrySubmitting(false);
+      return;
+    }
+    const now = new Date();
+    const entry: Omit<PickupEntry, "id"> = {
+      clientId: group.clientId,
+      clientName: group.clientName,
+      driverId: driver.id,
+      driverName: driver.name,
+      groupId: group.id,
+      weight: parseFloat(addEntryWeight),
+      timestamp: now,
+    };
+    try {
+      const docRef = await addPickupEntry(entry);
+      const newEntry: PickupEntry = { ...entry, id: docRef.id };
+      setEntries([newEntry, ...entries]);
+      // Update group totals
+      const updatedEntries = [newEntry, ...entries].filter(
+        (e) => e.groupId === group.id
+      );
+      await updateGroupTotals(group.id, updatedEntries);
+      await updateDoc(doc(db, "pickup_groups", group.id), {
+        numCarts: updatedEntries.length,
+      });
+      // Also update segregatedCarts for Tunnel/no-segregation clients
+      const groupSnap = await getDocs(
+        query(collection(db, "pickup_groups"), where("id", "==", group.id))
+      );
+      if (!groupSnap.empty) {
+        const groupData = groupSnap.docs[0].data();
+        const client = clients.find((c) => c.id === groupData.clientId);
+        if (
+          client &&
+          client.washingType === "Tunnel" &&
+          client.segregation === false
+        ) {
+          await updateDoc(doc(db, "pickup_groups", group.id), {
+            segregatedCarts: updatedEntries.length,
+          });
+        }
+      }
+      setShowAddEntryGroupId(null);
+      setAddEntryWeight("");
+      setAddEntryDriverId("");
+    } catch (err) {
+      alert("Error al guardar la entrada en Firebase");
+    }
+    setAddEntrySubmitting(false);
+  };
+
   return (
     <div className="container py-4">
       {/* Full-screen confirmation overlay */}
@@ -798,6 +862,67 @@ export default function PickupWashing({
                   Peso total: {Math.round(group.totalWeight)} lbs
                 </div>
               </div>
+              {/* Add Entry Button and Inline Form */}
+              {showAddEntryGroupId === group.id ? (
+                <form
+                  className="d-flex align-items-end gap-2 mt-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAddEntryToGroup(group);
+                  }}
+                >
+                  <input
+                    type="number"
+                    className="form-control"
+                    placeholder="Peso (libras)"
+                    value={addEntryWeight}
+                    min={0}
+                    step={0.1}
+                    onChange={(e) => setAddEntryWeight(e.target.value)}
+                    style={{ maxWidth: 120 }}
+                    required
+                  />
+                  <select
+                    className="form-control"
+                    value={addEntryDriverId}
+                    onChange={(e) => setAddEntryDriverId(e.target.value)}
+                    required
+                    style={{ maxWidth: 180 }}
+                  >
+                    <option value="">Seleccione chofer</option>
+                    {drivers.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn btn-success"
+                    type="submit"
+                    disabled={addEntrySubmitting}
+                  >
+                    Agregar
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => setShowAddEntryGroupId(null)}
+                  >
+                    Cancelar
+                  </button>
+                </form>
+              ) : (
+                <button
+                  className="btn btn-outline-primary btn-sm mt-2"
+                  onClick={() => {
+                    setShowAddEntryGroupId(group.id);
+                    setAddEntryWeight("");
+                    setAddEntryDriverId(driverId || (drivers[0]?.id || ""));
+                  }}
+                >
+                  + Añadir entrada a este grupo
+                </button>
+              )}
             </div>
           ))}
         </div>
