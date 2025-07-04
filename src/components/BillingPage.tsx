@@ -511,6 +511,7 @@ const BillingPage: React.FC = () => {
         }
         // Get product columns for selected client
         let productColumns: { id: string; name: string }[] = [];
+        let pesoProduct: { id: string; name: string } | undefined = undefined;
         if (selectedClient) {
           productColumns = allProducts.filter((p) =>
             selectedClient.selectedProducts.includes(p.id)
@@ -525,212 +526,332 @@ const BillingPage: React.FC = () => {
           });
           productColumns = allProducts.filter((p) => productIds.has(p.id));
         }
-        return Object.entries(grouped).map(([clientId, clientInvoices]) => {
-          const client = clients.find((c) => c.id === clientId);
-          return (
-            <div key={clientId} className="mb-5">
-              <h5 style={{ fontWeight: 700, color: "#0ea5e9" }}>
-                {client?.name || clientInvoices[0].clientName}
-              </h5>
-              <div
-                className="table-responsive"
-                style={{ overflowX: "auto", minWidth: 400 }}
-              >
-                <table
-                  className="table table-bordered table-hover"
-                  style={{ minWidth: 700 }}
+        pesoProduct = productColumns.find((prod) => prod.name.toLowerCase().includes("peso"));
+        return Object.entries(grouped)
+          .sort(([idA], [idB]) => {
+            const clientA = clients.find((c) => c.id === idA);
+            const clientB = clients.find((c) => c.id === idB);
+            const nameA = clientA?.name || (grouped[idA][0]?.clientName ?? "");
+            const nameB = clientB?.name || (grouped[idB][0]?.clientName ?? "");
+            return nameA.localeCompare(nameB);
+          })
+          .map(([clientId, clientInvoices]) => {
+            const client = clients.find((c) => c.id === clientId);
+            return (
+              <div key={clientId} className="mb-5">
+                <h5 style={{ fontWeight: 700, color: "#0ea5e9" }}>
+                  {client?.name || clientInvoices[0].clientName}
+                </h5>
+                <div
+                  className="table-responsive"
+                  style={{ overflowX: "auto", minWidth: 400 }}
                 >
-                  <thead>
-                    <tr>
-                      <th>Invoice #</th>
-                      <th>Date</th>
-                      <th>Truck #</th>
-                      {/* Add Verifier column */}
-                      <th>Verifier</th>
-                      {productColumns.map((prod) => (
-                        <th key={prod.id}>{prod.name}</th>
-                      ))}
-                      <th>Subtotal</th>
-                      <th>Service Charge</th>
-                      <th>Fuel Charge</th>
-                      <th>Surcharge</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientInvoices
-                      .sort((a, b) => {
-                        if (a.invoiceNumber && b.invoiceNumber)
-                          return a.invoiceNumber - b.invoiceNumber;
-                        if (a.date && b.date)
-                          return (
-                            new Date(a.date).getTime() -
-                            new Date(b.date).getTime()
-                          );
-                        return a.id.localeCompare(b.id);
-                      })
-                      .map((inv) => {
-                        // Check if any product in this invoice has qty > 0 and no price set
-                        const missingPrice = productColumns.some((prod) => {
-                          const qty = (inv.carts || []).reduce((sum, cart) => {
+                  <table
+                    className="table table-bordered table-hover"
+                    style={{ minWidth: 700 }}
+                  >
+                    <thead>
+                      <tr>
+                        <th>Invoice #</th>
+                        <th>Date</th>
+                        <th>Truck #</th>
+                        {/* Add Verifier column */}
+                        <th>Verifier</th>
+                        <th>Total Weight (lbs)</th>
+                        {productColumns.map((prod) => (
+                          <th key={prod.id}>{prod.name}</th>
+                        ))}
+                        <th>Subtotal</th>
+                        <th>Service Charge</th>
+                        <th>Fuel Charge</th>
+                        <th>Surcharge</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientInvoices
+                        .sort((a, b) => {
+                          if (a.invoiceNumber && b.invoiceNumber)
+                            return a.invoiceNumber - b.invoiceNumber;
+                          if (a.date && b.date)
                             return (
-                              sum +
-                              (cart.items || [])
-                                .filter((item) => item.productId === prod.id)
-                                .reduce(
-                                  (s, item) => s + (Number(item.quantity) || 0),
-                                  0
-                                )
+                              new Date(a.date).getTime() -
+                              new Date(b.date).getTime()
                             );
-                          }, 0);
-                          const price = productPrices[prod.id];
-                          return qty > 0 && (!price || price <= 0);
-                        });
-                        let subtotal = 0;
-                        const productCells = productColumns.map((prod) => {
-                          const qty = (inv.carts || []).reduce((sum, cart) => {
-                            return (
-                              sum +
-                              (cart.items || [])
-                                .filter((item) => item.productId === prod.id)
-                                .reduce(
-                                  (s, item) => s + (Number(item.quantity) || 0),
-                                  0
-                                )
-                            );
-                          }, 0);
-                          const price = productPrices[prod.id];
-                          let cell = null;
-                          if (qty > 0 && price > 0) {
-                            const total = qty * price;
-                            subtotal += total;
-                            cell = `${qty} | `;
-                            return (
-                              <td key={prod.id} style={nowrapCellStyle}>
-                                {qty} |{" "}
-                                <span className="text-success">
-                                  ${total.toFixed(2)}
-                                </span>
-                              </td>
-                            );
-                          } else if (qty > 0) {
-                            return (
-                              <td key={prod.id} style={nowrapCellStyle}>
-                                {qty}
-                              </td>
-                            );
-                          } else {
-                            return <td key={prod.id}></td>;
+                          return a.id.localeCompare(b.id);
+                        })
+                        .map((inv) => {
+                          // Check if any product in this invoice has qty > 0 and no price set
+                          const missingPrice = productColumns.some((prod) => {
+                            const qty = (inv.carts || []).reduce((sum, cart) => {
+                              return (
+                                sum +
+                                (cart.items || [])
+                                  .filter((item) => item.productId === prod.id)
+                                  .reduce(
+                                    (s, item) => s + (Number(item.quantity) || 0),
+                                    0
+                                  )
+                              );
+                            }, 0);
+                            const price = productPrices[prod.id];
+                            return qty > 0 && (!price || price <= 0);
+                          });
+                          let subtotal = 0;
+                          let pesoSubtotal = 0;
+                          const productCells = productColumns.map((prod) => {
+                            if (prod.name.toLowerCase().includes("peso")) {
+                              let pesoValue = "";
+                              if (pesoProduct && typeof inv.totalWeight === "number") {
+                                const pesoPrice = productPrices[pesoProduct.id];
+                                if (pesoPrice && pesoPrice > 0) {
+                                  pesoValue = `$${(inv.totalWeight * pesoPrice).toFixed(
+                                    2
+                                  )}`;
+                                  pesoSubtotal = inv.totalWeight * pesoPrice;
+                                }
+                              }
+                              return (
+                                <td key={prod.id} style={nowrapCellStyle}>
+                                  {pesoValue}
+                                </td>
+                              );
+                            }
+                            const qty = (inv.carts || []).reduce((sum, cart) => {
+                              return (
+                                sum +
+                                (cart.items || [])
+                                  .filter((item) => item.productId === prod.id)
+                                  .reduce(
+                                    (s, item) => s + (Number(item.quantity) || 0),
+                                    0
+                                  )
+                              );
+                            }, 0);
+                            const price = productPrices[prod.id];
+                            let cell = null;
+                            if (qty > 0 && price > 0) {
+                              const total = qty * price;
+                              subtotal += total;
+                              cell = `${qty} | `;
+                              return (
+                                <td key={prod.id} style={nowrapCellStyle}>
+                                  {qty} |{" "}
+                                  <span className="text-success">
+                                    ${total.toFixed(2)}
+                                  </span>
+                                </td>
+                              );
+                            } else if (qty > 0) {
+                              return (
+                                <td key={prod.id} style={nowrapCellStyle}>
+                                  {qty}
+                                </td>
+                              );
+                            } else {
+                              return <td key={prod.id}></td>;
+                            }
+                            return <td key={prod.id}>{cell}</td>;
+                          });
+                          // Use minimum billing value if subtotal is less
+                          let minValue = minBilling ? Number(minBilling) : 0;
+                          let displaySubtotal = subtotal + pesoSubtotal;
+                          if (minValue > 0 && subtotal < minValue) {
+                            displaySubtotal = minValue;
                           }
-                          return <td key={prod.id}>{cell}</td>;
-                        });
-                        // Use minimum billing value if subtotal is less
-                        let minValue = minBilling ? Number(minBilling) : 0;
-                        let displaySubtotal = subtotal;
-                        if (minValue > 0 && subtotal < minValue) {
-                          displaySubtotal = minValue;
-                        }
-                        // Calculate charges
-                        let serviceCharge = 0;
-                        let fuelCharge = 0;
-                        let surchargeValue = 0;
-                        if (
-                          serviceChargeEnabled &&
-                          serviceChargePercent &&
-                          Number(serviceChargePercent) > 0
-                        ) {
-                          serviceCharge =
-                            displaySubtotal *
-                            (Number(serviceChargePercent) / 100);
-                        }
-                        if (
-                          fuelChargeEnabled &&
-                          fuelChargePercent &&
-                          Number(fuelChargePercent) > 0
-                        ) {
-                          fuelCharge =
-                            displaySubtotal * (Number(fuelChargePercent) / 100);
-                        }
-                        if (
-                          surchargeEnabled &&
-                          surchargePercent &&
-                          Number(surchargePercent) > 0
-                        ) {
-                          surchargeValue =
-                            displaySubtotal * (Number(surchargePercent) / 100);
-                        }
-                        return (
-                          <tr
-                            key={inv.id}
-                            className={missingPrice ? "table-danger" : ""}
-                          >
-                            <td>{inv.invoiceNumber || inv.id}</td>
-                            <td>
-                              {inv.date
-                                ? new Date(inv.date).toLocaleDateString()
-                                : "-"}
-                            </td>
-                            <td>{inv.truckNumber || "-"}</td>
-                            {/* Verifier cell */}
-                            <td>{inv.verifiedBy || "-"}</td>
-                            {productCells}
-                            <td style={nowrapCellStyle}>
-                              <b>
-                                {displaySubtotal > 0
-                                  ? `$${displaySubtotal.toFixed(2)}`
-                                  : ""}
-                              </b>
-                            </td>
-                            <td style={nowrapCellStyle}>
-                              <b>
-                                {serviceCharge > 0
-                                  ? `$${serviceCharge.toFixed(2)}`
-                                  : ""}
-                              </b>
-                            </td>
-                            <td style={nowrapCellStyle}>
-                              <b>
-                                {fuelCharge > 0
-                                  ? `$${fuelCharge.toFixed(2)}`
-                                  : ""}
-                              </b>
-                            </td>
-                            <td style={nowrapCellStyle}>
-                              <b>
-                                {surchargeValue > 0
-                                  ? `$${surchargeValue.toFixed(2)}`
-                                  : ""}
-                              </b>
-                            </td>
-                            <td>
-                              <button
-                                className="btn btn-sm btn-outline-primary"
-                                onClick={() => handleEditInvoice(inv)}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                className="btn btn-sm btn-outline-secondary ms-2"
-                                onClick={() => setInvoiceToPrint(inv)}
-                              >
-                                Print
-                              </button>
-                              <button
-                                className="btn btn-sm btn-outline-danger ms-2"
-                                onClick={() => handleDeleteInvoice(inv)}
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
+                          // Calculate charges
+                          let serviceCharge = 0;
+                          let fuelCharge = 0;
+                          let surchargeValue = 0;
+                          if (
+                            serviceChargeEnabled &&
+                            serviceChargePercent &&
+                            Number(serviceChargePercent) > 0
+                          ) {
+                            serviceCharge =
+                              displaySubtotal *
+                              (Number(serviceChargePercent) / 100);
+                          }
+                          if (
+                            fuelChargeEnabled &&
+                            fuelChargePercent &&
+                            Number(fuelChargePercent) > 0
+                          ) {
+                            fuelCharge =
+                              displaySubtotal * (Number(fuelChargePercent) / 100);
+                          }
+                          if (
+                            surchargeEnabled &&
+                            surchargePercent &&
+                            Number(surchargePercent) > 0
+                          ) {
+                            surchargeValue =
+                              displaySubtotal * (Number(surchargePercent) / 100);
+                          }
+                          // Calculate Peso value
+                          // Use the already defined pesoProduct from above, do not redeclare it here
+                          let pesoValue = "";
+                          if (pesoProduct && typeof inv.totalWeight === "number") {
+                            const pesoPrice = productPrices[pesoProduct.id];
+                            if (pesoPrice && pesoPrice > 0) {
+                              pesoValue = `$${(inv.totalWeight * pesoPrice).toFixed(
+                                2
+                              )}`;
+                            }
+                          }
+                          return (
+                            <tr
+                              key={inv.id}
+                              className={missingPrice ? "table-danger" : ""}
+                            >
+                              <td>{inv.invoiceNumber || inv.id}</td>
+                              <td>
+                                {inv.date
+                                  ? new Date(inv.date).toLocaleDateString()
+                                  : "-"}
+                              </td>
+                              <td>{inv.truckNumber || "-"}</td>
+                              {/* Verifier cell */}
+                              <td>{inv.verifiedBy || "-"}</td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.1}
+                                  value={
+                                    typeof inv.totalWeight === "number"
+                                      ? inv.totalWeight
+                                      : ""
+                                  }
+                                  style={{
+                                    width: 90,
+                                    fontSize: 15,
+                                    padding: "2px 6px",
+                                    borderRadius: 6,
+                                    border: "1px solid #ccc",
+                                  }}
+                                  onChange={async (e) => {
+                                    const newWeight =
+                                      e.target.value === ""
+                                        ? undefined
+                                        : Number(e.target.value);
+                                    // Update in Firestore and local state
+                                    await updateInvoice(inv.id, {
+                                      totalWeight: newWeight,
+                                    });
+                                    setInvoices((prev) =>
+                                      prev.map((i) =>
+                                        i.id === inv.id
+                                          ? { ...i, totalWeight: newWeight }
+                                          : i
+                                      )
+                                    );
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  placeholder="-"
+                                />
+                              </td>
+                              {productColumns.map((prod) => {
+                                if (prod.name.toLowerCase().includes("peso")) {
+                                  return (
+                                    <td key={prod.id} style={nowrapCellStyle}>
+                                      {pesoValue}
+                                    </td>
+                                  );
+                                }
+                                const qty = (inv.carts || []).reduce((sum, cart) => {
+                                  return (
+                                    sum +
+                                    (cart.items || [])
+                                      .filter((item) => item.productId === prod.id)
+                                      .reduce(
+                                        (s, item) => s + (Number(item.quantity) || 0),
+                                        0
+                                      )
+                                  );
+                                }, 0);
+                                const price = productPrices[prod.id];
+                                let cell = null;
+                                if (qty > 0 && price > 0) {
+                                  const total = qty * price;
+                                  subtotal += total;
+                                  cell = `${qty} | `;
+                                  return (
+                                    <td key={prod.id} style={nowrapCellStyle}>
+                                      {qty} |{" "}
+                                      <span className="text-success">
+                                        ${total.toFixed(2)}
+                                      </span>
+                                    </td>
+                                  );
+                                } else if (qty > 0) {
+                                  return (
+                                    <td key={prod.id} style={nowrapCellStyle}>
+                                      {qty}
+                                    </td>
+                                  );
+                                } else {
+                                  return <td key={prod.id}></td>;
+                                }
+                                return <td key={prod.id}>{cell}</td>;
+                              })}
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {displaySubtotal > 0
+                                    ? `$${displaySubtotal.toFixed(2)}`
+                                    : ""}
+                                </b>
+                              </td>
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {serviceCharge > 0
+                                    ? `$${serviceCharge.toFixed(2)}`
+                                    : ""}
+                                </b>
+                              </td>
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {fuelCharge > 0
+                                    ? `$${fuelCharge.toFixed(2)}`
+                                    : ""}
+                                </b>
+                              </td>
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {surchargeValue > 0
+                                    ? `$${surchargeValue.toFixed(2)}`
+                                    : ""}
+                                </b>
+                              </td>
+                              <td>
+                                <button
+                                  className="btn btn-sm btn-outline-primary"
+                                  onClick={() => handleEditInvoice(inv)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-outline-secondary ms-2"
+                                  onClick={() => setInvoiceToPrint(inv)}
+                                >
+                                  Print
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-outline-danger ms-2"
+                                  onClick={() => handleDeleteInvoice(inv)}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          );
-        });
+            );
+          });
       })()}
       {/* Invoice Details Modal - for editing invoices */}
       {showInvoiceDetailsModal && selectedInvoice && (
