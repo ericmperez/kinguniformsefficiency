@@ -1537,13 +1537,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               ? "#b8860b"
                               : "#007bff",
                             fontSize: "1.5rem",
-                            maxWidth: 180,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            lineHeight: 1.1,
-                            display: "block",
-                            minWidth: 180,
+                            /* Removed maxWidth, whiteSpace, overflow, textOverflow, minWidth, and display:block to allow full name display */
                           }}
                           title={group.clientName}
                         >
