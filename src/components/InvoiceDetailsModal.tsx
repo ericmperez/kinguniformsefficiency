@@ -332,35 +332,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   >
                     Create New Cart
                   </button>
-                  <button
-                    className="btn btn-success"
-                    onClick={async () => {
-                      // Find next available number for CARRO SIN NOMBRE
-                      const existingNumbers = localCarts
-                        .map((c) => c.name.match(/^CARRO SIN NOMBRE (\d+)$/i))
-                        .filter((m) => Boolean(m && m[1]))
-                        .map((m) => parseInt(m![1], 10));
-                      let nextNum = 1;
-                      while (existingNumbers.includes(nextNum)) nextNum++;
-                      const defaultName = `CARRO SIN NOMBRE ${nextNum}`;
-                      const newCart: LaundryCart = await handleAddCart(
-                        defaultName
-                      );
-                      setLocalCarts([
-                        ...localCarts,
-                        {
-                          id: newCart.id,
-                          name: newCart.name,
-                          items: [],
-                          total: 0,
-                          createdAt: new Date().toISOString(),
-                        },
-                      ]);
-                      if (refreshInvoices) await refreshInvoices();
-                    }}
-                  >
-                    + Create Default Cart
-                  </button>
                 </>
               ) : (
                 <div className="d-flex gap-2 align-items-center">
@@ -372,6 +343,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     readOnly
                     style={{ background: "#f8fafc", cursor: "pointer" }}
                     onFocus={() => setShowCartKeypad(true)}
+                    onClick={() => setShowCartKeypad(true)} // Ensure keypad shows on click as well
                   />
                   <button
                     className="btn btn-success"
@@ -415,35 +387,51 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               {/* Keypad for cart name input */}
               {showCartKeypad && (
                 <div
-                  className="keypad-container mt-2"
-                  style={{ maxWidth: 220 }}
+                  className="modal show d-block"
+                  tabIndex={-1}
+                  style={{ background: "rgba(0,0,0,0.25)", zIndex: 2000 }}
+                  onClick={e => {
+                    if (e.target === e.currentTarget) setShowCartKeypad(false);
+                  }}
                 >
-                  <div className="d-flex flex-wrap">
-                    {keypadButtons.map((btn, idx) => (
-                      <button
-                        key={btn + idx}
-                        className="btn btn-light m-1"
-                        style={{
-                          width: 60,
-                          height: 48,
-                          fontSize: 22,
-                          fontWeight: 600,
-                        }}
-                        onClick={() => {
-                          if (btn === "OK") {
-                            setShowCartKeypad(false);
-                          } else if (btn === "←") {
-                            setNewCartName((prev) => prev.slice(0, -1));
-                          } else {
-                            setNewCartName((prev) => prev + btn);
-                          }
-                        }}
-                        tabIndex={-1}
-                        type="button"
-                      >
-                        {btn}
-                      </button>
-                    ))}
+                  <div className="modal-dialog" style={{ maxWidth: 320, margin: "120px auto" }}>
+                    <div className="modal-content">
+                      <div className="modal-header">
+                        <h5 className="modal-title">Enter Cart Name</h5>
+                        <button type="button" className="btn-close" onClick={() => setShowCartKeypad(false)}></button>
+                      </div>
+                      <div className="modal-body">
+                        <input
+                          type="text"
+                          className="form-control mb-3 text-center"
+                          value={newCartName}
+                          readOnly
+                          style={{ fontSize: 28, letterSpacing: 2, background: "#f8fafc" }}
+                        />
+                        <div className="d-flex flex-wrap justify-content-center">
+                          {keypadButtons.map((btn, idx) => (
+                            <button
+                              key={btn + idx}
+                              className="btn btn-light m-1"
+                              style={{ width: 60, height: 48, fontSize: 22, fontWeight: 600 }}
+                              onClick={() => {
+                                if (btn === "OK") {
+                                  setShowCartKeypad(false);
+                                } else if (btn === "←") {
+                                  setNewCartName((prev) => prev.slice(0, -1));
+                                } else {
+                                  setNewCartName((prev) => prev + btn);
+                                }
+                              }}
+                              tabIndex={-1}
+                              type="button"
+                            >
+                              {btn}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -463,15 +451,11 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     <h3
                       style={{
                         fontWeight: 800,
-                        color: cart.name
-                          .toUpperCase()
-                          .startsWith("CARRO SIN NOMBRE")
-                          ? "red"
-                          : "#0E62A0",
+                        color: cart.name.toUpperCase().startsWith("CARRO SIN NOMBRE") ? "red" : "#0E62A0",
                         marginBottom: 8,
                       }}
                     >
-                      CART #{cart.name}
+                      {cart.name}
                     </h3>
                   </div>
                   <div className="d-flex gap-2">
