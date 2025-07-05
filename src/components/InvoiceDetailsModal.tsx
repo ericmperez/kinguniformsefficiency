@@ -390,15 +390,22 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   className="modal show d-block"
                   tabIndex={-1}
                   style={{ background: "rgba(0,0,0,0.25)", zIndex: 2000 }}
-                  onClick={e => {
+                  onClick={(e) => {
                     if (e.target === e.currentTarget) setShowCartKeypad(false);
                   }}
                 >
-                  <div className="modal-dialog" style={{ maxWidth: 320, margin: "120px auto" }}>
+                  <div
+                    className="modal-dialog"
+                    style={{ maxWidth: 320, margin: "120px auto" }}
+                  >
                     <div className="modal-content">
                       <div className="modal-header">
                         <h5 className="modal-title">Enter Cart Name</h5>
-                        <button type="button" className="btn-close" onClick={() => setShowCartKeypad(false)}></button>
+                        <button
+                          type="button"
+                          className="btn-close"
+                          onClick={() => setShowCartKeypad(false)}
+                        ></button>
                       </div>
                       <div className="modal-body">
                         <input
@@ -406,18 +413,28 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           className="form-control mb-3 text-center"
                           value={newCartName}
                           readOnly
-                          style={{ fontSize: 28, letterSpacing: 2, background: "#f8fafc" }}
+                          style={{
+                            fontSize: 28,
+                            letterSpacing: 2,
+                            background: "#f8fafc",
+                          }}
                         />
                         <div className="d-flex flex-wrap justify-content-center">
                           {keypadButtons.map((btn, idx) => (
                             <button
                               key={btn + idx}
                               className="btn btn-light m-1"
-                              style={{ width: 60, height: 48, fontSize: 22, fontWeight: 600 }}
+                              style={{
+                                width: 60,
+                                height: 48,
+                                fontSize: 22,
+                                fontWeight: 600,
+                              }}
                               onClick={async () => {
                                 if (btn === "OK") {
                                   if (newCartName.trim()) {
-                                    const newCart: LaundryCart = await handleAddCart(newCartName.trim());
+                                    const newCart: LaundryCart =
+                                      await handleAddCart(newCartName.trim());
                                     setLocalCarts([
                                       ...localCarts,
                                       {
@@ -431,7 +448,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                     setNewCartName("");
                                     setShowNewCartInput(false);
                                     setShowCartKeypad(false);
-                                    if (refreshInvoices) await refreshInvoices();
+                                    if (refreshInvoices)
+                                      await refreshInvoices();
                                   } else {
                                     setShowCartKeypad(false);
                                   }
@@ -469,7 +487,11 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     <h3
                       style={{
                         fontWeight: 800,
-                        color: cart.name.toUpperCase().startsWith("CARRO SIN NOMBRE") ? "red" : "#0E62A0",
+                        color: cart.name
+                          .toUpperCase()
+                          .startsWith("CARRO SIN NOMBRE")
+                          ? "red"
+                          : "#0E62A0",
                         marginBottom: 8,
                       }}
                     >
@@ -596,11 +618,22 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                             {clientProducts.map((product) => (
                               <div key={product.id} className="col-12 col-md-4">
                                 <div
-                                  className={`card mb-2 shadow-sm h-100${selectedProductId === product.id ? " border-primary" : " border-light"}`}
-                                  style={{ cursor: "pointer", minHeight: 120, borderWidth: 2 }}
+                                  className={`card mb-2 shadow-sm h-100${
+                                    selectedProductId === product.id
+                                      ? " border-primary"
+                                      : " border-light"
+                                  }`}
+                                  style={{
+                                    cursor: "pointer",
+                                    minHeight: 120,
+                                    borderWidth: 2,
+                                  }}
                                   onClick={() => {
                                     setSelectedProductId(product.id);
-                                    setShowProductKeypad({ cartId: cart.id, productId: product.id });
+                                    setShowProductKeypad({
+                                      cartId: cart.id,
+                                      productId: product.id,
+                                    });
                                     setKeypadQty("");
                                   }}
                                 >
@@ -608,11 +641,21 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                     <img
                                       src={product.imageUrl}
                                       alt={product.name}
-                                      style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8 }}
+                                      style={{
+                                        width: "100%",
+                                        height: 90,
+                                        objectFit: "cover",
+                                        borderRadius: 8,
+                                      }}
                                     />
                                   )}
                                   <div className="card-body py-2 px-3 text-center">
-                                    <div className="fw-bold" style={{ fontSize: 18 }}>{product.name}</div>
+                                    <div
+                                      className="fw-bold"
+                                      style={{ fontSize: 18 }}
+                                    >
+                                      {product.name}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -629,15 +672,23 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     className="modal show d-block"
                     tabIndex={-1}
                     style={{ background: "rgba(0,0,0,0.25)", zIndex: 2100 }}
-                    onClick={e => {
-                      if (e.target === e.currentTarget) setShowProductKeypad(null);
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget)
+                        setShowProductKeypad(null);
                     }}
                   >
-                    <div className="modal-dialog" style={{ maxWidth: 320, margin: "120px auto" }}>
+                    <div
+                      className="modal-dialog"
+                      style={{ maxWidth: 320, margin: "120px auto" }}
+                    >
                       <div className="modal-content">
                         <div className="modal-header">
                           <h5 className="modal-title">Enter Quantity</h5>
-                          <button type="button" className="btn-close" onClick={() => setShowProductKeypad(null)}></button>
+                          <button
+                            type="button"
+                            className="btn-close"
+                            onClick={() => setShowProductKeypad(null)}
+                          ></button>
                         </div>
                         <div className="modal-body">
                           <input
@@ -645,14 +696,23 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                             className="form-control mb-3 text-center"
                             value={keypadQty}
                             readOnly
-                            style={{ fontSize: 28, letterSpacing: 2, background: "#f8fafc" }}
+                            style={{
+                              fontSize: 28,
+                              letterSpacing: 2,
+                              background: "#f8fafc",
+                            }}
                           />
                           <div className="d-flex flex-wrap justify-content-center">
                             {keypadButtons.map((btn, idx) => (
                               <button
                                 key={btn + idx}
                                 className="btn btn-light m-1"
-                                style={{ width: 60, height: 48, fontSize: 22, fontWeight: 600 }}
+                                style={{
+                                  width: 60,
+                                  height: 48,
+                                  fontSize: 22,
+                                  fontWeight: 600,
+                                }}
                                 onClick={async () => {
                                   if (btn === "OK") {
                                     const qty = parseInt(keypadQty, 10);
@@ -660,19 +720,32 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                       // 1. Update localCarts immediately for instant UI update
                                       setLocalCarts((prevCarts) =>
                                         prevCarts.map((cartObj) => {
-                                          if (cartObj.id !== showProductKeypad.cartId) return cartObj;
-                                          const prod = clientProducts.find((p) => p.id === showProductKeypad.productId);
+                                          if (
+                                            cartObj.id !==
+                                            showProductKeypad.cartId
+                                          )
+                                            return cartObj;
+                                          const prod = clientProducts.find(
+                                            (p) =>
+                                              p.id ===
+                                              showProductKeypad.productId
+                                          );
                                           return {
                                             ...cartObj,
                                             items: [
                                               ...cartObj.items,
                                               {
-                                                productId: showProductKeypad.productId,
-                                                productName: prod ? prod.name : "",
+                                                productId:
+                                                  showProductKeypad.productId,
+                                                productName: prod
+                                                  ? prod.name
+                                                  : "",
                                                 quantity: qty,
                                                 price: prod ? prod.price : 0,
-                                                addedBy: user?.username || "You",
-                                                addedAt: new Date().toISOString(),
+                                                addedBy:
+                                                  user?.username || "You",
+                                                addedAt:
+                                                  new Date().toISOString(),
                                               },
                                             ],
                                           };
@@ -684,7 +757,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                         showProductKeypad.productId,
                                         qty
                                       );
-                                      if (refreshInvoices) await refreshInvoices();
+                                      if (refreshInvoices)
+                                        await refreshInvoices();
                                       setAddProductCartId(null);
                                       setSelectedProductId("");
                                       setShowProductKeypad(null);

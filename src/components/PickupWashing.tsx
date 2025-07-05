@@ -917,7 +917,7 @@ export default function PickupWashing({
                   onClick={() => {
                     setShowAddEntryGroupId(group.id);
                     setAddEntryWeight("");
-                    setAddEntryDriverId(driverId || (drivers[0]?.id || ""));
+                    setAddEntryDriverId(driverId || drivers[0]?.id || "");
                   }}
                 >
                   + Añadir entrada a este grupo
