@@ -17,6 +17,7 @@ import {
   query,
   where,
   Timestamp,
+  addDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import "./Segregation.css";
@@ -351,14 +352,30 @@ const Segregation: React.FC<SegregationProps> = ({
         segregatedCarts: segregatedCount,
         status: newStatus,
       });
+      // --- LOG TO segregation_done_logs ---
+      // Calculate total weight for this group (sum all carts' totalWeight or use group.totalWeight if available)
+      let totalWeight = 0;
+      if (Array.isArray(group?.carts)) {
+        totalWeight = group.carts.reduce((sum: number, cart: any) => sum + (cart.totalWeight || 0), 0);
+      } else if (typeof group?.totalWeight === "number") {
+        totalWeight = group.totalWeight;
+      }
+      await addDoc(collection(db, "segregation_done_logs"), {
+        clientId: client?.id || group?.clientId || groupId,
+        clientName: client?.name || group?.clientName || "",
+        date: new Date().toISOString().slice(0, 10),
+        weight: totalWeight,
+        groupId,
+        timestamp: new Date().toISOString(),
+        user: getCurrentUser(),
+      });
+      // --- END LOG ---
       setStatusUpdating(groupId);
       setSegregatedCounts((prev) => ({ ...prev, [groupId]: "" }));
       if (onGroupComplete) onGroupComplete();
       await logActivity({
         type: "Segregation",
-        message: `Group ${
-          group?.clientName || groupId
-        } completed segregation by user`,
+        message: `Group ${group?.clientName || groupId} completed segregation by user`,
       });
     } catch (err) {
       alert("Error completing segregation for this group");

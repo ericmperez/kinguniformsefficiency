@@ -7,6 +7,9 @@ import {
   updateInvoice,
   addInvoice,
 } from "../services/firebaseService";
+// Add Firestore imports for reporting
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "../firebase";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
 import InvoiceForm from "./InvoiceForm";
 

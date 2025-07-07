@@ -85,6 +85,7 @@ import RutasPorCamion from "./components/RutasPorCamion";
 import GlobalActivityLog from "./components/GlobalActivityLog";
 import BillingPage from "./components/BillingPage";
 import SendInvoicePage from "./components/SendInvoicePage";
+import AnalyticsPage from "./components/AnalyticsPage";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
 interface ActiveInvoicesProps {
@@ -164,6 +165,7 @@ function App() {
     | "segregation"
     | "settings"
     | "reports"
+    | "analytics"
     | "billing"
     | "activityLog"
   >("home");
@@ -600,6 +602,20 @@ function App() {
       page: "reports" as const,
       icon: <AssessmentIcon />,
       visible: canSee("Report"),
+      subpages: [
+        {
+          label: "Summary",
+          page: "reports",
+          icon: <AssessmentIcon />,
+          visible: true,
+        },
+        {
+          label: "Analytics",
+          page: "analytics",
+          icon: <AssessmentIcon />,
+          visible: true,
+        },
+      ],
     },
     {
       label: "Settings",
@@ -1021,7 +1037,7 @@ function App() {
                             key={sp.page}
                             selected={activePage === sp.page}
                             onClick={() => {
-                              setActivePage(sp.page);
+                              setActivePage(sp.page as any);
                               setProcessMenuAnchorEl(null);
                             }}
                             sx={{
@@ -1157,7 +1173,7 @@ function App() {
                         <ListItem key={sp.page} disablePadding sx={{ pl: 3 }}>
                           <ListItemButton
                             selected={activePage === sp.page}
-                            onClick={() => setActivePage(sp.page)}
+                            onClick={() => setActivePage(sp.page as typeof activePage)}
                           >
                             <ListItemIcon>{sp.icon}</ListItemIcon>
                             <ListItemText primary={sp.label} />
@@ -1209,6 +1225,7 @@ function App() {
       )}
       {activePage === "segregation" && canSee("Segregation") && <Segregation />}
       {activePage === "reports" && <ReportsPage />}
+      {activePage === "analytics" && <AnalyticsPage />}
       {activePage === "settings" && canManageUsers && (
         <>
           {/* Settings Nav Bar - always visible below main navbar */}
