@@ -43,6 +43,9 @@ const BillingPage: React.FC = () => {
   const [surchargeEnabled, setSurchargeEnabled] = useState(false);
   const [surchargePercent, setSurchargePercent] = useState("");
 
+  // State for Nudos (Sabanas) additional charge
+  const [nudosSabanasPrice, setNudosSabanasPrice] = useState<string>("");
+
   // Get selected client object
   const selectedClient = clients.find((c) => c.id === selectedClientId);
   // Get products for selected client
@@ -477,6 +480,22 @@ const BillingPage: React.FC = () => {
                 />
                 <span className="ms-2">%</span>
               </div>
+              <div className="form-check">
+                <label className="form-check-label" htmlFor="nudosSabanasPrice">
+                  Nudos (Sabanas) Price
+                </label>
+                <input
+                  type="number"
+                  className="form-control d-inline-block ms-2"
+                  style={{ width: 100 }}
+                  min={0}
+                  value={nudosSabanasPrice}
+                  onChange={(e) => setNudosSabanasPrice(e.target.value)}
+                  placeholder="$ per sabana"
+                  id="nudosSabanasPrice"
+                />
+                <span className="ms-2">$/u</span>
+              </div>
             </div>
           </div>
           <button className="btn btn-success mt-2" onClick={handleSavePrices}>
@@ -567,6 +586,8 @@ const BillingPage: React.FC = () => {
                         <th>Service Charge</th>
                         <th>Fuel Charge</th>
                         <th>Surcharge</th>
+                        <th>Nudos (Sabanas)</th>
+                        <th>Total</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -605,8 +626,31 @@ const BillingPage: React.FC = () => {
                             const price = productPrices[prod.id];
                             return qty > 0 && (!price || price <= 0);
                           });
+                          // Calculate sabanas quantity for this invoice
+                          const sabanasProd = productColumns.find(
+                            (p) =>
+                              p.name.toLowerCase().includes("sabana") &&
+                              !p.name.toLowerCase().includes("nudo")
+                          );
+                          let sabanasQty = 0;
+                          if (sabanasProd) {
+                            sabanasQty = (inv.carts || []).reduce((sum, cart) => {
+                              return (
+                                sum +
+                                (cart.items || [])
+                                  .filter((item) => item.productId === sabanasProd.id)
+                                  .reduce((s, item) => s + (Number(item.quantity) || 0), 0)
+                              );
+                            }, 0);
+                          }
+                          // Calculate Nudos (Sabanas) charge
+                          const nudosSabanasCharge =
+                            sabanasQty > 0 && Number(nudosSabanasPrice) > 0
+                              ? sabanasQty * Number(nudosSabanasPrice)
+                              : 0;
                           let subtotal = 0;
                           let pesoSubtotal = 0;
+                          let pesoValue = "";
                           const productCells = productColumns.map((prod) => {
                             if (prod.name.toLowerCase().includes("peso")) {
                               let pesoValue = "";
@@ -707,20 +751,8 @@ const BillingPage: React.FC = () => {
                               displaySubtotal *
                               (Number(surchargePercent) / 100);
                           }
-                          // Calculate Peso value
-                          // Use the already defined pesoProduct from above, do not redeclare it here
-                          let pesoValue = "";
-                          if (
-                            pesoProduct &&
-                            typeof inv.totalWeight === "number"
-                          ) {
-                            const pesoPrice = productPrices[pesoProduct.id];
-                            if (pesoPrice && pesoPrice > 0) {
-                              pesoValue = `$${(
-                                inv.totalWeight * pesoPrice
-                              ).toFixed(2)}`;
-                            }
-                          }
+                          // Calculate grand total
+                          const grandTotal = displaySubtotal + serviceCharge + fuelCharge + surchargeValue;
                           return (
                             <tr
                               key={inv.id}
@@ -849,6 +881,18 @@ const BillingPage: React.FC = () => {
                                   {surchargeValue > 0
                                     ? `$${surchargeValue.toFixed(2)}`
                                     : ""}
+                                </b>
+                              </td>
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {nudosSabanasCharge > 0
+                                    ? `$${nudosSabanasCharge.toFixed(2)}`
+                                    : ""}
+                                </b>
+                              </td>
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {grandTotal > 0 ? `$${grandTotal.toFixed(2)}` : ""}
                                 </b>
                               </td>
                               <td>
@@ -1121,6 +1165,24 @@ const BillingPage: React.FC = () => {
                                   Number(item.quantity) || 0;
                               });
                             });
+                            // --- BEGIN: NUDOS-SABANAS LOGIC (PRINT MODAL) ---
+                            // Find sabanas and nudos (sabanas) keys
+                            const sabanasKey = Object.keys(productMap).find(
+                              (name) =>
+                                name.toLowerCase().includes("sabana") &&
+                                !name.toLowerCase().includes("nudo")
+                            );
+                            const nudosKey = Object.keys(productMap).find(
+                              (name) =>
+                                name.toLowerCase().includes("nudo") &&
+                                name.toLowerCase().includes("sabana")
+                            );
+                            if (sabanasKey) {
+                              // Always show Nudos (Sabanas) row with same qty as Sabanas
+                              const nudosRowName = nudosKey || "Nudos (Sabanas)";
+                              productMap[nudosRowName] = productMap[sabanasKey];
+                            }
+                            // --- END: NUDOS-SABANAS LOGIC (PRINT MODAL) ---
                             const productRows = Object.entries(productMap)
                               .sort((a, b) => a[0].localeCompare(b[0]))
                               .map(([name, qty], idx) => {
@@ -1143,9 +1205,7 @@ const BillingPage: React.FC = () => {
                                       lower.includes("scrub top") ||
                                       lower.includes("scrub") ? (
                                         <img
-                                          src={
-                                            "/images/products/scrubshirt.png"
-                                          }
+                                          src={"/images/products/scrubshirt.png"}
                                           alt="Scrub Shirt"
                                           style={{
                                             width: 20,
