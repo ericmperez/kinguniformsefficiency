@@ -962,13 +962,13 @@ function App() {
             }}
           >
             {navLinks
-              .filter((l) => l.visible)
-              .map((link) =>
+              .filter((l: any) => l.visible)
+              .map((link: any) =>
                 link.subpages ? (
                   <Box key={link.page} sx={{ position: "relative" }}>
                     <Button
                       color={
-                        link.subpages.some((sp) => sp.page === activePage)
+                        link.subpages.some((sp: any) => sp.page === activePage)
                           ? "warning"
                           : "inherit"
                       }
@@ -976,12 +976,12 @@ function App() {
                       sx={{
                         fontWeight: 600,
                         color: link.subpages.some(
-                          (sp) => sp.page === activePage
+                          (sp: any) => sp.page === activePage
                         )
                           ? "var(--ku-yellow)"
                           : "#fff",
                         bgcolor: link.subpages.some(
-                          (sp) => sp.page === activePage
+                          (sp: any) => sp.page === activePage
                         )
                           ? "rgba(255,224,102,0.18)"
                           : "transparent",
@@ -990,12 +990,12 @@ function App() {
                         fontSize: 13,
                         minWidth: 0,
                         boxShadow: link.subpages.some(
-                          (sp) => sp.page === activePage
+                          (sp: any) => sp.page === activePage
                         )
                           ? "0 2px 8px rgba(250,198,27,0.10)"
                           : "none",
                         borderBottom: link.subpages.some(
-                          (sp) => sp.page === activePage
+                          (sp: any) => sp.page === activePage
                         )
                           ? "2px solid var(--ku-yellow)"
                           : "2px solid transparent",
@@ -1031,30 +1031,21 @@ function App() {
                       }}
                     >
                       {link.subpages
-                        .filter((sp) => sp.visible)
-                        .map((sp) => (
+                        .filter((sp: any) => sp.visible)
+                        .map((sp: any) => (
                           <MenuItem
                             key={sp.page}
                             selected={activePage === sp.page}
                             onClick={() => {
-                              setActivePage(sp.page as any);
+                              setActivePage(sp.page as typeof activePage);
                               setProcessMenuAnchorEl(null);
                             }}
                             sx={{
                               fontWeight: 600,
                               fontSize: 15,
-                              color:
-                                activePage === sp.page
-                                  ? "var(--ku-yellow)"
-                                  : "#222",
-                              bgcolor:
-                                activePage === sp.page
-                                  ? "rgba(255,224,102,0.18)"
-                                  : "transparent",
-                              borderBottom:
-                                activePage === sp.page
-                                  ? "2px solid var(--ku-yellow)"
-                                  : "2px solid transparent",
+                              color: activePage === sp.page ? "var(--ku-yellow)" : "#222",
+                              bgcolor: activePage === sp.page ? "rgba(255,224,102,0.18)" : "transparent",
+                              borderBottom: activePage === sp.page ? "2px solid var(--ku-yellow)" : "2px solid transparent",
                               display: "flex",
                               alignItems: "center",
                               gap: 1.5,
@@ -1161,15 +1152,15 @@ function App() {
           <List>
             {navLinks
               .filter((l) => l.visible)
-              .map((link) =>
+              .map((link: any) =>
                 link.subpages ? (
                   <React.Fragment key={link.page}>
                     <ListItem>
                       <ListItemText primary={link.label} />
                     </ListItem>
                     {link.subpages
-                      .filter((sp) => sp.visible)
-                      .map((sp) => (
+                      .filter((sp: any) => sp.visible)
+                      .map((sp: any) => (
                         <ListItem key={sp.page} disablePadding sx={{ pl: 3 }}>
                           <ListItemButton
                             selected={activePage === sp.page}
