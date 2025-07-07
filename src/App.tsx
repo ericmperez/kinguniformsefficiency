@@ -911,7 +911,7 @@ function App() {
                 sx={{
                   width: { xs: 28, md: 36 },
                   height: { xs: 28, md: 36 },
-                  bgcolor: "var(--ku-yellow)",
+                  bgcolor: "#fff", // changed from var(--ku-yellow) to white
                   border: "2px solid #fff",
                 }}
               />

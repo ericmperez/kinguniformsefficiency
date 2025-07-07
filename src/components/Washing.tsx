@@ -819,17 +819,18 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           fontSize: 20,
                           minHeight: 90,
                           boxShadow: "0 2px 12px rgba(14,98,160,0.07)",
+                          color: "#000", // Force all text to black
                         }}
                       >
                         <div
                           className="d-flex flex-column flex-md-row align-items-md-center gap-4 flex-grow-1"
-                          style={{ flex: 1, minWidth: 0 }}
+                          style={{ flex: 1, minWidth: 0, color: "#000" }} // Force text black
                         >
                           <span
                             style={{
                               fontSize: "1.5rem",
                               fontWeight: 700,
-                              color: "#007bff",
+                              color: "#000", // Force black
                               minWidth: 180,
                             }}
                           >
@@ -838,12 +839,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           <span
                             style={{
                               fontSize: "1.2rem",
-                              color: "#28a745",
+                              color: "#000", // Force black
                               minWidth: 120,
                             }}
                           >
                             Total:{" "}
-                            <strong>
+                            <strong style={{ color: "#000" }}>
                               {typeof group.totalWeight === "number"
                                 ? group.totalWeight.toFixed(2)
                                 : "?"}{" "}
@@ -1236,7 +1237,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         </div>
                         <div
                           className="d-flex flex-row align-items-center justify-content-end gap-2"
-                          style={{ minWidth: 220, maxWidth: 260 }}
+                          style={{ minWidth: 220, maxWidth: 260, color: "#000" }} // Force text black
                         >
                           {/* Move up/down arrows - only for Supervisor or higher */}
                           {canReorder && (
