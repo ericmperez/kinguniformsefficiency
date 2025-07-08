@@ -189,9 +189,20 @@ export default function PickupWashing({
     if (!groupId) {
       // Create new group
       let initialStatus = "Segregation";
+      let newOrder: number | undefined = undefined;
       if (!client.segregation) {
         if (client.washingType === "Tunnel") {
           initialStatus = "Tunnel";
+          // Find the highest order among current tunnel groups
+          const tunnelGroups = groups.filter(
+            (g) => g.status === "Tunnel" && client.washingType === "Tunnel"
+          );
+          const maxOrder = tunnelGroups.reduce(
+            (max, g) =>
+              typeof g.order === "number" && g.order > max ? g.order : max,
+            -1
+          );
+          newOrder = maxOrder + 1;
         } else if (client.washingType === "Conventional") {
           initialStatus = "Conventional";
         }
@@ -205,6 +216,7 @@ export default function PickupWashing({
         endTime: now,
         totalWeight: parseFloat(weight),
         status: initialStatus,
+        ...(typeof newOrder === "number" ? { order: newOrder } : {}),
       };
       const groupRef = await addPickupGroup(groupData);
       groupId = groupRef.id;
