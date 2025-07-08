@@ -2178,6 +2178,8 @@ export default function ActiveInvoices({
                         cartIdx = updatedCarts.length - 1;
                       }
 
+
+
                       const cart = { ...updatedCarts[cartIdx] };
                       const existingItemIdx = cart.items.findIndex(
                         (item: any) => item.productId === product.id
@@ -2819,6 +2821,11 @@ export default function ActiveInvoices({
           </div>
         </div>
       )}
+
+      {/* Footer with new color */}
+      <footer style={{ width: '100%', background: '#7C3AED', color: '#fff', textAlign: 'center', padding: '1rem 0', marginTop: 40 }}>
+      <span>Nuevo color agregado al footer: #7C3AED (Violet)</span>
+    </footer>
     </div>
   );
 }
