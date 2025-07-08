@@ -299,7 +299,7 @@ function App() {
         setDrivers(
           querySnapshot.docs.map(
             (doc: any) =>
-              ({ id: doc.id, ...doc.data() } as { id: string; name: string })
+              ({ id: doc.id, ...doc.data() } as { id: string, name: string })
           )
         );
       }
@@ -537,6 +537,30 @@ function App() {
       unsubEntries && unsubEntries();
     };
   }, []);
+
+  // --- Auto-logout after user-defined inactivity timeout ---
+  React.useEffect(() => {
+    if (!user) return;
+    if (user.id === "1991") return; // Never auto-logout user 1991
+    let timer: NodeJS.Timeout;
+    // Use the per-user logoutTimeout (in seconds, default 20)
+    const timeout = (user.logoutTimeout || 20) * 1000;
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        logout();
+        // No alert, just log out and return to login page
+      }, timeout);
+    };
+    // Listen for user activity
+    const events = ["mousemove", "keydown", "mousedown", "touchstart"];
+    events.forEach((event) => window.addEventListener(event, resetTimer));
+    resetTimer();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
+    };
+  }, [user, logout, user && user.logoutTimeout]);
 
   if (!user) {
     // Use the new LocalLoginForm as the login page
