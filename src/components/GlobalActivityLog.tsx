@@ -14,6 +14,7 @@ export default function GlobalActivityLog() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -50,6 +51,17 @@ export default function GlobalActivityLog() {
     fetchLogs();
   }, [date]);
 
+  // Filter logs by search query
+  const filteredLogs = logs.filter((log) => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return (
+      log.type.toLowerCase().includes(q) ||
+      log.message.toLowerCase().includes(q) ||
+      (log.user || "").toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="card p-4 mb-4" style={{ maxWidth: 700, margin: "0 auto" }}>
       <h4 className="mb-3" style={{ fontWeight: 700, letterSpacing: 1 }}>
@@ -59,10 +71,17 @@ export default function GlobalActivityLog() {
         <label className="form-label">Filter by Date</label>
         <input
           type="date"
-          className="form-control"
+          className="form-control mb-2"
           value={date}
           onChange={(e) => setDate(e.target.value)}
           max={new Date().toISOString().slice(0, 10)}
+        />
+        <input
+          type="text"
+          className="form-control"
+          placeholder="Search activity log..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
       </div>
       {loading ? (
@@ -74,7 +93,7 @@ export default function GlobalActivityLog() {
           className="list-unstyled mb-0"
           style={{ maxHeight: 400, overflowY: "auto" }}
         >
-          {logs.map((log) => (
+          {filteredLogs.map((log) => (
             <li
               key={log.id}
               className="mb-3 pb-2 border-bottom"
