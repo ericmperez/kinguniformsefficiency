@@ -853,6 +853,19 @@ export default function ActiveInvoices({
     return 0;
   });
 
+  // Handler to select an invoice (for card click)
+  function handleInvoiceClick(invoiceId: string) {
+    if (typeof setSelectedInvoiceId === "function") {
+      setSelectedInvoiceId(invoiceId);
+    }
+  }
+
+  // Handler to select a cart (for LaundryCartModal)
+  async function handleCartSelect(cart: Cart) {
+    setShowCartSelectModal(false);
+    // Optionally, set selected cart state here if your UI needs it
+  }
+
   return (
     <div className="container-fluid py-4">
       <div className="row">
