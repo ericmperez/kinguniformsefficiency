@@ -17,5 +17,13 @@
     "jsx": "react-jsx"
   },
   "include": ["src", "src/types/html2pdfjs.d.ts"],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "node_modules",
+    "tests"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
