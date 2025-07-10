@@ -396,62 +396,29 @@ export default function ActiveInvoices({
     }
   };
 
-  // --- Cart Selection Handler ---
-  const handleInvoiceClick = (invoiceId: string) => {
-    const invoice = invoicesState.find((inv) => inv.id === invoiceId);
-    if (invoice) {
-      setSelectedInvoice(invoice);
-      setShowInvoiceDetailsModal(true);
-    }
+  // --- Unship Recent Invoices Modal State ---
+  const [showUnshipModal, setShowUnshipModal] = useState(false);
+  const [unshipSelectedIds, setUnshipSelectedIds] = useState<string[]>([]);
+
+  // --- Unship Recent Invoices Handler ---
+  const handleUnshipRecentInvoices = () => {
+    setShowUnshipModal(true);
+    setUnshipSelectedIds([]);
   };
 
-  // --- Cart Selection Modal Logic ---
-  const handleCartSelect = async (cart: Cart) => {
-    setSelectedInvoiceId(cartSelectInvoiceId);
-    setNewCartName(cart.name);
-    setCartItems(cart.items);
-    setShowCartSelectModal(false);
-    setShowCartModal(true);
-    setIsCreatingCart(false);
-  };
-
-  const handleCartCreate = async (cartName: string) => {
-    if (!cartSelectInvoiceId) return null;
-    const invoice = invoicesState.find((inv) => inv.id === cartSelectInvoiceId);
-    if (!invoice) return null;
-    const trimmedName = cartName.trim();
-    // Check for duplicate name (case-insensitive)
-    const duplicate = invoice.carts.some(
-      (c) => c.name.trim().toLowerCase() === trimmedName.toLowerCase()
-    );
-    if (duplicate) {
-      // Optionally show a toast or error (handled in modal)
-      return null;
+  // --- Confirm Unship Handler ---
+  const handleConfirmUnship = async () => {
+    if (unshipSelectedIds.length === 0) {
+      alert("Please select at least one invoice to unship.");
+      return;
     }
-    const newCart: Cart = {
-      id: Date.now().toString(),
-      name: trimmedName,
-      items: [],
-      total: 0,
-      createdAt: new Date().toISOString(),
-    };
-    await onUpdateInvoice(cartSelectInvoiceId, {
-      carts: [...(invoice.carts || []), newCart],
-    });
-    setCartSelectCarts([...(invoice.carts || []), newCart]);
-    // Log cart creation
-    if (user?.username) {
-      await logActivity({
-        type: "Cart",
-        message: `User ${user.username} created cart '${
-          newCart.name
-        }' in invoice #${invoice.invoiceNumber || invoice.id}`,
-        user: user.username,
-      });
+    for (const id of unshipSelectedIds) {
+      await onUpdateInvoice(id, { status: "active", truckNumber: "" });
     }
-    // Immediately select the new cart
-    await handleCartSelect(newCart);
-    return newCart;
+    setShowUnshipModal(false);
+    setUnshipSelectedIds([]);
+    await refreshInvoices();
+    alert(`Unshipped invoices: ${unshipSelectedIds.join(", ")}`);
   };
 
   // --- Delete Confirmation Logic ---
@@ -893,8 +860,11 @@ export default function ActiveInvoices({
           <h3 className="mb-4">Active Invoices</h3>
         </div>
         <div className="col-md-6 text-md-end">
-          <button className="btn btn-primary" onClick={handleAddInvoice}>
+          <button className="btn btn-primary me-2" onClick={handleAddInvoice}>
             Create New Invoice
+          </button>
+          <button className="btn btn-warning" onClick={handleUnshipRecentInvoices}>
+            Unship Recent Invoices
           </button>
         </div>
       </div>
@@ -1804,8 +1774,7 @@ export default function ActiveInvoices({
                                             productName: product.name,
                                             quantity: selection.qty,
                                             price: product.price,
-                                            addedBy:
-                                              user?.username || "Unknown",
+                                            addedBy: user?.username || "Unknown",
                                             addedAt: new Date().toISOString(),
                                           },
                                         ];
@@ -2140,6 +2109,7 @@ export default function ActiveInvoices({
                         carts: initialCarts,
                         numCarts: initialCarts.length, // Add number of carts as a value
                         segregatedCarts: null, // Set segregatedCarts to null
+                       
                         createdAt: now.toISOString(),
                         // washingType: 'Conventional', // Ensure this is set for filtering
                       };
@@ -2204,7 +2174,7 @@ export default function ActiveInvoices({
                           addProductMode === "quantity" ? "Qty" : "Lbs"
                         } Cart - ${new Date().toLocaleTimeString()}`,
                         items: [
-                          {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     {
                             productId: product.id,
                             productName: product.name,
                             quantity: addProductQty,
@@ -2558,6 +2528,62 @@ export default function ActiveInvoices({
                   }}
                 >
                   Ship
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unship Recent Invoices Modal */}
+      {showUnshipModal && (
+        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Select Invoices to Unship (Last 24h)</h5>
+                <button type="button" className="btn-close" onClick={() => setShowUnshipModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                {(() => {
+                  const now = Date.now();
+                  const eligible = invoicesState.filter(inv =>
+                    inv.status === "done" &&
+                    inv.truckNumber &&
+                    ((inv.verifiedAt && now - new Date(inv.verifiedAt).getTime() < 24*60*60*1000) ||
+                     (inv.lockedAt && now - new Date(inv.lockedAt).getTime() < 24*60*60*1000) ||
+                     (inv.date && now - new Date(inv.date).getTime() < 24*60*60*1000))
+                  );
+                  if (eligible.length === 0) return <div className="text-muted">No recently shipped invoices found.</div>;
+                  return (
+                    <ul className="list-group mb-3">
+                      {eligible.map(inv => (
+                        <li key={inv.id} className="list-group-item d-flex align-items-center">
+                          <input
+                            type="checkbox"
+                            className="form-check-input me-2"
+                            checked={unshipSelectedIds.includes(inv.id)}
+                            onChange={e => {
+                              setUnshipSelectedIds(prev =>
+                                e.target.checked
+                                  ? [...prev, inv.id]
+                                  : prev.filter(id => id !== inv.id)
+                              );
+                            }}
+                          />
+                          <span>
+                            #{inv.invoiceNumber || inv.id} - {inv.clientName} - {inv.date ? new Date(inv.date).toLocaleString() : "No date"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowUnshipModal(false)}>Cancel</button>
+                <button className="btn btn-warning" onClick={handleConfirmUnship} disabled={unshipSelectedIds.length === 0}>
+                  Unship Selected
                 </button>
               </div>
             </div>
