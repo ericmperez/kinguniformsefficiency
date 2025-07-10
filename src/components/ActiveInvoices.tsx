@@ -855,6 +855,11 @@ export default function ActiveInvoices({
 
   // Handler to select an invoice (for card click)
   function handleInvoiceClick(invoiceId: string) {
+    const invoice = invoicesState.find(inv => inv.id === invoiceId);
+    if (invoice) {
+      setSelectedInvoice(invoice);
+      setShowInvoiceDetailsModal(true);
+    }
     if (typeof setSelectedInvoiceId === "function") {
       setSelectedInvoiceId(invoiceId);
     }
