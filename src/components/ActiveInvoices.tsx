@@ -846,11 +846,26 @@ export default function ActiveInvoices({
     return verifierId;
   };
 
-  // Sort invoices so that green (verified) invoices are at the bottom
+  // Sort invoices by color: red, yellow, blue, green
+  const getInvoiceColorPriority = (invoice: Invoice) => {
+    // Determine effective color based on status and highlight
+    if (invoice.verified) return 4; // green (verified invoices)
+    if (invoice.partiallyVerified) return 2; // yellow (partially verified)
+    
+    const highlight = invoice.highlight || "blue";
+    switch (highlight) {
+      case "red": return 1;
+      case "yellow": return 2;
+      case "blue": return 3;
+      case "green": return 4;
+      default: return 3; // default to blue
+    }
+  };
+
   const sortedInvoices = [...invoices].sort((a, b) => {
-    if (a.verified && !b.verified) return 1;
-    if (!a.verified && b.verified) return -1;
-    return 0;
+    const priorityA = getInvoiceColorPriority(a);
+    const priorityB = getInvoiceColorPriority(b);
+    return priorityA - priorityB;
   });
 
   // Handler to select an invoice (for card click)
@@ -917,9 +932,15 @@ export default function ActiveInvoices({
               } else if (isReady) {
                 cardBackground =
                   "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)"; // yellow
+              } else if (highlight === "red") {
+                cardBackground =
+                  "linear-gradient(135deg, #fecaca 0%, #ef4444 100%)"; // red
               } else if (highlight === "yellow") {
                 cardBackground =
                   "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)"; // yellow
+              } else if (highlight === "green") {
+                cardBackground =
+                  "linear-gradient(135deg, #bbf7d0 0%, #22c55e 100%)"; // green
               } else {
                 cardBackground =
                   "linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)"; // blue
@@ -1164,31 +1185,47 @@ export default function ActiveInvoices({
                           }}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            const newHighlight =
-                              highlight === "yellow" ? "blue" : "yellow";
+                            // Cycle through colors: red -> yellow -> blue -> green -> red
+                            let newHighlight: "red" | "yellow" | "blue" | "green";
+                            switch (highlight) {
+                              case "red":
+                                newHighlight = "yellow";
+                                break;
+                              case "yellow":
+                                newHighlight = "blue";
+                                break;
+                              case "blue":
+                                newHighlight = "green";
+                                break;
+                              case "green":
+                                newHighlight = "red";
+                                break;
+                              default:
+                                newHighlight = "red"; // Start with red if no highlight
+                            }
                             await onUpdateInvoice(invoice.id, {
                               highlight: newHighlight,
                             });
                             if (user?.username) {
                               logActivity({
                                 type: "Invoice",
-                                message: `User ${user.username} toggled highlight for invoice #${invoice.id}`,
+                                message: `User ${user.username} changed highlight to ${newHighlight} for invoice #${invoice.id}`,
                                 user: user.username,
                               });
                             }
                             await refreshInvoices(); // Ensure UI updates after highlight change
                           }}
-                          title={
-                            highlight === "yellow"
-                              ? "Highlight: Yellow"
-                              : "Highlight: Blue"
-                          }
+                          title={`Highlight: ${highlight.charAt(0).toUpperCase() + highlight.slice(1)}`}
                         >
                           <i
                             className="bi bi-flag-fill"
                             style={{
-                              color:
-                                highlight === "yellow" ? "#fbbf24" : "#0E62A0",
+                              color: 
+                                highlight === "red" ? "#ef4444" :
+                                highlight === "yellow" ? "#fbbf24" :
+                                highlight === "blue" ? "#0E62A0" :
+                                highlight === "green" ? "#22c55e" :
+                                "#0E62A0", // default to blue
                               fontSize: 22,
                             }}
                           />
