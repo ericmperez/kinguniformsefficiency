@@ -113,7 +113,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setSegregation(client.segregation ?? false);
     setNewClientImage(null); // Always reset when opening edit modal
     setBillingCalculation(client.billingCalculation || "byWeight");
-    setNeedsInvoice(client.needsInvoice ?? (client.washingType === "Tunnel"));
+    setNeedsInvoice(client.needsInvoice ?? client.washingType === "Tunnel");
   };
 
   const handleCancel = () => {
@@ -546,21 +546,28 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                       </td>
                       <td>
                         <span
-                          className={`badge ${client.needsInvoice ? "bg-success" : "bg-secondary"}`}
-                              style={{ cursor: "pointer" }}
-                              title="Click to toggle invoice requirement"
-                              onClick={async () => {
-                                const newNeedsInvoice = !client.needsInvoice;
-                                setIsSaving(true);
-                                setSaveError(null);
-                                try {
-                                  await onUpdateClient(client.id, { needsInvoice: newNeedsInvoice });
-                                } catch {
-                                  setSaveError("Failed to update invoice requirement.");
-                                } finally {
-                                  setIsSaving(false);
-                                }
-                              }}>
+                          className={`badge ${
+                            client.needsInvoice ? "bg-success" : "bg-secondary"
+                          }`}
+                          style={{ cursor: "pointer" }}
+                          title="Click to toggle invoice requirement"
+                          onClick={async () => {
+                            const newNeedsInvoice = !client.needsInvoice;
+                            setIsSaving(true);
+                            setSaveError(null);
+                            try {
+                              await onUpdateClient(client.id, {
+                                needsInvoice: newNeedsInvoice,
+                              });
+                            } catch {
+                              setSaveError(
+                                "Failed to update invoice requirement."
+                              );
+                            } finally {
+                              setIsSaving(false);
+                            }
+                          }}
+                        >
                           {client.needsInvoice ? "Yes" : "No"}
                         </span>
                       </td>
@@ -850,7 +857,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           checked={needsInvoice === true}
                           onChange={() => setNeedsInvoice(true)}
                         />
-                        <label className="form-check-label" htmlFor="needsInvoiceYesEdit">
+                        <label
+                          className="form-check-label"
+                          htmlFor="needsInvoiceYesEdit"
+                        >
                           Yes
                         </label>
                       </div>
@@ -864,7 +874,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           checked={needsInvoice === false}
                           onChange={() => setNeedsInvoice(false)}
                         />
-                        <label className="form-check-label" htmlFor="needsInvoiceNoEdit">
+                        <label
+                          className="form-check-label"
+                          htmlFor="needsInvoiceNoEdit"
+                        >
                           No
                         </label>
                       </div>

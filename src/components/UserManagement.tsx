@@ -306,19 +306,19 @@ export default function UserManagement(props: UserManagementProps) {
                             className="form-control form-control-sm"
                             value={editId}
                             onChange={(e) =>
-                              setEditId(e.target.value.replace(/\D/g, "").slice(0, 4))
+                              setEditId(
+                                e.target.value.replace(/\D/g, "").slice(0, 4)
+                              )
                             }
                             maxLength={4}
                             required
                             placeholder="4-digit"
                             disabled={loading}
                           />
+                        ) : u.id && /^\d{4}$/.test(u.id) ? (
+                          u.id
                         ) : (
-                          u.id && /^\d{4}$/.test(u.id) ? (
-                            u.id
-                          ) : (
-                            <span className="text-danger">(No 4-digit code)</span>
-                          )
+                          <span className="text-danger">(No 4-digit code)</span>
                         )}
                       </td>
                       <td>
@@ -365,7 +365,9 @@ export default function UserManagement(props: UserManagementProps) {
                                 <input
                                   className="form-check-input"
                                   type="checkbox"
-                                  checked={editAllowedComponents.includes(c.key)}
+                                  checked={editAllowedComponents.includes(
+                                    c.key
+                                  )}
                                   onChange={(e) => {
                                     const checked = e.target.checked;
                                     setEditAllowedComponents((prev) =>
