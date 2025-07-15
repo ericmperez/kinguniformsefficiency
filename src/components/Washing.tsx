@@ -343,12 +343,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       await addDoc(collection(db, "pickup_groups"), {
         clientId: client.id,
         clientName: client.name,
-        status: "Conventional",
-        washingType: "Conventional",
+        status: "Tunnel",
+        washingType: "Tunnel",
         carts: [cart],
         numCarts: numCarts,
         createdAt: Timestamp.now(),
-        order: conventionalGroups.length, // add to end
+        order: groups.filter(g => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel").length, // add to end based on current order
       });
       setShowAddConventionalModal(false);
       setSelectedConventionalClientId("");
@@ -420,46 +420,36 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   ) => {
     setGroups((prevGroups) => {
       const conventional = prevGroups.filter(
-        (g) =>
-          g.status === "Conventional" &&
-          getWashingType(g.clientId) === "Conventional" &&
-          g.status !== "Entregado"
+        (g) => g.status === "Conventional" && getWashingType(g.clientId) === "Conventional" && g.status !== "Entregado"
       );
       const others = prevGroups.filter(
-        (g) =>
-          g.status !== "Conventional" ||
-          getWashingType(g.clientId) !== "Conventional" ||
-          g.status === "Entregado"
+        (g) => g.status !== "Conventional" || getWashingType(g.clientId) !== "Conventional" || g.status === "Entregado"
       );
-      // Sort by order or fallback to index
-      const sorted = [...conventional].sort(
-        (a, b) => (a.order ?? 0) - (b.order ?? 0)
-      );
+      const sorted = [...conventional].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       const idx = sorted.findIndex((g) => g.id === groupId);
       if (idx === -1) return prevGroups;
       let newIdx = direction === "up" ? idx - 1 : idx + 1;
       if (newIdx < 0 || newIdx >= sorted.length) return prevGroups;
       // Swap order values
-      const tempOrder = sorted[idx].order ?? idx;
-      sorted[idx].order = sorted[newIdx].order ?? newIdx;
-      sorted[newIdx].order = tempOrder;
-      // Persist order changes to Firestore
+      [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
+      // Re-assign order values to be consecutive
+      sorted.forEach((g, i) => {
+        g.order = i;
+      });
+      // Optimistically update UI
+      const newGroups = [...others, ...sorted];
+      // Persist order changes to Firestore in background
       (async () => {
         try {
-          await Promise.all([
-            updateDoc(doc(db, "pickup_groups", sorted[idx].id), {
-              order: sorted[idx].order,
-            }),
-            updateDoc(doc(db, "pickup_groups", sorted[newIdx].id), {
-              order: sorted[newIdx].order,
-            }),
-          ]);
+          await Promise.all(
+            sorted.map((g, i) =>
+              updateDoc(doc(db, "pickup_groups", g.id), { order: i })
+            )
+          );
         } catch (e) {
           // Optionally handle error
         }
       })();
-      // Rebuild groups array
-      const newGroups = [...others, ...sorted];
       return newGroups;
     });
   };
@@ -527,21 +517,45 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
 
   // Move up/down for both manual products and client groups
   const moveConventionalRow = async (id: string, direction: "up" | "down") => {
-    // If it's a manual product, just reorder in local state (optional: persist order if needed)
-    const manualIdx = manualConventionalProducts.findIndex((p) => p.id === id);
-    if (manualIdx !== -1) {
-      setManualConventionalProducts((prev) => {
-        const arr = [...prev];
-        const newIdx = direction === "up" ? manualIdx - 1 : manualIdx + 1;
-        if (newIdx < 0 || newIdx >= arr.length) return arr;
-        [arr[manualIdx], arr[newIdx]] = [arr[newIdx], arr[manualIdx]];
-        return arr;
-      });
-      // Optionally: persist order to Firestore if needed
-      return;
-    }
-    // Otherwise, it's a client group
-    await moveConventionalGroup(id, direction);
+    // Build a combined list of all conventional rows (client groups + manual products)
+    const allRows = [
+      ...conventionalGroups.map((g) => ({ ...g, isManualProduct: false })),
+      ...manualConventionalProducts.filter((p) => !p.invoiceId).map((p) => ({ ...p, isManualProduct: true })),
+    ].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const idx = allRows.findIndex((row) => row.id === id);
+    if (idx === -1) return;
+    let newIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= allRows.length) return;
+    // Swap order values
+    [allRows[idx], allRows[newIdx]] = [allRows[newIdx], allRows[idx]];
+    // Re-assign order values to be consecutive
+    allRows.forEach((row, i) => {
+      row.order = i;
+    });
+    // Persist order changes to Firestore for both types
+    const updates = allRows.map((row) => {
+      if (row.isManualProduct) {
+        // Manual product
+        return updateDoc(doc(db, "manual_conventional_products", row.id), { order: row.order });
+      } else {
+        // Client group
+        return updateDoc(doc(db, "pickup_groups", row.id), { order: row.order });
+      }
+    });
+    await Promise.all(updates);
+    // Update local state
+    setManualConventionalProducts((prev) =>
+      prev.map((p) => {
+        const updated = allRows.find((row) => row.id === p.id && row.isManualProduct);
+        return updated ? { ...p, order: updated.order } : p;
+      })
+    );
+    setGroups((prev) =>
+      prev.map((g) => {
+        const updated = allRows.find((row) => row.id === g.id && !row.isManualProduct);
+        return updated ? { ...g, order: updated.order } : g;
+      })
+    );
   };
 
   // Delete a conventional group instantly and update UI immediately
@@ -767,12 +781,15 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
               border: "2.5px solid #0E62A0",
               borderRadius: 22,
               boxShadow: "0 8px 32px rgba(14,98,160,0.13)",
-              padding: "3.5rem 2.5rem 2.5rem 2.5rem",
+              padding: "3.5rem 2.5rem 7rem 2.5rem", // Increase bottom padding further
               marginBottom: 40,
               marginTop: 18,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              minHeight: "calc(100vh - 120px)", // Ensure card is tall enough for 4 rows
+              boxSizing: "border-box",
+              overflow: "visible", // Prevent clipping
             }}
           >
             <h3
@@ -800,7 +817,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             ) : (
               <div
                 className="list-group list-group-flush w-100"
-                style={{ maxWidth: 1000, margin: "0 auto" }}
+                style={{
+                  maxWidth: 1000,
+                  margin: "0 auto",
+                }}
               >
                 <FlipMove duration={400} easing="ease-in-out">
                   {tunnelGroups.map((group, idx) => {
@@ -815,14 +835,23 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                     return (
                       <div
                         key={group.id}
-                        className="list-group-item d-flex flex-row align-items-center justify-content-between gap-4 py-4 mb-3 shadow-sm rounded"
+                        className="list-group-item d-flex flex-row align-items-center justify-content-between gap-4 shadow-sm rounded"
                         style={{
-                          background: isLocked ? "#cce5ff" : "#fff",
+                          background:
+                            group.showInTunnel && group.segregationComplete
+                              ? "#cce5ff"
+                              : "#fff",
                           border: "2px solid #e3e3e3",
-                          fontSize: 20,
-                          minHeight: 90,
+                          fontSize: 24,
+                          minHeight: "1px", // Let grid control height
+                          height: "100%", // Fill grid row
                           boxShadow: "0 2px 12px rgba(14,98,160,0.07)",
-                          color: "#000", // Force all text to black
+                          color: "#000",
+                          width: "100%",
+                          borderRadius: 24,
+                          padding: "2.5rem 2.5rem",
+                          display: "flex",
+                          alignItems: "center",
                         }}
                       >
                         <div
@@ -956,7 +985,18 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               {/* Only show the button, and show the input if verifying */}
                               {!isVerifying ? (
                                 <button
-                                  className="btn btn-outline-primary btn-sm"
+                                  className="btn btn-outline-danger btn-lg d-flex align-items-center justify-content-center"
+                                  style={{
+                                    fontSize: 38,
+                                    minWidth: 60,
+                                    minHeight: 60,
+                                    borderRadius: 16,
+                                    background: "#ff3b3b",
+                                    color: "#fff",
+                                    fontWeight: 900,
+                                    boxShadow: "0 2px 8px rgba(255,59,59,0.18)",
+                                    border: "none",
+                                  }}
                                   onClick={() =>
                                     canVerify &&
                                     setVerifyingGroupIds((ids) => ({
@@ -965,8 +1005,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     }))
                                   }
                                   disabled={!canVerify}
+                                  aria-label="Verify Cart Count"
                                 >
-                                  Verify Cart Count
+                                  ?
                                 </button>
                               ) : (
                                 <>
@@ -1076,33 +1117,36 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 {cartCounter} / {getSegregatedCarts(group)}
                               </span>
                               <button
-                                className="btn btn-outline-primary btn-sm"
-                                disabled={
-                                  cartCounter >= getSegregatedCarts(group) ||
-                                  !canVerify
-                                }
+                                className="btn btn-outline-primary btn-lg"
+                                style={{
+                                  fontSize: 30,
+                                  minWidth: 60,
+                                  minHeight: 60,
+                                  borderRadius: 12,
+                                }}
+                                disabled={cartCounter >= getSegregatedCarts(group) || !canVerify}
                                 onClick={async () => {
                                   if (!canVerify) return;
-                                  const newCount = Math.min(
-                                    cartCounter + 1,
-                                    getSegregatedCarts(group)
-                                  );
+                                  const newCount = Math.min(cartCounter + 1, getSegregatedCarts(group));
                                   setCartCounters((prev) => ({
                                     ...prev,
                                     [group.id]: newCount,
                                   }));
-                                  await updateDoc(
-                                    doc(db, "pickup_groups", group.id),
-                                    {
-                                      tunnelCartCount: newCount,
-                                    }
-                                  );
+                                  await updateDoc(doc(db, "pickup_groups", group.id), {
+                                    tunnelCartCount: newCount,
+                                  });
                                 }}
                               >
                                 +
                               </button>
                               <button
-                                className="btn btn-outline-secondary btn-sm"
+                                className="btn btn-outline-secondary btn-lg"
+                                style={{
+                                  fontSize: 30,
+                                  minWidth: 60,
+                                  minHeight: 60,
+                                  borderRadius: 12,
+                                }}
                                 disabled={cartCounter <= 0 || !canVerify}
                                 onClick={async () => {
                                   if (!canVerify) return;
@@ -1111,12 +1155,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     ...prev,
                                     [group.id]: newCount,
                                   }));
-                                  await updateDoc(
-                                    doc(db, "pickup_groups", group.id),
-                                    {
-                                      tunnelCartCount: newCount,
-                                    }
-                                  );
+                                  await updateDoc(doc(db, "pickup_groups", group.id), {
+                                    tunnelCartCount: newCount,
+                                  });
                                 }}
                               >
                                 -
@@ -1248,21 +1289,18 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               <button
                                 className="btn btn-outline-secondary btn-sm"
                                 title="Move up"
-                                disabled={
-                                  tunnelReorderLoading === group.id || idx === 0
-                                }
+                                disabled={tunnelReorderLoading === group.id || idx === 0}
                                 onClick={() => moveTunnelGroup(group.id, "up")}
+                                style={{ fontSize: 32, padding: "8px 16px", minWidth: 48 }}
                               >
                                 <span aria-hidden="true">▲</span>
                               </button>
                               <button
                                 className="btn btn-outline-secondary btn-sm"
                                 title="Move down"
-                                disabled={
-                                  tunnelReorderLoading === group.id ||
-                                  idx === tunnelGroups.length - 1
-                                }
+                                disabled={tunnelReorderLoading === group.id || idx === tunnelGroups.length - 1}
                                 onClick={() => moveTunnelGroup(group.id, "down")}
+                                style={{ fontSize: 32, padding: "8px 16px", minWidth: 48 }}
                               >
                                 <span aria-hidden="true">▼</span>
                               </button>
