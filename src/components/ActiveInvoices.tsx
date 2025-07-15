@@ -213,7 +213,7 @@ export default function ActiveInvoices({
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (!invoice) return;
     // Build initial check state
-    const checks: { [cartId: string]: { [productId: string]: boolean } } = {};
+    const checks: { [cartId: string]: { [productId: string] : boolean } } = {};
     for (const cart of invoice.carts) {
       checks[cart.id] = {};
       for (const item of cart.items) {
@@ -855,7 +855,7 @@ export default function ActiveInvoices({
 
   // Handler to select an invoice (for card click)
   function handleInvoiceClick(invoiceId: string) {
-    const invoice = invoicesState.find(inv => inv.id === invoiceId);
+    const invoice = invoicesState.find((inv) => inv.id === invoiceId);
     if (invoice) {
       setSelectedInvoice(invoice);
       setShowInvoiceDetailsModal(true);
@@ -881,7 +881,10 @@ export default function ActiveInvoices({
           <button className="btn btn-primary me-2" onClick={handleAddInvoice}>
             Create New Invoice
           </button>
-          <button className="btn btn-warning" onClick={handleUnshipRecentInvoices}>
+          <button
+            className="btn btn-warning"
+            onClick={handleUnshipRecentInvoices}
+          >
             Unship Recent Invoices
           </button>
         </div>
@@ -1055,7 +1058,7 @@ export default function ActiveInvoices({
                         <div
                           style={{
                             fontWeight: 800,
-                            fontSize: 24,
+                            fontSize: 28, // Increased from 24 for better readability
                             color: (invoice.carts || []).some((c) =>
                               c.name
                                 .toUpperCase()
@@ -1070,7 +1073,7 @@ export default function ActiveInvoices({
                         </div>
                         <div
                           style={{
-                            fontSize: 15,
+                            fontSize: 12, // Increased from 15 for subtitle
                             color: "#555",
                             marginBottom: 0,
                           }}
@@ -1083,8 +1086,8 @@ export default function ActiveInvoices({
                         <div
                           style={{
                             fontWeight: 700,
-                            fontSize: 15,
-                            color: "#0ea5e9",
+                            fontSize: 20, // Increased from 15 for product summary title
+                            color: "white",
                             marginBottom: 2,
                           }}
                         >
@@ -1093,10 +1096,11 @@ export default function ActiveInvoices({
                         <ul
                           style={{
                             listStyle: "none",
+                            paddingLeft: 20,
                             padding: 0,
                             margin: 0,
-                            fontSize: 15,
-                            marginBottom: 8,
+                            fontSize: 28, // Increased from 15 for product list
+                            marginBottom: 20,
                           }}
                         >
                           {(() => {
@@ -1129,7 +1133,8 @@ export default function ActiveInvoices({
                             }
                             return sorted.map((prod, idx) => (
                               <li key={prod.name + idx}>
-                                <span>{prod.name}</span>: <b>{prod.qty}</b>
+                                <span style={{ fontSize: 18 }}>{prod.name}</span>{" "}
+                                <b style={{ fontSize: 18 }}>{prod.qty}</b>
                               </li>
                             ));
                           })()}
@@ -1792,7 +1797,8 @@ export default function ActiveInvoices({
                                             productName: product.name,
                                             quantity: selection.qty,
                                             price: product.price,
-                                            addedBy: user?.username || "Unknown",
+                                            addedBy:
+                                              user?.username || "Unknown",
                                             addedAt: new Date().toISOString(),
                                           },
                                         ];
@@ -2127,7 +2133,7 @@ export default function ActiveInvoices({
                         carts: initialCarts,
                         numCarts: initialCarts.length, // Add number of carts as a value
                         segregatedCarts: null, // Set segregatedCarts to null
-                       
+
                         createdAt: now.toISOString(),
                         // washingType: 'Conventional', // Ensure this is set for filtering
                       };
@@ -2166,7 +2172,7 @@ export default function ActiveInvoices({
                         cartIdx = updatedCarts.length - 1;
                       }
 
-
+                     
 
                       const cart = { ...updatedCarts[cartIdx] };
                       const existingItemIdx = cart.items.findIndex(
@@ -2192,7 +2198,7 @@ export default function ActiveInvoices({
                           addProductMode === "quantity" ? "Qty" : "Lbs"
                         } Cart - ${new Date().toLocaleTimeString()}`,
                         items: [
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     {
+                          {
                             productId: product.id,
                             productName: product.name,
                             quantity: addProductQty,
@@ -2555,42 +2561,69 @@ export default function ActiveInvoices({
 
       {/* Unship Recent Invoices Modal */}
       {showUnshipModal && (
-        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Select Invoices to Unship (Last 24h)</h5>
-                <button type="button" className="btn-close" onClick={() => setShowUnshipModal(false)}></button>
+                <h5 className="modal-title">
+                  Select Invoices to Unship (Last 24h)
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowUnshipModal(false)}
+                ></button>
               </div>
               <div className="modal-body">
                 {(() => {
                   const now = Date.now();
-                  const eligible = invoicesState.filter(inv =>
-                    inv.status === "done" &&
-                    inv.truckNumber &&
-                    ((inv.verifiedAt && now - new Date(inv.verifiedAt).getTime() < 24*60*60*1000) ||
-                     (inv.lockedAt && now - new Date(inv.lockedAt).getTime() < 24*60*60*1000) ||
-                     (inv.date && now - new Date(inv.date).getTime() < 24*60*60*1000))
+                  const eligible = invoicesState.filter(
+                    (inv) =>
+                      inv.status === "done" &&
+                      inv.truckNumber &&
+                      ((inv.verifiedAt &&
+                        now - new Date(inv.verifiedAt).getTime() <
+                          24 * 60 * 60 * 1000) ||
+                        (inv.lockedAt &&
+                          now - new Date(inv.lockedAt).getTime() <
+                            24 * 60 * 60 * 1000) ||
+                        (inv.date &&
+                          now - new Date(inv.date).getTime() <
+                            24 * 60 * 60 * 1000))
                   );
-                  if (eligible.length === 0) return <div className="text-muted">No recently shipped invoices found.</div>;
+                  if (eligible.length === 0)
+                    return (
+                      <div className="text-muted">
+                        No recently shipped invoices found.
+                      </div>
+                    );
                   return (
                     <ul className="list-group mb-3">
-                      {eligible.map(inv => (
-                        <li key={inv.id} className="list-group-item d-flex align-items-center">
+                      {eligible.map((inv) => (
+                        <li
+                          key={inv.id}
+                          className="list-group-item d-flex align-items-center"
+                        >
                           <input
                             type="checkbox"
                             className="form-check-input me-2"
                             checked={unshipSelectedIds.includes(inv.id)}
-                            onChange={e => {
-                              setUnshipSelectedIds(prev =>
+                            onChange={(e) => {
+                              setUnshipSelectedIds((prev) =>
                                 e.target.checked
                                   ? [...prev, inv.id]
-                                  : prev.filter(id => id !== inv.id)
+                                  : prev.filter((id) => id !== inv.id)
                               );
                             }}
                           />
                           <span>
-                            #{inv.invoiceNumber || inv.id} - {inv.clientName} - {inv.date ? new Date(inv.date).toLocaleString() : "No date"}
+                            #{inv.invoiceNumber || inv.id} - {inv.clientName} -{" "}
+                            {inv.date
+                              ? new Date(inv.date).toLocaleString()
+                              : "No date"}
                           </span>
                         </li>
                       ))}
@@ -2599,8 +2632,17 @@ export default function ActiveInvoices({
                 })()}
               </div>
               <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowUnshipModal(false)}>Cancel</button>
-                <button className="btn btn-warning" onClick={handleConfirmUnship} disabled={unshipSelectedIds.length === 0}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowUnshipModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-warning"
+                  onClick={handleConfirmUnship}
+                  disabled={unshipSelectedIds.length === 0}
+                >
                   Unship Selected
                 </button>
               </div>
@@ -2867,9 +2909,18 @@ export default function ActiveInvoices({
       )}
 
       {/* Footer with new color */}
-      <footer style={{ width: '100%', background: '#7C3AED', color: '#fff', textAlign: 'center', padding: '1rem 0', marginTop: 40 }}>
-      <span>Nuevo color agregado al footer: #7C3AED (Violet)</span>
-    </footer>
+      <footer
+        style={{
+          width: "100%",
+          background: "#7C3AED",
+          color: "#fff",
+          textAlign: "center",
+          padding: "1rem 0",
+          marginTop: 40,
+        }}
+      >
+        <span>Nuevo color agregado al footer: #7C3AED (Violet)</span>
+      </footer>
     </div>
   );
 }
