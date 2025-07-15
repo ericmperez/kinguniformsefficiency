@@ -830,8 +830,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                       group.showInTunnel && group.segregationComplete;
                     const maxCarts = getSegregatedCarts(group);
                     const isVerifying = verifyingGroupIds[group.id];
-                    // Allow verification for ALL tunnel groups, not just the top 2
-                    const canVerify = true;
+                    // Only allow verification for the first 2 entries
+                    const canVerify = idx < 2;
                     return (
                       <div
                         key={group.id}
