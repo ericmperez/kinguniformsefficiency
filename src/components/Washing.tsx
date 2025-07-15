@@ -343,12 +343,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       await addDoc(collection(db, "pickup_groups"), {
         clientId: client.id,
         clientName: client.name,
-        status: "Tunnel",
-        washingType: "Tunnel",
+        status: "Conventional", // <-- FIXED: was "Tunnel"
+        washingType: "Conventional", // <-- FIXED: was "Tunnel"
         carts: [cart],
         numCarts: numCarts,
         createdAt: Timestamp.now(),
-        order: groups.filter(g => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel").length, // add to end based on current order
+        order: groups.filter(g => g.status === "Conventional" && getWashingType(g.clientId) === "Conventional").length, // add to end based on current order
       });
       setShowAddConventionalModal(false);
       setSelectedConventionalClientId("");
@@ -1376,11 +1376,14 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                     required
                   >
                     <option value="">-- Select a client --</option>
-                    {clientsForConventional.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.name}
-                      </option>
-                    ))}
+                    {clientsForConventional
+                      .slice() // copy array
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div className="col-12 col-md-4">
@@ -1394,11 +1397,14 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                     required
                   >
                     <option value="">-- Select a product --</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name}
-                      </option>
-                    ))}
+                    {products
+                      .slice()
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div className="col-12 col-md-4">

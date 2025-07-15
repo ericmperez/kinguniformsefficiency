@@ -295,188 +295,204 @@ export default function UserManagement(props: UserManagementProps) {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
-                  <tr key={u.id + "-" + u.username}>
-                    <td>
-                      {/* Always show the 4-digit code, or a warning if missing */}
-                      {u.id && /^\d{4}$/.test(u.id) ? (
-                        u.id
-                      ) : (
-                        <span className="text-danger">(No 4-digit code)</span>
-                      )}
-                    </td>
-                    <td>
-                      {editingId === u.id ? (
-                        <input
-                          className="form-control form-control-sm"
-                          value={editUsername}
-                          onChange={(e) => setEditUsername(e.target.value)}
-                          disabled={loading}
-                        />
-                      ) : (
-                        u.username
-                      )}
-                    </td>
-                    <td>
-                      {editingId === u.id ? (
-                        <select
-                          className="form-control form-control-sm"
-                          value={editRole}
-                          onChange={(e) =>
-                            setEditRole(e.target.value as UserRole)
-                          }
-                          disabled={loading}
-                        >
-                          {roles.map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        u.role
-                      )}
-                    </td>
-                    <td>
-                      {editingId === u.id && editRole === "Owner" ? (
-                        <div className="text-muted">
-                          Owner has access to all components
-                        </div>
-                      ) : editingId === u.id ? (
-                        <div>
-                          {componentOptions.map((c) => (
-                            <div key={c.key} className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                checked={editAllowedComponents.includes(c.key)}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setEditAllowedComponents((prev) =>
-                                    checked
-                                      ? [...prev, c.key]
-                                      : prev.filter((key) => key !== c.key)
-                                  );
-                                }}
-                                id={`component-${c.key}`}
-                                disabled={loading}
-                              />
-                              <label
-                                className="form-check-label"
-                                htmlFor={`component-${c.key}`}
-                              >
-                                {c.label}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div>
-                          {u.role === "Owner"
-                            ? "All components"
-                            : u.allowedComponents
-                                ?.map((key) => {
-                                  const component = componentOptions.find(
-                                    (c) => c.key === key
-                                  );
-                                  return component ? component.label : null;
-                                })
-                                .join(", ") || (
-                                <span className="text-muted">
-                                  (Role default)
-                                </span>
-                              )}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      {editingId === u.id ? (
-                        <select
-                          className="form-select form-select-sm"
-                          value={editDefaultPage || ""}
-                          onChange={(e) =>
-                            setEditDefaultPage(
-                              e.target.value as AppComponentKey
-                            )
-                          }
-                          disabled={loading}
-                        >
-                          <option value="">(Use role default)</option>
-                          {componentOptions.map((c) => (
-                            <option key={c.key} value={c.key}>
-                              {c.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span>
-                          {u.defaultPage ? (
-                            componentOptions.find(
-                              (c) => c.key === u.defaultPage
-                            )?.label || u.defaultPage
+                {users
+                  .slice()
+                  .sort((a, b) => a.username.localeCompare(b.username))
+                  .map((u) => (
+                    <tr key={u.id + "-" + u.username}>
+                      <td>
+                        {editingId === u.id ? (
+                          <input
+                            className="form-control form-control-sm"
+                            value={editId}
+                            onChange={(e) =>
+                              setEditId(e.target.value.replace(/\D/g, "").slice(0, 4))
+                            }
+                            maxLength={4}
+                            required
+                            placeholder="4-digit"
+                            disabled={loading}
+                          />
+                        ) : (
+                          u.id && /^\d{4}$/.test(u.id) ? (
+                            u.id
                           ) : (
-                            <span className="text-muted">(Role default)</span>
-                          )}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      {editingId === u.id ? (
-                        <input
-                          type="number"
-                          className="form-control form-control-sm"
-                          value={editLogoutTimeout}
-                          min={10}
-                          max={3600}
-                          onChange={(e) =>
-                            setEditLogoutTimeout(Number(e.target.value))
-                          }
-                          required
-                        />
-                      ) : (
-                        <span>{u.logoutTimeout || 20} s</span>
-                      )}
-                    </td>
-                    <td>
-                      {editingId === u.id ? (
-                        <>
-                          <button
-                            className="btn btn-success btn-sm me-1"
-                            onClick={() => handleEditSave(u.id)}
+                            <span className="text-danger">(No 4-digit code)</span>
+                          )
+                        )}
+                      </td>
+                      <td>
+                        {editingId === u.id ? (
+                          <input
+                            className="form-control form-control-sm"
+                            value={editUsername}
+                            onChange={(e) => setEditUsername(e.target.value)}
+                            disabled={loading}
+                          />
+                        ) : (
+                          u.username
+                        )}
+                      </td>
+                      <td>
+                        {editingId === u.id ? (
+                          <select
+                            className="form-control form-control-sm"
+                            value={editRole}
+                            onChange={(e) =>
+                              setEditRole(e.target.value as UserRole)
+                            }
                             disabled={loading}
                           >
-                            Save
-                          </button>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={handleEditCancel}
+                            {roles.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          u.role
+                        )}
+                      </td>
+                      <td>
+                        {editingId === u.id && editRole === "Owner" ? (
+                          <div className="text-muted">
+                            Owner has access to all components
+                          </div>
+                        ) : editingId === u.id ? (
+                          <div>
+                            {componentOptions.map((c) => (
+                              <div key={c.key} className="form-check">
+                                <input
+                                  className="form-check-input"
+                                  type="checkbox"
+                                  checked={editAllowedComponents.includes(c.key)}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setEditAllowedComponents((prev) =>
+                                      checked
+                                        ? [...prev, c.key]
+                                        : prev.filter((key) => key !== c.key)
+                                    );
+                                  }}
+                                  id={`component-${c.key}`}
+                                  disabled={loading}
+                                />
+                                <label
+                                  className="form-check-label"
+                                  htmlFor={`component-${c.key}`}
+                                >
+                                  {c.label}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div>
+                            {u.role === "Owner"
+                              ? "All components"
+                              : u.allowedComponents
+                                  ?.map((key) => {
+                                    const component = componentOptions.find(
+                                      (c) => c.key === key
+                                    );
+                                    return component ? component.label : null;
+                                  })
+                                  .join(", ") || (
+                                  <span className="text-muted">
+                                    (Role default)
+                                  </span>
+                                )}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        {editingId === u.id ? (
+                          <select
+                            className="form-select form-select-sm"
+                            value={editDefaultPage || ""}
+                            onChange={(e) =>
+                              setEditDefaultPage(
+                                e.target.value as AppComponentKey
+                              )
+                            }
                             disabled={loading}
                           >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          {/* Prevent editing/deleting the currently logged-in user for safety */}
-                          <button
-                            className="btn btn-warning btn-sm me-1"
-                            onClick={() => handleEdit(u)}
-                            disabled={Boolean(loading) || user?.id === u.id}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            className="btn btn-danger btn-sm"
-                            onClick={() => handleDelete(u.id)}
-                            disabled={Boolean(loading) || user?.id === u.id}
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                            <option value="">(Use role default)</option>
+                            {componentOptions.map((c) => (
+                              <option key={c.key} value={c.key}>
+                                {c.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span>
+                            {u.defaultPage ? (
+                              componentOptions.find(
+                                (c) => c.key === u.defaultPage
+                              )?.label || u.defaultPage
+                            ) : (
+                              <span className="text-muted">(Role default)</span>
+                            )}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {editingId === u.id ? (
+                          <input
+                            type="number"
+                            className="form-control form-control-sm"
+                            value={editLogoutTimeout}
+                            min={10}
+                            max={3600}
+                            onChange={(e) =>
+                              setEditLogoutTimeout(Number(e.target.value))
+                            }
+                            required
+                          />
+                        ) : (
+                          <span>{u.logoutTimeout || 20} s</span>
+                        )}
+                      </td>
+                      <td>
+                        {editingId === u.id ? (
+                          <>
+                            <button
+                              className="btn btn-success btn-sm me-1"
+                              onClick={() => handleEditSave(u.id)}
+                              disabled={loading}
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={handleEditCancel}
+                              disabled={loading}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {/* Prevent editing/deleting the currently logged-in user for safety */}
+                            <button
+                              className="btn btn-warning btn-sm me-1"
+                              onClick={() => handleEdit(u)}
+                              disabled={Boolean(loading) || user?.id === u.id}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-danger btn-sm"
+                              onClick={() => handleDelete(u.id)}
+                              disabled={Boolean(loading) || user?.id === u.id}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 {users.length === 0 && (
                   <tr>
                     <td colSpan={7} className="text-center text-muted">
