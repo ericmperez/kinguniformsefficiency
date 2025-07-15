@@ -213,7 +213,7 @@ export default function ActiveInvoices({
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (!invoice) return;
     // Build initial check state
-    const checks: { [cartId: string]: { [productId: string] : boolean } } = {};
+    const checks: { [cartId: string]: { [productId: string]: boolean } } = {};
     for (const cart of invoice.carts) {
       checks[cart.id] = {};
       for (const item of cart.items) {
@@ -1133,7 +1133,9 @@ export default function ActiveInvoices({
                             }
                             return sorted.map((prod, idx) => (
                               <li key={prod.name + idx}>
-                                <span style={{ fontSize: 18 }}>{prod.name}</span>{" "}
+                                <span style={{ fontSize: 18 }}>
+                                  {prod.name}
+                                </span>{" "}
                                 <b style={{ fontSize: 18 }}>{prod.qty}</b>
                               </li>
                             ));
@@ -2171,8 +2173,6 @@ export default function ActiveInvoices({
                         updatedCarts.push(newCart);
                         cartIdx = updatedCarts.length - 1;
                       }
-
-                     
 
                       const cart = { ...updatedCarts[cartIdx] };
                       const existingItemIdx = cart.items.findIndex(

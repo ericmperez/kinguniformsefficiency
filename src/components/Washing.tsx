@@ -600,24 +600,27 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
 
   // Handler to mark a conventional client group as washed
   const handleMarkConventionalGroupWashed = async (group: any) => {
-    // 1. Update pickup group status to 'Empaque'
+    // 1. Update pickup group status to 'Empaque' and washed
     await updateDoc(doc(db, "pickup_groups", group.id), {
       status: "Empaque",
       washed: true,
     });
-    // 2. Create an invoice for the client
-    const { addInvoice } = await import("../services/firebaseService");
-    const newInvoice = {
-      clientId: group.clientId,
-      clientName: group.clientName,
-      date: new Date().toISOString(),
-      products: [], // You may want to fill this with group products if available
-      total: 0,
-      carts: group.carts || [],
-      totalWeight: group.totalWeight || 0,
-    };
-    const invoiceId = await addInvoice(newInvoice);
-    if (setSelectedInvoiceId) setSelectedInvoiceId(invoiceId);
+    // 2. Only create invoice if client needsInvoice is true
+    const client = clients.find((c) => c.id === group.clientId);
+    if (client?.needsInvoice) {
+      const { addInvoice } = await import("../services/firebaseService");
+      const newInvoice = {
+        clientId: group.clientId,
+        clientName: group.clientName,
+        date: new Date().toISOString(),
+        products: [], // You may want to fill this with group products if available
+        total: 0,
+        carts: group.carts || [],
+        totalWeight: group.totalWeight || 0,
+      };
+      const invoiceId = await addInvoice(newInvoice);
+      if (setSelectedInvoiceId) setSelectedInvoiceId(invoiceId);
+    }
   };
 
   // Handler to mark a client group as washed (set to Empaque and create invoice)

@@ -53,6 +53,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
   const [billingCalculation, setBillingCalculation] = useState<
     "byWeight" | "byItem"
   >("byWeight");
+  const [needsInvoice, setNeedsInvoice] = useState<boolean>(
+    washingType === "Tunnel"
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +67,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
       washingType,
       segregation,
       billingCalculation,
+      needsInvoice,
     };
     // Only include image if a new image is selected
     if (newClientImage) {
@@ -91,6 +95,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setWashingType("Tunnel");
     setSegregation(false);
     setBillingCalculation("byWeight");
+    setNeedsInvoice(false);
   };
 
   // Patch: always provide image as File|null (never undefined) for AppClient
@@ -108,6 +113,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setSegregation(client.segregation ?? false);
     setNewClientImage(null); // Always reset when opening edit modal
     setBillingCalculation(client.billingCalculation || "byWeight");
+    setNeedsInvoice(client.needsInvoice ?? (client.washingType === "Tunnel"));
   };
 
   const handleCancel = () => {
@@ -119,6 +125,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setWashingType("Tunnel");
     setSegregation(false);
     setBillingCalculation("byWeight");
+    setNeedsInvoice(false);
   };
 
   const handleProductToggle = async (productId: string) => {
@@ -151,6 +158,11 @@ export const ClientForm: React.FC<ClientFormProps> = ({
       }
     }
   };
+
+  // Update needsInvoice default when washingType changes
+  React.useEffect(() => {
+    setNeedsInvoice(washingType === "Tunnel");
+  }, [washingType]);
 
   return (
     <div className="card">
@@ -362,6 +374,40 @@ export const ClientForm: React.FC<ClientFormProps> = ({
               </div>
             </div>
 
+            <div className="mb-3">
+              <label className="form-label">Requires Invoice?</label>
+              <div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="needsInvoice"
+                    id="needsInvoiceYes"
+                    value="yes"
+                    checked={needsInvoice === true}
+                    onChange={() => setNeedsInvoice(true)}
+                  />
+                  <label className="form-check-label" htmlFor="needsInvoiceYes">
+                    Yes
+                  </label>
+                </div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="needsInvoice"
+                    id="needsInvoiceNo"
+                    value="no"
+                    checked={needsInvoice === false}
+                    onChange={() => setNeedsInvoice(false)}
+                  />
+                  <label className="form-check-label" htmlFor="needsInvoiceNo">
+                    No
+                  </label>
+                </div>
+              </div>
+            </div>
+
             <div className="d-flex gap-2">
               <button
                 type="submit"
@@ -390,6 +436,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   <th>Washing Type</th>
                   <th>Segregation</th>
                   <th>Billing Calculation</th>
+                  <th>Requires Invoice?</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -496,6 +543,26 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                         {client.billingCalculation === "byItem"
                           ? "Per Item"
                           : "By Weight"}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${client.needsInvoice ? "bg-success" : "bg-secondary"}`}
+                              style={{ cursor: "pointer" }}
+                              title="Click to toggle invoice requirement"
+                              onClick={async () => {
+                                const newNeedsInvoice = !client.needsInvoice;
+                                setIsSaving(true);
+                                setSaveError(null);
+                                try {
+                                  await onUpdateClient(client.id, { needsInvoice: newNeedsInvoice });
+                                } catch {
+                                  setSaveError("Failed to update invoice requirement.");
+                                } finally {
+                                  setIsSaving(false);
+                                }
+                              }}>
+                          {client.needsInvoice ? "Yes" : "No"}
+                        </span>
                       </td>
                       <td>
                         <div className="d-flex gap-2">
@@ -765,6 +832,40 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           htmlFor="billingByItemEdit"
                         >
                           Per Item
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Requires Invoice?</label>
+                    <div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="needsInvoiceEdit"
+                          id="needsInvoiceYesEdit"
+                          value="yes"
+                          checked={needsInvoice === true}
+                          onChange={() => setNeedsInvoice(true)}
+                        />
+                        <label className="form-check-label" htmlFor="needsInvoiceYesEdit">
+                          Yes
+                        </label>
+                      </div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="needsInvoiceEdit"
+                          id="needsInvoiceNoEdit"
+                          value="no"
+                          checked={needsInvoice === false}
+                          onChange={() => setNeedsInvoice(false)}
+                        />
+                        <label className="form-check-label" htmlFor="needsInvoiceNoEdit">
+                          No
                         </label>
                       </div>
                     </div>

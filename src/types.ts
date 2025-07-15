@@ -17,6 +17,7 @@ export interface Client {
   segregation?: boolean;
   billingCalculation?: "byWeight" | "byItem";
   email?: string; // Optional email property
+  needsInvoice?: boolean; // New field: does this client require invoice creation?
 }
 
 export interface CartItem {
