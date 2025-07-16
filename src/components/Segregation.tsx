@@ -490,6 +490,7 @@ const Segregation: React.FC<SegregationProps> = ({
             fontWeight: 900,
             color: "#007bff",
             letterSpacing: 1,
+            position: "relative",
           }}
         >
           {topGroup.clientName}
@@ -499,6 +500,7 @@ const Segregation: React.FC<SegregationProps> = ({
               fontWeight: 600,
               color: "#333",
               marginTop: 8,
+              marginBottom: 18,
             }}
           >
             Libras:{" "}
@@ -511,6 +513,90 @@ const Segregation: React.FC<SegregationProps> = ({
               lbs
             </strong>{" "}
             &nbsp; | &nbsp; Carros: <strong>{getCartCount(topGroup.id)}</strong>
+          </div>
+          {/* Big controls row */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 24,
+              marginTop: 10,
+            }}
+          >
+            <button
+              className="btn btn-outline-secondary"
+              style={{
+                fontSize: 32,
+                minWidth: 56,
+                minHeight: 56,
+                borderRadius: 12,
+              }}
+              onClick={() =>
+                handleInputChange(
+                  topGroup.id,
+                  String(
+                    Math.max(
+                      0,
+                      parseInt(segregatedCounts[topGroup.id] || "0", 10) - 1
+                    )
+                  )
+                )
+              }
+              disabled={completingGroup === topGroup.id}
+            >
+              -
+            </button>
+            <input
+              type="number"
+              min={0}
+              className="form-control text-center"
+              style={{
+                fontSize: 32,
+                fontWeight: 700,
+                width: 100,
+                height: 56,
+                borderRadius: 12,
+              }}
+              placeholder="#"
+              value={segregatedCounts[topGroup.id] || ""}
+              onChange={(e) => handleInputChange(topGroup.id, e.target.value)}
+              disabled={completingGroup === topGroup.id}
+            />
+            <button
+              className="btn btn-outline-secondary"
+              style={{
+                fontSize: 32,
+                minWidth: 56,
+                minHeight: 56,
+                borderRadius: 12,
+              }}
+              onClick={() =>
+                handleInputChange(
+                  topGroup.id,
+                  String(parseInt(segregatedCounts[topGroup.id] || "0", 10) + 1)
+                )
+              }
+              disabled={completingGroup === topGroup.id}
+            >
+              +
+            </button>
+            <button
+              className="btn btn-success ms-3"
+              style={{
+                fontSize: 28,
+                minWidth: 100,
+                minHeight: 56,
+                borderRadius: 12,
+                fontWeight: 700,
+              }}
+              disabled={
+                completingGroup === topGroup.id || !segregatedCounts[topGroup.id]
+              }
+              onClick={() => handleComplete(topGroup.id)}
+            >
+              {completingGroup === topGroup.id ? "Saving..." : "Done"}
+            </button>
           </div>
         </div>
       )}
