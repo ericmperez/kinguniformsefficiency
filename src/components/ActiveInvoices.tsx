@@ -816,6 +816,7 @@ export default function ActiveInvoices({
   // Shipped modal state
   const [showShippedModal, setShowShippedModal] = useState<string | null>(null);
   const [shippedTruckNumber, setShippedTruckNumber] = useState("");
+  const [shippedDeliveryDate, setShippedDeliveryDate] = useState("");
 
   // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
   const hasOverdue = invoices.some((inv) => {
@@ -846,11 +847,28 @@ export default function ActiveInvoices({
     return verifierId;
   };
 
-  // Sort invoices so that green (verified) invoices are at the bottom
+  // Sort invoices so that overdue (red) invoices are at the top (alphabetically by client name), then unverified (alphabetically), then verified (alphabetically)
   const sortedInvoices = [...invoices].sort((a, b) => {
-    if (a.verified && !b.verified) return 1;
+    const now = new Date();
+    const aOverdue =
+      a.date &&
+      !a.verified &&
+      now.getTime() - new Date(a.date).getTime() > 24 * 60 * 60 * 1000;
+    const bOverdue =
+      b.date &&
+      !b.verified &&
+      now.getTime() - new Date(b.date).getTime() > 24 * 60 * 60 * 1000;
+    if (aOverdue && !bOverdue) return -1;
+    if (!aOverdue && bOverdue) return 1;
+    // If both are overdue, sort alphabetically by client name
+    if (aOverdue && bOverdue) {
+      return (a.clientName || '').localeCompare(b.clientName || '');
+    }
+    // Then by verified status (unverified first)
     if (!a.verified && b.verified) return -1;
-    return 0;
+    if (a.verified && !b.verified) return 1;
+    // If both are unverified or both are verified, sort alphabetically by client name
+    return (a.clientName || '').localeCompare(b.clientName || '');
   });
 
   // Handler to select an invoice (for card click)
@@ -1279,6 +1297,7 @@ export default function ActiveInvoices({
                             }
                             setShowShippedModal(invoice.id);
                             setShippedTruckNumber("");
+                            setShippedDeliveryDate("");
                           }}
                           disabled={
                             invoice.status === "done" || hasUnnamedCart(invoice)
@@ -2142,6 +2161,7 @@ export default function ActiveInvoices({
                       const groupRef = await import("../firebase").then(
                         ({ db }) =>
                           import("firebase/firestore").then(
+
                             ({ collection, addDoc }) =>
                               addDoc(collection(db, "pickup_groups"), groupData)
                           )
@@ -2152,6 +2172,7 @@ export default function ActiveInvoices({
                       // If group exists but status is not 'Pending Products', update it
                       if (pendingGroup.status !== "Pending Products") {
                         pendingGroup.status = "Pending Products";
+                     
                       }
                     }
                     // Add product to the group's carts
@@ -2482,7 +2503,9 @@ export default function ActiveInvoices({
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Enter Truck Number</h5>
+                <h5 className="modal-title">
+                  Enter Truck Number & Delivery Date
+                </h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -2492,7 +2515,7 @@ export default function ActiveInvoices({
               <div className="modal-body">
                 <input
                   type="number"
-                  className="form-control"
+                  className="form-control mb-3"
                   placeholder="Truck Number"
                   value={shippedTruckNumber}
                   onChange={(e) =>
@@ -2500,6 +2523,15 @@ export default function ActiveInvoices({
                   }
                   min={1}
                   autoFocus
+                />
+                <label className="form-label">Delivery Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={shippedDeliveryDate}
+                  onChange={(e) => setShippedDeliveryDate(e.target.value)}
+                  min={new Date().toISOString().slice(0, 10)}
+                  required
                 />
               </div>
               <div className="modal-footer">
@@ -2511,9 +2543,8 @@ export default function ActiveInvoices({
                 </button>
                 <button
                   className="btn btn-info"
-                  disabled={!shippedTruckNumber}
+                  disabled={!shippedTruckNumber || !shippedDeliveryDate}
                   onClick={async () => {
-                    // Update invoice and group status to done, store truck number
                     const invoice = invoicesState.find(
                       (inv) => inv.id === showShippedModal
                     );
@@ -2521,11 +2552,12 @@ export default function ActiveInvoices({
                     await onUpdateInvoice(invoice.id, {
                       status: "done",
                       truckNumber: shippedTruckNumber,
+                      deliveryDate: shippedDeliveryDate,
                     });
                     if (user?.username) {
                       await logActivity({
                         type: "Invoice",
-                        message: `User ${user.username} marked invoice #${invoice.id} as shipped (Truck #${shippedTruckNumber})`,
+                        message: `User ${user.username} marked invoice #${invoice.id} as shipped (Truck #${shippedTruckNumber}, Delivery Date: ${shippedDeliveryDate})`,
                         user: user.username,
                       });
                     }
@@ -2549,6 +2581,8 @@ export default function ActiveInvoices({
                       }
                     }
                     setShowShippedModal(null);
+                    setShippedTruckNumber("");
+                    setShippedDeliveryDate("");
                   }}
                 >
                   Ship

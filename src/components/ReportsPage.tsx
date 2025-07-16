@@ -20,6 +20,7 @@ const ReportsPage: React.FC = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -39,136 +40,150 @@ const ReportsPage: React.FC = () => {
   return (
     <div className="container py-4">
       <h2>Shipped/Done Invoices</h2>
-      <button
-        className="btn btn-primary mb-3"
-        onClick={() => setShowInvoiceForm(true)}
-      >
-        New Invoice
-      </button>
-      {/* Grouped Table by Client */}
-      {(() => {
-        // Group invoices by clientId
-        const grouped = invoices.reduce((acc, inv) => {
-          if (!acc[inv.clientId]) acc[inv.clientId] = [];
-          acc[inv.clientId].push(inv);
-          return acc;
-        }, {} as Record<string, Invoice[]>);
-        if (Object.keys(grouped).length === 0) {
-          return <div className="text-muted">No completed invoices found.</div>;
-        }
-        return Object.entries(grouped).map(([clientId, clientInvoices]) => {
-          const client = clients.find((c) => c.id === clientId);
-          return (
-            <div key={clientId} className="mb-5">
-              <h5 style={{ fontWeight: 700, color: "#0ea5e9" }}>
-                {client?.name || clientInvoices[0].clientName}
-              </h5>
-              <div className="table-responsive">
-                <table className="table table-bordered table-hover">
-                  <thead>
-                    <tr>
-                      <th>Invoice #</th>
-                      <th>Date</th>
-                      <th>Status</th>
-                      <th>Truck #</th>
-                      <th>Total Weight</th>
-                      <th>Products</th>
-                      <th>Carts</th>
-                      <th>Invoice Name</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientInvoices
-                      .sort((a, b) => {
-                        if (a.invoiceNumber && b.invoiceNumber)
-                          return a.invoiceNumber - b.invoiceNumber;
-                        if (a.date && b.date)
-                          return (
-                            new Date(a.date).getTime() -
-                            new Date(b.date).getTime()
-                          );
-                        return a.id.localeCompare(b.id);
-                      })
-                      .map((inv) => (
-                        <tr key={inv.id}>
-                          <td>{inv.invoiceNumber || inv.id}</td>
-                          <td>
-                            {inv.date
-                              ? new Date(inv.date).toLocaleDateString()
-                              : "-"}
-                          </td>
-                          <td>{inv.status || "-"}</td>
-                          <td>{inv.truckNumber || "-"}</td>
-                          <td>{inv.totalWeight || "-"}</td>
-                          <td>
-                            {inv.products && inv.products.length > 0
-                              ? inv.products
-                                  .map((p) => `${p.name} (${p.price}${p.editedBy ? ", edited by " + p.editedBy : ""})`)
-                                  .join(", ")
-                              : "-"}
-                          </td>
-                          <td>
-                            {inv.carts && inv.carts.length > 0
-                              ? inv.carts.map((cart) => (
-                                  <div key={cart.id}>
-                                    <b>{cart.name}:</b>{" "}
-                                    {cart.items
-                                      .map(
-                                        (item) =>
-                                          `${item.productName} x${item.quantity}` +
-                                          (item.editedBy ? ` (edited by ${item.editedBy})` : "")
-                                      )
-                                      .join(", ")}
-                                  </div>
-                                ))
-                              : "-"}
-                          </td>
-                          <td>{inv.name || "-"}</td>
-                          <td>
-                            <button
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => {
-                                setSelectedInvoice(inv);
-                                setShowInvoiceDetailsModal(true);
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="btn btn-sm btn-outline-danger ms-2"
-                              onClick={async () => {
-                                if (
-                                  !window.confirm(
-                                    "Are you sure you want to permanently delete this invoice? This cannot be undone."
+      <div className="mb-3" style={{ maxWidth: 350 }}>
+        <label className="form-label">Select Client</label>
+        <select
+          className="form-select"
+          value={selectedClientId}
+          onChange={(e) => setSelectedClientId(e.target.value)}
+        >
+          <option value="">-- Select Client --</option>
+          {clients
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+        </select>
+      </div>
+      {selectedClientId
+        ? (() => {
+            const client = clients.find((c) => c.id === selectedClientId);
+            const clientInvoices = invoices.filter(
+              (inv) => inv.clientId === selectedClientId
+            );
+            if (clientInvoices.length === 0) {
+              return (
+                <div className="text-muted">
+                  No completed invoices found for this client.
+                </div>
+              );
+            }
+            return (
+              <div key={selectedClientId} className="mb-5">
+                <h5 style={{ fontWeight: 700, color: "#0ea5e9" }}>
+                  {client?.name || clientInvoices[0].clientName}
+                </h5>
+                <div className="table-responsive">
+                  <table className="table table-bordered table-hover">
+                    <thead>
+                      <tr>
+                        <th>Invoice #</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Truck #</th>
+                        <th>Total Weight</th>
+                        <th>Products</th>
+                        <th>Carts</th>
+                        <th>Invoice Name</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientInvoices
+                        .sort((a, b) => {
+                          if (a.invoiceNumber && b.invoiceNumber)
+                            return a.invoiceNumber - b.invoiceNumber;
+                          if (a.date && b.date)
+                            return (
+                              new Date(a.date).getTime() -
+                              new Date(b.date).getTime()
+                            );
+                          return a.id.localeCompare(b.id);
+                        })
+                        .map((inv) => (
+                          <tr key={inv.id}>
+                            <td>{inv.invoiceNumber || inv.id}</td>
+                            <td>
+                              {inv.date
+                                ? new Date(inv.date).toLocaleDateString()
+                                : "-"}
+                            </td>
+                            <td>{inv.status || "-"}</td>
+                            <td>{inv.truckNumber || "-"}</td>
+                            <td>{inv.totalWeight || "-"}</td>
+                            <td>
+                              {inv.products && inv.products.length > 0
+                                ? inv.products
+                                    .map((p) => `${p.name} (${p.price})`)
+                                    .join(", ")
+                                : "-"}
+                            </td>
+                            <td>
+                              {inv.carts && inv.carts.length > 0
+                                ? inv.carts.map((cart) => (
+                                    <div key={cart.id}>
+                                      <b>{cart.name}:</b>{" "}
+                                      {cart.items
+                                        .map(
+                                          (item) =>
+                                            `${item.productName} x${item.quantity}` +
+                                            (item.editedBy
+                                              ? ` (edited by ${item.editedBy})`
+                                              : "")
+                                        )
+                                        .join(", ")}
+                                    </div>
+                                  ))
+                                : "-"}
+                            </td>
+                            <td>{inv.name || "-"}</td>
+                            <td>
+                              <button
+                                className="btn btn-sm btn-outline-primary"
+                                onClick={() => {
+                                  setSelectedInvoice(inv);
+                                  setShowInvoiceDetailsModal(true);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-danger ms-2"
+                                onClick={async () => {
+                                  if (
+                                    !window.confirm(
+                                      "Are you sure you want to permanently delete this invoice? This cannot be undone."
+                                    )
                                   )
-                                )
-                                  return;
-                                try {
-                                  const { deleteInvoice } = await import(
-                                    "../services/firebaseService"
-                                  );
-                                  await deleteInvoice(inv.id);
-                                  setInvoices((prev) =>
-                                    prev.filter((i) => i.id !== inv.id)
-                                  );
-                                } catch (e) {
-                                  alert("Error deleting invoice.");
-                                }
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                                    return;
+                                  try {
+                                    const { deleteInvoice } = await import(
+                                      "../services/firebaseService"
+                                    );
+                                    await deleteInvoice(inv.id);
+                                    setInvoices((prev) =>
+                                      prev.filter((i) => i.id !== inv.id)
+                                    );
+                                  } catch (e) {
+                                    alert("Error deleting invoice.");
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          );
-        });
-      })()}
+            );
+          })()
+        : null}
       {showInvoiceDetailsModal && selectedInvoice && (
         <InvoiceDetailsModal
           invoice={selectedInvoice}

@@ -60,6 +60,7 @@ export interface Invoice {
   lockedAt?: string; // Timestamp when invoice was closed
   note?: string; // Public note for all users to see
   truckNumber?: string; // Add truck number for shipped invoices
+  deliveryDate?: string; // Add delivery date for shipped invoices
   pickupGroupId?: string; // Link to pickup group if present
   name?: string; // Optional invoice-level name
   highlight?: "yellow" | "blue"; // Real-time highlight sync

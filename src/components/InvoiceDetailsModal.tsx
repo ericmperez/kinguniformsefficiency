@@ -968,9 +968,16 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                   <span>
                                     <button
                                       className="btn btn-sm btn-outline-danger"
-                                      style={{ padding: "2px 8px", fontSize: 12 }}
+                                      style={{
+                                        padding: "2px 8px",
+                                        fontSize: 12,
+                                      }}
                                       onClick={() =>
-                                        handleDeleteCartItem(cart.id, product.id, item.idx)
+                                        handleDeleteCartItem(
+                                          cart.id,
+                                          product.id,
+                                          item.idx
+                                        )
                                       }
                                       title="Delete entry"
                                     >
