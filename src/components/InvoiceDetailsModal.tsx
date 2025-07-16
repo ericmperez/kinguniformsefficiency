@@ -953,21 +953,30 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                         ).toLocaleString()}
                                       </span>
                                     )}
+                                    {item.editedBy && (
+                                      <span
+                                        style={{
+                                          color: "#0ea5e9",
+                                          marginLeft: 8,
+                                          fontSize: 12,
+                                        }}
+                                      >
+                                        (edited by {item.editedBy})
+                                      </span>
+                                    )}
                                   </span>
-                                  <button
-                                    className="btn btn-sm btn-outline-danger"
-                                    style={{ padding: "2px 8px", fontSize: 12 }}
-                                    onClick={() =>
-                                      handleDeleteCartItem(
-                                        cart.id,
-                                        product.id,
-                                        item.idx
-                                      )
-                                    }
-                                    title="Delete entry"
-                                  >
-                                    <i className="bi bi-x" />
-                                  </button>
+                                  <span>
+                                    <button
+                                      className="btn btn-sm btn-outline-danger"
+                                      style={{ padding: "2px 8px", fontSize: 12 }}
+                                      onClick={() =>
+                                        handleDeleteCartItem(cart.id, product.id, item.idx)
+                                      }
+                                      title="Delete entry"
+                                    >
+                                      <i className="bi bi-x" />
+                                    </button>
+                                  </span>
                                 </div>
                               ))}
                             </div>

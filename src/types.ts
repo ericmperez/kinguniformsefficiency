@@ -27,6 +27,8 @@ export interface CartItem {
   price: number;
   addedBy?: string; // Name or ID of the user who added the item
   addedAt?: string; // Timestamp when the item was added
+  editedBy?: string; // Name or ID of the user who last edited the item
+  editedAt?: string; // Timestamp when the item was last edited
 }
 
 export interface Cart {

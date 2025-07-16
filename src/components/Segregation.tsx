@@ -393,10 +393,23 @@ const Segregation: React.FC<SegregationProps> = ({
       // Use the current cart count as the segregatedCarts value
       const cartCount = getCartCount(groupId);
       let newStatus = "Conventional";
-      if (client?.washingType === "Tunnel") newStatus = "Tunnel";
+      let orderUpdate: any = {};
+      if (client?.washingType === "Tunnel") {
+        newStatus = "Tunnel";
+        // Find max order among Tunnel groups
+        const tunnelGroups = groups.filter(
+          (g) => g.status === "Tunnel" && clients.find((c) => c.id === g.clientId)?.washingType === "Tunnel"
+        );
+        const maxOrder = tunnelGroups.reduce(
+          (max, g) => typeof g.order === "number" && g.order > max ? g.order : max,
+          -1
+        );
+        orderUpdate = { order: maxOrder + 1 };
+      }
       await updateDoc(doc(db, "pickup_groups", groupId), {
         segregatedCarts: cartCount,
         status: newStatus,
+        ...orderUpdate
       });
       setStatusUpdating(groupId);
       setSegregatedCounts((prev) => ({
@@ -406,9 +419,7 @@ const Segregation: React.FC<SegregationProps> = ({
       if (onGroupComplete) onGroupComplete();
       await logActivity({
         type: "Segregation",
-        message: `Group ${
-          group?.clientName || groupId
-        } skipped segregation by user`,
+        message: `Group ${group?.clientName || groupId} skipped segregation by user`,
       });
     } catch (err) {
       alert("Error skipping segregation for this group");
@@ -765,79 +776,44 @@ const Segregation: React.FC<SegregationProps> = ({
                         justifyContent: "flex-end",
                       }}
                     >
-                      <button
-                        className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
-                        onClick={() =>
-                          handleInputChange(
-                            group.id,
-                            String(
-                              Math.max(
-                                0,
-                                parseInt(
-                                  segregatedCounts[group.id] || "0",
-                                  10
-                                ) - 1
-                              )
-                            )
-                          )
-                        }
-                        disabled={
-                          disableActions || completingGroup === group.id
-                        }
-                        style={{
-                          minWidth: 28,
-                          width: 28,
-                          height: 28,
-                          fontSize: 16,
-                          borderRadius: 5,
-                          aspectRatio: "1 / 1",
-                          padding: 0,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontWeight: 700,
-                            fontSize: 18,
-                            lineHeight: 1,
-                          }}
-                        >
-                          -
-                        </span>
-                      </button>
+                      {/* Decrement button temporarily removed for error isolation */}
                       <input
                         type="number"
                         min={0}
                         className="form-control form-control-sm text-center"
-                        style={{
-                          width: 44,
-                          fontSize: 14,
-                          fontWeight: 700,
-                          maxWidth: "100%",
-                          padding: "2px 4px",
-                        }}
+                        style={{ width: 44, fontSize: 14, fontWeight: 700, maxWidth: "100%", padding: "2px 4px" }}
                         placeholder="#"
                         value={segregatedCounts[group.id] || ""}
-                        onChange={(e) =>
-                          handleInputChange(group.id, e.target.value)
-                        }
-                        disabled={
-                          disableActions || completingGroup === group.id
-                        }
+                        onChange={e => handleInputChange(group.id, e.target.value)}
+                        disabled={disableActions || completingGroup === group.id}
                       />
                       <button
                         className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
                         onClick={() =>
                           handleInputChange(
                             group.id,
-                            String(
-                              parseInt(segregatedCounts[group.id] || "0", 10) +
-                                1
-                            )
+                            String(parseInt(segregatedCounts[group.id] || "0", 10) + 1)
                           )
                         }
-                        disabled={
-                          disableActions || completingGroup === group.id
-                        }
+                        disabled={disableActions || completingGroup === group.id}
+                        style={{ minWidth: 28, width: 28, height: 28, fontSize: 16, borderRadius: 5, aspectRatio: "1 / 1", padding: 0 }}
+                      >
+                        <span style={{ fontWeight: 700, fontSize: 18, lineHeight: 1 }}>+</span>
+                      </button>
+                      <button
+                        className="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
+                        onClick={() => {
+                          handleInputChange(
+                            group.id,
+                            String(
+                              Math.max(
+                                0,
+                                parseInt(segregatedCounts[group.id] || "0", 10) - 1
+                              )
+                            )
+                          );
+                        }}
+                        disabled={disableActions || completingGroup === group.id}
                         style={{
                           minWidth: 28,
                           width: 28,
@@ -848,15 +824,7 @@ const Segregation: React.FC<SegregationProps> = ({
                           padding: 0,
                         }}
                       >
-                        <span
-                          style={{
-                            fontWeight: 700,
-                            fontSize: 18,
-                            lineHeight: 1,
-                          }}
-                        >
-                          +
-                        </span>
+                        <span style={{ fontWeight: 700, fontSize: 18, lineHeight: 1 }}>-</span>
                       </button>
                       <button
                         className="btn btn-success btn-sm ms-1 px-2"

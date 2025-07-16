@@ -78,6 +78,13 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     [groupId: string]: boolean;
   }>({});
 
+  // New state for tunnel messages
+  const [tunnelMessages, setTunnelMessages] = useState<{ [groupId: string]: string }>({});
+  const [tunnelMessageInputs, setTunnelMessageInputs] = useState<{ [groupId: string]: string }>({});
+  const [tunnelMessageLoading, setTunnelMessageLoading] = useState<{ [groupId: string]: boolean }>({});
+  const [tunnelMessageSaved, setTunnelMessageSaved] = useState<{ [groupId: string]: boolean }>({});
+  const [tunnelMessageVerifiedBy, setTunnelMessageVerifiedBy] = useState<{ [groupId: string]: Array<{ id: string; name: string }> }>({});
+
   const { user } = useAuth();
   const canReorder =
     user && ["Supervisor", "Admin", "Owner"].includes(user.role);
@@ -343,15 +350,13 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       await addDoc(collection(db, "pickup_groups"), {
         clientId: client.id,
         clientName: client.name,
-        status: "Conventional", // <-- FIXED: was "Tunnel"
-        washingType: "Conventional", // <-- FIXED: was "Tunnel"
-        carts: [cart],
-        numCarts: numCarts,
+        status: "Tunnel",
+        washingType: "Tunnel",
+        carts: [],
+        numCarts: 0,
         createdAt: Timestamp.now(),
         order: groups.filter(
-          (g) =>
-            g.status === "Conventional" &&
-            getWashingType(g.clientId) === "Conventional"
+          (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
         ).length, // add to end based on current order
       });
       setShowAddConventionalModal(false);
@@ -484,7 +489,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     });
     return [...others, ...sorted];
   };
-
   // Move Tunnel group up/down in order (optimistic UI update)
   const moveTunnelGroup = async (groupId: string, direction: "up" | "down") => {
     setTunnelReorderLoading(groupId);
@@ -768,6 +772,38 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     [groupId: string]: boolean;
   }>({});
 
+  // Listen for tunnelMessage changes in pickup_groups
+  useEffect(() => {
+    const q = collection(db, "pickup_groups");
+    const unsub = onSnapshot(q, (snap) => {
+      const messages: { [groupId: string]: string } = {};
+      snap.docs.forEach((doc) => {
+        const data = doc.data();
+        if (typeof data.tunnelMessage === "string") {
+          messages[doc.id] = data.tunnelMessage;
+        }
+      });
+      setTunnelMessages(messages);
+    });
+    return () => unsub();
+  }, []);
+
+  // Listen for tunnelMessageVerifiedBy changes in pickup_groups
+  useEffect(() => {
+    const q = collection(db, "pickup_groups");
+    const unsub = onSnapshot(q, (snap) => {
+      const verifiedBy: { [groupId: string]: Array<{ id: string; name: string }> } = {};
+      snap.docs.forEach((doc) => {
+        const data = doc.data();
+        if (Array.isArray(data.tunnelMessageVerifiedBy)) {
+          verifiedBy[doc.id] = data.tunnelMessageVerifiedBy;
+        }
+      });
+      setTunnelMessageVerifiedBy(verifiedBy);
+    });
+    return () => unsub();
+  }, []);
+
   return (
     <div className="container py-4">
       <h2 className="mb-4 text-center">Washing</h2>
@@ -854,42 +890,141 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                     const isVerifying = verifyingGroupIds[group.id];
                     // Only allow verification for the first 2 entries
                     const canVerify = idx < 2;
+                    const isMessageVerified = (tunnelMessageVerifiedBy[group.id] || []).some(v => v.id === user?.id);
+                    const needsMessageVerification = !canReorder && tunnelMessages[group.id] && !isMessageVerified;
+                    // Strictly disable all controls except verify button if message not verified
+                    const rowControlsDisabled = needsMessageVerification;
                     return (
                       <div
                         key={group.id}
                         className="list-group-item d-flex flex-row align-items-center justify-content-between gap-4 shadow-sm rounded"
                         style={{
-                          background:
-                            group.showInTunnel && group.segregationComplete
-                              ? "#cce5ff"
-                              : "#fff",
-                          border: "2px solid #e3e3e3",
+                          background: needsMessageVerification ? '#fffbe6' : (group.showInTunnel && group.segregationComplete ? '#cce5ff' : '#fff'),
+                          border: '2px solid #e3e3e3',
                           fontSize: 24,
-                          minHeight: "1px", // Let grid control height
-                          height: "100%", // Fill grid row
-                          boxShadow: "0 2px 12px rgba(14,98,160,0.07)",
-                          color: "#000",
-                          width: "100%",
+                          minHeight: '1px',
+                          height: '100%',
+                          boxShadow: '0 2px 12px rgba(14,98,160,0.07)',
+                          color: '#000',
+                          width: '100%',
                           borderRadius: 24,
-                          padding: "2.5rem 2.5rem",
-                          display: "flex",
-                          alignItems: "center",
+                          padding: '2.5rem 2.5rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          opacity: needsMessageVerification ? 0.7 : 1,
+                          pointerEvents: 'auto',
                         }}
                       >
                         <div
                           className="d-flex flex-column flex-md-row align-items-md-center gap-4 flex-grow-1"
-                          style={{ flex: 1, minWidth: 0, color: "#000" }} // Force text black
+                          style={{ flex: 1, minWidth: 0, color: "#000" }}
                         >
-                          <span
-                            style={{
-                              fontSize: "1.5rem",
-                              fontWeight: 700,
-                              color: "#000", // Force black
-                              minWidth: 180,
-                            }}
-                          >
-                            {group.clientName}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                            <span
+                              style={{
+                                fontSize: '1.5rem', fontWeight: 700, color: '#000', minWidth: 180,
+                              }}
+                            >
+                              {group.clientName}
+                            </span>
+                            {/* Tunnel Message Section - restored to box format for clarity and formatting */}
+                            <div style={{ margin: '8px 0', padding: 8, background: '#eaf4ff', borderRadius: 8, border: '1.5px solid #0E62A0', maxWidth: 420 }}>
+                              {canReorder ? (
+                                <form
+                                  onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    const message = tunnelMessageInputs[group.id] || "";
+                                    if (!message.trim()) {
+                                      alert("Message cannot be empty.");
+                                      return;
+                                    }
+                                    setTunnelMessageLoading((prev) => ({ ...prev, [group.id]: true }));
+                                    try {
+                                      const { updateDoc, doc } = await import("firebase/firestore");
+                                      const { db } = await import("../firebase");
+                                      await updateDoc(doc(db, "pickup_groups", group.id), {
+                                        tunnelMessage: message,
+                                        tunnelMessageAuthor: user?.username || "Supervisor"
+                                      });
+                                      setTunnelMessages((prev) => ({ ...prev, [group.id]: message }));
+                                      setTunnelMessageSaved((prev) => ({ ...prev, [group.id]: true }));
+                                      setTimeout(() => {
+                                        setTunnelMessageSaved((prev) => ({ ...prev, [group.id]: false }));
+                                      }, 2000);
+                                    } catch (e) {
+                                      alert("Error saving message");
+                                    }
+                                    setTunnelMessageLoading((prev) => ({ ...prev, [group.id]: false }));
+                                  }}
+                                  className="d-flex align-items-center gap-2"
+                                  style={{ marginTop: 2 }}
+                                >
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    placeholder="Deja un mensaje para este grupo..."
+                                    value={tunnelMessageInputs[group.id] ?? tunnelMessages[group.id] ?? ""}
+                                    onChange={(e) =>
+                                      setTunnelMessageInputs((prev) => ({ ...prev, [group.id]: e.target.value }))
+                                    }
+                                    style={{ maxWidth: 260, background: '#fff' }}
+                                    disabled={Boolean(tunnelMessageLoading[group.id]) || Boolean(rowControlsDisabled)}
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="btn btn-sm btn-primary"
+                                    disabled={Boolean(tunnelMessageLoading[group.id]) || Boolean(rowControlsDisabled)}
+                                    style={{ fontWeight: 700 }}
+                                  >
+                                    {tunnelMessageLoading[group.id] ? "Guardando..." : "Guardar"}
+                                  </button>
+                                  {tunnelMessageSaved[group.id] && (
+                                    <span className="text-success ms-2" style={{ fontWeight: 600, fontSize: 14 }}>
+                                      ¡Mensaje guardado!
+                                    </span>
+                                  )}
+                                </form>
+                              ) : tunnelMessages[group.id] ? (
+                                <>
+                                  <div className="text-secondary small mt-1" style={{ maxWidth: 320, wordBreak: "break-word" }}>
+                                    <strong>{group.tunnelMessageAuthor ? `${group.tunnelMessageAuthor}: ` : ""}</strong>{tunnelMessages[group.id]}
+                                  </div>
+                                  {/* Verification logic for employees */}
+                                  {!(tunnelMessageVerifiedBy[group.id] || []).some(v => v.id === user?.id) ? (
+                                    <button
+                                      className="btn btn-success btn-sm mt-2"
+                                      style={{ fontWeight: 700, backgroundColor: '#176a1a', borderColor: '#176a1a' }}
+                                      onClick={async () => {
+                                        if (!user) return;
+                                        const { updateDoc, arrayUnion, doc } = await import("firebase/firestore");
+                                        const { db } = await import("../firebase");
+                                        await updateDoc(doc(db, "pickup_groups", group.id), {
+                                          tunnelMessageVerifiedBy: arrayUnion({ id: user.id, name: user.username || "Employee" })
+                                        });
+                                      }}
+                                      disabled={false}
+                                    >
+                                      OK / Listo
+                                    </button>
+                                  ) : (
+                                    <div className="text-success small mt-2">Ya verificaste este mensaje.</div>
+                                  )}
+                                  {/* Show who has verified */}
+                                  {(tunnelMessageVerifiedBy[group.id] && tunnelMessageVerifiedBy[group.id].length > 0) && (
+                                    <div className="small mt-1" style={{ color: '#0E62A0' }}>
+                                      Verificado por: {tunnelMessageVerifiedBy[group.id].map(v => v.name).join(", ")}
+                                    </div>
+                                  )}
+                                  {/* Info for employees if controls are disabled */}
+                                  {needsMessageVerification && (
+                                    <div className="small mt-2 text-success" style={{ fontWeight: 500 }}>
+                                      Los controles están deshabilitados hasta que verifiques el mensaje.
+                                    </div>
+                                  )}
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
                           <span
                             style={{
                               fontSize: "1.2rem",
@@ -921,9 +1056,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   minHeight: 60,
                                   borderRadius: 12,
                                 }}
-                                disabled={cartCounter >= maxCarts || !canVerify}
+                                disabled={cartCounter >= maxCarts || !canVerify || Boolean(rowControlsDisabled)}
                                 onClick={async () => {
-                                  if (!canVerify) return;
+                                  if (!canVerify || rowControlsDisabled) return;
                                   const newCount = Math.min(
                                     cartCounter + 1,
                                     maxCarts
@@ -948,9 +1083,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   minHeight: 60,
                                   borderRadius: 12,
                                 }}
-                                disabled={cartCounter <= 0 || !canVerify}
+                                disabled={cartCounter <= 0 || !canVerify || Boolean(rowControlsDisabled)}
                                 onClick={async () => {
-                                  if (!canVerify) return;
+                                  if (!canVerify || rowControlsDisabled) return;
                                   const newCount = Math.max(cartCounter - 1, 0);
                                   setCartCounters((prev) => ({
                                     ...prev,
@@ -973,15 +1108,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     minWidth: 100,
                                     borderRadius: 12,
                                   }}
-                                  disabled={!canVerify}
+                                  disabled={!canVerify || Boolean(rowControlsDisabled)}
                                   onClick={async () => {
-                                    if (!canVerify) return;
-                                    if (cartCounter !== maxCarts) {
-                                      alert(
-                                        "Error: The number of carts does not match the segregation value."
-                                      );
-                                      return;
-                                    }
+                                    if (!canVerify || rowControlsDisabled) return;
+                                    if (cartCounter !== maxCarts) { return; }
                                     const { updatePickupGroupStatus } =
                                       await import(
                                         "../services/firebaseService"
@@ -998,8 +1128,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                       }
                                     );
                                     setSelectedTunnelGroup(null);
-                                    setTunnelCartInput("");
-                                    setTunnelCartError("");
                                   }}
                                 >
                                   Done
@@ -1024,13 +1152,13 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     border: "none",
                                   }}
                                   onClick={() =>
-                                    canVerify &&
+                                    canVerify && !rowControlsDisabled &&
                                     setVerifyingGroupIds((ids) => ({
                                       ...ids,
                                       [group.id]: true,
                                     }))
                                   }
-                                  disabled={!canVerify}
+                                  disabled={!canVerify || Boolean(rowControlsDisabled)}
                                   aria-label="Verify Cart Count"
                                 >
                                   ?
@@ -1057,7 +1185,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                       setTunnelCartInput(e.target.value)
                                     }
                                     autoFocus
-                                    disabled={!canVerify}
+                                    disabled={!canVerify || Boolean(rowControlsDisabled)}
                                   />
                                   {tunnelCartError && (
                                     <div className="text-danger small">
@@ -1155,11 +1283,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   borderRadius: 12,
                                 }}
                                 disabled={
-                                  cartCounter >= getSegregatedCarts(group) ||
-                                  !canVerify
+                                  cartCounter >= getSegregatedCarts(group) || !canVerify || Boolean(rowControlsDisabled)
                                 }
                                 onClick={async () => {
-                                  if (!canVerify) return;
+                                  if (!canVerify || rowControlsDisabled) return;
                                   const newCount = Math.min(
                                     cartCounter + 1,
                                     getSegregatedCarts(group)
@@ -1186,9 +1313,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   minHeight: 60,
                                   borderRadius: 12,
                                 }}
-                                disabled={cartCounter <= 0 || !canVerify}
+                                disabled={cartCounter <= 0 || !canVerify || Boolean(rowControlsDisabled)}
                                 onClick={async () => {
-                                  if (!canVerify) return;
+                                  if (!canVerify || rowControlsDisabled) return;
                                   const newCount = Math.max(cartCounter - 1, 0);
                                   setCartCounters((prev) => ({
                                     ...prev,

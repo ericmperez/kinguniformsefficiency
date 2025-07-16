@@ -104,7 +104,7 @@ const ReportsPage: React.FC = () => {
                           <td>
                             {inv.products && inv.products.length > 0
                               ? inv.products
-                                  .map((p) => `${p.name} (${p.price})`)
+                                  .map((p) => `${p.name} (${p.price}${p.editedBy ? ", edited by " + p.editedBy : ""})`)
                                   .join(", ")
                               : "-"}
                           </td>
@@ -116,7 +116,8 @@ const ReportsPage: React.FC = () => {
                                     {cart.items
                                       .map(
                                         (item) =>
-                                          `${item.productName} x${item.quantity}`
+                                          `${item.productName} x${item.quantity}` +
+                                          (item.editedBy ? ` (edited by ${item.editedBy})` : "")
                                       )
                                       .join(", ")}
                                   </div>
@@ -224,11 +225,19 @@ const ReportsPage: React.FC = () => {
               if (cart.id !== cartId) return cart;
               let newItems;
               if (typeof itemIdx === "number") {
-                // Delete only the entry at the given index for this product
-                newItems = cart.items.filter(
-                  (item, idx) =>
-                    !(item.productId === productId && idx === itemIdx)
-                );
+                // Edit the entry at the given index for this product
+                newItems = cart.items.map((item, idx) => {
+                  if (item.productId === productId && idx === itemIdx) {
+                    return {
+                      ...item,
+                      quantity,
+                      price: price !== undefined ? price : item.price,
+                      editedBy: "You",
+                      editedAt: new Date().toISOString(),
+                    };
+                  }
+                  return item;
+                });
               } else {
                 // Always add as a new entry (do not merge)
                 const prod = allProducts.find((p) => p.id === productId);
