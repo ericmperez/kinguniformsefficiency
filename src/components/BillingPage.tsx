@@ -46,6 +46,9 @@ const BillingPage: React.FC = () => {
   // State for Nudos (Sabanas) additional charge
   const [nudosSabanasPrice, setNudosSabanasPrice] = useState<string>("");
 
+  // Add state for delivery charge
+  const [deliveryCharge, setDeliveryCharge] = useState<string>("");
+
   // Get selected client object
   const selectedClient = clients.find((c) => c.id === selectedClientId);
   // Get products for selected client
@@ -308,6 +311,8 @@ const BillingPage: React.FC = () => {
     }
   };
 
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+
   return (
     <div className="container py-4">
       {/* Client Dropdown Filter - moved to top */}
@@ -399,6 +404,18 @@ const BillingPage: React.FC = () => {
               value={minBilling}
               onChange={(e) => setMinBilling(e.target.value)}
               placeholder="Enter minimum billing value"
+            />
+          </div>
+          {/* Delivery Charge input */}
+          <div className="mb-3" style={{ maxWidth: 300 }}>
+            <label className="form-label">Delivery Charge (per invoice)</label>
+            <input
+              type="number"
+              className="form-control"
+              min={0}
+              value={deliveryCharge}
+              onChange={(e) => setDeliveryCharge(e.target.value)}
+              placeholder="Enter delivery charge"
             />
           </div>
           {/* Surcharge input */}
@@ -573,6 +590,25 @@ const BillingPage: React.FC = () => {
                   >
                     <thead>
                       <tr>
+                        <th>
+                          <input
+                            type="checkbox"
+                            checked={
+                              clientInvoices.length > 0 &&
+                              selectedInvoiceIds.length ===
+                                clientInvoices.length
+                            }
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedInvoiceIds(
+                                  clientInvoices.map((inv) => inv.id)
+                                );
+                              } else {
+                                setSelectedInvoiceIds([]);
+                              }
+                            }}
+                          />
+                        </th>
                         <th>Invoice #</th>
                         <th>Date</th>
                         <th>Truck #</th>
@@ -582,6 +618,7 @@ const BillingPage: React.FC = () => {
                         {productColumns.map((prod) => (
                           <th key={prod.id}>{prod.name}</th>
                         ))}
+                        <th>Delivery Charge</th>
                         <th>Subtotal</th>
                         <th>Service Charge</th>
                         <th>Fuel Charge</th>
@@ -634,14 +671,24 @@ const BillingPage: React.FC = () => {
                           );
                           let sabanasQty = 0;
                           if (sabanasProd) {
-                            sabanasQty = (inv.carts || []).reduce((sum, cart) => {
-                              return (
-                                sum +
-                                (cart.items || [])
-                                  .filter((item) => item.productId === sabanasProd.id)
-                                  .reduce((s, item) => s + (Number(item.quantity) || 0), 0)
-                              );
-                            }, 0);
+                            sabanasQty = (inv.carts || []).reduce(
+                              (sum, cart) => {
+                                return (
+                                  sum +
+                                  (cart.items || [])
+                                    .filter(
+                                      (item) =>
+                                        item.productId === sabanasProd.id
+                                    )
+                                    .reduce(
+                                      (s, item) =>
+                                        s + (Number(item.quantity) || 0),
+                                      0
+                                    )
+                                );
+                              },
+                              0
+                            );
                           }
                           // Calculate Nudos (Sabanas) charge
                           const nudosSabanasCharge =
@@ -716,9 +763,13 @@ const BillingPage: React.FC = () => {
                           });
                           // Use minimum billing value if subtotal is less
                           let minValue = minBilling ? Number(minBilling) : 0;
-                          let displaySubtotal = subtotal + pesoSubtotal;
+                          let deliveryChargeValue = deliveryCharge
+                            ? Number(deliveryCharge)
+                            : 0;
+                          let displaySubtotal =
+                            subtotal + pesoSubtotal + deliveryChargeValue;
                           if (minValue > 0 && subtotal < minValue) {
-                            displaySubtotal = minValue;
+                            displaySubtotal = minValue + deliveryChargeValue;
                           }
                           // Calculate charges
                           let serviceCharge = 0;
@@ -747,17 +798,45 @@ const BillingPage: React.FC = () => {
                             surchargePercent &&
                             Number(surchargePercent) > 0
                           ) {
+                            // Surcharge is only on subtotal (not including delivery charge)
+                            const subtotalForSurcharge =
+                              subtotal + pesoSubtotal;
                             surchargeValue =
-                              displaySubtotal *
+                              subtotalForSurcharge *
                               (Number(surchargePercent) / 100);
                           }
-                          // Calculate grand total
-                          const grandTotal = displaySubtotal + serviceCharge + fuelCharge + surchargeValue;
+                          // Calculate grand total: subtotal + pesoSubtotal + surcharge + service + fuel + nudos + delivery charge
+                          const grandTotal =
+                            subtotal +
+                            pesoSubtotal +
+                            surchargeValue +
+                            serviceCharge +
+                            fuelCharge +
+                            nudosSabanasCharge +
+                            deliveryChargeValue;
                           return (
                             <tr
                               key={inv.id}
                               className={missingPrice ? "table-danger" : ""}
                             >
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedInvoiceIds.includes(inv.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedInvoiceIds((prev) => [
+                                        ...prev,
+                                        inv.id,
+                                      ]);
+                                    } else {
+                                      setSelectedInvoiceIds((prev) =>
+                                        prev.filter((id) => id !== inv.id)
+                                      );
+                                    }
+                                  }}
+                                />
+                              </td>
                               <td>{inv.invoiceNumber || inv.id}</td>
                               <td>
                                 {inv.date
@@ -857,6 +936,13 @@ const BillingPage: React.FC = () => {
                               })}
                               <td style={nowrapCellStyle}>
                                 <b>
+                                  {deliveryCharge && Number(deliveryCharge) > 0
+                                    ? `$${Number(deliveryCharge).toFixed(2)}`
+                                    : ""}
+                                </b>
+                              </td>
+                              <td style={nowrapCellStyle}>
+                                <b>
                                   {displaySubtotal > 0
                                     ? `$${displaySubtotal.toFixed(2)}`
                                     : ""}
@@ -892,7 +978,9 @@ const BillingPage: React.FC = () => {
                               </td>
                               <td style={nowrapCellStyle}>
                                 <b>
-                                  {grandTotal > 0 ? `$${grandTotal.toFixed(2)}` : ""}
+                                  {grandTotal > 0
+                                    ? `$${grandTotal.toFixed(2)}`
+                                    : ""}
                                 </b>
                               </td>
                               <td>
@@ -919,6 +1007,534 @@ const BillingPage: React.FC = () => {
                           );
                         })}
                     </tbody>
+                    <tfoot>
+                      <tr style={{ fontWeight: 700, background: "#f1f5f9" }}>
+                        <td colSpan={4}>Total (Selected)</td>
+                        {/* Only sum selected invoices */}
+                        <td>
+                          {clientInvoices
+                            .filter((inv) =>
+                              selectedInvoiceIds.includes(inv.id)
+                            )
+                            .reduce(
+                              (sum, inv) =>
+                                typeof inv.totalWeight === "number"
+                                  ? sum + inv.totalWeight
+                                  : sum,
+                              0
+                            )}
+                        </td>
+                        {/* Product columns totals */}
+                        {productColumns.map((prod) => {
+                          if (prod.name.toLowerCase().includes("peso")) {
+                            // Peso column: sum total $ for all invoices
+                            const pesoPrice = productPrices[prod.id];
+                            const total = clientInvoices
+                              .filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              )
+                              .reduce((sum, inv) => {
+                                if (
+                                  typeof inv.totalWeight === "number" &&
+                                  pesoPrice > 0
+                                ) {
+                                  return sum + inv.totalWeight * pesoPrice;
+                                }
+                                return sum;
+                              }, 0);
+                            return (
+                              <td key={prod.id} style={nowrapCellStyle}>
+                                {pesoPrice > 0 ? `$${total.toFixed(2)}` : ""}
+                              </td>
+                            );
+                          }
+                          // Sum qty and $ for this product
+                          let totalQty = 0;
+                          let totalValue = 0;
+                          clientInvoices
+                            .filter((inv) =>
+                              selectedInvoiceIds.includes(inv.id)
+                            )
+                            .forEach((inv) => {
+                              const qty = (inv.carts || []).reduce(
+                                (sum, cart) => {
+                                  return (
+                                    sum +
+                                    (cart.items || [])
+                                      .filter(
+                                        (item) => item.productId === prod.id
+                                      )
+                                      .reduce(
+                                        (s, item) =>
+                                          s + (Number(item.quantity) || 0),
+                                        0
+                                      )
+                                  );
+                                },
+                                0
+                              );
+                              const price = productPrices[prod.id];
+                              totalQty += qty;
+                              if (qty > 0 && price > 0)
+                                totalValue += qty * price;
+                            });
+                          return (
+                            <td key={prod.id} style={nowrapCellStyle}>
+                              {totalQty > 0 ? `${totalQty} | ` : ""}
+                              {totalValue > 0 ? (
+                                <span className="text-success">
+                                  ${`$${totalValue.toFixed(2)}`}
+                                </span>
+                              ) : (
+                                ""
+                              )}
+                            </td>
+                          );
+                        })}
+                        {/* Delivery Charge total */}
+                        <td style={nowrapCellStyle}>
+                          {deliveryCharge && Number(deliveryCharge) > 0
+                            ? `$${(
+                                Number(deliveryCharge) *
+                                clientInvoices.filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                ).length
+                              ).toFixed(2)}`
+                            : ""}
+                        </td>
+                        {/* Subtotal total */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let total = 0;
+                            clientInvoices
+                              .filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              )
+                              .forEach((inv) => {
+                                let subtotal = 0;
+                                let pesoSubtotal = 0;
+                                productColumns.forEach((prod) => {
+                                  if (
+                                    prod.name.toLowerCase().includes("peso")
+                                  ) {
+                                    const pesoPrice = productPrices[prod.id];
+                                    if (
+                                      typeof inv.totalWeight === "number" &&
+                                      pesoPrice > 0
+                                    ) {
+                                      pesoSubtotal +=
+                                        inv.totalWeight * pesoPrice;
+                                    }
+                                  } else {
+                                    const qty = (inv.carts || []).reduce(
+                                      (sum, cart) => {
+                                        return (
+                                          sum +
+                                          (cart.items || [])
+                                            .filter(
+                                              (item) =>
+                                                item.productId === prod.id
+                                            )
+                                            .reduce(
+                                              (s, item) =>
+                                                s +
+                                                (Number(item.quantity) || 0),
+                                              0
+                                            )
+                                        );
+                                      },
+                                      0
+                                    );
+                                    const price = productPrices[prod.id];
+                                    if (qty > 0 && price > 0)
+                                      subtotal += qty * price;
+                                  }
+                                });
+                                let minValue = minBilling
+                                  ? Number(minBilling)
+                                  : 0;
+                                let deliveryChargeValue = deliveryCharge
+                                  ? Number(deliveryCharge)
+                                  : 0;
+                                let displaySubtotal =
+                                  subtotal + pesoSubtotal + deliveryChargeValue;
+                                if (minValue > 0 && subtotal < minValue) {
+                                  displaySubtotal =
+                                    minValue + deliveryChargeValue;
+                                }
+                                total += displaySubtotal;
+                              });
+                            return total > 0 ? `$${total.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Service Charge total */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let total = 0;
+                            clientInvoices
+                              .filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              )
+                              .forEach((inv) => {
+                                let subtotal = 0;
+                                let pesoSubtotal = 0;
+                                productColumns.forEach((prod) => {
+                                  if (
+                                    prod.name.toLowerCase().includes("peso")
+                                  ) {
+                                    const pesoPrice = productPrices[prod.id];
+                                    if (
+                                      typeof inv.totalWeight === "number" &&
+                                      pesoPrice > 0
+                                    ) {
+                                      pesoSubtotal +=
+                                        inv.totalWeight * pesoPrice;
+                                    }
+                                  } else {
+                                    const qty = (inv.carts || []).reduce(
+                                      (sum, cart) => {
+                                        return (
+                                          sum +
+                                          (cart.items || [])
+                                            .filter(
+                                              (item) =>
+                                                item.productId === prod.id
+                                            )
+                                            .reduce(
+                                              (s, item) =>
+                                                s +
+                                                (Number(item.quantity) || 0),
+                                              0
+                                            )
+                                        );
+                                      },
+                                      0
+                                    );
+                                    const price = productPrices[prod.id];
+                                    if (qty > 0 && price > 0)
+                                      subtotal += qty * price;
+                                  }
+                                });
+                                let minValue = minBilling
+                                  ? Number(minBilling)
+                                  : 0;
+                                let deliveryChargeValue = deliveryCharge
+                                  ? Number(deliveryCharge)
+                                  : 0;
+                                let displaySubtotal =
+                                  subtotal + pesoSubtotal + deliveryChargeValue;
+                                if (minValue > 0 && subtotal < minValue) {
+                                  displaySubtotal =
+                                    minValue + deliveryChargeValue;
+                                }
+                                if (
+                                  serviceChargeEnabled &&
+                                  serviceChargePercent &&
+                                  Number(serviceChargePercent) > 0
+                                ) {
+                                  total +=
+                                    displaySubtotal *
+                                    (Number(serviceChargePercent) / 100);
+                                }
+                              });
+                            return total > 0 ? `$${total.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Fuel Charge total */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let total = 0;
+                            clientInvoices
+                              .filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              )
+                              .forEach((inv) => {
+                                let subtotal = 0;
+                                let pesoSubtotal = 0;
+                                productColumns.forEach((prod) => {
+                                  if (
+                                    prod.name.toLowerCase().includes("peso")
+                                  ) {
+                                    const pesoPrice = productPrices[prod.id];
+                                    if (
+                                      typeof inv.totalWeight === "number" &&
+                                      pesoPrice > 0
+                                    ) {
+                                      pesoSubtotal +=
+                                        inv.totalWeight * pesoPrice;
+                                    }
+                                  } else {
+                                    const qty = (inv.carts || []).reduce(
+                                      (sum, cart) => {
+                                        return (
+                                          sum +
+                                          (cart.items || [])
+                                            .filter(
+                                              (item) =>
+                                                item.productId === prod.id
+                                            )
+                                            .reduce(
+                                              (s, item) =>
+                                                s +
+                                                (Number(item.quantity) || 0),
+                                              0
+                                            )
+                                        );
+                                      },
+                                      0
+                                    );
+                                    const price = productPrices[prod.id];
+                                    if (qty > 0 && price > 0)
+                                      subtotal += qty * price;
+                                  }
+                                });
+                                let minValue = minBilling
+                                  ? Number(minBilling)
+                                  : 0;
+                                let deliveryChargeValue = deliveryCharge
+                                  ? Number(deliveryCharge)
+                                  : 0;
+                                let displaySubtotal =
+                                  subtotal + pesoSubtotal + deliveryChargeValue;
+                                if (minValue > 0 && subtotal < minValue) {
+                                  displaySubtotal =
+                                    minValue + deliveryChargeValue;
+                                }
+                                if (
+                                  fuelChargeEnabled &&
+                                  fuelChargePercent &&
+                                  Number(fuelChargePercent) > 0
+                                ) {
+                                  total +=
+                                    displaySubtotal *
+                                    (Number(fuelChargePercent) / 100);
+                                }
+                              });
+                            return total > 0 ? `$${total.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Surcharge total */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let total = 0;
+                            clientInvoices
+                              .filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              )
+                              .forEach((inv) => {
+                                let subtotal = 0;
+                                let pesoSubtotal = 0;
+                                productColumns.forEach((prod) => {
+                                  if (
+                                    prod.name.toLowerCase().includes("peso")
+                                  ) {
+                                    const pesoPrice = productPrices[prod.id];
+                                    if (
+                                      typeof inv.totalWeight === "number" &&
+                                      pesoPrice > 0
+                                    ) {
+                                      pesoSubtotal +=
+                                        inv.totalWeight * pesoPrice;
+                                    }
+                                  } else {
+                                    const qty = (inv.carts || []).reduce(
+                                      (sum, cart) => {
+                                        return (
+                                          sum +
+                                          (cart.items || [])
+                                            .filter(
+                                              (item) =>
+                                                item.productId === prod.id
+                                            )
+                                            .reduce(
+                                              (s, item) =>
+                                                s +
+                                                (Number(item.quantity) || 0),
+                                              0
+                                            )
+                                        );
+                                      },
+                                      0
+                                    );
+                                    const price = productPrices[prod.id];
+                                    if (qty > 0 && price > 0)
+                                      subtotal += qty * price;
+                                  }
+                                });
+                                let minValue = minBilling
+                                  ? Number(minBilling)
+                                  : 0;
+                                let deliveryChargeValue = deliveryCharge
+                                  ? Number(deliveryCharge)
+                                  : 0;
+                                let displaySubtotal =
+                                  subtotal + pesoSubtotal + deliveryChargeValue;
+                                if (minValue > 0 && subtotal < minValue) {
+                                  displaySubtotal =
+                                    minValue + deliveryChargeValue;
+                                }
+                                if (
+                                  surchargeEnabled &&
+                                  surchargePercent &&
+                                  Number(surchargePercent) > 0
+                                ) {
+                                  total +=
+                                    displaySubtotal *
+                                    (Number(surchargePercent) / 100);
+                                }
+                              });
+                            return total > 0 ? `$${total.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Nudos (Sabanas) total */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let total = 0;
+                            const sabanasProd = productColumns.find(
+                              (p) =>
+                                p.name.toLowerCase().includes("sabana") &&
+                                !p.name.toLowerCase().includes("nudo")
+                            );
+                            clientInvoices
+                              .filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              )
+                              .forEach((inv) => {
+                                let sabanasQty = 0;
+                                if (sabanasProd) {
+                                  sabanasQty = (inv.carts || []).reduce(
+                                    (sum, cart) => {
+                                      return (
+                                        sum +
+                                        (cart.items || [])
+                                          .filter(
+                                            (item) =>
+                                              item.productId === sabanasProd.id
+                                          )
+                                          .reduce(
+                                            (s, item) =>
+                                              s + (Number(item.quantity) || 0),
+                                            0
+                                          )
+                                      );
+                                    },
+                                    0
+                                  );
+                                }
+                                if (
+                                  sabanasQty > 0 &&
+                                  Number(nudosSabanasPrice) > 0
+                                ) {
+                                  total +=
+                                    sabanasQty * Number(nudosSabanasPrice);
+                                }
+                              });
+                            return total > 0 ? `$${total.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Grand Total */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let total = 0;
+                            clientInvoices
+                              .filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              )
+                              .forEach((inv) => {
+                                let subtotal = 0;
+                                let pesoSubtotal = 0;
+                                productColumns.forEach((prod) => {
+                                  if (
+                                    prod.name.toLowerCase().includes("peso")
+                                  ) {
+                                    const pesoPrice = productPrices[prod.id];
+                                    if (
+                                      typeof inv.totalWeight === "number" &&
+                                      pesoPrice > 0
+                                    ) {
+                                      pesoSubtotal +=
+                                        inv.totalWeight * pesoPrice;
+                                    }
+                                  } else {
+                                    const qty = (inv.carts || []).reduce(
+                                      (sum, cart) => {
+                                        return (
+                                          sum +
+                                          (cart.items || [])
+                                            .filter(
+                                              (item) =>
+                                                item.productId === prod.id
+                                            )
+                                            .reduce(
+                                              (s, item) =>
+                                                s +
+                                                (Number(item.quantity) || 0),
+                                              0
+                                            )
+                                        );
+                                      },
+                                      0
+                                    );
+                                    const price = productPrices[prod.id];
+                                    if (qty > 0 && price > 0)
+                                      subtotal += qty * price;
+                                  }
+                                });
+                                let minValue = minBilling
+                                  ? Number(minBilling)
+                                  : 0;
+                                let deliveryChargeValue = deliveryCharge
+                                  ? Number(deliveryCharge)
+                                  : 0;
+                                let displaySubtotal =
+                                  subtotal + pesoSubtotal + deliveryChargeValue;
+                                if (minValue > 0 && subtotal < minValue) {
+                                  displaySubtotal =
+                                    minValue + deliveryChargeValue;
+                                }
+                                let serviceCharge = 0;
+                                let fuelCharge = 0;
+                                let surchargeValue = 0;
+                                if (
+                                  serviceChargeEnabled &&
+                                  serviceChargePercent &&
+                                  Number(serviceChargePercent) > 0
+                                ) {
+                                  serviceCharge =
+                                    displaySubtotal *
+                                    (Number(serviceChargePercent) / 100);
+                                }
+                                if (
+                                  fuelChargeEnabled &&
+                                  fuelChargePercent &&
+                                  Number(fuelChargePercent) > 0
+                                ) {
+                                  fuelCharge =
+                                    displaySubtotal *
+                                    (Number(fuelChargePercent) / 100);
+                                }
+                                if (
+                                  surchargeEnabled &&
+                                  surchargePercent &&
+                                  Number(surchargePercent) > 0
+                                ) {
+                                  surchargeValue =
+                                    displaySubtotal *
+                                    (Number(surchargePercent) / 100);
+                                }
+                                total +=
+                                  displaySubtotal +
+                                  serviceCharge +
+                                  fuelCharge +
+                                  surchargeValue;
+                              });
+                            return total > 0 ? `$${total.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Actions column: empty */}
+                        <td></td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>
@@ -1179,7 +1795,8 @@ const BillingPage: React.FC = () => {
                             );
                             if (sabanasKey) {
                               // Always show Nudos (Sabanas) row with same qty as Sabanas
-                              const nudosRowName = nudosKey || "Nudos (Sabanas)";
+                              const nudosRowName =
+                                nudosKey || "Nudos (Sabanas)";
                               productMap[nudosRowName] = productMap[sabanasKey];
                             }
                             // --- END: NUDOS-SABANAS LOGIC (PRINT MODAL) ---
@@ -1205,7 +1822,9 @@ const BillingPage: React.FC = () => {
                                       lower.includes("scrub top") ||
                                       lower.includes("scrub") ? (
                                         <img
-                                          src={"/images/products/scrubshirt.png"}
+                                          src={
+                                            "/images/products/scrubshirt.png"
+                                          }
                                           alt="Scrub Shirt"
                                           style={{
                                             width: 20,

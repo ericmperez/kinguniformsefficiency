@@ -202,6 +202,60 @@ export const ClientForm: React.FC<ClientFormProps> = ({
 
             <div className="mb-3">
               <label className="form-label">Selected Products</label>
+              <div
+                style={{
+                  background: "#e0f2fe",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  marginBottom: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  justifyContent: "space-between",
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary fw-bold"
+                  onClick={async () => {
+                    let newSelection: string[];
+                    if (selectedProducts.length === products.length) {
+                      newSelection = [];
+                    } else {
+                      newSelection = products.map((p) => p.id);
+                    }
+                    setSelectedProducts(newSelection);
+                    if (editingClient?.id) {
+                      setIsSaving(true);
+                      setSaveError(null);
+                      try {
+                        await onUpdateClient(editingClient.id, {
+                          selectedProducts: newSelection,
+                        });
+                      } catch {
+                        setSaveError("Failed to save changes.");
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }
+                  }}
+                  disabled={isSaving}
+                  style={{ minWidth: 140 }}
+                >
+                  {selectedProducts.length === products.length
+                    ? "Deselect All"
+                    : "Select All Products"}
+                </button>
+                <span
+                  style={{
+                    color: "#0ea5e9",
+                    fontWeight: 600,
+                    fontSize: 15,
+                  }}
+                >
+                  {selectedProducts.length} / {products.length} selected
+                </span>
+              </div>
               <div className="row g-3">
                 {[...products]
                   .sort((a, b) => a.name.localeCompare(b.name))
@@ -654,6 +708,61 @@ export const ClientForm: React.FC<ClientFormProps> = ({
 
                   <div className="mb-3">
                     <label className="form-label">Selected Products</label>
+                    <div
+                      style={{
+                        background: "#e0f2fe",
+                        borderRadius: 8,
+                        padding: "8px 12px",
+                        marginBottom: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary fw-bold"
+                        onClick={async () => {
+                          let newSelection: string[];
+                          if (selectedProducts.length === products.length) {
+                            newSelection = [];
+                          } else {
+                            newSelection = products.map((p) => p.id);
+                          }
+                          setSelectedProducts(newSelection);
+                          if (editingClient?.id) {
+                            setIsSaving(true);
+                            setSaveError(null);
+                            try {
+                              await onUpdateClient(editingClient.id, {
+                                selectedProducts: newSelection,
+                              });
+                            } catch {
+                              setSaveError("Failed to save changes.");
+                            } finally {
+                              setIsSaving(false);
+                            }
+                          }
+                        }}
+                        disabled={isSaving}
+                        style={{ minWidth: 140 }}
+                      >
+                        {selectedProducts.length === products.length
+                          ? "Deselect All"
+                          : "Select All Products"}
+                      </button>
+                      <span
+                        style={{
+                          color: "#0ea5e9",
+                          fontWeight: 600,
+                          fontSize: 15,
+                        }}
+                      >
+                        {selectedProducts.length} / {products.length} selected
+                      </span>
+                    </div>
+                    <hr style={{ margin: "8px 0" }} />
                     <div className="row g-3">
                       {[...products]
                         .sort((a, b) => a.name.localeCompare(b.name))
