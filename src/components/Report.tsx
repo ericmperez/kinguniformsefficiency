@@ -155,11 +155,13 @@ export default function Report() {
                 }
               >
                 <option value="">All</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {[...clients]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
               </select>
             </div>
             <div className="col-md-3">
@@ -257,54 +259,86 @@ export default function Report() {
       <div className="card p-3">
         <h5>Results ({entries.length})</h5>
         <div className="table-responsive">
-          {Object.keys(groupedByClient).length === 0 ? (
-            <div className="text-center text-muted">No entries found</div>
+          {/* If all filters are 'All', show a single table for all entries */}
+          {(!filters.clientId && !filters.groupId && !filters.driverId) ? (
+            entries.length === 0 ? (
+              <div className="text-center text-muted">No entries found</div>
+            ) : (
+              <table className="table table-bordered table-hover">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Client</th>
+                    <th>Driver</th>
+                    <th>Total Carts</th>
+                    <th>Total Weight (lbs)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map((group) => {
+                    const groupEntries = entries.filter(e => e.groupId === group.id);
+                    if (groupEntries.length === 0) return null;
+                    const totalWeight = groupEntries.reduce((sum, e) => sum + (e.weight || 0), 0);
+                    const earliest = groupEntries.reduce((min, e) => (e.timestamp < min.timestamp ? e : min), groupEntries[0]);
+                    const totalCarts = groupEntries.length;
+                    return (
+                      <tr key={group.id}>
+                        <td>{earliest.timestamp.toLocaleString()}</td>
+                        <td>{earliest.clientName}</td>
+                        <td>{earliest.driverName}</td>
+                        <td>{totalCarts}</td>
+                        <td>{totalWeight}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )
           ) : (
-            Object.entries(groupedByClient).map(([clientId, groups]) => (
-              <div key={clientId} style={{ marginBottom: 32 }}>
-                <div
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 18,
-                    color: "#007bff",
-                    marginBottom: 8,
-                  }}
-                >
-                  Client: {Object.values(groups)[0][0].clientName}
+            // ...existing grouped by client rendering...
+            Object.keys(groupedByClient).length === 0 ? (
+              <div className="text-center text-muted">No entries found</div>
+            ) : (
+              Object.entries(groupedByClient).map(([clientId, groups]) => (
+                <div key={clientId} style={{ marginBottom: 32 }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: 18,
+                      color: "#007bff",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Client: {Object.values(groups)[0][0].clientName}
+                  </div>
+                  <table className="table table-bordered table-hover">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Driver</th>
+                        <th>Total Carts</th>
+                        <th>Total Weight (lbs)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(groups).map(([groupId, groupEntries]) => {
+                        const totalWeight = groupEntries.reduce((sum, e) => sum + (e.weight || 0), 0);
+                        const earliest = groupEntries.reduce((min, e) => (e.timestamp < min.timestamp ? e : min), groupEntries[0]);
+                        const totalCarts = groupEntries.length;
+                        return (
+                          <tr key={groupId}>
+                            <td>{earliest.timestamp.toLocaleString()}</td>
+                            <td>{earliest.driverName}</td>
+                            <td>{totalCarts}</td>
+                            <td>{totalWeight}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-                <table className="table table-bordered table-hover">
-                  <thead>
-                    <tr>
-                      <th>Group</th>
-                      <th>Driver</th>
-                      <th>Date</th>
-                      <th>Total Weight (lbs)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(groups).map(([groupId, groupEntries]) => {
-                      // Summarize group: earliest date, driver, total weight
-                      const totalWeight = groupEntries.reduce(
-                        (sum, e) => sum + (e.weight || 0),
-                        0
-                      );
-                      const earliest = groupEntries.reduce(
-                        (min, e) => (e.timestamp < min.timestamp ? e : min),
-                        groupEntries[0]
-                      );
-                      return (
-                        <tr key={groupId}>
-                          <td>{groupId}</td>
-                          <td>{earliest.driverName}</td>
-                          <td>{earliest.timestamp.toLocaleString()}</td>
-                          <td>{totalWeight}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ))
+              ))
+            )
           )}
         </div>
       </div>
