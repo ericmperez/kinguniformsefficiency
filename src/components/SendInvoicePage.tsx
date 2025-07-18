@@ -6,6 +6,7 @@ import {
 } from "../services/firebaseService";
 import { Client, Invoice } from "../types";
 import html2pdf from "html2pdf.js";
+import { formatDateOnlySpanish } from "../utils/dateFormatter";
 
 const SendInvoicePage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
@@ -170,7 +171,7 @@ const SendInvoicePage: React.FC = () => {
                   <label className="form-check-label" htmlFor={inv.id}>
                     <b>Invoice #:</b> {inv.invoiceNumber || inv.id} |{" "}
                     <b>Name:</b> {inv.name || "-"} | <b>Date:</b>{" "}
-                    {inv.date ? new Date(inv.date).toLocaleDateString() : "-"} |{" "}
+                    {inv.date ? formatDateOnlySpanish(inv.date) : "-"} |{" "}
                     <b>Status:</b> {inv.status || "-"}
                   </label>
                 </div>
@@ -206,7 +207,7 @@ const SendInvoicePage: React.FC = () => {
                     </div>
                     <div>
                       <b>Date:</b>{" "}
-                      {inv.date ? new Date(inv.date).toLocaleDateString() : "-"}
+                      {inv.date ? formatDateOnlySpanish(inv.date) : "-"}
                     </div>
                     <div>
                       <b>Truck #:</b> {inv.truckNumber || "-"}

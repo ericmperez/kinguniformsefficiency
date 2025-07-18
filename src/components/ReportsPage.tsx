@@ -9,6 +9,7 @@ import {
 } from "../services/firebaseService";
 // Add Firestore imports for reporting
 import { collection, getDocs, query, where } from "firebase/firestore";
+import { formatDateOnlySpanish } from "../utils/dateFormatter";
 import { db } from "../firebase";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
 import InvoiceForm from "./InvoiceForm";
@@ -136,7 +137,7 @@ const ReportsPage: React.FC = () => {
                                 <td>{inv.invoiceNumber || inv.id}</td>
                                 <td>
                                   {inv.date
-                                    ? new Date(inv.date).toLocaleDateString()
+                                    ? formatDateOnlySpanish(inv.date)
                                     : "-"}
                                 </td>
                                 <td>{inv.status || "-"}</td>

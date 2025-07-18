@@ -2,6 +2,7 @@ import React from "react";
 import { Invoice, Product, Client, Cart, LaundryCart } from "../types";
 import { getUsers, UserRecord, logActivity } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
+import { formatDateSpanish } from "../utils/dateFormatter";
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice;
@@ -267,7 +268,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           </div>
           <div className="modal-body">
             <h6>Client: {invoice.clientName}</h6>
-            <h6>Date: {invoice.date}</h6>
+            <h6>
+              Date: {invoice.date ? formatDateSpanish(invoice.date) : "-"}
+            </h6>
             {/* Show verifier if present */}
             {invoice.verifiedBy && (
               <h6 className="text-success">
@@ -276,7 +279,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   <span
                     style={{ marginLeft: 12, color: "#888", fontWeight: 500 }}
                   >
-                    ({new Date(invoice.verifiedAt).toLocaleString()})
+                    ({formatDateSpanish(invoice.verifiedAt)})
                   </span>
                 )}
               </h6>
@@ -312,7 +315,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     Verifier: {getVerifierName(invoice.verifiedBy)}
                     {invoice.verifiedAt && (
                       <span style={{ marginLeft: 8 }}>
-                        ({new Date(invoice.verifiedAt).toLocaleString()})
+                        ({formatDateSpanish(invoice.verifiedAt)})
                       </span>
                     )}
                   </span>
@@ -981,9 +984,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                           fontSize: 12,
                                         }}
                                       >
-                                        {new Date(
-                                          item.addedAt
-                                        ).toLocaleString()}
+                                        {formatDateSpanish(item.addedAt)}
                                       </span>
                                     )}
                                     {item.editedBy && (

@@ -19,7 +19,7 @@ export default function InvoiceForm({
   const [invoiceDate, setInvoiceDate] = useState<string>(
     new Date().toISOString().slice(0, 10)
   );
-  const [invoiceStatus, setInvoiceStatus] = useState<string>("done");
+  const [invoiceStatus, setInvoiceStatus] = useState<string>("active");
 
   // Sort clients alphabetically by name
   const sortedClients = [...clients].sort((a, b) =>

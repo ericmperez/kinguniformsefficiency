@@ -16,6 +16,7 @@ import {
 import { db } from "../firebase";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
 import html2pdf from "html2pdf.js";
+import { formatDateOnlySpanish } from "../utils/dateFormatter";
 
 const nowrapCellStyle = { whiteSpace: "nowrap" };
 
@@ -958,7 +959,7 @@ const BillingPage: React.FC = () => {
                               <td>{inv.invoiceNumber || inv.id}</td>
                               <td>
                                 {inv.date
-                                  ? new Date(inv.date).toLocaleDateString()
+                                  ? formatDateOnlySpanish(inv.date)
                                   : "-"}
                               </td>
                               <td>{inv.truckNumber || "-"}</td>
@@ -1849,7 +1850,7 @@ const BillingPage: React.FC = () => {
                     <span style={{ fontWeight: 700 }}>Fecha: </span>
                     <span style={{ color: "#0E62A0", fontWeight: 700 }}>
                       {invoiceToPrint.date
-                        ? new Date(invoiceToPrint.date).toLocaleDateString()
+                        ? formatDateOnlySpanish(invoiceToPrint.date)
                         : "-"}
                     </span>
                     {/* Show verification status and verifier if present */}

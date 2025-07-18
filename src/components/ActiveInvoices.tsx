@@ -29,6 +29,7 @@ import { getClientAvatarUrl } from "../services/firebaseService";
 import { logActivity } from "../services/firebaseService";
 import { getInvoices } from "../services/firebaseService";
 import { collection, onSnapshot } from "firebase/firestore";
+import { formatDateSpanish } from "../utils/dateFormatter";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -358,15 +359,26 @@ export default function ActiveInvoices({
 
   const [invoicesState, setInvoicesState] = useState<Invoice[]>(invoices);
 
+  // Sync invoicesState with invoices prop
+  useEffect(() => {
+    setInvoicesState(invoices);
+  }, [invoices]);
+
   // Real-time Firestore listener for invoices
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "invoices"), (snapshot) => {
-      const updated = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Invoice[];
-      setInvoicesState(updated);
-    });
+    const unsub = onSnapshot(
+      collection(db, "invoices"),
+      (snapshot) => {
+        const updated = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Invoice[];
+        setInvoicesState(updated);
+      },
+      (error) => {
+        console.error("Error listening to invoices:", error);
+      }
+    );
     return () => unsub();
   }, []);
 
@@ -1351,8 +1363,7 @@ export default function ActiveInvoices({
                                 fontWeight: 500,
                               }}
                             >
-                              Date:{" "}
-                              {new Date(invoice.verifiedAt).toLocaleString()}
+                              Date: {formatDateSpanish(invoice.verifiedAt)}
                             </span>
                           )}
                         </div>
@@ -1981,9 +1992,7 @@ export default function ActiveInvoices({
                       <li key={idx} className="list-group-item">
                         <b>Step:</b> {log.step} <br />
                         <b>Time:</b>{" "}
-                        {log.timestamp
-                          ? new Date(log.timestamp).toLocaleString()
-                          : "-"}{" "}
+                        {log.timestamp ? formatDateSpanish(log.timestamp) : "-"}{" "}
                         <br />
                         <b>User:</b> {log.user || "-"}
                       </li>
@@ -2694,7 +2703,7 @@ export default function ActiveInvoices({
                               #{inv.invoiceNumber || inv.id} - {inv.clientName}{" "}
                               -{" "}
                               {inv.date
-                                ? new Date(inv.date).toLocaleString()
+                                ? formatDateSpanish(inv.date)
                                 : "No date"}
                             </span>
                           </li>
