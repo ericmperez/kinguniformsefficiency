@@ -1826,14 +1826,16 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               </button>
                             </>
                           )}
-                          {/* Delete group button */}
-                          <button
-                            className="btn btn-outline-danger btn-sm"
-                            title="Delete group"
-                            onClick={() => handleDeleteGroup(group.id)}
-                          >
-                            <span aria-hidden="true">🗑️</span>
-                          </button>
+                          {/* Delete group button - only for Supervisor or higher */}
+                          {canReorder && (
+                            <button
+                              className="btn btn-outline-danger btn-sm"
+                              title="Delete group"
+                              onClick={() => handleDeleteGroup(group.id)}
+                            >
+                              <span aria-hidden="true">🗑️</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     );

@@ -701,14 +701,36 @@ const Segregation: React.FC<SegregationProps> = ({
           >
             Groups for Segregation
           </h4>
+          {user && !["Supervisor", "Admin", "Owner"].includes(user.role) && (
+            <div
+              className="alert alert-info text-center mb-3"
+              style={{
+                fontSize: 14,
+                padding: "8px 16px",
+                background: "#cce7ff",
+                border: "1px solid #007bff",
+                borderRadius: 8,
+                color: "#004085",
+              }}
+            >
+              <strong>🎯 Trabajar un cliente a la vez:</strong> Solo el primer
+              cliente (🟢) puede ser procesado. Complétalo para pasar al
+              siguiente.
+            </div>
+          )}
           <div
             className="list-group list-group-flush w-100"
             style={{ maxWidth: 640, margin: "0 auto" }} // was 520
           >
             {displayGroups.map((group, idx) => {
-              const disableActions = !!group.segregationTomorrow;
               const isSupervisorOrAbove =
                 user && ["Supervisor", "Admin", "Owner"].includes(user.role);
+              // For employees: only allow interaction with first client (idx === 0)
+              // For supervisors: only disable if segregationTomorrow is true
+              const disableActions =
+                !!group.segregationTomorrow ||
+                (!isSupervisorOrAbove && idx !== 0);
+
               if (group.segregationTomorrow && !isSupervisorOrAbove) {
                 return (
                   <div
@@ -759,14 +781,21 @@ const Segregation: React.FC<SegregationProps> = ({
                   key={group.id}
                   className="list-group-item d-flex flex-column py-3 mb-2 shadow-sm rounded"
                   style={{
-                    background: group.segregationTomorrow ? "#ffe066" : "#fff",
+                    background: group.segregationTomorrow
+                      ? "#ffe066"
+                      : !isSupervisorOrAbove && idx === 0
+                      ? "#e8f5e8" // Light green for first client (employees only)
+                      : "#fff",
                     border: group.segregationTomorrow
                       ? "2.5px solid #ffa600"
+                      : !isSupervisorOrAbove && idx === 0
+                      ? "2px solid #28a745" // Green border for active client (employees only)
                       : "1.5px solid #e3e3e3",
                     fontSize: 14,
                     minHeight: 56,
                     boxShadow: "0 1px 6px rgba(14,98,160,0.06)",
                     transition: "background 0.2s, border 0.2s",
+                    opacity: !isSupervisorOrAbove && idx !== 0 ? 0.6 : 1.0, // Dim non-first clients for employees
                   }}
                 >
                   {/* Top row: arrows (if allowed) and client name */}
@@ -809,11 +838,29 @@ const Segregation: React.FC<SegregationProps> = ({
                       style={{
                         fontWeight: 700,
                         fontSize: 20,
-                        color: "#007bff",
+                        color:
+                          !isSupervisorOrAbove && idx === 0
+                            ? "#28a745" // Green for active client (employees)
+                            : !isSupervisorOrAbove && idx !== 0
+                            ? "#6c757d" // Gray for waiting clients (employees)
+                            : "#007bff", // Blue for supervisors (all clients)
                         textAlign: "left",
                       }}
                     >
+                      {!isSupervisorOrAbove && idx === 0 && "🟢 "}
+                      {!isSupervisorOrAbove && idx !== 0 && "⏳ "}
                       {group.clientName}
+                      {!isSupervisorOrAbove && idx !== 0 && (
+                        <span
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 400,
+                            marginLeft: 8,
+                          }}
+                        >
+                          (Esperando)
+                        </span>
+                      )}
                     </span>
                   </div>
                   {/* Info and controls row below */}
