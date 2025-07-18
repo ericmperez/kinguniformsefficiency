@@ -22,7 +22,9 @@ const ReportsPage: React.FC = () => {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"invoices" | "pickup">("invoices");
+  const [activeSection, setActiveSection] = useState<"boletas" | "reports">(
+    "boletas"
+  );
 
   useEffect(() => {
     (async () => {
@@ -41,26 +43,29 @@ const ReportsPage: React.FC = () => {
 
   return (
     <div className="container py-4">
-      <h2>Reports</h2>
-      <div className="mb-4 d-flex gap-2">
+      <div className="d-flex gap-3 mb-4">
         <button
-          className={`btn btn-outline-primary${
-            activeTab === "invoices" ? " active" : ""
+          className={`btn${
+            activeSection === "boletas"
+              ? " btn-primary"
+              : " btn-outline-primary"
           }`}
-          onClick={() => setActiveTab("invoices")}
+          onClick={() => setActiveSection("boletas")}
         >
-          Invoices
+          Boletas
         </button>
         <button
-          className={`btn btn-outline-primary${
-            activeTab === "pickup" ? " active" : ""
+          className={`btn${
+            activeSection === "reports"
+              ? " btn-primary"
+              : " btn-outline-primary"
           }`}
-          onClick={() => setActiveTab("pickup")}
+          onClick={() => setActiveSection("reports")}
         >
-          Pickup Entries Report (by Client)
+          Reports
         </button>
       </div>
-      {activeTab === "invoices" ? (
+      {activeSection === "boletas" && (
         <>
           <h2>Shipped/Done Invoices</h2>
           <div className="mb-3" style={{ maxWidth: 350 }}>
@@ -216,8 +221,13 @@ const ReportsPage: React.FC = () => {
               onAddCart={async (cartName: string) => {
                 // Handle special keys for invoice name and cart name edits
                 if (cartName.startsWith("__invoice_name__")) {
-                  const newInvoiceName = cartName.replace("__invoice_name__", "");
-                  await updateInvoice(selectedInvoice.id, { name: newInvoiceName });
+                  const newInvoiceName = cartName.replace(
+                    "__invoice_name__",
+                    ""
+                  );
+                  await updateInvoice(selectedInvoice.id, {
+                    name: newInvoiceName,
+                  });
                   await refreshInvoices();
                   return {
                     id: selectedInvoice.id,
@@ -231,7 +241,9 @@ const ReportsPage: React.FC = () => {
                   const updatedCarts = (selectedInvoice.carts || []).map((c) =>
                     c.id === cartId ? { ...c, name: newName } : c
                   );
-                  await updateInvoice(selectedInvoice.id, { carts: updatedCarts });
+                  await updateInvoice(selectedInvoice.id, {
+                    carts: updatedCarts,
+                  });
                   await refreshInvoices();
                   return { id: cartId, name: newName, isActive: true };
                 }
@@ -243,8 +255,13 @@ const ReportsPage: React.FC = () => {
                   total: 0,
                   createdAt: new Date().toISOString(),
                 };
-                const updatedCarts = [...(selectedInvoice.carts || []), newCart];
-                await updateInvoice(selectedInvoice.id, { carts: updatedCarts });
+                const updatedCarts = [
+                  ...(selectedInvoice.carts || []),
+                  newCart,
+                ];
+                await updateInvoice(selectedInvoice.id, {
+                  carts: updatedCarts,
+                });
                 await refreshInvoices();
                 return { id: newCart.id, name: newCart.name, isActive: true };
               }}
@@ -285,7 +302,8 @@ const ReportsPage: React.FC = () => {
                         productId: productId,
                         productName: prod ? prod.name : "",
                         quantity: quantity,
-                        price: price !== undefined ? price : prod ? prod.price : 0,
+                        price:
+                          price !== undefined ? price : prod ? prod.price : 0,
                         addedBy: "You",
                         addedAt: new Date().toISOString(),
                       },
@@ -313,8 +331,12 @@ const ReportsPage: React.FC = () => {
             />
           )}
         </>
-      ) : (
-        <Report />
+      )}
+      {activeSection === "reports" && (
+        <>
+          <h2>Pickup Entries Report</h2>
+          <Report />
+        </>
       )}
     </div>
   );

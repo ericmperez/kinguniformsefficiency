@@ -299,7 +299,7 @@ function App() {
         setDrivers(
           querySnapshot.docs.map(
             (doc: any) =>
-              ({ id: doc.id, ...doc.data() } as { id: string, name: string })
+              ({ id: doc.id, ...doc.data() } as { id: string; name: string })
           )
         );
       }
@@ -1067,9 +1067,18 @@ function App() {
                             sx={{
                               fontWeight: 600,
                               fontSize: 15,
-                              color: activePage === sp.page ? "var(--ku-yellow)" : "#222",
-                              bgcolor: activePage === sp.page ? "rgba(255,224,102,0.18)" : "transparent",
-                              borderBottom: activePage === sp.page ? "2px solid var(--ku-yellow)" : "2px solid transparent",
+                              color:
+                                activePage === sp.page
+                                  ? "var(--ku-yellow)"
+                                  : "#222",
+                              bgcolor:
+                                activePage === sp.page
+                                  ? "rgba(255,224,102,0.18)"
+                                  : "transparent",
+                              borderBottom:
+                                activePage === sp.page
+                                  ? "2px solid var(--ku-yellow)"
+                                  : "2px solid transparent",
                               display: "flex",
                               alignItems: "center",
                               gap: 1.5,
@@ -1188,7 +1197,9 @@ function App() {
                         <ListItem key={sp.page} disablePadding sx={{ pl: 3 }}>
                           <ListItemButton
                             selected={activePage === sp.page}
-                            onClick={() => setActivePage(sp.page as typeof activePage)}
+                            onClick={() =>
+                              setActivePage(sp.page as typeof activePage)
+                            }
                           >
                             <ListItemIcon>{sp.icon}</ListItemIcon>
                             <ListItemText primary={sp.label} />
@@ -1598,7 +1609,6 @@ function App() {
           {/* Add settings content here */}
         </div>
       )}
-      {activePage === "reports" && <Report />}
       {activePage === "billing" && canSee("BillingPage") && <BillingPage />}
       {activePage === "activityLog" && canSee("GlobalActivityLog") && (
         <div className="container py-5">
