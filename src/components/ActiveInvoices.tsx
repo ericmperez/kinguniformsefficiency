@@ -862,13 +862,13 @@ export default function ActiveInvoices({
     if (!aOverdue && bOverdue) return 1;
     // If both are overdue, sort alphabetically by client name
     if (aOverdue && bOverdue) {
-      return (a.clientName || '').localeCompare(b.clientName || '');
+      return (a.clientName || "").localeCompare(b.clientName || "");
     }
     // Then by verified status (unverified first)
     if (!a.verified && b.verified) return -1;
     if (a.verified && !b.verified) return 1;
     // If both are unverified or both are verified, sort alphabetically by client name
-    return (a.clientName || '').localeCompare(b.clientName || '');
+    return (a.clientName || "").localeCompare(b.clientName || "");
   });
 
   // Handler to select an invoice (for card click)
@@ -899,12 +899,15 @@ export default function ActiveInvoices({
           <button className="btn btn-primary me-2" onClick={handleAddInvoice}>
             Create New Invoice
           </button>
-          <button
-            className="btn btn-warning"
-            onClick={handleUnshipRecentInvoices}
-          >
-            Unship Recent Invoices
-          </button>
+          {/* Only show Unship button for Supervisor, Admin, Owner */}
+          {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
+            <button
+              className="btn btn-warning"
+              onClick={handleUnshipRecentInvoices}
+            >
+              Unship Recent Invoices
+            </button>
+          )}
         </div>
       </div>
 
@@ -2161,7 +2164,6 @@ export default function ActiveInvoices({
                       const groupRef = await import("../firebase").then(
                         ({ db }) =>
                           import("firebase/firestore").then(
-
                             ({ collection, addDoc }) =>
                               addDoc(collection(db, "pickup_groups"), groupData)
                           )
@@ -2172,7 +2174,6 @@ export default function ActiveInvoices({
                       // If group exists but status is not 'Pending Products', update it
                       if (pendingGroup.status !== "Pending Products") {
                         pendingGroup.status = "Pending Products";
-                     
                       }
                     }
                     // Add product to the group's carts
@@ -2594,96 +2595,99 @@ export default function ActiveInvoices({
       )}
 
       {/* Unship Recent Invoices Modal */}
-      {showUnshipModal && (
-        <div
-          className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-        >
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  Select Invoices to Unship (Last 24h)
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowUnshipModal(false)}
-                ></button>
-              </div>
-              <div className="modal-body">
-                {(() => {
-                  const now = Date.now();
-                  const eligible = invoicesState.filter(
-                    (inv) =>
-                      inv.status === "done" &&
-                      inv.truckNumber &&
-                      ((inv.verifiedAt &&
-                        now - new Date(inv.verifiedAt).getTime() <
-                          24 * 60 * 60 * 1000) ||
-                        (inv.lockedAt &&
-                          now - new Date(inv.lockedAt).getTime() <
+      {showUnshipModal &&
+        user &&
+        ["Supervisor", "Admin", "Owner"].includes(user.role) && (
+          <div
+            className="modal show"
+            style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+          >
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    Select Invoices to Unship (Last 24h)
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowUnshipModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  {(() => {
+                    const now = Date.now();
+                    const eligible = invoicesState.filter(
+                      (inv) =>
+                        inv.status === "done" &&
+                        inv.truckNumber &&
+                        ((inv.verifiedAt &&
+                          now - new Date(inv.verifiedAt).getTime() <
                             24 * 60 * 60 * 1000) ||
-                        (inv.date &&
-                          now - new Date(inv.date).getTime() <
-                            24 * 60 * 60 * 1000))
-                  );
-                  if (eligible.length === 0)
-                    return (
-                      <div className="text-muted">
-                        No recently shipped invoices found.
-                      </div>
+                          (inv.lockedAt &&
+                            now - new Date(inv.lockedAt).getTime() <
+                              24 * 60 * 60 * 1000) ||
+                          (inv.date &&
+                            now - new Date(inv.date).getTime() <
+                              24 * 60 * 60 * 1000))
                     );
-                  return (
-                    <ul className="list-group mb-3">
-                      {eligible.map((inv) => (
-                        <li
-                          key={inv.id}
-                          className="list-group-item d-flex align-items-center"
-                        >
-                          <input
-                            type="checkbox"
-                            className="form-check-input me-2"
-                            checked={unshipSelectedIds.includes(inv.id)}
-                            onChange={(e) => {
-                              setUnshipSelectedIds((prev) =>
-                                e.target.checked
-                                  ? [...prev, inv.id]
-                                  : prev.filter((id) => id !== inv.id)
-                              );
-                            }}
-                          />
-                          <span>
-                            #{inv.invoiceNumber || inv.id} - {inv.clientName} -{" "}
-                            {inv.date
-                              ? new Date(inv.date).toLocaleString()
-                              : "No date"}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                })()}
-              </div>
-              <div className="modal-footer">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowUnshipModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-warning"
-                  onClick={handleConfirmUnship}
-                  disabled={unshipSelectedIds.length === 0}
-                >
-                  Unship Selected
-                </button>
+                    if (eligible.length === 0)
+                      return (
+                        <div className="text-muted">
+                          No recently shipped invoices found.
+                        </div>
+                      );
+                    return (
+                      <ul className="list-group mb-3">
+                        {eligible.map((inv) => (
+                          <li
+                            key={inv.id}
+                            className="list-group-item d-flex align-items-center"
+                          >
+                            <input
+                              type="checkbox"
+                              className="form-check-input me-2"
+                              checked={unshipSelectedIds.includes(inv.id)}
+                              onChange={(e) => {
+                                setUnshipSelectedIds((prev) =>
+                                  e.target.checked
+                                    ? [...prev, inv.id]
+                                    : prev.filter((id) => id !== inv.id)
+                                );
+                              }}
+                            />
+                            <span>
+                              #{inv.invoiceNumber || inv.id} - {inv.clientName}{" "}
+                              -{" "}
+                              {inv.date
+                                ? new Date(inv.date).toLocaleString()
+                                : "No date"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => setShowUnshipModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-warning"
+                    onClick={handleConfirmUnship}
+                    disabled={unshipSelectedIds.length === 0}
+                  >
+                    Unship Selected
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Cart Selection Modal */}
       {showCartSelectModal && (

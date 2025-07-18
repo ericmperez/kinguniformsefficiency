@@ -591,7 +591,8 @@ const Segregation: React.FC<SegregationProps> = ({
                 fontWeight: 700,
               }}
               disabled={
-                completingGroup === topGroup.id || !segregatedCounts[topGroup.id]
+                completingGroup === topGroup.id ||
+                !segregatedCounts[topGroup.id]
               }
               onClick={() => handleComplete(topGroup.id)}
             >
