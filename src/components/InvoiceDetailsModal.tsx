@@ -319,10 +319,16 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 )}
               </div>
             )}
-            
+
             {/* Special Service Delivery Section */}
-            <div className="mb-3 p-3 border rounded" style={{ backgroundColor: "#f8f9fa" }}>
-              <h6 className="mb-3" style={{ color: "#0E62A0", fontWeight: "bold" }}>
+            <div
+              className="mb-3 p-3 border rounded"
+              style={{ backgroundColor: "#f8f9fa" }}
+            >
+              <h6
+                className="mb-3"
+                style={{ color: "#0E62A0", fontWeight: "bold" }}
+              >
                 Special Service Delivery
               </h6>
               <div className="form-check mb-2">
@@ -337,7 +343,11 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     if (refreshInvoices) await refreshInvoices();
                   }}
                 />
-                <label className="form-check-label" htmlFor="specialServiceRequested" style={{ fontWeight: "600" }}>
+                <label
+                  className="form-check-label"
+                  htmlFor="specialServiceRequested"
+                  style={{ fontWeight: "600" }}
+                >
                   Special Service Delivery Requested
                 </label>
               </div>

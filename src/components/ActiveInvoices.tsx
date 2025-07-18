@@ -1357,7 +1357,7 @@ export default function ActiveInvoices({
                           )}
                         </div>
                       )}
-                      
+
                       {/* Special Service Delivery Indicator */}
                       {invoice.specialServiceRequested && (
                         <div
@@ -1365,7 +1365,8 @@ export default function ActiveInvoices({
                             position: "absolute",
                             top: 16,
                             right: 16,
-                            background: "linear-gradient(135deg, #ff6b6b, #ee5a52)",
+                            background:
+                              "linear-gradient(135deg, #ff6b6b, #ee5a52)",
                             color: "white",
                             padding: "6px 12px",
                             borderRadius: "20px",
@@ -1379,9 +1380,14 @@ export default function ActiveInvoices({
                             alignItems: "center",
                             gap: 4,
                           }}
-                          title={`Special Service Delivery - Cost: $${(invoice.specialServiceCost || 0).toFixed(2)}`}
+                          title={`Special Service Delivery - Cost: $${(
+                            invoice.specialServiceCost || 0
+                          ).toFixed(2)}`}
                         >
-                          <i className="bi bi-star-fill" style={{ fontSize: 10 }} />
+                          <i
+                            className="bi bi-star-fill"
+                            style={{ fontSize: 10 }}
+                          />
                           Special Service
                         </div>
                       )}
@@ -2759,16 +2765,19 @@ export default function ActiveInvoices({
             }
             // --- Special Service Logic ---
             if (cartName.startsWith("__special_service__")) {
-              const isRequested = cartName.replace("__special_service__", "") === "true";
-              await onUpdateInvoice(invoice.id, { 
+              const isRequested =
+                cartName.replace("__special_service__", "") === "true";
+              await onUpdateInvoice(invoice.id, {
                 specialServiceRequested: isRequested,
-                ...(isRequested ? {} : { specialServiceCost: 0 })
+                ...(isRequested ? {} : { specialServiceCost: 0 }),
               });
               await refreshInvoices();
               return { id: invoice.id, name: cartName, isActive: true };
             }
             if (cartName.startsWith("__special_service_cost__")) {
-              const cost = Number(cartName.replace("__special_service_cost__", ""));
+              const cost = Number(
+                cartName.replace("__special_service_cost__", "")
+              );
               await onUpdateInvoice(invoice.id, { specialServiceCost: cost });
               await refreshInvoices();
               return { id: invoice.id, name: cartName, isActive: true };
@@ -2848,16 +2857,19 @@ export default function ActiveInvoices({
             }
             // --- Special Service Logic ---
             if (cartName.startsWith("__special_service__")) {
-              const isRequested = cartName.replace("__special_service__", "") === "true";
-              await onUpdateInvoice(invoice.id, { 
+              const isRequested =
+                cartName.replace("__special_service__", "") === "true";
+              await onUpdateInvoice(invoice.id, {
                 specialServiceRequested: isRequested,
-                ...(isRequested ? {} : { specialServiceCost: 0 })
+                ...(isRequested ? {} : { specialServiceCost: 0 }),
               });
               await refreshInvoices();
               return { id: invoice.id, name: cartName, isActive: true };
             }
             if (cartName.startsWith("__special_service_cost__")) {
-              const cost = Number(cartName.replace("__special_service_cost__", ""));
+              const cost = Number(
+                cartName.replace("__special_service_cost__", "")
+              );
               await onUpdateInvoice(invoice.id, { specialServiceCost: cost });
               await refreshInvoices();
               return { id: invoice.id, name: cartName, isActive: true };

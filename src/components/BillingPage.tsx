@@ -398,11 +398,13 @@ const BillingPage: React.FC = () => {
           <div className="card mb-4">
             <div className="card-body">
               <h6 className="card-title mb-4">Billing Configuration</h6>
-              
+
               {/* Minimum Billing Value */}
               <div className="row align-items-center mb-3">
                 <div className="col-md-4">
-                  <label className="form-label fw-medium mb-0">Minimum Billing Value</label>
+                  <label className="form-label fw-medium mb-0">
+                    Minimum Billing Value
+                  </label>
                 </div>
                 <div className="col-md-4">
                   <div className="input-group">
@@ -428,7 +430,9 @@ const BillingPage: React.FC = () => {
                       className="form-check-input"
                       type="checkbox"
                       id="deliveryChargeEnabled"
-                      checked={deliveryCharge !== "" && Number(deliveryCharge) > 0}
+                      checked={
+                        deliveryCharge !== "" && Number(deliveryCharge) > 0
+                      }
                       onChange={(e) => {
                         if (!e.target.checked) {
                           setDeliveryCharge("");
@@ -438,7 +442,10 @@ const BillingPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="col-md-4">
-                  <label className="form-label fw-medium mb-0" htmlFor="deliveryChargeEnabled">
+                  <label
+                    className="form-label fw-medium mb-0"
+                    htmlFor="deliveryChargeEnabled"
+                  >
                     Delivery Charge (per invoice)
                   </label>
                 </div>
@@ -472,7 +479,10 @@ const BillingPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="col-md-4">
-                  <label className="form-label fw-medium mb-0" htmlFor="surcharge">
+                  <label
+                    className="form-label fw-medium mb-0"
+                    htmlFor="surcharge"
+                  >
                     Surcharge
                   </label>
                 </div>
@@ -508,7 +518,10 @@ const BillingPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="col-md-4">
-                  <label className="form-label fw-medium mb-0" htmlFor="serviceCharge">
+                  <label
+                    className="form-label fw-medium mb-0"
+                    htmlFor="serviceCharge"
+                  >
                     Service Charge
                   </label>
                 </div>
@@ -544,7 +557,10 @@ const BillingPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="col-md-4">
-                  <label className="form-label fw-medium mb-0" htmlFor="fuelCharge">
+                  <label
+                    className="form-label fw-medium mb-0"
+                    htmlFor="fuelCharge"
+                  >
                     Fuel Charge
                   </label>
                 </div>
@@ -574,7 +590,10 @@ const BillingPage: React.FC = () => {
                       className="form-check-input"
                       type="checkbox"
                       id="nudosSabanasEnabled"
-                      checked={nudosSabanasPrice !== "" && Number(nudosSabanasPrice) > 0}
+                      checked={
+                        nudosSabanasPrice !== "" &&
+                        Number(nudosSabanasPrice) > 0
+                      }
                       onChange={(e) => {
                         if (!e.target.checked) {
                           setNudosSabanasPrice("");
@@ -584,7 +603,10 @@ const BillingPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="col-md-4">
-                  <label className="form-label fw-medium mb-0" htmlFor="nudosSabanasEnabled">
+                  <label
+                    className="form-label fw-medium mb-0"
+                    htmlFor="nudosSabanasEnabled"
+                  >
                     Nudos (Sabanas) Price
                   </label>
                 </div>
@@ -714,15 +736,9 @@ const BillingPage: React.FC = () => {
                           <th>Delivery Charge</th>
                         )}
                         <th>Subtotal</th>
-                        {serviceChargeEnabled && (
-                          <th>Service Charge</th>
-                        )}
-                        {fuelChargeEnabled && (
-                          <th>Fuel Charge</th>
-                        )}
-                        {surchargeEnabled && (
-                          <th>Surcharge</th>
-                        )}
+                        {serviceChargeEnabled && <th>Service Charge</th>}
+                        {fuelChargeEnabled && <th>Fuel Charge</th>}
+                        {surchargeEnabled && <th>Surcharge</th>}
                         {nudosSabanasPrice && Number(nudosSabanasPrice) > 0 && (
                           <th>Nudos (Sabanas)</th>
                         )}
@@ -1039,7 +1055,8 @@ const BillingPage: React.FC = () => {
                               {deliveryCharge && Number(deliveryCharge) > 0 && (
                                 <td style={nowrapCellStyle}>
                                   <b>
-                                    {deliveryCharge && Number(deliveryCharge) > 0
+                                    {deliveryCharge &&
+                                    Number(deliveryCharge) > 0
                                       ? `$${Number(deliveryCharge).toFixed(2)}`
                                       : ""}
                                   </b>
@@ -1079,15 +1096,16 @@ const BillingPage: React.FC = () => {
                                   </b>
                                 </td>
                               )}
-                              {nudosSabanasPrice && Number(nudosSabanasPrice) > 0 && (
-                                <td style={nowrapCellStyle}>
-                                  <b>
-                                    {nudosSabanasCharge > 0
-                                      ? `$${nudosSabanasCharge.toFixed(2)}`
-                                      : ""}
-                                  </b>
-                                </td>
-                              )}
+                              {nudosSabanasPrice &&
+                                Number(nudosSabanasPrice) > 0 && (
+                                  <td style={nowrapCellStyle}>
+                                    <b>
+                                      {nudosSabanasCharge > 0
+                                        ? `$${nudosSabanasCharge.toFixed(2)}`
+                                        : ""}
+                                    </b>
+                                  </td>
+                                )}
                               <td style={nowrapCellStyle}>
                                 <b>
                                   {grandTotal > 0
@@ -1337,7 +1355,9 @@ const BillingPage: React.FC = () => {
                                     ? Number(deliveryCharge)
                                     : 0;
                                   let displaySubtotal =
-                                    subtotal + pesoSubtotal + deliveryChargeValue;
+                                    subtotal +
+                                    pesoSubtotal +
+                                    deliveryChargeValue;
                                   if (minValue > 0 && subtotal < minValue) {
                                     displaySubtotal =
                                       minValue + deliveryChargeValue;
@@ -1412,7 +1432,9 @@ const BillingPage: React.FC = () => {
                                     ? Number(deliveryCharge)
                                     : 0;
                                   let displaySubtotal =
-                                    subtotal + pesoSubtotal + deliveryChargeValue;
+                                    subtotal +
+                                    pesoSubtotal +
+                                    deliveryChargeValue;
                                   if (minValue > 0 && subtotal < minValue) {
                                     displaySubtotal =
                                       minValue + deliveryChargeValue;
@@ -1487,7 +1509,9 @@ const BillingPage: React.FC = () => {
                                     ? Number(deliveryCharge)
                                     : 0;
                                   let displaySubtotal =
-                                    subtotal + pesoSubtotal + deliveryChargeValue;
+                                    subtotal +
+                                    pesoSubtotal +
+                                    deliveryChargeValue;
                                   if (minValue > 0 && subtotal < minValue) {
                                     displaySubtotal =
                                       minValue + deliveryChargeValue;
@@ -1530,11 +1554,13 @@ const BillingPage: React.FC = () => {
                                           (cart.items || [])
                                             .filter(
                                               (item) =>
-                                                item.productId === sabanasProd.id
+                                                item.productId ===
+                                                sabanasProd.id
                                             )
                                             .reduce(
                                               (s, item) =>
-                                                s + (Number(item.quantity) || 0),
+                                                s +
+                                                (Number(item.quantity) || 0),
                                               0
                                             )
                                         );

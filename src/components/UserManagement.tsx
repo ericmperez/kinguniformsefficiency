@@ -57,6 +57,7 @@ export default function UserManagement(props: UserManagementProps) {
   >(undefined);
   const [logoutTimeout, setLogoutTimeout] = useState<number>(20);
   const [editLogoutTimeout, setEditLogoutTimeout] = useState<number>(20);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -270,6 +271,15 @@ export default function UserManagement(props: UserManagementProps) {
       {error && <div className="alert alert-danger mt-3">{error}</div>}
       <div className="mt-4">
         <h5>Current Users</h5>
+        <div className="mb-3" style={{ maxWidth: 350 }}>
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search by username or ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         {loading ? (
           <div>Loading...</div>
         ) : (
@@ -296,6 +306,11 @@ export default function UserManagement(props: UserManagementProps) {
               </thead>
               <tbody>
                 {users
+                  .filter(
+                    (u) =>
+                      u.username.toLowerCase().includes(search.toLowerCase()) ||
+                      u.id.includes(search)
+                  )
                   .slice()
                   .sort((a, b) => a.username.localeCompare(b.username))
                   .map((u) => (
