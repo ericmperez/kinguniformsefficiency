@@ -394,124 +394,216 @@ const BillingPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-          {/* Minimum Billing Value input */}
-          <div className="mb-3" style={{ maxWidth: 300 }}>
-            <label className="form-label">Minimum Billing Value</label>
-            <input
-              type="number"
-              className="form-control"
-              min={0}
-              value={minBilling}
-              onChange={(e) => setMinBilling(e.target.value)}
-              placeholder="Enter minimum billing value"
-            />
-          </div>
-          {/* Delivery Charge input */}
-          <div className="mb-3" style={{ maxWidth: 300 }}>
-            <label className="form-label">Delivery Charge (per invoice)</label>
-            <input
-              type="number"
-              className="form-control"
-              min={0}
-              value={deliveryCharge}
-              onChange={(e) => setDeliveryCharge(e.target.value)}
-              placeholder="Enter delivery charge"
-            />
-          </div>
-          {/* Surcharge input */}
-          <div className="mb-3" style={{ maxWidth: 500 }}>
-            <div className="form-check">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="surcharge"
-                checked={surchargeEnabled}
-                onChange={() => setSurchargeEnabled((v) => !v)}
-              />
-              <label className="form-check-label" htmlFor="surcharge">
-                Surcharge
-              </label>
-              <input
-                type="number"
-                className="form-control d-inline-block ms-2"
-                style={{ width: 100 }}
-                min={0}
-                max={100}
-                value={surchargePercent}
-                onChange={(e) => setSurchargePercent(e.target.value)}
-                placeholder="%"
-                disabled={!surchargeEnabled}
-              />
-              <span className="ms-2">%</span>
-            </div>
-          </div>
-          {/* Service and Fuel Charge Options */}
-          <div className="mb-3" style={{ maxWidth: 500 }}>
-            <label className="form-label">Additional Charges</label>
-            <div className="d-flex align-items-center gap-4 mb-2">
-              <div className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="serviceCharge"
-                  checked={serviceChargeEnabled}
-                  onChange={() => setServiceChargeEnabled((v) => !v)}
-                />
-                <label className="form-check-label" htmlFor="serviceCharge">
-                  Service Charge
-                </label>
-                <input
-                  type="number"
-                  className="form-control d-inline-block ms-2"
-                  style={{ width: 100 }}
-                  min={0}
-                  max={100}
-                  value={serviceChargePercent}
-                  onChange={(e) => setServiceChargePercent(e.target.value)}
-                  placeholder="%"
-                  disabled={!serviceChargeEnabled}
-                />
-                <span className="ms-2">%</span>
+          {/* Billing Configuration Section */}
+          <div className="card mb-4">
+            <div className="card-body">
+              <h6 className="card-title mb-4">Billing Configuration</h6>
+              
+              {/* Minimum Billing Value */}
+              <div className="row align-items-center mb-3">
+                <div className="col-md-4">
+                  <label className="form-label fw-medium mb-0">Minimum Billing Value</label>
+                </div>
+                <div className="col-md-4">
+                  <div className="input-group">
+                    <span className="input-group-text">$</span>
+                    <input
+                      type="number"
+                      className="form-control"
+                      min={0}
+                      step="0.01"
+                      value={minBilling}
+                      onChange={(e) => setMinBilling(e.target.value)}
+                      placeholder="Enter minimum billing value"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="form-check">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="fuelCharge"
-                  checked={fuelChargeEnabled}
-                  onChange={() => setFuelChargeEnabled((v) => !v)}
-                />
-                <label className="form-check-label" htmlFor="fuelCharge">
-                  Fuel Charge
-                </label>
-                <input
-                  type="number"
-                  className="form-control d-inline-block ms-2"
-                  style={{ width: 100 }}
-                  min={0}
-                  max={100}
-                  value={fuelChargePercent}
-                  onChange={(e) => setFuelChargePercent(e.target.value)}
-                  placeholder="%"
-                  disabled={!fuelChargeEnabled}
-                />
-                <span className="ms-2">%</span>
+
+              {/* Delivery Charge */}
+              <div className="row align-items-center mb-3">
+                <div className="col-md-2">
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="deliveryChargeEnabled"
+                      checked={deliveryCharge !== "" && Number(deliveryCharge) > 0}
+                      onChange={(e) => {
+                        if (!e.target.checked) {
+                          setDeliveryCharge("");
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <label className="form-label fw-medium mb-0" htmlFor="deliveryChargeEnabled">
+                    Delivery Charge (per invoice)
+                  </label>
+                </div>
+                <div className="col-md-4">
+                  <div className="input-group">
+                    <span className="input-group-text">$</span>
+                    <input
+                      type="number"
+                      className="form-control"
+                      min={0}
+                      step="0.01"
+                      value={deliveryCharge}
+                      onChange={(e) => setDeliveryCharge(e.target.value)}
+                      placeholder="Enter delivery charge"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="form-check">
-                <label className="form-check-label" htmlFor="nudosSabanasPrice">
-                  Nudos (Sabanas) Price
-                </label>
-                <input
-                  type="number"
-                  className="form-control d-inline-block ms-2"
-                  style={{ width: 100 }}
-                  min={0}
-                  value={nudosSabanasPrice}
-                  onChange={(e) => setNudosSabanasPrice(e.target.value)}
-                  placeholder="$ per sabana"
-                  id="nudosSabanasPrice"
-                />
-                <span className="ms-2">$/u</span>
+
+              {/* Surcharge */}
+              <div className="row align-items-center mb-3">
+                <div className="col-md-2">
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="surcharge"
+                      checked={surchargeEnabled}
+                      onChange={() => setSurchargeEnabled((v) => !v)}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <label className="form-label fw-medium mb-0" htmlFor="surcharge">
+                    Surcharge
+                  </label>
+                </div>
+                <div className="col-md-4">
+                  <div className="input-group">
+                    <input
+                      type="number"
+                      className="form-control"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={surchargePercent}
+                      onChange={(e) => setSurchargePercent(e.target.value)}
+                      placeholder="%"
+                      disabled={!surchargeEnabled}
+                    />
+                    <span className="input-group-text">%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Service Charge */}
+              <div className="row align-items-center mb-3">
+                <div className="col-md-2">
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="serviceCharge"
+                      checked={serviceChargeEnabled}
+                      onChange={() => setServiceChargeEnabled((v) => !v)}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <label className="form-label fw-medium mb-0" htmlFor="serviceCharge">
+                    Service Charge
+                  </label>
+                </div>
+                <div className="col-md-4">
+                  <div className="input-group">
+                    <input
+                      type="number"
+                      className="form-control"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={serviceChargePercent}
+                      onChange={(e) => setServiceChargePercent(e.target.value)}
+                      placeholder="%"
+                      disabled={!serviceChargeEnabled}
+                    />
+                    <span className="input-group-text">%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fuel Charge */}
+              <div className="row align-items-center mb-3">
+                <div className="col-md-2">
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="fuelCharge"
+                      checked={fuelChargeEnabled}
+                      onChange={() => setFuelChargeEnabled((v) => !v)}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <label className="form-label fw-medium mb-0" htmlFor="fuelCharge">
+                    Fuel Charge
+                  </label>
+                </div>
+                <div className="col-md-4">
+                  <div className="input-group">
+                    <input
+                      type="number"
+                      className="form-control"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={fuelChargePercent}
+                      onChange={(e) => setFuelChargePercent(e.target.value)}
+                      placeholder="%"
+                      disabled={!fuelChargeEnabled}
+                    />
+                    <span className="input-group-text">%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Nudos (Sabanas) Price */}
+              <div className="row align-items-center mb-3">
+                <div className="col-md-2">
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="nudosSabanasEnabled"
+                      checked={nudosSabanasPrice !== "" && Number(nudosSabanasPrice) > 0}
+                      onChange={(e) => {
+                        if (!e.target.checked) {
+                          setNudosSabanasPrice("");
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <label className="form-label fw-medium mb-0" htmlFor="nudosSabanasEnabled">
+                    Nudos (Sabanas) Price
+                  </label>
+                </div>
+                <div className="col-md-4">
+                  <div className="input-group">
+                    <span className="input-group-text">$</span>
+                    <input
+                      type="number"
+                      className="form-control"
+                      min={0}
+                      step="0.01"
+                      value={nudosSabanasPrice}
+                      onChange={(e) => setNudosSabanasPrice(e.target.value)}
+                      placeholder="per sabana"
+                      id="nudosSabanasPrice"
+                    />
+                    <span className="input-group-text">$/u</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -618,12 +710,22 @@ const BillingPage: React.FC = () => {
                         {productColumns.map((prod) => (
                           <th key={prod.id}>{prod.name}</th>
                         ))}
-                        <th>Delivery Charge</th>
+                        {deliveryCharge && Number(deliveryCharge) > 0 && (
+                          <th>Delivery Charge</th>
+                        )}
                         <th>Subtotal</th>
-                        <th>Service Charge</th>
-                        <th>Fuel Charge</th>
-                        <th>Surcharge</th>
-                        <th>Nudos (Sabanas)</th>
+                        {serviceChargeEnabled && (
+                          <th>Service Charge</th>
+                        )}
+                        {fuelChargeEnabled && (
+                          <th>Fuel Charge</th>
+                        )}
+                        {surchargeEnabled && (
+                          <th>Surcharge</th>
+                        )}
+                        {nudosSabanasPrice && Number(nudosSabanasPrice) > 0 && (
+                          <th>Nudos (Sabanas)</th>
+                        )}
                         <th>Total</th>
                         <th>Actions</th>
                       </tr>
@@ -934,13 +1036,15 @@ const BillingPage: React.FC = () => {
                                 }
                                 return <td key={prod.id}>{cell}</td>;
                               })}
-                              <td style={nowrapCellStyle}>
-                                <b>
-                                  {deliveryCharge && Number(deliveryCharge) > 0
-                                    ? `$${Number(deliveryCharge).toFixed(2)}`
-                                    : ""}
-                                </b>
-                              </td>
+                              {deliveryCharge && Number(deliveryCharge) > 0 && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {deliveryCharge && Number(deliveryCharge) > 0
+                                      ? `$${Number(deliveryCharge).toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
                               <td style={nowrapCellStyle}>
                                 <b>
                                   {displaySubtotal > 0
@@ -948,34 +1052,42 @@ const BillingPage: React.FC = () => {
                                     : ""}
                                 </b>
                               </td>
-                              <td style={nowrapCellStyle}>
-                                <b>
-                                  {serviceCharge > 0
-                                    ? `$${serviceCharge.toFixed(2)}`
-                                    : ""}
-                                </b>
-                              </td>
-                              <td style={nowrapCellStyle}>
-                                <b>
-                                  {fuelCharge > 0
-                                    ? `$${fuelCharge.toFixed(2)}`
-                                    : ""}
-                                </b>
-                              </td>
-                              <td style={nowrapCellStyle}>
-                                <b>
-                                  {surchargeValue > 0
-                                    ? `$${surchargeValue.toFixed(2)}`
-                                    : ""}
-                                </b>
-                              </td>
-                              <td style={nowrapCellStyle}>
-                                <b>
-                                  {nudosSabanasCharge > 0
-                                    ? `$${nudosSabanasCharge.toFixed(2)}`
-                                    : ""}
-                                </b>
-                              </td>
+                              {serviceChargeEnabled && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {serviceCharge > 0
+                                      ? `$${serviceCharge.toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
+                              {fuelChargeEnabled && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {fuelCharge > 0
+                                      ? `$${fuelCharge.toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
+                              {surchargeEnabled && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {surchargeValue > 0
+                                      ? `$${surchargeValue.toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
+                              {nudosSabanasPrice && Number(nudosSabanasPrice) > 0 && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {nudosSabanasCharge > 0
+                                      ? `$${nudosSabanasCharge.toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
                               <td style={nowrapCellStyle}>
                                 <b>
                                   {grandTotal > 0
@@ -1092,16 +1204,18 @@ const BillingPage: React.FC = () => {
                           );
                         })}
                         {/* Delivery Charge total */}
-                        <td style={nowrapCellStyle}>
-                          {deliveryCharge && Number(deliveryCharge) > 0
-                            ? `$${(
-                                Number(deliveryCharge) *
-                                clientInvoices.filter((inv) =>
-                                  selectedInvoiceIds.includes(inv.id)
-                                ).length
-                              ).toFixed(2)}`
-                            : ""}
-                        </td>
+                        {deliveryCharge && Number(deliveryCharge) > 0 && (
+                          <td style={nowrapCellStyle}>
+                            {deliveryCharge && Number(deliveryCharge) > 0
+                              ? `$${(
+                                  Number(deliveryCharge) *
+                                  clientInvoices.filter((inv) =>
+                                    selectedInvoiceIds.includes(inv.id)
+                                  ).length
+                                ).toFixed(2)}`
+                              : ""}
+                          </td>
+                        )}
                         {/* Subtotal total */}
                         <td style={nowrapCellStyle}>
                           {(() => {
@@ -1168,270 +1282,278 @@ const BillingPage: React.FC = () => {
                           })()}
                         </td>
                         {/* Service Charge total */}
-                        <td style={nowrapCellStyle}>
-                          {(() => {
-                            let total = 0;
-                            clientInvoices
-                              .filter((inv) =>
-                                selectedInvoiceIds.includes(inv.id)
-                              )
-                              .forEach((inv) => {
-                                let subtotal = 0;
-                                let pesoSubtotal = 0;
-                                productColumns.forEach((prod) => {
-                                  if (
-                                    prod.name.toLowerCase().includes("peso")
-                                  ) {
-                                    const pesoPrice = productPrices[prod.id];
+                        {serviceChargeEnabled && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let subtotal = 0;
+                                  let pesoSubtotal = 0;
+                                  productColumns.forEach((prod) => {
                                     if (
-                                      typeof inv.totalWeight === "number" &&
-                                      pesoPrice > 0
+                                      prod.name.toLowerCase().includes("peso")
                                     ) {
-                                      pesoSubtotal +=
-                                        inv.totalWeight * pesoPrice;
-                                    }
-                                  } else {
-                                    const qty = (inv.carts || []).reduce(
-                                      (sum, cart) => {
-                                        return (
-                                          sum +
-                                          (cart.items || [])
-                                            .filter(
-                                              (item) =>
-                                                item.productId === prod.id
-                                            )
-                                            .reduce(
-                                              (s, item) =>
-                                                s +
-                                                (Number(item.quantity) || 0),
-                                              0
-                                            )
-                                        );
-                                      },
-                                      0
-                                    );
-                                    const price = productPrices[prod.id];
-                                    if (qty > 0 && price > 0)
-                                      subtotal += qty * price;
-                                  }
-                                });
-                                let minValue = minBilling
-                                  ? Number(minBilling)
-                                  : 0;
-                                let deliveryChargeValue = deliveryCharge
-                                  ? Number(deliveryCharge)
-                                  : 0;
-                                let displaySubtotal =
-                                  subtotal + pesoSubtotal + deliveryChargeValue;
-                                if (minValue > 0 && subtotal < minValue) {
-                                  displaySubtotal =
-                                    minValue + deliveryChargeValue;
-                                }
-                                if (
-                                  serviceChargeEnabled &&
-                                  serviceChargePercent &&
-                                  Number(serviceChargePercent) > 0
-                                ) {
-                                  total +=
-                                    displaySubtotal *
-                                    (Number(serviceChargePercent) / 100);
-                                }
-                              });
-                            return total > 0 ? `$${total.toFixed(2)}` : "";
-                          })()}
-                        </td>
-                        {/* Fuel Charge total */}
-                        <td style={nowrapCellStyle}>
-                          {(() => {
-                            let total = 0;
-                            clientInvoices
-                              .filter((inv) =>
-                                selectedInvoiceIds.includes(inv.id)
-                              )
-                              .forEach((inv) => {
-                                let subtotal = 0;
-                                let pesoSubtotal = 0;
-                                productColumns.forEach((prod) => {
-                                  if (
-                                    prod.name.toLowerCase().includes("peso")
-                                  ) {
-                                    const pesoPrice = productPrices[prod.id];
-                                    if (
-                                      typeof inv.totalWeight === "number" &&
-                                      pesoPrice > 0
-                                    ) {
-                                      pesoSubtotal +=
-                                        inv.totalWeight * pesoPrice;
-                                    }
-                                  } else {
-                                    const qty = (inv.carts || []).reduce(
-                                      (sum, cart) => {
-                                        return (
-                                          sum +
-                                          (cart.items || [])
-                                            .filter(
-                                              (item) =>
-                                                item.productId === prod.id
-                                            )
-                                            .reduce(
-                                              (s, item) =>
-                                                s +
-                                                (Number(item.quantity) || 0),
-                                              0
-                                            )
-                                        );
-                                      },
-                                      0
-                                    );
-                                    const price = productPrices[prod.id];
-                                    if (qty > 0 && price > 0)
-                                      subtotal += qty * price;
-                                  }
-                                });
-                                let minValue = minBilling
-                                  ? Number(minBilling)
-                                  : 0;
-                                let deliveryChargeValue = deliveryCharge
-                                  ? Number(deliveryCharge)
-                                  : 0;
-                                let displaySubtotal =
-                                  subtotal + pesoSubtotal + deliveryChargeValue;
-                                if (minValue > 0 && subtotal < minValue) {
-                                  displaySubtotal =
-                                    minValue + deliveryChargeValue;
-                                }
-                                if (
-                                  fuelChargeEnabled &&
-                                  fuelChargePercent &&
-                                  Number(fuelChargePercent) > 0
-                                ) {
-                                  total +=
-                                    displaySubtotal *
-                                    (Number(fuelChargePercent) / 100);
-                                }
-                              });
-                            return total > 0 ? `$${total.toFixed(2)}` : "";
-                          })()}
-                        </td>
-                        {/* Surcharge total */}
-                        <td style={nowrapCellStyle}>
-                          {(() => {
-                            let total = 0;
-                            clientInvoices
-                              .filter((inv) =>
-                                selectedInvoiceIds.includes(inv.id)
-                              )
-                              .forEach((inv) => {
-                                let subtotal = 0;
-                                let pesoSubtotal = 0;
-                                productColumns.forEach((prod) => {
-                                  if (
-                                    prod.name.toLowerCase().includes("peso")
-                                  ) {
-                                    const pesoPrice = productPrices[prod.id];
-                                    if (
-                                      typeof inv.totalWeight === "number" &&
-                                      pesoPrice > 0
-                                    ) {
-                                      pesoSubtotal +=
-                                        inv.totalWeight * pesoPrice;
-                                    }
-                                  } else {
-                                    const qty = (inv.carts || []).reduce(
-                                      (sum, cart) => {
-                                        return (
-                                          sum +
-                                          (cart.items || [])
-                                            .filter(
-                                              (item) =>
-                                                item.productId === prod.id
-                                            )
-                                            .reduce(
-                                              (s, item) =>
-                                                s +
-                                                (Number(item.quantity) || 0),
-                                              0
-                                            )
-                                        );
-                                      },
-                                      0
-                                    );
-                                    const price = productPrices[prod.id];
-                                    if (qty > 0 && price > 0)
-                                      subtotal += qty * price;
-                                  }
-                                });
-                                let minValue = minBilling
-                                  ? Number(minBilling)
-                                  : 0;
-                                let deliveryChargeValue = deliveryCharge
-                                  ? Number(deliveryCharge)
-                                  : 0;
-                                let displaySubtotal =
-                                  subtotal + pesoSubtotal + deliveryChargeValue;
-                                if (minValue > 0 && subtotal < minValue) {
-                                  displaySubtotal =
-                                    minValue + deliveryChargeValue;
-                                }
-                                if (
-                                  surchargeEnabled &&
-                                  surchargePercent &&
-                                  Number(surchargePercent) > 0
-                                ) {
-                                  total +=
-                                    displaySubtotal *
-                                    (Number(surchargePercent) / 100);
-                                }
-                              });
-                            return total > 0 ? `$${total.toFixed(2)}` : "";
-                          })()}
-                        </td>
-                        {/* Nudos (Sabanas) total */}
-                        <td style={nowrapCellStyle}>
-                          {(() => {
-                            let total = 0;
-                            const sabanasProd = productColumns.find(
-                              (p) =>
-                                p.name.toLowerCase().includes("sabana") &&
-                                !p.name.toLowerCase().includes("nudo")
-                            );
-                            clientInvoices
-                              .filter((inv) =>
-                                selectedInvoiceIds.includes(inv.id)
-                              )
-                              .forEach((inv) => {
-                                let sabanasQty = 0;
-                                if (sabanasProd) {
-                                  sabanasQty = (inv.carts || []).reduce(
-                                    (sum, cart) => {
-                                      return (
-                                        sum +
-                                        (cart.items || [])
-                                          .filter(
-                                            (item) =>
-                                              item.productId === sabanasProd.id
-                                          )
-                                          .reduce(
-                                            (s, item) =>
-                                              s + (Number(item.quantity) || 0),
-                                            0
-                                          )
+                                      const pesoPrice = productPrices[prod.id];
+                                      if (
+                                        typeof inv.totalWeight === "number" &&
+                                        pesoPrice > 0
+                                      ) {
+                                        pesoSubtotal +=
+                                          inv.totalWeight * pesoPrice;
+                                      }
+                                    } else {
+                                      const qty = (inv.carts || []).reduce(
+                                        (sum, cart) => {
+                                          return (
+                                            sum +
+                                            (cart.items || [])
+                                              .filter(
+                                                (item) =>
+                                                  item.productId === prod.id
+                                              )
+                                              .reduce(
+                                                (s, item) =>
+                                                  s +
+                                                  (Number(item.quantity) || 0),
+                                                0
+                                              )
+                                          );
+                                        },
+                                        0
                                       );
-                                    },
-                                    0
-                                  );
-                                }
-                                if (
-                                  sabanasQty > 0 &&
-                                  Number(nudosSabanasPrice) > 0
-                                ) {
-                                  total +=
-                                    sabanasQty * Number(nudosSabanasPrice);
-                                }
-                              });
-                            return total > 0 ? `$${total.toFixed(2)}` : "";
-                          })()}
-                        </td>
+                                      const price = productPrices[prod.id];
+                                      if (qty > 0 && price > 0)
+                                        subtotal += qty * price;
+                                    }
+                                  });
+                                  let minValue = minBilling
+                                    ? Number(minBilling)
+                                    : 0;
+                                  let deliveryChargeValue = deliveryCharge
+                                    ? Number(deliveryCharge)
+                                    : 0;
+                                  let displaySubtotal =
+                                    subtotal + pesoSubtotal + deliveryChargeValue;
+                                  if (minValue > 0 && subtotal < minValue) {
+                                    displaySubtotal =
+                                      minValue + deliveryChargeValue;
+                                  }
+                                  if (
+                                    serviceChargeEnabled &&
+                                    serviceChargePercent &&
+                                    Number(serviceChargePercent) > 0
+                                  ) {
+                                    total +=
+                                      displaySubtotal *
+                                      (Number(serviceChargePercent) / 100);
+                                  }
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
+                        {/* Fuel Charge total */}
+                        {fuelChargeEnabled && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let subtotal = 0;
+                                  let pesoSubtotal = 0;
+                                  productColumns.forEach((prod) => {
+                                    if (
+                                      prod.name.toLowerCase().includes("peso")
+                                    ) {
+                                      const pesoPrice = productPrices[prod.id];
+                                      if (
+                                        typeof inv.totalWeight === "number" &&
+                                        pesoPrice > 0
+                                      ) {
+                                        pesoSubtotal +=
+                                          inv.totalWeight * pesoPrice;
+                                      }
+                                    } else {
+                                      const qty = (inv.carts || []).reduce(
+                                        (sum, cart) => {
+                                          return (
+                                            sum +
+                                            (cart.items || [])
+                                              .filter(
+                                                (item) =>
+                                                  item.productId === prod.id
+                                              )
+                                              .reduce(
+                                                (s, item) =>
+                                                  s +
+                                                  (Number(item.quantity) || 0),
+                                                0
+                                              )
+                                          );
+                                        },
+                                        0
+                                      );
+                                      const price = productPrices[prod.id];
+                                      if (qty > 0 && price > 0)
+                                        subtotal += qty * price;
+                                    }
+                                  });
+                                  let minValue = minBilling
+                                    ? Number(minBilling)
+                                    : 0;
+                                  let deliveryChargeValue = deliveryCharge
+                                    ? Number(deliveryCharge)
+                                    : 0;
+                                  let displaySubtotal =
+                                    subtotal + pesoSubtotal + deliveryChargeValue;
+                                  if (minValue > 0 && subtotal < minValue) {
+                                    displaySubtotal =
+                                      minValue + deliveryChargeValue;
+                                  }
+                                  if (
+                                    fuelChargeEnabled &&
+                                    fuelChargePercent &&
+                                    Number(fuelChargePercent) > 0
+                                  ) {
+                                    total +=
+                                      displaySubtotal *
+                                      (Number(fuelChargePercent) / 100);
+                                  }
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
+                        {/* Surcharge total */}
+                        {surchargeEnabled && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let subtotal = 0;
+                                  let pesoSubtotal = 0;
+                                  productColumns.forEach((prod) => {
+                                    if (
+                                      prod.name.toLowerCase().includes("peso")
+                                    ) {
+                                      const pesoPrice = productPrices[prod.id];
+                                      if (
+                                        typeof inv.totalWeight === "number" &&
+                                        pesoPrice > 0
+                                      ) {
+                                        pesoSubtotal +=
+                                          inv.totalWeight * pesoPrice;
+                                      }
+                                    } else {
+                                      const qty = (inv.carts || []).reduce(
+                                        (sum, cart) => {
+                                          return (
+                                            sum +
+                                            (cart.items || [])
+                                              .filter(
+                                                (item) =>
+                                                  item.productId === prod.id
+                                              )
+                                              .reduce(
+                                                (s, item) =>
+                                                  s +
+                                                  (Number(item.quantity) || 0),
+                                                0
+                                              )
+                                          );
+                                        },
+                                        0
+                                      );
+                                      const price = productPrices[prod.id];
+                                      if (qty > 0 && price > 0)
+                                        subtotal += qty * price;
+                                    }
+                                  });
+                                  let minValue = minBilling
+                                    ? Number(minBilling)
+                                    : 0;
+                                  let deliveryChargeValue = deliveryCharge
+                                    ? Number(deliveryCharge)
+                                    : 0;
+                                  let displaySubtotal =
+                                    subtotal + pesoSubtotal + deliveryChargeValue;
+                                  if (minValue > 0 && subtotal < minValue) {
+                                    displaySubtotal =
+                                      minValue + deliveryChargeValue;
+                                  }
+                                  if (
+                                    surchargeEnabled &&
+                                    surchargePercent &&
+                                    Number(surchargePercent) > 0
+                                  ) {
+                                    total +=
+                                      displaySubtotal *
+                                      (Number(surchargePercent) / 100);
+                                  }
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
+                        {/* Nudos (Sabanas) total */}
+                        {nudosSabanasPrice && Number(nudosSabanasPrice) > 0 && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              const sabanasProd = productColumns.find(
+                                (p) =>
+                                  p.name.toLowerCase().includes("sabana") &&
+                                  !p.name.toLowerCase().includes("nudo")
+                              );
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let sabanasQty = 0;
+                                  if (sabanasProd) {
+                                    sabanasQty = (inv.carts || []).reduce(
+                                      (sum, cart) => {
+                                        return (
+                                          sum +
+                                          (cart.items || [])
+                                            .filter(
+                                              (item) =>
+                                                item.productId === sabanasProd.id
+                                            )
+                                            .reduce(
+                                              (s, item) =>
+                                                s + (Number(item.quantity) || 0),
+                                              0
+                                            )
+                                        );
+                                      },
+                                      0
+                                    );
+                                  }
+                                  if (
+                                    sabanasQty > 0 &&
+                                    Number(nudosSabanasPrice) > 0
+                                  ) {
+                                    total +=
+                                      sabanasQty * Number(nudosSabanasPrice);
+                                  }
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
                         {/* Grand Total */}
                         <td style={nowrapCellStyle}>
                           {(() => {

@@ -1357,6 +1357,34 @@ export default function ActiveInvoices({
                           )}
                         </div>
                       )}
+                      
+                      {/* Special Service Delivery Indicator */}
+                      {invoice.specialServiceRequested && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 16,
+                            right: 16,
+                            background: "linear-gradient(135deg, #ff6b6b, #ee5a52)",
+                            color: "white",
+                            padding: "6px 12px",
+                            borderRadius: "20px",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                            boxShadow: "0 2px 8px rgba(255, 107, 107, 0.3)",
+                            zIndex: 5,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                          title={`Special Service Delivery - Cost: $${(invoice.specialServiceCost || 0).toFixed(2)}`}
+                        >
+                          <i className="bi bi-star-fill" style={{ fontSize: 10 }} />
+                          Special Service
+                        </div>
+                      )}
                     </div>
                   </div>
                 </React.Fragment>
@@ -2729,6 +2757,22 @@ export default function ActiveInvoices({
               await refreshInvoices();
               return { id: invoice.id, name: newInvoiceName, isActive: true };
             }
+            // --- Special Service Logic ---
+            if (cartName.startsWith("__special_service__")) {
+              const isRequested = cartName.replace("__special_service__", "") === "true";
+              await onUpdateInvoice(invoice.id, { 
+                specialServiceRequested: isRequested,
+                ...(isRequested ? {} : { specialServiceCost: 0 })
+              });
+              await refreshInvoices();
+              return { id: invoice.id, name: cartName, isActive: true };
+            }
+            if (cartName.startsWith("__special_service_cost__")) {
+              const cost = Number(cartName.replace("__special_service_cost__", ""));
+              await onUpdateInvoice(invoice.id, { specialServiceCost: cost });
+              await refreshInvoices();
+              return { id: invoice.id, name: cartName, isActive: true };
+            }
             if (
               invoice.carts.some(
                 (c) =>
@@ -2801,6 +2845,22 @@ export default function ActiveInvoices({
               await onUpdateInvoice(invoice.id, { name: newInvoiceName });
               await refreshInvoices();
               return { id: invoice.id, name: newInvoiceName, isActive: true };
+            }
+            // --- Special Service Logic ---
+            if (cartName.startsWith("__special_service__")) {
+              const isRequested = cartName.replace("__special_service__", "") === "true";
+              await onUpdateInvoice(invoice.id, { 
+                specialServiceRequested: isRequested,
+                ...(isRequested ? {} : { specialServiceCost: 0 })
+              });
+              await refreshInvoices();
+              return { id: invoice.id, name: cartName, isActive: true };
+            }
+            if (cartName.startsWith("__special_service_cost__")) {
+              const cost = Number(cartName.replace("__special_service_cost__", ""));
+              await onUpdateInvoice(invoice.id, { specialServiceCost: cost });
+              await refreshInvoices();
+              return { id: invoice.id, name: cartName, isActive: true };
             }
             if (
               invoice.carts.some(

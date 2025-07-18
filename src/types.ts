@@ -64,6 +64,8 @@ export interface Invoice {
   pickupGroupId?: string; // Link to pickup group if present
   name?: string; // Optional invoice-level name
   highlight?: "yellow" | "blue"; // Real-time highlight sync
+  specialServiceRequested?: boolean; // Flag for special service delivery
+  specialServiceCost?: number; // Cost for special service delivery
 }
 
 export interface LaundryCart {
