@@ -87,6 +87,7 @@ import GlobalActivityLog from "./components/GlobalActivityLog";
 import BillingPage from "./components/BillingPage";
 import SendInvoicePage from "./components/SendInvoicePage";
 import AnalyticsPage from "./components/AnalyticsPage";
+import ShippingPage from "./components/ShippingPage";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
 interface ActiveInvoicesProps {
@@ -169,6 +170,7 @@ function App() {
     | "analytics"
     | "billing"
     | "activityLog"
+    | "shipping"
   >("home");
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -666,6 +668,12 @@ function App() {
       icon: <ListAltIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
       visible: canSee("GlobalActivityLog"),
     },
+    {
+      label: "Shipping",
+      page: "shipping" as const,
+      icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
+      visible: canSee("ShippingPage"),
+    },
     // Removed 'Rutas por Camión' from navLinks
   ];
 
@@ -696,6 +704,12 @@ function App() {
       page: "reports",
       color: "#0E62A0",
       icon: <AssessmentIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
+    },
+    {
+      label: "Shipping",
+      page: "shipping",
+      color: "#0E62A0",
+      icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
     },
     {
       label: "Settings",
@@ -1655,6 +1669,15 @@ function App() {
           <div className="row justify-content-center">
             <div className="col-12 col-md-10 col-lg-8">
               <GlobalActivityLog />
+            </div>
+          </div>
+        </div>
+      )}
+      {activePage === "shipping" && canSee("ShippingPage") && (
+        <div className="container py-5">
+          <div className="row justify-content-center">
+            <div className="col-12">
+              <ShippingPage />
             </div>
           </div>
         </div>

@@ -2712,7 +2712,7 @@ export default function ActiveInvoices({
                     if (!invoice) return;
                     await onUpdateInvoice(invoice.id, {
                       status: "done",
-                      truckNumber: shippedTruckNumber,
+                      truckNumber: shippedTruckNumber.toString(),
                       deliveryDate: shippedDeliveryDate,
                     });
                     if (user?.username) {

@@ -35,6 +35,7 @@ const componentOptions: { key: AppComponentKey; label: string }[] = [
   { key: "BillingPage", label: "Billing Page" },
   { key: "RutasPorCamion", label: "Rutas Por Camion" },
   { key: "SendInvoicePage", label: "Send Invoice Page" },
+  { key: "ShippingPage", label: "Shipping Page" },
 ];
 
 export default function UserManagement(props: UserManagementProps) {

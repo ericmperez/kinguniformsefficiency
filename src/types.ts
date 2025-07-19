@@ -107,6 +107,12 @@ export interface Invoice {
   highlight?: "yellow" | "blue"; // Real-time highlight sync
   specialServiceRequested?: boolean; // Flag for special service delivery
   specialServiceCost?: number; // Cost for special service delivery
+  signature?: { // Digital signature
+    image: string; // Data URL of the signature
+    name: string; // Name of person who signed
+    timestamp: any; // Firebase Timestamp when signature was captured
+  };
+  receivedBy?: string; // Name of the person who received the delivery
 }
 
 export interface LaundryCart {

@@ -1,0 +1,82 @@
+/* ShippingPage.css */
+@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css');
+
+.shipping-dashboard {
+  padding: 20px 0;
+}
+
+.truck-card {
+  transition: transform 0.2s ease;
+  height: 100%;
+}
+
+.truck-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1) !important;
+}
+
+.truck-header {
+  background-color: #0d6efd;
+  color: white;
+  border-radius: 4px 4px 0 0;
+}
+
+.client-row {
+  transition: background-color 0.15s ease;
+}
+
+.client-row:hover {
+  background-color: rgba(13, 110, 253, 0.07);
+}
+
+.client-row td[onclick] {
+  cursor: pointer;
+}
+
+.scrollable-table {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.truck-stats {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 0 10px;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin-bottom: 0;
+}
+
+.stat-label {
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+/* Signature canvas styling */
+.signature-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* Signature modal and canvas styles */
+.signature-container {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
+}
+
+.signature-container canvas {
+  width: 100%;
+  height: 100%;
+}

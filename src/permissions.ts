@@ -16,12 +16,13 @@ export type AppComponentKey =
   | 'DriverManagement'
   | 'BillingPage'
   | 'RutasPorCamion'
-  | 'SendInvoicePage';
+  | 'SendInvoicePage'
+  | 'ShippingPage';
 
 // Map roles to allowed components
 export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
   Employee: ['PickupWashing', 'ActiveInvoices'],
-  Supervisor: ['PickupWashing', 'ActiveInvoices', 'Report', 'Segregation', 'Washing'],
+  Supervisor: ['PickupWashing', 'ActiveInvoices', 'Report', 'Segregation', 'Washing', 'ShippingPage'],
   Admin: [
     'PickupWashing',
     'ActiveInvoices',
@@ -36,6 +37,7 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'BillingPage',
     'RutasPorCamion',
     'SendInvoicePage',
+    'ShippingPage',
   ],
   Owner: [
     'PickupWashing',
@@ -51,6 +53,7 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'BillingPage',
     'RutasPorCamion',
     'SendInvoicePage',
+    'ShippingPage',
   ],
 };
 
