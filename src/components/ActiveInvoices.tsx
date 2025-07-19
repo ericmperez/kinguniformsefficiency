@@ -28,6 +28,11 @@ import { db } from "../firebase";
 import { getClientAvatarUrl } from "../services/firebaseService";
 import { logActivity } from "../services/firebaseService";
 import { getInvoices } from "../services/firebaseService";
+import {
+  sendInvoiceEmail,
+  validateEmailSettings,
+  generateInvoicePDF,
+} from "../services/emailService";
 import { collection, onSnapshot } from "firebase/firestore";
 import { formatDateSpanish } from "../utils/dateFormatter";
 
@@ -180,6 +185,18 @@ export default function ActiveInvoices({
   const [partialVerifiedInvoices, setPartialVerifiedInvoices] = useState<{
     [id: string]: boolean;
   }>({});
+
+  // --- Print Options Modal State ---
+  const [showPrintOptionsModal, setShowPrintOptionsModal] = useState<
+    string | null
+  >(null);
+  const [showCartPrintModal, setShowCartPrintModal] = useState<{
+    invoiceId: string;
+    cartId: string;
+  } | null>(null);
+  const [showInvoicePrintModal, setShowInvoicePrintModal] = useState<
+    string | null
+  >(null);
 
   // Handler to lock invoice
   const handleLockInvoice = async (invoiceId: string) => {
@@ -1187,7 +1204,7 @@ export default function ActiveInvoices({
                           zIndex: 10,
                         }}
                       >
-                        {/* Mark as Ready button (now toggles highlight color) */}
+                        {/* Complete button */}
                         <button
                           className="btn btn-warning btn-sm"
                           style={{
@@ -1204,36 +1221,56 @@ export default function ActiveInvoices({
                           }}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            const newHighlight =
-                              highlight === "yellow" ? "blue" : "yellow";
+                            if (hasUnnamedCart(invoice)) {
+                              alert(
+                                'Cannot complete invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                              );
+                              return;
+                            }
+                            // Mark invoice as completed
                             await onUpdateInvoice(invoice.id, {
-                              highlight: newHighlight,
+                              status: "completed",
                             });
                             if (user?.username) {
-                              logActivity({
+                              await logActivity({
                                 type: "Invoice",
-                                message: `User ${user.username} toggled highlight for invoice #${invoice.id}`,
+                                message: `User ${user.username} marked invoice #${invoice.id} as completed`,
                                 user: user.username,
                               });
                             }
-                            await refreshInvoices(); // Ensure UI updates after highlight change
                           }}
+                          disabled={
+                            invoice.status === "completed" ||
+                            invoice.verified ||
+                            invoice.status === "done" ||
+                            hasUnnamedCart(invoice)
+                          }
                           title={
-                            highlight === "yellow"
-                              ? "Highlight: Yellow"
-                              : "Highlight: Blue"
+                            invoice.status === "completed"
+                              ? "Completed"
+                              : invoice.verified
+                              ? "Already approved"
+                              : invoice.status === "done"
+                              ? "Already shipped"
+                              : hasUnnamedCart(invoice)
+                              ? 'Cannot complete with "CARRO SIN NOMBRE" cart'
+                              : "Mark as Completed"
                           }
                         >
                           <i
-                            className="bi bi-flag-fill"
+                            className="bi bi-clipboard-check"
                             style={{
                               color:
-                                highlight === "yellow" ? "#fbbf24" : "#0E62A0",
+                                invoice.status === "completed" ||
+                                invoice.verified ||
+                                invoice.status === "done"
+                                  ? "#22c55e"
+                                  : "#f59e0b",
                               fontSize: 22,
                             }}
                           />
                         </button>
-                        {/* Verified button */}
+                        {/* Approved button */}
                         <button
                           className="btn btn-success btn-sm"
                           style={{
@@ -1248,39 +1285,109 @@ export default function ActiveInvoices({
                             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                             border: "none",
                           }}
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
                             if (hasUnnamedCart(invoice)) {
                               alert(
-                                'Cannot verify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                'Cannot approve invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                               );
                               return;
                             }
-                            setVerifyInvoiceId(invoice.id); // open verify modal
-                            // Build initial check state for modal
-                            const checks: Record<
-                              string,
-                              Record<string, boolean>
-                            > = {};
-                            for (const cart of invoice.carts) {
-                              checks[cart.id] = {};
-                              for (const item of cart.items) {
-                                checks[cart.id][item.productId] = false;
+                            if (invoice.status !== "completed") {
+                              alert(
+                                "Invoice must be completed before it can be approved."
+                              );
+                              return;
+                            }
+                            // Mark invoice as approved (set verified to true for compatibility)
+                            await onUpdateInvoice(invoice.id, {
+                              verified: true,
+                              verifiedBy: user?.username || "",
+                              verifiedAt: new Date().toISOString(),
+                            });
+                            if (user?.username) {
+                              await logActivity({
+                                type: "Invoice",
+                                message: `User ${user.username} approved invoice #${invoice.id}`,
+                                user: user.username,
+                              });
+                            }
+
+                            // Auto-send email if enabled
+                            const client = clients.find(
+                              (c) => c.id === invoice.clientId
+                            );
+                            if (
+                              client?.printConfig?.emailSettings?.enabled &&
+                              client.printConfig.emailSettings
+                                .autoSendOnApproval &&
+                              client.email
+                            ) {
+                              try {
+                                // Generate PDF attachment if needed
+                                let pdfContent: string | undefined;
+                                try {
+                                  const printConfig =
+                                    client.printConfig.invoicePrintSettings;
+                                  pdfContent = await generateInvoicePDF(
+                                    client,
+                                    invoice,
+                                    printConfig
+                                  );
+                                } catch (error) {
+                                  console.error(
+                                    "Failed to generate PDF for auto-send:",
+                                    error
+                                  );
+                                }
+
+                                // Send email
+                                const success = await sendInvoiceEmail(
+                                  client,
+                                  invoice,
+                                  client.printConfig.emailSettings,
+                                  pdfContent
+                                );
+
+                                if (success) {
+                                  console.log(
+                                    `Auto-sent invoice email to ${client.email}`
+                                  );
+                                  await logActivity({
+                                    type: "Invoice",
+                                    message: `Invoice #${
+                                      invoice.invoiceNumber || invoice.id
+                                    } auto-sent to ${client.name} (${
+                                      client.email
+                                    }) on approval`,
+                                  });
+                                }
+                              } catch (error) {
+                                console.error("Auto-send email failed:", error);
+                                // Don't block the approval process if email fails
                               }
                             }
-                            setVerifyChecks(checks);
+
+                            // Show print options after approval
+                            setShowPrintOptionsModal(invoice.id);
                           }}
-                          disabled={invoice.verified || hasUnnamedCart(invoice)}
+                          disabled={
+                            invoice.status !== "completed" ||
+                            invoice.verified ||
+                            hasUnnamedCart(invoice)
+                          }
                           title={
                             invoice.verified
-                              ? "Verified"
+                              ? "Approved"
+                              : invoice.status !== "completed"
+                              ? "Must be completed first"
                               : hasUnnamedCart(invoice)
-                              ? 'Cannot verify with "CARRO SIN NOMBRE" cart'
-                              : "Verify"
+                              ? 'Cannot approve with "CARRO SIN NOMBRE" cart'
+                              : "Approve"
                           }
                         >
                           <i
-                            className="bi bi-check-lg"
+                            className="bi bi-check-circle"
                             style={{
                               color: invoice.verified ? "#22c55e" : "#166534",
                               fontSize: 22,
@@ -1310,16 +1417,26 @@ export default function ActiveInvoices({
                               );
                               return;
                             }
+                            if (!invoice.verified) {
+                              alert(
+                                "Invoice must be approved before it can be shipped."
+                              );
+                              return;
+                            }
                             setShowShippedModal(invoice.id);
                             setShippedTruckNumber("");
                             setShippedDeliveryDate("");
                           }}
                           disabled={
-                            invoice.status === "done" || hasUnnamedCart(invoice)
+                            !invoice.verified ||
+                            invoice.status === "done" ||
+                            hasUnnamedCart(invoice)
                           }
                           title={
                             invoice.status === "done"
                               ? "Shipped"
+                              : !invoice.verified
+                              ? "Must be approved first"
                               : hasUnnamedCart(invoice)
                               ? 'Cannot ship with "CARRO SIN NOMBRE" cart'
                               : "Mark as Shipped"
@@ -1331,7 +1448,7 @@ export default function ActiveInvoices({
                           />
                         </button>
                       </div>
-                      {/* Show verification status and details on invoice card */}
+                      {/* Show approval status and details on invoice card */}
                       {(invoice.verified || invoice.partiallyVerified) && (
                         <div style={{ marginTop: 8 }}>
                           <span
@@ -1341,8 +1458,8 @@ export default function ActiveInvoices({
                             }}
                           >
                             {invoice.verified
-                              ? "Fully Verified"
-                              : "Partially Verified"}
+                              ? "Fully Approved"
+                              : "Partially Approved"}
                           </span>
                           {invoice.verifiedBy && (
                             <span
@@ -1352,7 +1469,7 @@ export default function ActiveInvoices({
                                 fontWeight: 500,
                               }}
                             >
-                              Verifier: {getVerifierName(invoice.verifiedBy)}
+                              Approved by: {getVerifierName(invoice.verifiedBy)}
                             </span>
                           )}
                           {invoice.verifiedAt && (
@@ -2605,6 +2722,82 @@ export default function ActiveInvoices({
                         user: user.username,
                       });
                     }
+
+                    // Auto-send email if enabled for shipping
+                    const client = clients.find(
+                      (c) => c.id === invoice.clientId
+                    );
+                    if (
+                      client?.printConfig?.emailSettings?.enabled &&
+                      client.printConfig.emailSettings.autoSendOnShipping &&
+                      client.email
+                    ) {
+                      try {
+                        // Generate PDF attachment if needed
+                        let pdfContent: string | undefined;
+                        try {
+                          const printConfig =
+                            client.printConfig.invoicePrintSettings;
+                          pdfContent = await generateInvoicePDF(
+                            client,
+                            invoice,
+                            printConfig
+                          );
+                        } catch (error) {
+                          console.error(
+                            "Failed to generate PDF for shipping auto-send:",
+                            error
+                          );
+                        }
+
+                        // Send email with shipping information
+                        const emailSettings = {
+                          ...client.printConfig.emailSettings,
+                          subject:
+                            client.printConfig.emailSettings.subject ||
+                            `Invoice #${
+                              invoice.invoiceNumber || invoice.id
+                            } - Shipped via Truck #${shippedTruckNumber}`,
+                          bodyTemplate: client.printConfig.emailSettings
+                            .bodyTemplate
+                            ? client.printConfig.emailSettings.bodyTemplate
+                                .replace(/\{truckNumber\}/g, shippedTruckNumber)
+                                .replace(
+                                  /\{deliveryDate\}/g,
+                                  shippedDeliveryDate
+                                )
+                            : undefined,
+                        };
+
+                        const success = await sendInvoiceEmail(
+                          client,
+                          invoice,
+                          emailSettings,
+                          pdfContent
+                        );
+
+                        if (success) {
+                          console.log(
+                            `Auto-sent shipping notification email to ${client.email}`
+                          );
+                          await logActivity({
+                            type: "Invoice",
+                            message: `Invoice #${
+                              invoice.invoiceNumber || invoice.id
+                            } shipping notification auto-sent to ${
+                              client.name
+                            } (${client.email})`,
+                          });
+                        }
+                      } catch (error) {
+                        console.error(
+                          "Auto-send shipping email failed:",
+                          error
+                        );
+                        // Don't block the shipping process if email fails
+                      }
+                    }
+
                     // Update group status if invoice has pickupGroupId
                     if (invoice.pickupGroupId) {
                       try {
@@ -3026,6 +3219,1062 @@ export default function ActiveInvoices({
           </div>
         </div>
       )}
+
+      {/* Print Options Modal */}
+      {showPrintOptionsModal &&
+        (() => {
+          const invoice = invoices.find(
+            (inv) => inv.id === showPrintOptionsModal
+          );
+          const client = clients.find((c) => c.id === invoice?.clientId);
+          return (
+            <div
+              className="modal show"
+              style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+            >
+              <div className="modal-dialog">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title">Print Options</h5>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => setShowPrintOptionsModal(null)}
+                    ></button>
+                  </div>
+                  <div className="modal-body">
+                    <p>
+                      Invoice has been approved! Choose what you'd like to
+                      print:
+                    </p>
+
+                    <div className="d-grid gap-3">
+                      {/* Print Individual Carts */}
+                      <div className="border rounded p-3">
+                        <h6 className="mb-3">Print Individual Cart Contents</h6>
+                        {invoice?.carts.map((cart) => (
+                          <button
+                            key={cart.id}
+                            className="btn btn-outline-primary me-2 mb-2"
+                            onClick={() => {
+                              setShowCartPrintModal({
+                                invoiceId: invoice.id,
+                                cartId: cart.id,
+                              });
+                              setShowPrintOptionsModal(null);
+                            }}
+                          >
+                            Print "{cart.name}"
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Print Full Invoice */}
+                      <div className="border rounded p-3">
+                        <h6 className="mb-3">Print/Email Complete Invoice</h6>
+                        <button
+                          className="btn btn-primary me-2"
+                          onClick={() => {
+                            setShowInvoicePrintModal(invoice?.id || null);
+                            setShowPrintOptionsModal(null);
+                          }}
+                        >
+                          Print Complete Invoice
+                        </button>
+                        {client?.printConfig?.emailSettings?.enabled && (
+                          <button
+                            className="btn btn-success"
+                            onClick={async () => {
+                              // Email invoice functionality
+                              if (client.email && invoice) {
+                                try {
+                                  // Auto-send email based on client configuration
+                                  alert(
+                                    `Email sent to ${client.email} (functionality to be implemented)`
+                                  );
+                                } catch (error) {
+                                  alert("Error sending email");
+                                }
+                              } else {
+                                alert("Client email not configured");
+                              }
+                              setShowPrintOptionsModal(null);
+                            }}
+                          >
+                            Email Invoice
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setShowPrintOptionsModal(null)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* Cart Print Modal */}
+      {showCartPrintModal &&
+        (() => {
+          const invoice = invoices.find(
+            (inv) => inv.id === showCartPrintModal.invoiceId
+          );
+          const cart = invoice?.carts.find(
+            (c) => c.id === showCartPrintModal.cartId
+          );
+          const client = clients.find((c) => c.id === invoice?.clientId);
+
+          if (!invoice || !cart) return null;
+
+          // Apply client print configuration defaults
+          const printConfig = client?.printConfig?.cartPrintSettings || {
+            enabled: true,
+            showProductDetails: true,
+            showQuantities: true,
+            showPrices: false,
+            showCartTotal: true,
+            includeTimestamp: true,
+            headerText: "Cart Contents",
+            footerText: "",
+          };
+
+          return (
+            <div
+              className="modal show"
+              style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+            >
+              <div className="modal-dialog modal-xl">
+                <div className="modal-content">
+                  <div className="modal-header d-print-none">
+                    <h5 className="modal-title">Print Cart: {cart.name}</h5>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => setShowCartPrintModal(null)}
+                    ></button>
+                  </div>
+                  <div className="modal-body">
+                    <div className="row">
+                      {/* Standard A4 Print Preview */}
+                      <div className="col-md-8">
+                        <h6 className="mb-3">📄 Standard Print Preview (A4)</h6>
+                        <div
+                          id="cart-print-area"
+                          style={{
+                            border: "2px solid #ddd",
+                            borderRadius: "8px",
+                            padding: "10px",
+                            background: "#fff",
+                            maxHeight: "500px",
+                            overflowY: "auto",
+                          }}
+                        >
+                          <div
+                            style={{
+                              maxWidth: "8.5in",
+                              margin: "0 auto",
+                              background: "#fff",
+                              padding: 20,
+                              fontFamily: "Arial, sans-serif",
+                            }}
+                          >
+                            {/* Header */}
+                            <div
+                              style={{ textAlign: "center", marginBottom: 20 }}
+                            >
+                              <h2
+                                style={{ color: "#0E62A0", marginBottom: 10 }}
+                              >
+                                {printConfig.headerText || "Cart Contents"}
+                              </h2>
+                              <div style={{ fontSize: 14, color: "#666" }}>
+                                <strong>Invoice:</strong> #
+                                {invoice.invoiceNumber || invoice.id} |
+                                <strong> Client:</strong> {invoice.clientName} |
+                                <strong> Cart:</strong> {cart.name}
+                                {printConfig.includeTimestamp && (
+                                  <div style={{ marginTop: 5 }}>
+                                    <strong>Printed:</strong>{" "}
+                                    {new Date().toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Cart Items */}
+                            <table
+                              style={{
+                                width: "100%",
+                                borderCollapse: "collapse",
+                                marginBottom: 20,
+                              }}
+                            >
+                              <thead>
+                                <tr
+                                  style={{ borderBottom: "2px solid #0E62A0" }}
+                                >
+                                  {printConfig.showProductDetails && (
+                                    <th
+                                      style={{
+                                        textAlign: "left",
+                                        padding: 8,
+                                        fontWeight: "bold",
+                                      }}
+                                    >
+                                      Product
+                                    </th>
+                                  )}
+                                  {printConfig.showQuantities && (
+                                    <th
+                                      style={{
+                                        textAlign: "center",
+                                        padding: 8,
+                                        fontWeight: "bold",
+                                      }}
+                                    >
+                                      Quantity
+                                    </th>
+                                  )}
+                                  {printConfig.showPrices && (
+                                    <th
+                                      style={{
+                                        textAlign: "right",
+                                        padding: 8,
+                                        fontWeight: "bold",
+                                      }}
+                                    >
+                                      Price
+                                    </th>
+                                  )}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {cart.items.map((item, index) => (
+                                  <tr
+                                    key={index}
+                                    style={{ borderBottom: "1px solid #eee" }}
+                                  >
+                                    {printConfig.showProductDetails && (
+                                      <td style={{ padding: 8 }}>
+                                        {item.productName}
+                                      </td>
+                                    )}
+                                    {printConfig.showQuantities && (
+                                      <td
+                                        style={{
+                                          textAlign: "center",
+                                          padding: 8,
+                                        }}
+                                      >
+                                        {item.quantity}
+                                      </td>
+                                    )}
+                                    {printConfig.showPrices && (
+                                      <td
+                                        style={{
+                                          textAlign: "right",
+                                          padding: 8,
+                                        }}
+                                      >
+                                        ${item.price.toFixed(2)}
+                                      </td>
+                                    )}
+                                  </tr>
+                                ))}
+                              </tbody>
+                              {printConfig.showCartTotal && (
+                                <tfoot>
+                                  <tr
+                                    style={{
+                                      borderTop: "2px solid #0E62A0",
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    <td
+                                      colSpan={printConfig.showPrices ? 2 : 1}
+                                      style={{ padding: 8 }}
+                                    >
+                                      Total Items:
+                                    </td>
+                                    <td
+                                      style={{
+                                        textAlign: printConfig.showPrices
+                                          ? "right"
+                                          : "center",
+                                        padding: 8,
+                                      }}
+                                    >
+                                      {cart.items.reduce(
+                                        (sum, item) => sum + item.quantity,
+                                        0
+                                      )}
+                                    </td>
+                                  </tr>
+                                </tfoot>
+                              )}
+                            </table>
+
+                            {/* Footer */}
+                            {printConfig.footerText && (
+                              <div
+                                style={{
+                                  textAlign: "center",
+                                  fontSize: 12,
+                                  color: "#666",
+                                  marginTop: 20,
+                                }}
+                              >
+                                {printConfig.footerText}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3-inch Receipt Printer Preview */}
+                      <div className="col-md-4">
+                        <h6 className="mb-3">🧾 3" Receipt Printer Preview</h6>
+                        <div
+                          id="receipt-print-area"
+                          style={{
+                            border: "2px solid #333",
+                            borderRadius: "8px",
+                            background: "#fff",
+                            width: "3in",
+                            maxHeight: "500px",
+                            overflowY: "auto",
+                            padding: "8px",
+                            fontSize: "11px",
+                            fontFamily: "monospace",
+                            lineHeight: "1.2",
+                          }}
+                        >
+                          {/* Receipt Header */}
+                          <div
+                            style={{
+                              textAlign: "center",
+                              marginBottom: "8px",
+                              borderBottom: "1px dashed #333",
+                              paddingBottom: "4px",
+                            }}
+                          >
+                            <div
+                              style={{ fontWeight: "bold", fontSize: "12px" }}
+                            >
+                              {printConfig.headerText || "CART CONTENTS"}
+                            </div>
+                            <div style={{ fontSize: "10px", marginTop: "2px" }}>
+                              INV: #{invoice.invoiceNumber || invoice.id}
+                            </div>
+                            <div style={{ fontSize: "10px" }}>
+                              CLIENT: {invoice.clientName}
+                            </div>
+                            <div style={{ fontSize: "10px" }}>
+                              CART: {cart.name}
+                            </div>
+                            {printConfig.includeTimestamp && (
+                              <div
+                                style={{ fontSize: "9px", marginTop: "2px" }}
+                              >
+                                {new Date().toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Receipt Items */}
+                          <div style={{ marginBottom: "8px" }}>
+                            {cart.items.map((item, index) => (
+                              <div
+                                key={index}
+                                style={{
+                                  marginBottom: "3px",
+                                  borderBottom: "1px dotted #ccc",
+                                  paddingBottom: "2px",
+                                }}
+                              >
+                                {printConfig.showProductDetails && (
+                                  <div
+                                    style={{
+                                      fontWeight: "bold",
+                                      fontSize: "10px",
+                                      wordBreak: "break-word",
+                                    }}
+                                  >
+                                    {item.productName}
+                                  </div>
+                                )}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    fontSize: "10px",
+                                  }}
+                                >
+                                  {printConfig.showQuantities && (
+                                    <span>QTY: {item.quantity}</span>
+                                  )}
+                                  {printConfig.showPrices && (
+                                    <span>${item.price.toFixed(2)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Receipt Total */}
+                          {printConfig.showCartTotal && (
+                            <div
+                              style={{
+                                borderTop: "1px dashed #333",
+                                paddingTop: "4px",
+                                textAlign: "center",
+                              }}
+                            >
+                              <div
+                                style={{ fontWeight: "bold", fontSize: "11px" }}
+                              >
+                                TOTAL ITEMS:{" "}
+                                {cart.items.reduce(
+                                  (sum, item) => sum + item.quantity,
+                                  0
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Receipt Footer */}
+                          {printConfig.footerText && (
+                            <div
+                              style={{
+                                textAlign: "center",
+                                fontSize: "9px",
+                                marginTop: "8px",
+                                borderTop: "1px dashed #333",
+                                paddingTop: "4px",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {printConfig.footerText}
+                            </div>
+                          )}
+
+                          {/* Receipt Cut Line */}
+                          <div
+                            style={{
+                              textAlign: "center",
+                              marginTop: "8px",
+                              fontSize: "8px",
+                              color: "#666",
+                              borderTop: "1px dashed #333",
+                              paddingTop: "4px",
+                            }}
+                          >
+                            - - - - CUT HERE - - - -
+                          </div>
+                        </div>
+
+                        <div className="mt-2">
+                          <small className="text-muted d-block">
+                            📏 Width: 3 inches (72mm)
+                            <br />
+                            🖨️ Typical thermal receipt printer format
+                            <br />
+                            📱 Monospace font for consistent spacing
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="modal-footer d-print-none">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setShowCartPrintModal(null)}
+                    >
+                      Close
+                    </button>
+                    <button
+                      className="btn btn-outline-primary me-2"
+                      onClick={() => {
+                        const printContents =
+                          document.getElementById(
+                            "receipt-print-area"
+                          )?.innerHTML;
+                        if (printContents) {
+                          const printWindow = window.open(
+                            "",
+                            "",
+                            "height=800,width=600"
+                          );
+                          if (!printWindow) return;
+                          setTimeout(() => {
+                            printWindow.document.write(`
+                            <html>
+                              <head>
+                                <title>Print Receipt: ${cart.name}</title>
+                                <style>
+                                  @media print {
+                                    @page { size: 80mm auto; margin: 2mm; }
+                                    body { 
+                                      margin: 0; 
+                                      font-family: monospace;
+                                      font-size: 11px;
+                                      line-height: 1.2;
+                                      width: 72mm;
+                                    }
+                                    .d-print-none { display: none !important; }
+                                  }
+                                  body { background: #fff; }
+                                </style>
+                              </head>
+                              <body>${printContents}</body>
+                            </html>
+                          `);
+                            printWindow.document.close();
+                            printWindow.focus();
+                            printWindow.print();
+                            printWindow.close();
+                          }, 100);
+                        }
+                      }}
+                    >
+                      🧾 Print Receipt (3")
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => {
+                        const printContents =
+                          document.getElementById("cart-print-area")?.innerHTML;
+                        if (printContents) {
+                          const printWindow = window.open(
+                            "",
+                            "",
+                            "height=800,width=600"
+                          );
+                          if (!printWindow) return;
+                          setTimeout(() => {
+                            printWindow.document.write(`
+                            <html>
+                              <head>
+                                <title>Print Cart: ${cart.name}</title>
+                                <style>
+                                  @media print {
+                                    @page { size: A4; margin: 0.5in; }
+                                    body { margin: 0; }
+                                    .d-print-none { display: none !important; }
+                                  }
+                                  body { background: #fff; }
+                                </style>
+                              </head>
+                              <body>${printContents}</body>
+                            </html>
+                          `);
+                            printWindow.document.close();
+                            printWindow.focus();
+                            printWindow.print();
+                            printWindow.close();
+                          }, 100);
+                        }
+                      }}
+                    >
+                      📄 Print Standard (A4)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* Invoice Print Modal */}
+      {showInvoicePrintModal &&
+        (() => {
+          const invoice = invoices.find(
+            (inv) => inv.id === showInvoicePrintModal
+          );
+          const client = clients.find((c) => c.id === invoice?.clientId);
+
+          if (!invoice) return null;
+
+          // Apply client print configuration defaults
+          const printConfig = client?.printConfig?.invoicePrintSettings || {
+            enabled: true,
+            showClientInfo: true,
+            showInvoiceNumber: true,
+            showDate: true,
+            showCartBreakdown: true,
+            showProductSummary: true,
+            showTotalWeight: false,
+            showSubtotal: true,
+            showTaxes: false,
+            showGrandTotal: true,
+            includeSignature: false,
+            headerText: "Invoice",
+            footerText: "",
+            logoUrl: "",
+          };
+
+          // Calculate totals
+          const productMap: { [productName: string]: number } = {};
+          let grandTotal = 0;
+
+          invoice.carts.forEach((cart) => {
+            cart.items.forEach((item) => {
+              if (!productMap[item.productName]) {
+                productMap[item.productName] = 0;
+              }
+              productMap[item.productName] += item.quantity;
+              grandTotal += item.quantity * item.price;
+            });
+          });
+
+          return (
+            <div
+              className="modal show"
+              style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+            >
+              <div className="modal-dialog modal-xl">
+                <div className="modal-content">
+                  <div className="modal-header d-print-none">
+                    <h5 className="modal-title">Print Invoice</h5>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => setShowInvoicePrintModal(null)}
+                    ></button>
+                  </div>
+                  <div className="modal-body" id="invoice-print-area">
+                    <div
+                      style={{
+                        maxWidth: "8.5in",
+                        margin: "0 auto",
+                        background: "#fff",
+                        padding: 30,
+                        fontFamily: "Arial, sans-serif",
+                        border: "1px solid #ddd",
+                      }}
+                    >
+                      {/* Header with Logo */}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 30,
+                        }}
+                      >
+                        <div>
+                          {printConfig.logoUrl ? (
+                            <img
+                              src={printConfig.logoUrl}
+                              alt="Logo"
+                              style={{ maxHeight: 80 }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                fontSize: 24,
+                                fontWeight: "bold",
+                                color: "#0E62A0",
+                              }}
+                            >
+                              {printConfig.headerText || "King Uniforms"}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          {printConfig.showInvoiceNumber && (
+                            <h2 style={{ color: "#0E62A0", margin: 0 }}>
+                              Invoice #{invoice.invoiceNumber || invoice.id}
+                            </h2>
+                          )}
+                          {printConfig.showDate && (
+                            <div
+                              style={{
+                                fontSize: 14,
+                                color: "#666",
+                                marginTop: 5,
+                              }}
+                            >
+                              Date:{" "}
+                              {invoice.date
+                                ? new Date(invoice.date).toLocaleDateString()
+                                : new Date().toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Client Information */}
+                      {printConfig.showClientInfo && (
+                        <div style={{ marginBottom: 30 }}>
+                          <h4 style={{ color: "#0E62A0", marginBottom: 10 }}>
+                            Bill To:
+                          </h4>
+                          <div style={{ fontSize: 16 }}>
+                            <strong>{invoice.clientName}</strong>
+                            {client?.email && (
+                              <div style={{ fontSize: 14, color: "#666" }}>
+                                Email: {client.email}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Cart Breakdown */}
+                      {printConfig.showCartBreakdown && (
+                        <div style={{ marginBottom: 30 }}>
+                          <h4 style={{ color: "#0E62A0", marginBottom: 15 }}>
+                            Cart Breakdown:
+                          </h4>
+                          {invoice.carts.map((cart, index) => (
+                            <div
+                              key={cart.id}
+                              style={{
+                                marginBottom: 20,
+                                border: "1px solid #eee",
+                                padding: 15,
+                              }}
+                            >
+                              <h6
+                                style={{ margin: "0 0 10px 0", color: "#333" }}
+                              >
+                                {cart.name}
+                              </h6>
+                              <table style={{ width: "100%", fontSize: 14 }}>
+                                {cart.items.map((item, itemIndex) => (
+                                  <tr key={itemIndex}>
+                                    <td style={{ padding: "2px 0" }}>
+                                      {item.productName}
+                                    </td>
+                                    <td
+                                      style={{
+                                        textAlign: "center",
+                                        padding: "2px 0",
+                                      }}
+                                    >
+                                      ×{item.quantity}
+                                    </td>
+                                    <td
+                                      style={{
+                                        textAlign: "right",
+                                        padding: "2px 0",
+                                      }}
+                                    >
+                                      ${(item.quantity * item.price).toFixed(2)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </table>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Product Summary */}
+                      {printConfig.showProductSummary && (
+                        <div style={{ marginBottom: 30 }}>
+                          <h4 style={{ color: "#0E62A0", marginBottom: 15 }}>
+                            Product Summary:
+                          </h4>
+                          <table
+                            style={{
+                              width: "100%",
+                              borderCollapse: "collapse",
+                            }}
+                          >
+                            <thead>
+                              <tr style={{ borderBottom: "2px solid #0E62A0" }}>
+                                <th style={{ textAlign: "left", padding: 8 }}>
+                                  Product
+                                </th>
+                                <th style={{ textAlign: "center", padding: 8 }}>
+                                  Total Quantity
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(productMap).map(
+                                ([productName, quantity]) => (
+                                  <tr
+                                    key={productName}
+                                    style={{ borderBottom: "1px solid #eee" }}
+                                  >
+                                    <td style={{ padding: 8 }}>
+                                      {productName}
+                                    </td>
+                                    <td
+                                      style={{
+                                        textAlign: "center",
+                                        padding: 8,
+                                      }}
+                                    >
+                                      {quantity}
+                                    </td>
+                                  </tr>
+                                )
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Weight Information */}
+                      {printConfig.showTotalWeight && invoice.totalWeight && (
+                        <div style={{ marginBottom: 20 }}>
+                          <strong>Total Weight:</strong> {invoice.totalWeight}{" "}
+                          lbs
+                        </div>
+                      )}
+
+                      {/* Totals */}
+                      <div
+                        style={{
+                          borderTop: "2px solid #0E62A0",
+                          paddingTop: 15,
+                          textAlign: "right",
+                        }}
+                      >
+                        {printConfig.showSubtotal && (
+                          <div style={{ fontSize: 16, marginBottom: 5 }}>
+                            <strong>Subtotal: ${grandTotal.toFixed(2)}</strong>
+                          </div>
+                        )}
+                        {printConfig.showTaxes && (
+                          <div
+                            style={{
+                              fontSize: 14,
+                              marginBottom: 5,
+                              color: "#666",
+                            }}
+                          >
+                            Tax: $0.00
+                          </div>
+                        )}
+                        {printConfig.showGrandTotal && (
+                          <div
+                            style={{
+                              fontSize: 20,
+                              fontWeight: "bold",
+                              color: "#0E62A0",
+                            }}
+                          >
+                            Total: ${grandTotal.toFixed(2)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Signature Line */}
+                      {printConfig.includeSignature && (
+                        <div
+                          style={{
+                            marginTop: 40,
+                            borderTop: "1px solid #ccc",
+                            paddingTop: 20,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <div style={{ width: "45%" }}>
+                              <div
+                                style={{
+                                  borderBottom: "1px solid #000",
+                                  marginBottom: 5,
+                                }}
+                              >
+                                &nbsp;
+                              </div>
+                              <div
+                                style={{ fontSize: 12, textAlign: "center" }}
+                              >
+                                Customer Signature
+                              </div>
+                            </div>
+                            <div style={{ width: "45%" }}>
+                              <div
+                                style={{
+                                  borderBottom: "1px solid #000",
+                                  marginBottom: 5,
+                                }}
+                              >
+                                &nbsp;
+                              </div>
+                              <div
+                                style={{ fontSize: 12, textAlign: "center" }}
+                              >
+                                Date
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Footer */}
+                      {printConfig.footerText && (
+                        <div
+                          style={{
+                            textAlign: "center",
+                            fontSize: 12,
+                            color: "#666",
+                            marginTop: 30,
+                            borderTop: "1px solid #eee",
+                            paddingTop: 15,
+                          }}
+                        >
+                          {printConfig.footerText}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="modal-footer d-print-none">
+                    <button
+                      className="btn btn-secondary me-2"
+                      onClick={() => setShowInvoicePrintModal(null)}
+                    >
+                      Close
+                    </button>
+                    <button
+                      className="btn btn-success me-2"
+                      onClick={async () => {
+                        // Email functionality
+                        if (
+                          client?.email &&
+                          client.printConfig?.emailSettings?.enabled
+                        ) {
+                          try {
+                            // Validate email settings
+                            const validation = validateEmailSettings(
+                              client,
+                              client.printConfig.emailSettings
+                            );
+                            if (!validation.isValid) {
+                              alert(
+                                "Email configuration error:\n" +
+                                  validation.errors.join("\n")
+                              );
+                              return;
+                            }
+
+                            // Generate PDF attachment if needed
+                            let pdfContent: string | undefined;
+                            try {
+                              pdfContent = await generateInvoicePDF(
+                                client,
+                                invoice,
+                                printConfig
+                              );
+                            } catch (error) {
+                              console.error("Failed to generate PDF:", error);
+                              // Continue without attachment
+                            }
+
+                            // Send email
+                            const success = await sendInvoiceEmail(
+                              client,
+                              invoice,
+                              client.printConfig.emailSettings,
+                              pdfContent
+                            );
+
+                            if (success) {
+                              alert(
+                                `Invoice emailed successfully to ${client.email}`
+                              );
+
+                              // Log activity
+                              await logActivity({
+                                type: "Invoice",
+                                message: `Invoice #${
+                                  invoice.invoiceNumber || invoice.id
+                                } emailed to ${client.name} (${client.email})`,
+                              });
+                            } else {
+                              alert("Failed to send email. Please try again.");
+                            }
+                          } catch (error) {
+                            console.error("Email error:", error);
+                            alert(
+                              "Failed to send email. Please check your email configuration."
+                            );
+                          }
+                        } else if (!client?.email) {
+                          alert(
+                            "Client email address is not configured. Please update the client profile."
+                          );
+                        } else {
+                          alert(
+                            "Email functionality is disabled for this client. Please check print configuration."
+                          );
+                        }
+                      }}
+                      disabled={
+                        !client?.email ||
+                        !client?.printConfig?.emailSettings?.enabled
+                      }
+                    >
+                      📧 Email Invoice
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => {
+                        const printContents =
+                          document.getElementById(
+                            "invoice-print-area"
+                          )?.innerHTML;
+                        if (printContents) {
+                          const printWindow = window.open(
+                            "",
+                            "",
+                            "height=800,width=600"
+                          );
+                          if (!printWindow) return;
+                          setTimeout(() => {
+                            printWindow.document.write(`
+                            <html>
+                              <head>
+                                <title>Invoice #${
+                                  invoice.invoiceNumber || invoice.id
+                                }</title>
+                                <style>
+                                  @media print {
+                                    @page { size: A4; margin: 0.5in; }
+                                    body { margin: 0; }
+                                    .d-print-none { display: none !important; }
+                                  }
+                                  body { background: #fff; }
+                                </style>
+                              </head>
+                              <body>${printContents}</body>
+                            </html>
+                          `);
+                            printWindow.document.close();
+                            printWindow.focus();
+                            printWindow.print();
+                            printWindow.close();
+                          }, 100);
+                        }
+                      }}
+                    >
+                      Print Invoice
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {/* Footer with new color */}
       <footer

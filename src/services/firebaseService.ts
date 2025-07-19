@@ -31,11 +31,19 @@ export const addClient = async (client: Omit<Client, "id">): Promise<string> => 
 export const updateClient = async (clientId: string, client: any) => {
   const clientRef = doc(db, 'clients', clientId);
   // Sanitize client object to remove undefined fields
-  const sanitizedClient = sanitizeForFirestore({
-    ...client,
-    selectedProducts: client.selectedProducts || [],
-    isRented: client.isRented || false
-  });
+  // IMPORTANT: Only set defaults for fields that are explicitly provided
+  // This prevents overwriting existing data when doing partial updates
+  const clientUpdate: any = { ...client };
+  
+  // Only set defaults if these fields are explicitly included in the update
+  if (client.hasOwnProperty('selectedProducts') && !client.selectedProducts) {
+    clientUpdate.selectedProducts = [];
+  }
+  if (client.hasOwnProperty('isRented') && client.isRented === undefined) {
+    clientUpdate.isRented = false;
+  }
+  
+  const sanitizedClient = sanitizeForFirestore(clientUpdate);
   await updateDoc(clientRef, sanitizedClient);
 };
 

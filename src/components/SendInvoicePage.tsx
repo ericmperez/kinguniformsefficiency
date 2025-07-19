@@ -27,7 +27,11 @@ const SendInvoicePage: React.FC = () => {
       getInvoices().then((all) => {
         setInvoices(
           all.filter(
-            (inv) => inv.clientId === selectedClientId && inv.status === "done"
+            (inv) =>
+              inv.clientId === selectedClientId &&
+              (inv.status === "done" ||
+                inv.status === "completed" ||
+                inv.verified)
           )
         );
       });

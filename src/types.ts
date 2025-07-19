@@ -18,6 +18,47 @@ export interface Client {
   billingCalculation?: "byWeight" | "byItem";
   email?: string; // Optional email property
   needsInvoice?: boolean; // New field: does this client require invoice creation?
+  printConfig?: PrintConfiguration; // Print configuration for this client
+}
+
+export interface PrintConfiguration {
+  // Cart printing settings
+  cartPrintSettings: {
+    enabled: boolean;
+    showProductDetails: boolean;
+    showQuantities: boolean;
+    showPrices: boolean;
+    showCartTotal: boolean;
+    includeTimestamp: boolean;
+    headerText?: string;
+    footerText?: string;
+  };
+  // Invoice printing settings
+  invoicePrintSettings: {
+    enabled: boolean;
+    showClientInfo: boolean;
+    showInvoiceNumber: boolean;
+    showDate: boolean;
+    showCartBreakdown: boolean;
+    showProductSummary: boolean;
+    showTotalWeight: boolean;
+    showSubtotal: boolean;
+    showTaxes: boolean;
+    showGrandTotal: boolean;
+    includeSignature: boolean;
+    headerText?: string;
+    footerText?: string;
+    logoUrl?: string;
+  };
+  // Email settings
+  emailSettings: {
+    enabled: boolean;
+    autoSendOnApproval: boolean;
+    autoSendOnShipping: boolean;
+    ccEmails?: string[];
+    subject?: string;
+    bodyTemplate?: string;
+  };
 }
 
 export interface CartItem {
@@ -48,13 +89,13 @@ export interface Invoice {
   total: number;
   carts: Cart[];
   totalWeight?: number; // Add totalWeight for tunnel invoices
-  status?: string; // Add status for invoice status tracking
+  status?: "completed" | "done" | "active" | "deleted" | string; // Add status for invoice status tracking
   invoiceNumber?: number; // Optional invoiceNumber property for sequential numbering
   locked?: boolean; // If true, invoice is locked and not editable
-  verified?: boolean; // If true, invoice is verified
-  partiallyVerified?: boolean; // If true, invoice is partially verified
-  verifiedBy?: string; // User ID who verified
-  verifiedAt?: string; // Timestamp of verification
+  verified?: boolean; // If true, invoice is approved
+  partiallyVerified?: boolean; // If true, invoice is partially approved  
+  verifiedBy?: string; // User ID who approved
+  verifiedAt?: string; // Timestamp of approval
   verifiedProducts?: { [cartId: string]: string[] }; // Product IDs checked per cart
   lockedBy?: string; // User ID or username who closed the invoice
   lockedAt?: string; // Timestamp when invoice was closed

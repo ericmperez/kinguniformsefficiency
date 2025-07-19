@@ -67,7 +67,12 @@ const BillingPage: React.FC = () => {
   useEffect(() => {
     (async () => {
       const all = await getInvoices();
-      setInvoices(all.filter((inv: Invoice) => inv.status === "done"));
+      setInvoices(
+        all.filter(
+          (inv: Invoice) =>
+            inv.status === "done" || inv.status === "completed" || inv.verified
+        )
+      );
       setClients(await getClients());
     })();
   }, []);
@@ -295,7 +300,12 @@ const BillingPage: React.FC = () => {
   // Refresh invoices from Firestore
   const refreshInvoices = async () => {
     const all = await getInvoices();
-    setInvoices(all.filter((inv: Invoice) => inv.status === "done"));
+    setInvoices(
+      all.filter(
+        (inv: Invoice) =>
+          inv.status === "done" || inv.status === "completed" || inv.verified
+      )
+    );
   };
 
   // Delete handler

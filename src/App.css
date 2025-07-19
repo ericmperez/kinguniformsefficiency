@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
 /*
 Switch to a clean, modern light theme:
 - White background for body/app
@@ -17,8 +19,6 @@ Switch to a clean, modern light theme:
   --ku-radius: 18px;
   --ku-font: 'Inter', 'Segoe UI', Arial, sans-serif;
 }
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
 
 /* Example usage for backgrounds, buttons, and text */
 .ku-bg-yellow { background: var(--ku-yellow) !important; }

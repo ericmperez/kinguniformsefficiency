@@ -36,7 +36,6 @@ export default function Report() {
     maxWeight: "",
   });
   const [loading, setLoading] = useState(false);
-  const [selectedRows, setSelectedRows] = useState<string[]>([]);
 
   useEffect(() => {
     // Fetch all clients, groups, drivers for filter dropdowns
@@ -135,98 +134,6 @@ export default function Report() {
     return acc;
   }, {} as Record<string, Record<string, PickupEntry[]>>);
 
-  // Helper to export selected rows to CSV
-  const exportToCSV = () => {
-    let rows: any[] = [];
-    if (!filters.clientId && !filters.groupId && !filters.driverId) {
-      // Single table view
-      rows = groups
-        .map((group) => {
-          const groupEntries = entries.filter((e) => e.groupId === group.id);
-          if (groupEntries.length === 0) return null;
-          const earliest = groupEntries.reduce(
-            (min, e) => (e.timestamp < min.timestamp ? e : min),
-            groupEntries[0]
-          );
-          const totalWeight = groupEntries.reduce(
-            (sum, e) => sum + (e.weight || 0),
-            0
-          );
-          const totalCarts = groupEntries.length;
-          const dateObj = new Date(earliest.timestamp);
-          const date = dateObj.toLocaleDateString();
-          const time = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          return {
-            id: group.id,
-            date,
-            time,
-            client: earliest.clientName,
-            driver: earliest.driverName,
-            totalCarts,
-            totalWeight,
-          };
-        })
-        .filter(Boolean);
-    } else {
-      // Grouped view
-      rows = Object.entries(groupedByClient).flatMap(([clientId, groups]) =>
-        Object.entries(groups).map(([groupId, groupEntries]) => {
-          const earliest = groupEntries.reduce(
-            (min, e) => (e.timestamp < min.timestamp ? e : min),
-            groupEntries[0]
-          );
-          const totalWeight = groupEntries.reduce(
-            (sum, e) => sum + (e.weight || 0),
-            0
-          );
-          const totalCarts = groupEntries.length;
-          const dateObj = new Date(earliest.timestamp);
-          const date = dateObj.toLocaleDateString();
-          const time = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          return {
-            id: groupId,
-            date,
-            time,
-            client: earliest.clientName,
-            driver: earliest.driverName,
-            totalCarts,
-            totalWeight,
-          };
-        })
-      );
-    }
-    // Only export selected rows, filter out nulls
-    const selected = rows.filter((row) => selectedRows.includes(row.id));
-    const csvHeaders = ['', 'Date', 'Time', 'Client', 'Driver', 'Total Carts', 'Total Weight (lbs)'];
-    let csvContent = csvHeaders.join(',') + '\n';
-    csvContent += selected
-      .map((row) => [
-        '',
-        row.date,
-        row.time,
-        row.client,
-        row.driver,
-        row.totalCarts,
-        row.totalWeight,
-      ].map((field) => `"${field}"`).join(','))
-      .join('\n');
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "pickup_entries_report.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Helper function for formatting date and time together
-  function formatDateTime(timestamp: string | number | Date) {
-    const dateObj = new Date(timestamp);
-    const date = dateObj.toLocaleDateString();
-    const time = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    return `${date} ${time}`;
-  }
-
   return (
     <div className="container py-4">
       <h2 className="mb-4">Pickup Entries Report</h2>
@@ -248,13 +155,11 @@ export default function Report() {
                 }
               >
                 <option value="">All</option>
-                {[...clients]
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="col-md-3">
@@ -351,182 +256,55 @@ export default function Report() {
       </div>
       <div className="card p-3">
         <h5>Results ({entries.length})</h5>
-        <div className="mb-2">
-          <button
-            className="btn btn-success btn-sm"
-            onClick={exportToCSV}
-            disabled={selectedRows.length === 0}
-          >
-            Export Selected to CSV
-          </button>
-        </div>
         <div className="table-responsive">
-          {/* If all filters are 'All', show a single table for all entries */}
-          {(!filters.clientId && !filters.groupId && !filters.driverId) ? (
-            entries.length === 0 ? (
-              <div className="text-center text-muted">No entries found</div>
-            ) : (
-              <table className="table table-bordered table-hover">
-                <thead>
-                  <tr>
-                    <th>
-                      <input
-                        type="checkbox"
-                        checked={
-                          groups.every((g) => selectedRows.includes(g.id)) &&
-                          groups.length > 0
-                        }
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedRows(groups.map((g) => g.id));
-                          } else {
-                            setSelectedRows([]);
-                          }
-                        }}
-                      />
-                    </th>
-                    <th>Date</th>
-                    <th>Client</th>
-                    <th>Driver</th>
-                    <th>Total Carts</th>
-                    <th>Total Weight (lbs)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groups.map((group) => {
-                    const groupEntries = entries.filter(
-                      (e) => e.groupId === group.id
-                    );
-                    if (groupEntries.length === 0) return null;
-                    const totalWeight = groupEntries.reduce(
-                      (sum, e) => sum + (e.weight || 0),
-                      0
-                    );
-                    const earliest = groupEntries.reduce(
-                      (min, e) => (e.timestamp < min.timestamp ? e : min),
-                      groupEntries[0]
-                    );
-                    const totalCarts = groupEntries.length;
-                    return (
-                      <tr key={group.id}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={selectedRows.includes(group.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedRows([...selectedRows, group.id]);
-                              } else {
-                                setSelectedRows(
-                                  selectedRows.filter((id) => id !== group.id)
-                                );
-                              }
-                            }}
-                          />
-                        </td>
-                        <td>{earliest.timestamp.toLocaleString()}</td>
-                        <td>{earliest.clientName}</td>
-                        <td>{earliest.driverName}</td>
-                        <td>{totalCarts}</td>
-                        <td>{totalWeight}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )
+          {Object.keys(groupedByClient).length === 0 ? (
+            <div className="text-center text-muted">No entries found</div>
           ) : (
-            // ...existing grouped by client rendering...
-            Object.keys(groupedByClient).length === 0 ? (
-              <div className="text-center text-muted">No entries found</div>
-            ) : (
-              Object.entries(groupedByClient).map(([clientId, groups]) => (
-                <div key={clientId} style={{ marginBottom: 32 }}>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: 18,
-                      color: "#007bff",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Client: {Object.values(groups)[0][0].clientName}
-                  </div>
-                  <table className="table table-bordered table-hover">
-                    <thead>
-                      <tr>
-                        <th>
-                          <input
-                            type="checkbox"
-                            checked={
-                              Object.keys(groups).every((gid) =>
-                                selectedRows.includes(gid)
-                              ) && Object.keys(groups).length > 0
-                            }
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedRows([
-                                  ...selectedRows,
-                                  ...Object.keys(groups).filter(
-                                    (gid) => !selectedRows.includes(gid)
-                                  ),
-                                ]);
-                              } else {
-                                setSelectedRows(
-                                  selectedRows.filter(
-                                    (id) => !Object.keys(groups).includes(id)
-                                  )
-                                );
-                              }
-                            }}
-                          />
-                        </th>
-                        <th>Date</th>
-                        <th>Driver</th>
-                        <th>Total Carts</th>
-                        <th>Total Weight (lbs)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(groups).map(([groupId, groupEntries]) => {
-                        const totalWeight = groupEntries.reduce(
-                          (sum, e) => sum + (e.weight || 0),
-                          0
-                        );
-                        const earliest = groupEntries.reduce(
-                          (min, e) => (e.timestamp < min.timestamp ? e : min),
-                          groupEntries[0]
-                        );
-                        const totalCarts = groupEntries.length;
-                        return (
-                          <tr key={groupId}>
-                            <td>
-                              <input
-                                type="checkbox"
-                                checked={selectedRows.includes(groupId)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedRows([...selectedRows, groupId]);
-                                  } else {
-                                    setSelectedRows(
-                                      selectedRows.filter((id) => id !== groupId)
-                                    );
-                                  }
-                                }}
-                              />
-                            </td>
-                            <td>{earliest.timestamp.toLocaleString()}</td>
-                            <td>{earliest.driverName}</td>
-                            <td>{totalCarts}</td>
-                            <td>{totalWeight}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+            Object.entries(groupedByClient).map(([clientId, groups]) => (
+              <div key={clientId} style={{ marginBottom: 32 }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 18,
+                    color: "#007bff",
+                    marginBottom: 8,
+                  }}
+                >
+                  Client: {Object.values(groups)[0][0].clientName}
                 </div>
-              ))
-            )
+                <table className="table table-bordered table-hover">
+                  <thead>
+                    <tr>
+                      <th>Group</th>
+                      <th>Driver</th>
+                      <th>Date</th>
+                      <th>Total Weight (lbs)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(groups).map(([groupId, groupEntries]) => {
+                      // Summarize group: earliest date, driver, total weight
+                      const totalWeight = groupEntries.reduce(
+                        (sum, e) => sum + (e.weight || 0),
+                        0
+                      );
+                      const earliest = groupEntries.reduce(
+                        (min, e) => (e.timestamp < min.timestamp ? e : min),
+                        groupEntries[0]
+                      );
+                      return (
+                        <tr key={groupId}>
+                          <td>{groupId}</td>
+                          <td>{earliest.driverName}</td>
+                          <td>{earliest.timestamp.toLocaleString()}</td>
+                          <td>{totalWeight}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ))
           )}
         </div>
       </div>

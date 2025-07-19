@@ -481,6 +481,97 @@ const Segregation: React.FC<SegregationProps> = ({
 
   return (
     <div className="container py-4">
+      {/* Summary Section */}
+      <div
+        className="mb-4 p-4 shadow-lg rounded border bg-light"
+        style={{
+          backgroundColor: "#f8f9fa",
+          borderColor: "#dee2e6",
+        }}
+      >
+        <h4
+          style={{
+            color: "#495057",
+            fontWeight: 700,
+            marginBottom: 16,
+            textAlign: "center",
+          }}
+        >
+          📊 Segregation Summary
+        </h4>
+        <div className="row text-center">
+          <div className="col-md-6">
+            <div
+              className="p-3 rounded"
+              style={{
+                backgroundColor: "#e3f2fd",
+                border: "2px solid #2196f3",
+              }}
+            >
+              <h5
+                style={{ color: "#1976d2", fontWeight: 700, marginBottom: 8 }}
+              >
+                👥 Clients Remaining
+              </h5>
+              <div
+                style={{
+                  fontSize: 32,
+                  fontWeight: 900,
+                  color: "#1976d2",
+                }}
+              >
+                {displayGroups.length}
+              </div>
+            </div>
+          </div>
+          <div className="col-md-6">
+            <div
+              className="p-3 rounded"
+              style={{
+                backgroundColor: "#e8f5e8",
+                border: "2px solid #4caf50",
+              }}
+            >
+              <h5
+                style={{ color: "#388e3c", fontWeight: 700, marginBottom: 8 }}
+              >
+                ⚖️ Total Weight
+              </h5>
+              <div
+                style={{
+                  fontSize: 32,
+                  fontWeight: 900,
+                  color: "#388e3c",
+                }}
+              >
+                {(() => {
+                  const totalWeight = displayGroups.reduce((sum, group) => {
+                    // Calculate total weight for each group
+                    let groupWeight = 0;
+                    if (Array.isArray(group?.carts)) {
+                      groupWeight = group.carts.reduce(
+                        (cartSum: number, cart: any) =>
+                          cartSum + (cart.totalWeight || 0),
+                        0
+                      );
+                    } else if (typeof group?.totalWeight === "number") {
+                      groupWeight = group.totalWeight;
+                    }
+                    return sum + groupWeight;
+                  }, 0);
+
+                  return totalWeight > 0
+                    ? `${totalWeight.toLocaleString("en-US", {
+                        maximumFractionDigits: 0,
+                      })} lbs`
+                    : "0 lbs";
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Top group highlight */}
       {topGroup && (
         <div

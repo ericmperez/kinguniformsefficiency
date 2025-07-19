@@ -39,6 +39,7 @@ import { useAuth } from "./components/AuthContext";
 import LocalLoginForm from "./components/LocalLoginForm";
 import UserManagement from "./components/UserManagement";
 import DriverManagement from "./components/DriverManagement";
+import PrintingSettings from "./components/PrintingSettings";
 import { useState, useEffect } from "react";
 import type { UserRecord } from "./services/firebaseService";
 import {
@@ -189,7 +190,13 @@ function App() {
     localStorage.getItem("loginAnnouncementImage") || null
   );
   const [activeSettingsTab, setActiveSettingsTab] = useState<
-    "clients" | "products" | "users" | "drivers" | "loginContent" | "rutas"
+    | "clients"
+    | "products"
+    | "users"
+    | "drivers"
+    | "loginContent"
+    | "rutas"
+    | "printing"
   >("clients");
 
   // State for which process menu is open (string or null)
@@ -1418,6 +1425,34 @@ function App() {
               </button>
               <button
                 className={`btn${
+                  activeSettingsTab === "printing"
+                    ? " btn-primary"
+                    : " btn-outline-primary"
+                }`}
+                onClick={() => setActiveSettingsTab("printing")}
+                style={{
+                  minWidth: 120,
+                  padding: "12px 20px",
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  boxShadow:
+                    activeSettingsTab === "printing"
+                      ? "0 2px 8px rgba(14,98,160,0.08)"
+                      : "none",
+                  background:
+                    activeSettingsTab === "printing"
+                      ? "var(--ku-blue)"
+                      : "#fff",
+                  color: activeSettingsTab === "printing" ? "#fff" : "#0E62A0",
+                  border: "2px solid var(--ku-blue)",
+                  transition: "all 0.2s",
+                }}
+              >
+                🖨️ Printing
+              </button>
+              <button
+                className={`btn${
                   activeSettingsTab === "rutas"
                     ? " btn-primary"
                     : " btn-outline-primary"
@@ -1528,6 +1563,11 @@ function App() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+            {activeSettingsTab === "printing" && (
+              <div className="col-md-12">
+                <PrintingSettings />
               </div>
             )}
             {activeSettingsTab === "rutas" && (

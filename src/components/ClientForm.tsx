@@ -1,33 +1,14 @@
 import React, { useState } from "react";
 // Use canonical types from src/types.ts
-import type { Client as AppClient, Product as AppProduct } from "../types";
+import type { Client, Product } from "../types";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
 import { logActivity } from "../services/firebaseService";
 
-interface Product {
-  id: string;
-  name: string;
-  image: File | null;
-  imageUrl?: string;
-}
-
-interface Client {
-  id: string;
-  name: string;
-  selectedProducts: string[];
-  image?: File | null;
-  imageUrl?: string;
-  isRented: boolean;
-}
-
 interface ClientFormProps {
-  clients: AppClient[];
-  products: AppProduct[];
-  onAddClient: (client: Omit<AppClient, "id">) => Promise<void>;
-  onUpdateClient: (
-    clientId: string,
-    client: Partial<AppClient>
-  ) => Promise<void>;
+  clients: Client[];
+  products: Product[];
+  onAddClient: (client: Omit<Client, "id">) => Promise<void>;
+  onUpdateClient: (clientId: string, client: Partial<Client>) => Promise<void>;
   onDeleteClient: (clientId: string) => Promise<void>;
 }
 
@@ -45,10 +26,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
   const [washingType, setWashingType] = useState<"Tunnel" | "Conventional">(
     "Tunnel"
   );
-  const [editingClient, setEditingClient] = useState<AppClient | null>(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [clientToDelete, setClientToDelete] = useState<AppClient | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [segregation, setSegregation] = useState(false);
   const [billingCalculation, setBillingCalculation] = useState<
     "byWeight" | "byItem"
@@ -225,11 +206,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                       newSelection = products.map((p) => p.id);
                     }
                     setSelectedProducts(newSelection);
-                    if (editingClient?.id) {
+                    if (editingClient) {
+                      const client: Client = editingClient;
                       setIsSaving(true);
                       setSaveError(null);
                       try {
-                        await onUpdateClient(editingClient.id, {
+                        await onUpdateClient(client.id, {
                           selectedProducts: newSelection,
                         });
                       } catch {
@@ -478,7 +460,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
         )}
         {isSaving && <div className="text-info mt-2">Saving...</div>}
         <div className="mt-4">
-          <h4>Client List</h4>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h4>Client List</h4>
+          </div>
           <div className="table-responsive">
             <table className="table table-hover">
               <thead>
@@ -500,7 +484,16 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   .sort((a, b) => a.name.localeCompare(b.name))
                   .map((client) => (
                     <tr key={client.id}>
-                      <td>{client.name}</td>
+                      <td>
+                        <div
+                          className="d-flex align-items-center gap-2"
+                          title="Client name"
+                        >
+                          <strong className="text-primary">
+                            {client.name}
+                          </strong>
+                        </div>
+                      </td>
                       <td style={{ width: "60px" }}>
                         {client.imageUrl && (
                           <img
@@ -626,18 +619,20 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                         </span>
                       </td>
                       <td>
-                        <div className="d-flex gap-2">
+                        <div className="d-flex gap-1 flex-wrap">
                           <button
                             className="btn btn-sm btn-outline-primary"
                             onClick={() => handleEdit(client)}
+                            title="Edit client details"
                           >
-                            Edit
+                            ✏️ Edit
                           </button>
                           <button
                             className="btn btn-sm btn-outline-danger"
                             onClick={() => setClientToDelete(client)}
+                            title="Delete client"
                           >
-                            Delete
+                            🗑️ Delete
                           </button>
                         </div>
                       </td>
@@ -731,11 +726,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                             newSelection = products.map((p) => p.id);
                           }
                           setSelectedProducts(newSelection);
-                          if (editingClient?.id) {
+                          if (editingClient) {
+                            const client: Client = editingClient;
                             setIsSaving(true);
                             setSaveError(null);
                             try {
-                              await onUpdateClient(editingClient.id, {
+                              await onUpdateClient(client.id, {
                                 selectedProducts: newSelection,
                               });
                             } catch {
