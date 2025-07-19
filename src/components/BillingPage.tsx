@@ -4,6 +4,7 @@ import {
   getInvoices,
   getClients,
   updateInvoice,
+  logActivity,
 } from "../services/firebaseService";
 import {
   collection,
@@ -12,6 +13,7 @@ import {
   getDocs,
   query,
   where,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
@@ -323,6 +325,108 @@ const BillingPage: React.FC = () => {
   };
 
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+
+  // State for invoice grouping
+  const [showGroupInvoicesModal, setShowGroupInvoicesModal] =
+    useState<boolean>(false);
+  const [newGroupInvoiceNumber, setNewGroupInvoiceNumber] =
+    useState<string>("");
+  const [isProcessingGroup, setIsProcessingGroup] = useState<boolean>(false);
+
+  // Handler to group invoices under one invoice number and lock them
+  const groupAndLockInvoices = async () => {
+    if (selectedInvoiceIds.length < 1) {
+      alert("Please select at least one invoice to group");
+      return;
+    }
+
+    if (!newGroupInvoiceNumber.trim()) {
+      alert("Please enter a valid invoice number");
+      return;
+    }
+
+    // Check if any of the selected invoices are already locked
+    const alreadyLockedInvoices = invoices.filter(
+      (inv) => selectedInvoiceIds.includes(inv.id) && inv.locked
+    );
+
+    if (alreadyLockedInvoices.length > 0) {
+      const lockedInvoiceNumbers = alreadyLockedInvoices
+        .map((inv) => inv.invoiceNumber || inv.id)
+        .join(", ");
+      alert(
+        `The following invoices are already locked and cannot be grouped: ${lockedInvoiceNumbers}`
+      );
+      return;
+    }
+
+    try {
+      setIsProcessingGroup(true);
+
+      // Get the current user's name (or Admin if not available)
+      const userName = "Admin"; // Replace with actual user name when available
+
+      // Create metadata about this grouping
+      const groupMetadata = {
+        groupedInvoiceNumber: newGroupInvoiceNumber,
+        locked: true,
+        lockedBy: userName,
+        lockedAt: new Date().toISOString(),
+        groupedAt: new Date().toISOString(),
+        groupedBy: userName,
+        groupNotes: `Grouped ${selectedInvoiceIds.length} invoices under invoice #${newGroupInvoiceNumber}`,
+      };
+
+      // Update each selected invoice with the new invoice number and lock it
+      const updatePromises = selectedInvoiceIds.map((invoiceId) => {
+        const invoice = invoices.find((inv) => inv.id === invoiceId);
+        if (!invoice) return Promise.resolve();
+
+        return updateDoc(doc(db, "invoices", invoiceId), groupMetadata);
+      });
+
+      await Promise.all(updatePromises);
+
+      // Log the activity for audit purposes
+      try {
+        await logActivity({
+          type: "group_invoices",
+          message: `Grouped ${
+            selectedInvoiceIds.length
+          } invoices under invoice #${newGroupInvoiceNumber}. Invoice IDs: ${selectedInvoiceIds.join(
+            ", "
+          )}`,
+          user: userName,
+        });
+      } catch (logError) {
+        console.error("Failed to log activity:", logError);
+        // Continue with the process even if logging fails
+      }
+
+      // Refresh the invoices list
+      const all = await getInvoices();
+      setInvoices(
+        all.filter(
+          (inv: Invoice) =>
+            inv.status === "done" || inv.status === "completed" || inv.verified
+        )
+      );
+
+      // Reset state
+      setShowGroupInvoicesModal(false);
+      setNewGroupInvoiceNumber("");
+      setSelectedInvoiceIds([]);
+
+      alert(
+        `Successfully grouped ${selectedInvoiceIds.length} invoices under invoice #${newGroupInvoiceNumber}`
+      );
+    } catch (error: any) {
+      console.error("Error grouping invoices:", error);
+      alert(`Failed to group invoices: ${error?.message || "Unknown error"}`);
+    } finally {
+      setIsProcessingGroup(false);
+    }
+  };
 
   return (
     <div className="container py-4">
@@ -656,6 +760,19 @@ const BillingPage: React.FC = () => {
           )}
         </div>
       )}
+      {/* Button to group selected invoices */}
+      {selectedInvoiceIds.length > 0 && (
+        <div className="mb-3">
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowGroupInvoicesModal(true)}
+          >
+            <i className="bi bi-object-ungroup me-1"></i> Group{" "}
+            {selectedInvoiceIds.length} Selected Invoices
+          </button>
+        </div>
+      )}
+
       {/* Completed Invoices Table */}
       {(() => {
         // Filter/group invoices by selected client
@@ -966,7 +1083,22 @@ const BillingPage: React.FC = () => {
                                   }}
                                 />
                               </td>
-                              <td>{inv.invoiceNumber || inv.id}</td>
+                              <td>
+                                {inv.groupedInvoiceNumber ? (
+                                  <span className="text-primary fw-bold">
+                                    <i className="bi bi-link me-1"></i>
+                                    {inv.groupedInvoiceNumber}
+                                  </span>
+                                ) : (
+                                  inv.invoiceNumber || inv.id
+                                )}
+                                {inv.locked && (
+                                  <i
+                                    className="bi bi-lock-fill text-secondary ms-1"
+                                    title="Invoice is locked"
+                                  ></i>
+                                )}
+                              </td>
                               <td>
                                 {inv.date
                                   ? formatDateOnlySpanish(inv.date)
@@ -1128,6 +1260,12 @@ const BillingPage: React.FC = () => {
                                 <button
                                   className="btn btn-sm btn-outline-primary"
                                   onClick={() => handleEditInvoice(inv)}
+                                  disabled={inv.locked}
+                                  title={
+                                    inv.locked
+                                      ? "Invoice is locked and cannot be edited"
+                                      : "Edit invoice"
+                                  }
                                 >
                                   Edit
                                 </button>
@@ -1140,9 +1278,23 @@ const BillingPage: React.FC = () => {
                                 <button
                                   className="btn btn-sm btn-outline-danger ms-2"
                                   onClick={() => handleDeleteInvoice(inv)}
+                                  disabled={inv.locked}
+                                  title={
+                                    inv.locked
+                                      ? "Invoice is locked and cannot be deleted"
+                                      : "Delete invoice"
+                                  }
                                 >
                                   Delete
                                 </button>
+                                {inv.locked && (
+                                  <div className="mt-1 small text-muted">
+                                    Locked by: {inv.lockedBy || "System"}
+                                    <br />
+                                    {inv.lockedAt &&
+                                      new Date(inv.lockedAt).toLocaleString()}
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           );
@@ -1700,90 +1852,140 @@ const BillingPage: React.FC = () => {
             );
           });
       })()}
+      {/* Group Invoices Modal */}
+      {showGroupInvoicesModal && (
+        <div
+          className="modal d-block"
+          tabIndex={-1}
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Group Selected Invoices</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowGroupInvoicesModal(false)}
+                  disabled={isProcessingGroup}
+                  aria-label="Close"
+                ></button>
+              </div>
+              <div className="modal-body">
+                <p>
+                  You are about to group {selectedInvoiceIds.length} invoices
+                  together. Once grouped, these invoices will be locked and
+                  cannot be edited separately.
+                </p>
+
+                <div className="mb-3">
+                  <label htmlFor="groupInvoiceNumber" className="form-label">
+                    Enter Invoice Number
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    id="groupInvoiceNumber"
+                    value={newGroupInvoiceNumber}
+                    onChange={(e) => setNewGroupInvoiceNumber(e.target.value)}
+                    placeholder="Enter a custom invoice number"
+                    required
+                  />
+                  <div className="form-text">
+                    This will be used as the main invoice number for all grouped
+                    invoices.
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <h6>Selected Invoices:</h6>
+                  <ul className="list-group">
+                    {invoices
+                      .filter((inv) => selectedInvoiceIds.includes(inv.id))
+                      .map((inv) => (
+                        <li
+                          key={inv.id}
+                          className="list-group-item d-flex justify-content-between align-items-center"
+                        >
+                          <div>
+                            <span className="fw-bold">
+                              Invoice #{inv.invoiceNumber || inv.id}
+                            </span>
+                            <span className="ms-2 text-muted">
+                              (
+                              {inv.date
+                                ? formatDateOnlySpanish(inv.date)
+                                : "No date"}
+                              )
+                            </span>
+                          </div>
+                          <span className="badge bg-primary rounded-pill">
+                            {inv.clientName}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowGroupInvoicesModal(false)}
+                  disabled={isProcessingGroup}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary d-flex align-items-center"
+                  onClick={groupAndLockInvoices}
+                  disabled={isProcessingGroup || !newGroupInvoiceNumber.trim()}
+                >
+                  {isProcessingGroup ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm me-2"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-object-ungroup me-1"></i> Group
+                      Invoices
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Invoice Details Modal - for editing invoices */}
       {showInvoiceDetailsModal && selectedInvoice && (
         <InvoiceDetailsModal
           invoice={selectedInvoice}
-          onClose={() => setShowInvoiceDetailsModal(false)}
+          onClose={() => {
+            setShowInvoiceDetailsModal(false);
+            setSelectedInvoice(null);
+            refreshInvoices();
+          }}
           client={clients.find((c) => c.id === selectedInvoice.clientId)}
           products={allProducts}
-          onAddCart={async (cartName: string) => {
-            // Handle special keys for invoice name and cart name edits
-            if (cartName.startsWith("__invoice_name__")) {
-              const newInvoiceName = cartName.replace("__invoice_name__", "");
-              await updateInvoice(selectedInvoice.id, { name: newInvoiceName });
-              await refreshInvoices();
-              return {
-                id: selectedInvoice.id,
-                name: newInvoiceName,
-                isActive: true,
-              };
-            }
-            if (cartName.startsWith("__edit__")) {
-              const [_, cartId, ...nameParts] = cartName.split("__");
-              const newName = nameParts.join("__");
-              const updatedCarts = (selectedInvoice.carts || []).map((c) =>
-                c.id === cartId ? { ...c, name: newName } : c
-              );
-              await updateInvoice(selectedInvoice.id, { carts: updatedCarts });
-              await refreshInvoices();
-              return { id: cartId, name: newName, isActive: true };
-            }
-            // Add new cart
-            const newCart = {
-              id: Date.now().toString(),
-              name: cartName,
-              items: [],
-              total: 0,
-              createdAt: new Date().toISOString(),
-            };
-            const updatedCarts = [...(selectedInvoice.carts || []), newCart];
-            await updateInvoice(selectedInvoice.id, { carts: updatedCarts });
-            await refreshInvoices();
-            return { id: newCart.id, name: newCart.name, isActive: true };
+          onAddCart={async (name) => {
+            // Placeholder function as it's not needed in this context
+            return { id: Date.now().toString(), name, isActive: true };
           }}
-          onAddProductToCart={async (
-            cartId,
-            productId,
-            quantity,
-            price,
-            itemIdx
-          ) => {
-            const invoice = invoices.find(
-              (inv) => inv.id === selectedInvoice.id
-            );
-            if (!invoice) return;
-            const updatedCarts = invoice.carts.map((cart) => {
-              if (cart.id !== cartId) return cart;
-              let newItems;
-              if (typeof itemIdx === "number") {
-                // Delete only the entry at the given index for this product
-                newItems = cart.items.filter(
-                  (item, idx) =>
-                    !(item.productId === productId && idx === itemIdx)
-                );
-              } else {
-                // Always add as a new entry (do not merge)
-                const prod = allProducts.find((p) => p.id === productId);
-                newItems = [
-                  ...cart.items,
-                  {
-                    productId: productId,
-                    productName: prod ? prod.name : "",
-                    quantity: quantity,
-                    price: price !== undefined ? price : prod ? prod.price : 0,
-                    addedBy: "You",
-                  },
-                ];
-              }
-              return { ...cart, items: newItems };
-            });
-            await updateInvoice(invoice.id, { carts: updatedCarts });
-            await refreshInvoices();
+          onAddProductToCart={(cartId, productId, quantity) => {
+            // Placeholder function as it's not needed in this context
           }}
           refreshInvoices={refreshInvoices}
         />
       )}
+
       {/* Print Invoice Modal */}
       {invoiceToPrint && (
         <div

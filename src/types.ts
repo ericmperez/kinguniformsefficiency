@@ -91,6 +91,7 @@ export interface Invoice {
   totalWeight?: number; // Add totalWeight for tunnel invoices
   status?: "completed" | "done" | "active" | "deleted" | string; // Add status for invoice status tracking
   invoiceNumber?: number; // Optional invoiceNumber property for sequential numbering
+  groupedInvoiceNumber?: string; // Custom invoice number when invoices are grouped
   locked?: boolean; // If true, invoice is locked and not editable
   verified?: boolean; // If true, invoice is approved
   partiallyVerified?: boolean; // If true, invoice is partially approved  
