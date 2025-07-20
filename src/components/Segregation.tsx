@@ -37,6 +37,12 @@ const Segregation: React.FC<SegregationProps> = ({
   const [loading, setLoading] = useState(true);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
+  // --- Alert Banner State ---
+  const [alertMessage, setAlertMessage] = useState("");
+  const [isEditingAlert, setIsEditingAlert] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const [loadingAlert, setLoadingAlert] = useState(true);
+
   // State for log modal
   const [logGroup, setLogGroup] = useState<any | null>(null);
   const [showLogModal, setShowLogModal] = useState(false);
@@ -475,12 +481,148 @@ const Segregation: React.FC<SegregationProps> = ({
 
   const { user } = useAuth();
 
+  // Check if user can edit the alert banner
+  const canEdit = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
+
+  // Fetch alert message from Firestore
+  useEffect(() => {
+    async function fetchAlert() {
+      setLoadingAlert(true);
+      try {
+        const docRef = doc(db, "app_config", "alert_banner");
+        const snap = await getDoc(docRef);
+        const alertData = snap.exists() ? snap.data().message || "" : "";
+        console.log("Fetched alert message:", alertData);
+        setAlertMessage(alertData);
+      } catch (error) {
+        console.error("Error fetching alert:", error);
+        setAlertMessage("");
+      }
+      setLoadingAlert(false);
+    }
+    fetchAlert();
+  }, []);
+
+  // Handle editing the alert
+  const handleStartEditing = () => {
+    setIsEditingAlert(true);
+    setEditValue(alertMessage);
+  };
+  
+  // Handle canceling the edit
+  const handleCancelEdit = () => {
+    setIsEditingAlert(false);
+  };
+  
+  // Save alert message to Firestore
+  const handleSaveAlert = async () => {
+    setLoadingAlert(true);
+    try {
+      const docRef = doc(db, "app_config", "alert_banner");
+      await setDoc(docRef, { message: editValue || "" }, { merge: true });
+      setAlertMessage(editValue || "");
+      setIsEditingAlert(false);
+      alert("Alert banner updated successfully");
+    } catch (error) {
+      console.error("Error saving alert:", error);
+      alert("Error saving alert message");
+    }
+    setLoadingAlert(false);
+  };
+
   // --- UI ---
   // Highlight the top group (first in displayGroups) in a big bold box at the top
   const topGroup = displayGroups[0];
 
   return (
     <div className="container py-4">
+      {/* Alert Banner */}
+      {loadingAlert ? (
+        <div style={{
+          width: "100%", background: "#f3f4f6", borderBottom: "2px solid #d1d5db",
+          padding: "8px 0", textAlign: "center", position: "sticky", top: 0, zIndex: 1000
+        }}>
+          <span>Loading...</span>
+        </div>
+      ) : (
+        <div style={{
+          width: "100%", 
+          background: alertMessage ? "#fef3c7" : "#f3f4f6", 
+          borderBottom: alertMessage ? "2px solid #f59e0b" : "2px solid #d1d5db",
+          padding: "12px 0", 
+          textAlign: "center", 
+          position: "sticky", 
+          top: 0, 
+          zIndex: 1000,
+          marginBottom: "16px",
+          display: (!alertMessage && !canEdit && !isEditingAlert) ? "none" : "block"
+        }}>
+          {isEditingAlert ? (
+            <div className="container">
+              <div className="row justify-content-center">
+                <div className="col-md-8">
+                  <div className="input-group">
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      placeholder="Enter alert message"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      onClick={handleSaveAlert}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleCancelEdit}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : alertMessage ? (
+            <div className="container">
+              <div className="row align-items-center justify-content-center">
+                <div className="col-auto">
+                  <i className="bi bi-exclamation-triangle-fill text-warning"></i>
+                </div>
+                <div className="col-auto">
+                  <span>{alertMessage}</span>
+                </div>
+                {canEdit && (
+                  <div className="col-auto">
+                    <button
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={handleStartEditing}
+                    >
+                      <i className="bi bi-pencil"></i> Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : canEdit ? (
+            <div className="container">
+              <button 
+                className="btn btn-outline-primary"
+                onClick={handleStartEditing}
+              >
+                <i className="bi bi-plus-circle me-2"></i>
+                <span>Add Company Alert Banner</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
+
       {/* Summary Section */}
       <div
         className="mb-4 p-4 shadow-lg rounded border bg-light"
