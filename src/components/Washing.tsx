@@ -2437,7 +2437,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             height: "100vh",
             background: "rgba(215, 35, 40, 0.97)",
             color: "#fff",
-            zIndex: 9999,
+            zIndex: 1500,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",

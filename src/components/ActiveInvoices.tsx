@@ -17,7 +17,7 @@ import {
   getManualConventionalProductsForDate,
   deleteManualConventionalProduct,
 } from "../services/firebaseService";
-import { updateDoc, doc } from "firebase/firestore";
+import { updateDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
@@ -197,6 +197,71 @@ export default function ActiveInvoices({
   const [showInvoicePrintModal, setShowInvoicePrintModal] = useState<
     string | null
   >(null);
+  
+  // --- Product Confirmation State ---
+  const [showAddConfirmation, setShowAddConfirmation] = useState(false);
+  const [confirmationProduct, setConfirmationProduct] = useState<{
+    product: Product | null;
+    quantity: number;
+    cartId?: string;
+    itemIdx?: number;
+    addCallback: () => Promise<void>;
+  } | null>(null);
+
+  // --- Alert Banner State ---
+  const [alertMessage, setAlertMessage] = useState("");
+  const [isEditingAlert, setIsEditingAlert] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const [loadingAlert, setLoadingAlert] = useState(true);
+  
+  // Check if user can edit the alert banner
+  const canEdit = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
+
+  // Fetch alert message from Firestore
+  useEffect(() => {
+    async function fetchAlert() {
+      setLoadingAlert(true);
+      try {
+        const docRef = doc(db, "app_config", "alert_banner");
+        const snap = await getDoc(docRef);
+        const alertData = snap.exists() ? snap.data().message || "" : "";
+        console.log("Fetched alert message:", alertData);
+        setAlertMessage(alertData);
+      } catch (error) {
+        console.error("Error fetching alert:", error);
+        setAlertMessage("");
+      }
+      setLoadingAlert(false);
+    }
+    fetchAlert();
+  }, []);
+
+  // Handle editing the alert
+  const handleStartEditing = () => {
+    setIsEditingAlert(true);
+    setEditValue(alertMessage);
+  };
+  
+  // Handle canceling the edit
+  const handleCancelEdit = () => {
+    setIsEditingAlert(false);
+  };
+  
+  // Save alert message to Firestore
+  const handleSaveAlert = async () => {
+    setLoadingAlert(true);
+    try {
+      const docRef = doc(db, "app_config", "alert_banner");
+      await setDoc(docRef, { message: editValue || "" }, { merge: true });
+      setAlertMessage(editValue || "");
+      setIsEditingAlert(false);
+      alert("Alert banner updated successfully");
+    } catch (error) {
+      console.error("Error saving alert:", error);
+      alert("Error saving alert message");
+    }
+    setLoadingAlert(false);
+  };
 
   // Handler to lock invoice
   const handleLockInvoice = async (invoiceId: string) => {
@@ -328,50 +393,67 @@ export default function ActiveInvoices({
       return;
     const invoice = invoicesState.find((inv) => inv.id === selectedInvoiceId);
     if (!invoice) return;
-    // Find or create the cart for this invoice by name (case-insensitive, trimmed)
-    const trimmedCartName = newCartName.trim();
-    let cartIdx = invoice.carts.findIndex(
-      (c) => c.name.trim().toLowerCase() === trimmedCartName.toLowerCase()
-    );
-    let cart;
-    if (cartIdx === -1) {
-      // Create new cart if not found
-      cart = {
-        id: Date.now().toString(),
-        name: trimmedCartName || `Cart ${invoice.carts.length + 1}`,
-        items: [],
-        total: 0,
-        createdAt: new Date().toISOString(),
-      };
-      invoice.carts.push(cart);
-      cartIdx = invoice.carts.length - 1;
-    } else {
-      cart = { ...invoice.carts[cartIdx] };
-    }
-    // Add or update product in the cart
-    const existingIdx = cart.items.findIndex(
-      (item) => item.productId === selectedProduct
-    );
-    if (existingIdx > -1) {
-      cart.items[existingIdx].quantity += Number(quantity);
-    } else {
-      const product = products.find((p) => p.id === selectedProduct);
-      if (!product) return;
-      cart.items.push({
-        productId: product.id,
-        productName: product.name,
-        quantity: Number(quantity),
-        price: product.price,
-        addedBy: user?.username || "Unknown",
-        addedAt: new Date().toISOString(),
-      });
-    }
-    // Update the cart in the invoice
-    const updatedCarts = [...invoice.carts];
-    updatedCarts[cartIdx] = cart;
-    onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
-    setQuantity("");
-    setSelectedProduct("");
+    
+    const product = products.find((p) => p.id === selectedProduct);
+    if (!product) return;
+    
+    // Create the add callback
+    const addProductCallback = async () => {
+      // Find or create the cart for this invoice by name (case-insensitive, trimmed)
+      const trimmedCartName = newCartName.trim();
+      let cartIdx = invoice.carts.findIndex(
+        (c) => c.name.trim().toLowerCase() === trimmedCartName.toLowerCase()
+      );
+      let cart;
+      if (cartIdx === -1) {
+        // Create new cart if not found
+        cart = {
+          id: Date.now().toString(),
+          name: trimmedCartName || `Cart ${invoice.carts.length + 1}`,
+          items: [],
+          total: 0,
+          createdAt: new Date().toISOString(),
+        };
+        invoice.carts.push(cart);
+        cartIdx = invoice.carts.length - 1;
+      } else {
+        cart = { ...invoice.carts[cartIdx] };
+      }
+      
+      // Add or update product in the cart
+      const existingIdx = cart.items.findIndex(
+        (item) => item.productId === selectedProduct
+      );
+      if (existingIdx > -1) {
+        cart.items[existingIdx].quantity += Number(quantity);
+      } else {
+        cart.items.push({
+          productId: product.id,
+          productName: product.name,
+          quantity: Number(quantity),
+          price: product.price,
+          addedBy: user?.username || "Unknown",
+          addedAt: new Date().toISOString(),
+        });
+      }
+      
+      // Update the cart in the invoice
+      const updatedCarts = [...invoice.carts];
+      updatedCarts[cartIdx] = cart;
+      await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
+      setQuantity("");
+      setSelectedProduct("");
+      setShowAddConfirmation(false);
+      setConfirmationProduct(null);
+    };
+    
+    // Show confirmation dialog
+    setConfirmationProduct({
+      product: product,
+      quantity: Number(quantity),
+      addCallback: addProductCallback
+    });
+    setShowAddConfirmation(true);
   };
 
   const [invoicesState, setInvoicesState] = useState<Invoice[]>(invoices);
@@ -492,42 +574,60 @@ export default function ActiveInvoices({
   // --- Product Keypad Add Handler ---
   const handleKeypadAdd = async () => {
     if (!productForKeypad || keypadQuantity < 1 || !selectedInvoiceId) return;
+    
     // Find the invoice and the selected cart
     const invoice = invoicesState.find((inv) => inv.id === selectedInvoiceId);
     if (!invoice) return;
+    
     let cartIdx = invoice.carts.findIndex((c) => c.id === selectedCartModalId);
     if (cartIdx === -1) {
       // If no cart selected, default to first cart
       cartIdx = 0;
     }
     if (cartIdx === -1) return; // No carts at all
-    const cart = { ...invoice.carts[cartIdx] };
-    // Always push a new entry (do not merge with existing)
-    cart.items = [
-      ...cart.items,
-      {
-        productId: productForKeypad.id,
-        productName: productForKeypad.name,
-        quantity: keypadQuantity,
-        price: productForKeypad.price,
-        addedBy: user?.username || "Unknown",
-        addedAt: new Date().toISOString(),
-      },
-    ];
-    // Update the cart in the invoice
-    const updatedCarts = [...invoice.carts];
-    updatedCarts[cartIdx] = cart;
-    await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
-    if (user?.username) {
-      await logActivity({
-        type: "Invoice",
-        message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to invoice #${selectedInvoiceId}`,
-        user: user.username,
-      });
-    }
-    setShowProductKeypad(false);
-    setProductForKeypad(null);
-    setKeypadQuantity(1);
+    
+    // Create confirmation callback
+    const addProductCallback = async () => {
+      const cart = { ...invoice.carts[cartIdx] };
+      // Always push a new entry (do not merge with existing)
+      cart.items = [
+        ...cart.items,
+        {
+          productId: productForKeypad.id,
+          productName: productForKeypad.name,
+          quantity: keypadQuantity,
+          price: productForKeypad.price,
+          addedBy: user?.username || "Unknown",
+          addedAt: new Date().toISOString(),
+        },
+      ];
+      // Update the cart in the invoice
+      const updatedCarts = [...invoice.carts];
+      updatedCarts[cartIdx] = cart;
+      await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
+      
+      if (user?.username) {
+        await logActivity({
+          type: "Invoice",
+          message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to invoice #${selectedInvoiceId}`,
+          user: user.username,
+        });
+      }
+      
+      setShowAddConfirmation(false);
+      setConfirmationProduct(null);
+      setShowProductKeypad(false);
+      setProductForKeypad(null);
+    };
+    
+    // Show confirmation dialog instead of immediately adding
+    setConfirmationProduct({
+      product: productForKeypad,
+      quantity: keypadQuantity,
+      cartId: invoice.carts[cartIdx].id,
+      addCallback: addProductCallback
+    });
+    setShowAddConfirmation(true);
   };
 
   const handleStatusChange = async (groupId: string, newStatus: string) => {
@@ -920,6 +1020,93 @@ export default function ActiveInvoices({
 
   return (
     <div className="container-fluid py-4">
+      {/* Alert Banner */}
+      {loadingAlert ? (
+        <div style={{
+          width: "100%", background: "#f3f4f6", borderBottom: "2px solid #d1d5db",
+          padding: "8px 0", textAlign: "center", position: "sticky", top: 0, zIndex: 1000
+        }}>
+          <span>Loading...</span>
+        </div>
+      ) : (
+        <div style={{
+          width: "100%", 
+          background: alertMessage ? "#fef3c7" : "#f3f4f6", 
+          borderBottom: alertMessage ? "2px solid #f59e0b" : "2px solid #d1d5db",
+          padding: "12px 0", 
+          textAlign: "center", 
+          position: "sticky", 
+          top: 0, 
+          zIndex: 1000,
+          marginBottom: "16px",
+          display: (!alertMessage && !canEdit && !isEditingAlert) ? "none" : "block"
+        }}>
+          {isEditingAlert ? (
+            <div className="container">
+              <div className="row justify-content-center">
+                <div className="col-md-8">
+                  <div className="input-group">
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      placeholder="Enter alert message"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      onClick={handleSaveAlert}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleCancelEdit}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : alertMessage ? (
+            <div className="container">
+              <div className="row align-items-center justify-content-center">
+                <div className="col-auto">
+                  <i className="bi bi-exclamation-triangle-fill text-warning"></i>
+                </div>
+                <div className="col-auto">
+                  <span>{alertMessage}</span>
+                </div>
+                {canEdit && (
+                  <div className="col-auto">
+                    <button
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={handleStartEditing}
+                    >
+                      <i className="bi bi-pencil"></i> Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : canEdit ? (
+            <div className="container">
+              <button 
+                className="btn btn-outline-primary"
+                onClick={handleStartEditing}
+              >
+                <i className="bi bi-plus-circle me-2"></i>
+                <span>Add Company Alert Banner</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
+
       <div className="row">
         <div className="col-md-6">
           <h3 className="mb-4">Active Invoices</h3>
@@ -2657,6 +2844,56 @@ export default function ActiveInvoices({
         </div>
       )}
 
+      {/* Product Add Confirmation Modal */}
+      {showAddConfirmation && confirmationProduct && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirm Product Addition</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => {
+                    setShowAddConfirmation(false);
+                    setConfirmationProduct(null);
+                  }}
+                ></button>
+              </div>
+              <div className="modal-body text-center">
+                <div className="mb-4">
+                  <h4 className="mb-3">{user?.username || "User"} wants to add</h4>
+                  <div className="display-1 fw-bold text-primary mb-3" style={{ fontSize: "4rem" }}>
+                    {confirmationProduct.quantity}
+                  </div>
+                  <h3 className="text-secondary">{confirmationProduct.product?.name}</h3>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowAddConfirmation(false);
+                    setConfirmationProduct(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={confirmationProduct.addCallback}
+                >
+                  Confirm Addition
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Shipped Modal */}
       {showShippedModal && (
         <div
@@ -3346,6 +3583,7 @@ export default function ActiveInvoices({
             includeTimestamp: true,
             headerText: "Cart Contents",
             footerText: "",
+            logoUrl: "" // Added missing logoUrl property
           };
 
           return (
@@ -3571,10 +3809,10 @@ export default function ActiveInvoices({
                             <div
                               style={{ fontWeight: "bold", fontSize: "12px" }}
                             >
-                              {printConfig.logoUrl ? (
+                              {(printConfig as any)?.logoUrl ? (
                                 <img
-                                  src={printConfig.logoUrl}
-                                  alt="Logo"
+                                  src={(printConfig as any).logoUrl}
+                                  alt="Logo" 
                                   style={{ maxHeight: 80 }}
                                 />
                               ) : (

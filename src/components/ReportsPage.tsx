@@ -27,6 +27,18 @@ const ReportsPage: React.FC = () => {
     "boletas"
   );
 
+  // Product confirmation dialog state
+  const [showAddConfirmation, setShowAddConfirmation] = useState(false);
+  const [confirmationProduct, setConfirmationProduct] = useState<{
+    cartId: string;
+    productId: string;
+    product: Product | null;
+    quantity: number;
+    price?: number;
+    itemIdx?: number;
+    addCallback: () => Promise<void>;
+  } | null>(null);
+
   useEffect(() => {
     (async () => {
       const all = await getInvoices();
@@ -277,43 +289,78 @@ const ReportsPage: React.FC = () => {
                   (inv) => inv.id === selectedInvoice.id
                 );
                 if (!invoice) return;
-                const updatedCarts = invoice.carts.map((cart) => {
-                  if (cart.id !== cartId) return cart;
-                  let newItems;
-                  if (typeof itemIdx === "number") {
-                    // Edit the entry at the given index for this product
-                    newItems = cart.items.map((item, idx) => {
-                      if (item.productId === productId && idx === itemIdx) {
-                        return {
-                          ...item,
-                          quantity,
-                          price: price !== undefined ? price : item.price,
-                          editedBy: "You",
-                          editedAt: new Date().toISOString(),
-                        };
-                      }
-                      return item;
-                    });
-                  } else {
-                    // Always add as a new entry (do not merge)
-                    const prod = allProducts.find((p) => p.id === productId);
-                    newItems = [
-                      ...cart.items,
-                      {
-                        productId: productId,
-                        productName: prod ? prod.name : "",
-                        quantity: quantity,
-                        price:
-                          price !== undefined ? price : prod ? prod.price : 0,
-                        addedBy: "You",
-                        addedAt: new Date().toISOString(),
-                      },
-                    ];
-                  }
-                  return { ...cart, items: newItems };
+                
+                // If it's a deletion (quantity=0), process immediately without confirmation
+                if (quantity === 0 && typeof itemIdx === "number") {
+                  const updatedCarts = invoice.carts.map((cart) => {
+                    if (cart.id !== cartId) return cart;
+                    const newItems = cart.items.filter((item, idx) => 
+                      !(item.productId === productId && idx === itemIdx)
+                    );
+                    return { ...cart, items: newItems };
+                  });
+                  await updateInvoice(invoice.id, { carts: updatedCarts });
+                  await refreshInvoices();
+                  return;
+                }
+                
+                const prod = allProducts.find((p) => p.id === productId);
+                
+                // Create product add callback
+                const addProductCallback = async () => {
+                  const updatedCarts = invoice.carts.map((cart) => {
+                    if (cart.id !== cartId) return cart;
+                    let newItems;
+                    if (typeof itemIdx === "number") {
+                      // Edit the entry at the given index for this product
+                      newItems = cart.items.map((item, idx) => {
+                        if (item.productId === productId && idx === itemIdx) {
+                          return {
+                            ...item,
+                            quantity,
+                            price: price !== undefined ? price : item.price,
+                            editedBy: "You",
+                            editedAt: new Date().toISOString(),
+                          };
+                        }
+                        return item;
+                      });
+                    } else {
+                      // Always add as a new entry (do not merge)
+                      newItems = [
+                        ...cart.items,
+                        {
+                          productId: productId,
+                          productName: prod ? prod.name : "",
+                          quantity: quantity,
+                          price:
+                            price !== undefined ? price : prod ? prod.price : 0,
+                          addedBy: "You",
+                          addedAt: new Date().toISOString(),
+                        },
+                      ];
+                    }
+                    return { ...cart, items: newItems };
+                  });
+                  await updateInvoice(invoice.id, { carts: updatedCarts });
+                  await refreshInvoices();
+                  
+                  // Clear confirmation state
+                  setShowAddConfirmation(false);
+                  setConfirmationProduct(null);
+                };
+                
+                // Show confirmation dialog
+                setConfirmationProduct({
+                  cartId,
+                  productId,
+                  product: prod || null,
+                  quantity,
+                  price,
+                  itemIdx,
+                  addCallback: addProductCallback
                 });
-                await updateInvoice(invoice.id, { carts: updatedCarts });
-                await refreshInvoices();
+                setShowAddConfirmation(true);
               }}
               refreshInvoices={refreshInvoices}
             />
@@ -330,6 +377,53 @@ const ReportsPage: React.FC = () => {
                 return "";
               }}
             />
+          )}
+          
+          {/* Product Add Confirmation Modal */}
+          {showAddConfirmation && confirmationProduct && (
+            <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+              <div className="modal-dialog" style={{ marginTop: "10vh" }}>
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title">Confirm Product Addition</h5>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => {
+                        setShowAddConfirmation(false);
+                        setConfirmationProduct(null);
+                      }}
+                    ></button>
+                  </div>
+                  <div className="modal-body text-center">
+                    <div className="mb-4">
+                      <h4 className="mb-3">User wants to add</h4>
+                      <div className="display-1 fw-bold text-primary mb-3" style={{ fontSize: "4rem" }}>
+                        {confirmationProduct.quantity}
+                      </div>
+                      <h3 className="text-secondary">{confirmationProduct.product?.name || 'Product'}</h3>
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setShowAddConfirmation(false);
+                        setConfirmationProduct(null);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={confirmationProduct.addCallback}
+                    >
+                      Confirm Addition
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </>
       )}

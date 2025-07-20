@@ -43,6 +43,16 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   }>(null);
   const [keypadQty, setKeypadQty] = React.useState<string>("");
 
+  // Product confirmation state
+  const [showAddConfirmation, setShowAddConfirmation] = React.useState(false);
+  const [confirmationProduct, setConfirmationProduct] = React.useState<{
+    cartId: string;
+    productId: string;
+    product: Product | null;
+    quantity: number;
+    addCallback: () => Promise<void>;
+  } | null>(null);
+
   // Local state for carts to enable instant UI update
   const [localCarts, setLocalCarts] = React.useState(invoice.carts);
   const [users, setUsers] = React.useState<UserRecord[]>([]);
@@ -753,52 +763,71 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                   if (btn === "OK") {
                                     const qty = parseInt(keypadQty, 10);
                                     if (showProductKeypad && qty > 0) {
-                                      // 1. Update localCarts immediately for instant UI update
-                                      setLocalCarts((prevCarts) =>
-                                        prevCarts.map((cartObj) => {
-                                          if (
-                                            cartObj.id !==
-                                            showProductKeypad.cartId
-                                          )
-                                            return cartObj;
-                                          const prod = clientProducts.find(
-                                            (p) =>
-                                              p.id ===
-                                              showProductKeypad.productId
-                                          );
-                                          return {
-                                            ...cartObj,
-                                            items: [
-                                              ...cartObj.items,
-                                              {
-                                                productId:
-                                                  showProductKeypad.productId,
-                                                productName: prod
-                                                  ? prod.name
-                                                  : "",
-                                                quantity: qty,
-                                                price: prod ? prod.price : 0,
-                                                addedBy:
-                                                  user?.username || "You",
-                                                addedAt:
-                                                  new Date().toISOString(),
-                                              },
-                                            ],
-                                          };
-                                        })
+                                      const prod = clientProducts.find(
+                                        (p) => p.id === showProductKeypad.productId
                                       );
-                                      // 2. Persist to Firestore (parent handler)
-                                      await onAddProductToCart(
-                                        showProductKeypad.cartId,
-                                        showProductKeypad.productId,
-                                        qty
-                                      );
-                                      if (refreshInvoices)
-                                        await refreshInvoices();
-                                      setAddProductCartId(null);
-                                      setSelectedProductId("");
-                                      setShowProductKeypad(null);
-                                      setKeypadQty("");
+                                      
+                                      // Create add product callback
+                                      const addProductCallback = async () => {
+                                        // 1. Update localCarts immediately for instant UI update
+                                        setLocalCarts((prevCarts) =>
+                                          prevCarts.map((cartObj) => {
+                                            if (
+                                              cartObj.id !==
+                                              showProductKeypad.cartId
+                                            )
+                                              return cartObj;
+                                            
+                                            return {
+                                              ...cartObj,
+                                              items: [
+                                                ...cartObj.items,
+                                                {
+                                                  productId:
+                                                    showProductKeypad.productId,
+                                                  productName: prod
+                                                    ? prod.name
+                                                    : "",
+                                                  quantity: qty,
+                                                  price: prod ? prod.price : 0,
+                                                  addedBy:
+                                                    user?.username || "You",
+                                                  addedAt:
+                                                    new Date().toISOString(),
+                                                },
+                                              ],
+                                            };
+                                          })
+                                        );
+                                        
+                                        // 2. Persist to Firestore (parent handler)
+                                        await onAddProductToCart(
+                                          showProductKeypad.cartId,
+                                          showProductKeypad.productId,
+                                          qty
+                                        );
+                                        
+                                        if (refreshInvoices)
+                                          await refreshInvoices();
+                                        
+                                        // Clear states
+                                        setAddProductCartId(null);
+                                        setSelectedProductId("");
+                                        setShowProductKeypad(null);
+                                        setKeypadQty("");
+                                        setShowAddConfirmation(false);
+                                        setConfirmationProduct(null);
+                                      };
+                                      
+                                      // Show confirmation dialog
+                                      setConfirmationProduct({
+                                        cartId: showProductKeypad.cartId,
+                                        productId: showProductKeypad.productId,
+                                        product: prod || null,
+                                        quantity: qty,
+                                        addCallback: addProductCallback
+                                      });
+                                      setShowAddConfirmation(true);
                                     } else {
                                       setShowProductKeypad(null);
                                       setKeypadQty("");
@@ -1042,6 +1071,65 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           </div>
         </div>
       </div>
+      
+      {/* Product Add Confirmation Modal */}
+      {showAddConfirmation && confirmationProduct && (
+        <div
+          className="modal show"
+          style={{
+            display: "block",
+            background: "rgba(0,0,0,0.5)",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            zIndex: 3000,
+          }}
+        >
+          <div className="modal-dialog" style={{ marginTop: "10vh" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirm Product Addition</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => {
+                    setShowAddConfirmation(false);
+                    setConfirmationProduct(null);
+                  }}
+                ></button>
+              </div>
+              <div className="modal-body text-center">
+                <div className="mb-4">
+                  <h4 className="mb-3">{user?.username || "User"} wants to add</h4>
+                  <div className="display-1 fw-bold text-primary mb-3" style={{ fontSize: "4rem" }}>
+                    {confirmationProduct.quantity}
+                  </div>
+                  <h3 className="text-secondary">{confirmationProduct.product?.name}</h3>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowAddConfirmation(false);
+                    setConfirmationProduct(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={confirmationProduct.addCallback}
+                >
+                  Confirm Addition
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

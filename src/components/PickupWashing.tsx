@@ -594,7 +594,7 @@ export default function PickupWashing({
             height: "100vh",
             background: "rgba(40,167,69,0.97)",
             color: "#fff",
-            zIndex: 9999,
+            zIndex: 1500,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
