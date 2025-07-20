@@ -5,6 +5,7 @@ import { Invoice } from "../types";
 import "./ShippingPage.css";
 import InvoiceDetailsPopup from "./InvoiceDetailsPopup";
 import SignatureModal from "./SignatureModal";
+import { useAuth } from "./AuthContext";
 
 interface ShippingTruckData {
   truckNumber: string;
@@ -21,9 +22,14 @@ interface ShippingInvoice {
   truckNumber: string;
   receivedBy?: string;
   hasSignature?: boolean;
+  shippingComplete?: boolean;
+  shippingCompletedBy?: string;
+  verified?: boolean;
+  verifiedBy?: string;
 }
 
 const ShippingPage: React.FC = () => {
+  const { user } = useAuth();
   const [shippingData, setShippingData] = useState<ShippingTruckData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedDate, setSelectedDate] = useState<string>("");
@@ -36,6 +42,10 @@ const ShippingPage: React.FC = () => {
     number?: string;
     clientName: string;
   } | null>(null);
+  const [truckCompletionStatus, setTruckCompletionStatus] = useState<{
+    [truckNumber: string]: boolean;
+  }>({});
+  const [showCompletionModal, setShowCompletionModal] = useState<string | null>(null);
 
   // Function to handle clicking on an invoice
   const handleInvoiceClick = (invoiceId: string) => {
@@ -51,12 +61,84 @@ const ShippingPage: React.FC = () => {
     });
   };
 
+  // Function to handle marking truck as shipping complete
+  const handleMarkTruckComplete = async (truckNumber: string) => {
+    try {
+      // Update completion status in local state
+      setTruckCompletionStatus(prev => ({
+        ...prev,
+        [truckNumber]: true
+      }));
+      
+      // Find all invoices for this truck and update them
+      const truckData = shippingData.find(truck => truck.truckNumber === truckNumber);
+      if (truckData) {
+        const { updateDoc, doc } = await import("firebase/firestore");
+        const { db } = await import("../firebase");
+        
+        // Get current user information
+        const currentUser = user?.username || user?.id || "Unknown";
+        
+        // Update each invoice to mark shipping as complete
+        const updatePromises = truckData.invoices.map(invoice => 
+          updateDoc(doc(db, "invoices", invoice.id), {
+            shippingComplete: true,
+            shippingCompletedAt: new Date().toISOString(),
+            shippingCompletedBy: currentUser
+          })
+        );
+        
+        await Promise.all(updatePromises);
+        
+        // Refresh the data to show updated status
+        await fetchShippingData();
+      }
+    } catch (error) {
+      console.error("Error marking truck as complete:", error);
+      // Revert local state on error
+      setTruckCompletionStatus(prev => ({
+        ...prev,
+        [truckNumber]: false
+      }));
+    }
+  };
+
+  // Function to handle approving an invoice
+  const handleApproveInvoice = async (invoiceId: string) => {
+    try {
+      const { updateDoc, doc } = await import("firebase/firestore");
+      const { db } = await import("../firebase");
+      
+      // Update invoice as verified/approved
+      await updateDoc(doc(db, "invoices", invoiceId), {
+        verified: true,
+        verifiedBy: "Shipping Personnel", // You might want to get actual user info
+        verifiedAt: new Date().toISOString()
+      });
+      
+      // Refresh the data to show updated status
+      await fetchShippingData();
+      
+      // Show success feedback
+      const invoiceData = shippingData
+        .flatMap(truck => truck.invoices)
+        .find(inv => inv.id === invoiceId);
+      
+      if (invoiceData) {
+        console.log(`Invoice for ${invoiceData.clientName} has been approved`);
+      }
+    } catch (error) {
+      console.error("Error approving invoice:", error);
+      alert("Error approving invoice. Please try again.");
+    }
+  };
+
   // Function to fetch shipping data that can be called to refresh the data
   const fetchShippingData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Query for all invoices with status "done"
+      // Query for all invoices with status "done" (shipped)
       const q = query(
         collection(db, "invoices"),
         where("status", "==", "done")
@@ -79,9 +161,7 @@ const ShippingPage: React.FC = () => {
             ? String(invoiceData.truckNumber)
             : String(invoiceData.truckNumber);
 
-        // Only include trucks 30-39
-        const truckNum = parseInt(truckNumberStr);
-        if (isNaN(truckNum) || truckNum < 30 || truckNum > 39) return;
+        // Include all trucks (removed 30-39 restriction)
 
         // Add delivery date to available dates
         dates.add(invoiceData.deliveryDate);
@@ -99,6 +179,10 @@ const ShippingPage: React.FC = () => {
           truckNumber: truckNumberStr,
           receivedBy: invoiceData.receivedBy,
           hasSignature: !!invoiceData.signature,
+          shippingComplete: !!invoiceData.shippingComplete,
+          shippingCompletedBy: invoiceData.shippingCompletedBy,
+          verified: !!invoiceData.verified,
+          verifiedBy: invoiceData.verifiedBy,
         });
       });
 
@@ -168,7 +252,7 @@ const ShippingPage: React.FC = () => {
 
   return (
     <div className="container shipping-dashboard">
-      <h2 className="mb-4">Shipping Dashboard</h2>
+      <h2 className="mb-4">Shipped Invoices</h2>
 
       {loading ? (
         <div className="text-center">
@@ -198,13 +282,39 @@ const ShippingPage: React.FC = () => {
                 ))}
               </select>
             </div>
+            <div className="col-md-8">
+              <div className="row text-center">
+                <div className="col-4">
+                  <div className="bg-primary text-white rounded p-2">
+                    <h5 className="mb-0">{filteredData.length}</h5>
+                    <small>Active Trucks</small>
+                  </div>
+                </div>
+                <div className="col-4">
+                  <div className="bg-success text-white rounded p-2">
+                    <h5 className="mb-0">
+                      {filteredData.reduce((sum, truck) => sum + truck.invoices.length, 0)}
+                    </h5>
+                    <small>Shipped Invoices</small>
+                  </div>
+                </div>
+                <div className="col-4">
+                  <div className="bg-info text-white rounded p-2">
+                    <h5 className="mb-0">
+                      {filteredData.reduce((sum, truck) => sum + truck.invoices.reduce((cartSum, inv) => cartSum + inv.cartCount, 0), 0)}
+                    </h5>
+                    <small>Total Carts</small>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="row">
             {filteredData.length === 0 ? (
               <div className="col-12 text-center py-5">
                 <h5 className="text-muted">
-                  No shipping data found for trucks 30-39
+                  No shipped invoices found
                 </h5>
                 {selectedDate && (
                   <p>
@@ -216,15 +326,45 @@ const ShippingPage: React.FC = () => {
             ) : (
               filteredData.map((truck) => {
                 const { totalCarts, clientCount } = calculateTruckTotals(truck);
+                const isComplete = truckCompletionStatus[truck.truckNumber] || 
+                  truck.invoices.every(invoice => invoice.shippingComplete);
+                const approvedCount = truck.invoices.filter(inv => inv.verified).length;
+                const totalInvoices = truck.invoices.length;
+                
+                // Get the loaded by information from the first invoice (they should all have the same value)
+                const loadedBy = truck.invoices.find(inv => inv.shippingCompletedBy)?.shippingCompletedBy;
 
                 return (
                   <div
                     className="col-md-6 col-lg-4 mb-4"
                     key={truck.truckNumber}
                   >
-                    <div className="card shadow-sm truck-card">
-                      <div className="card-header truck-header">
-                        <h4 className="mb-0">Truck #{truck.truckNumber}</h4>
+                    <div className={`card shadow-sm truck-card ${isComplete ? 'border-success' : ''}`}>
+                      <div className={`card-header truck-header ${isComplete ? 'bg-success text-white' : ''}`}>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <h4 className="mb-0">Truck #{truck.truckNumber}</h4>
+                          <div className="d-flex gap-2">
+                            {isComplete && (
+                              <span className="badge bg-light text-success">
+                                <i className="bi bi-check-circle-fill"></i> Complete
+                              </span>
+                            )}
+                            {isComplete && (
+                              <span className="badge bg-primary">
+                                {approvedCount}/{totalInvoices} Approved
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Show "Loaded by" information when truck is complete */}
+                        {isComplete && loadedBy && (
+                          <div className="mt-2">
+                            <small className={`${isComplete ? 'text-light' : 'text-muted'}`}>
+                              <i className="bi bi-person-check me-1"></i>
+                              Loaded by: <strong>{loadedBy}</strong>
+                            </small>
+                          </div>
+                        )}
                       </div>
                       <div className="card-body">
                         <div className="truck-stats">
@@ -237,6 +377,17 @@ const ShippingPage: React.FC = () => {
                             <small className="stat-label">Carts</small>
                           </div>
                         </div>
+
+                        {!isComplete && (
+                          <div className="mb-3">
+                            <button
+                              className="btn btn-warning w-100"
+                              onClick={() => setShowCompletionModal(truck.truckNumber)}
+                            >
+                              <i className="bi bi-truck"></i> Mark Shipping Complete
+                            </button>
+                          </div>
+                        )}
 
                         <h6 className="border-bottom pb-2 mb-3">
                           Client Details
@@ -278,6 +429,15 @@ const ShippingPage: React.FC = () => {
                                             Signed
                                           </span>
                                         )}
+                                        {invoice.verified && (
+                                          <span
+                                            className="ms-2 badge bg-primary"
+                                            title={`Approved by ${invoice.verifiedBy}`}
+                                          >
+                                            <i className="bi bi-shield-check"></i>{" "}
+                                            Approved
+                                          </span>
+                                        )}
                                       </div>
                                       <small className="text-muted">
                                         Invoice #
@@ -306,6 +466,20 @@ const ShippingPage: React.FC = () => {
                                         <i className="bi bi-file-text"></i>{" "}
                                         Details
                                       </button>
+                                      
+                                      {isComplete && !invoice.verified && (
+                                        <button
+                                          className="btn btn-sm btn-info"
+                                          onClick={() => {
+                                            handleApproveInvoice(invoice.id);
+                                          }}
+                                          title="Approve invoice"
+                                        >
+                                          <i className="bi bi-check-circle"></i>{" "}
+                                          Approve
+                                        </button>
+                                      )}
+                                      
                                       <button
                                         className={`btn btn-sm ${
                                           invoice.hasSignature
@@ -376,6 +550,61 @@ const ShippingPage: React.FC = () => {
           clientName={signatureInvoice.clientName}
           onSignatureSaved={fetchShippingData}
         />
+      )}
+
+      {/* Shipping Completion Confirmation Modal */}
+      {showCompletionModal && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirm Shipping Complete</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowCompletionModal(null)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="text-center">
+                  <i className="bi bi-truck display-1 text-warning mb-3"></i>
+                  <h4>Mark Truck #{showCompletionModal} as Shipping Complete?</h4>
+                  <p className="text-muted">
+                    This will unlock the approval buttons for all invoices in this truck. 
+                    You can then approve individual invoices after verifying they have been properly loaded.
+                  </p>
+                  <div className="alert alert-info">
+                    <i className="bi bi-info-circle me-2"></i>
+                    Once marked complete, you'll be able to approve each invoice individually.
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowCompletionModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-warning"
+                  onClick={async () => {
+                    if (showCompletionModal) {
+                      await handleMarkTruckComplete(showCompletionModal);
+                      setShowCompletionModal(null);
+                    }
+                  }}
+                >
+                  <i className="bi bi-check-circle me-2"></i>
+                  Mark Complete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

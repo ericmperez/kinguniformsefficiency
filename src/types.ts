@@ -114,6 +114,16 @@ export interface Invoice {
     timestamp: any; // Firebase Timestamp when signature was captured
   };
   receivedBy?: string; // Name of the person who received the delivery
+  shippingComplete?: boolean; // Whether truck loading/shipping is complete
+  shippingCompletedAt?: string; // Timestamp when shipping was marked complete
+  shippingCompletedBy?: string; // Username of person who marked shipping complete
+  emailStatus?: { // Email delivery tracking
+    approvalEmailSent?: boolean; // Whether email was sent on approval
+    approvalEmailSentAt?: string; // Timestamp when approval email was sent
+    shippingEmailSent?: boolean; // Whether email was sent on shipping
+    shippingEmailSentAt?: string; // Timestamp when shipping email was sent
+    lastEmailError?: string; // Last email error if any
+  };
 }
 
 export interface LaundryCart {

@@ -1538,6 +1538,18 @@ export default function ActiveInvoices({
                                   pdfContent
                                 );
 
+                                // Update email status in invoice
+                                const emailStatusUpdate = {
+                                  emailStatus: {
+                                    ...invoice.emailStatus,
+                                    approvalEmailSent: success,
+                                    approvalEmailSentAt: success ? new Date().toISOString() : undefined,
+                                    lastEmailError: success ? undefined : "Failed to send approval email"
+                                  }
+                                };
+
+                                await onUpdateInvoice(invoice.id, emailStatusUpdate);
+
                                 if (success) {
                                   console.log(
                                     `Auto-sent invoice email to ${client.email}`
@@ -3015,6 +3027,18 @@ export default function ActiveInvoices({
                           pdfContent
                         );
 
+                        // Update email status in invoice
+                        const emailStatusUpdate = {
+                          emailStatus: {
+                            ...invoice.emailStatus,
+                            shippingEmailSent: success,
+                            shippingEmailSentAt: success ? new Date().toISOString() : undefined,
+                            lastEmailError: success ? undefined : "Failed to send shipping email"
+                          }
+                        };
+
+                        await onUpdateInvoice(invoice.id, emailStatusUpdate);
+
                         if (success) {
                           console.log(
                             `Auto-sent shipping notification email to ${client.email}`
@@ -4445,6 +4469,18 @@ export default function ActiveInvoices({
                             );
 
                             if (success) {
+                              // Update email status in invoice
+                              const emailStatusUpdate = {
+                                emailStatus: {
+                                  ...invoice.emailStatus,
+                                  approvalEmailSent: true,
+                                  approvalEmailSentAt: new Date().toISOString(),
+                                  lastEmailError: undefined
+                                }
+                              };
+
+                              await onUpdateInvoice(invoice.id, emailStatusUpdate);
+
                               alert(
                                 `Invoice emailed successfully to ${client.email}`
                               );
@@ -4457,6 +4493,16 @@ export default function ActiveInvoices({
                                 } emailed to ${client.name} (${client.email})`,
                               });
                             } else {
+                              // Update email status with error
+                              const emailStatusUpdate = {
+                                emailStatus: {
+                                  ...invoice.emailStatus,
+                                  lastEmailError: "Failed to send manual email"
+                                }
+                              };
+
+                              await onUpdateInvoice(invoice.id, emailStatusUpdate);
+
                               alert("Failed to send email. Please try again.");
                             }
                           } catch (error) {
