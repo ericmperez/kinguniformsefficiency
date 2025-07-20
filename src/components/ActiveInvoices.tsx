@@ -1034,33 +1034,35 @@ export default function ActiveInvoices({
                       }}
                     >
                       {/* Delete button in top left corner */}
-                      <button
-                        className="btn"
-                        style={{
-                          position: "absolute",
-                          top: 16,
-                          left: 16,
-                          background: "#fff",
-                          borderRadius: "50%",
-                          width: 44,
-                          height: 44,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                          border: "none",
-                          color: "#ef4444",
-                          fontSize: 22,
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteClick(invoice);
-                        }}
-                        title="Delete"
-                        disabled={!!invoice.locked}
-                      >
-                        <i className="bi bi-trash" />
-                      </button>
+                      {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
+                        <button
+                          className="btn"
+                          style={{
+                            position: "absolute",
+                            top: 16,
+                            left: 16,
+                            background: "#fff",
+                            borderRadius: "50%",
+                            width: 44,
+                            height: 44,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border: "none",
+                            color: "#ef4444",
+                            fontSize: 22,
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(invoice);
+                          }}
+                          title="Delete"
+                          disabled={!!invoice.locked}
+                        >
+                          <i className="bi bi-trash" />
+                        </button>
+                      )}
                       {/* Avatar */}
                       <div
                         style={{
@@ -3569,7 +3571,23 @@ export default function ActiveInvoices({
                             <div
                               style={{ fontWeight: "bold", fontSize: "12px" }}
                             >
-                              {printConfig.headerText || "CART CONTENTS"}
+                              {printConfig.logoUrl ? (
+                                <img
+                                  src={printConfig.logoUrl}
+                                  alt="Logo"
+                                  style={{ maxHeight: 80 }}
+                                />
+                              ) : (
+                                <div
+                                  style={{
+                                    fontSize: 24,
+                                    fontWeight: "bold",
+                                    color: "#0E62A0",
+                                  }}
+                                >
+                                  {printConfig.headerText || "King Uniforms"}
+                                </div>
+                              )}
                             </div>
                             <div style={{ fontSize: "10px", marginTop: "2px" }}>
                               INV: #{invoice.invoiceNumber || invoice.id}
