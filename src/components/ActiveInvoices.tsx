@@ -159,7 +159,7 @@ export default function ActiveInvoices({
 
   // --- Animation State for Approval Status Changes ---
   const [animatingInvoices, setAnimatingInvoices] = useState<{
-    [invoiceId: string]: 'approved' | 'partial' | null;
+    [invoiceId: string]: "approved" | "partial" | null;
   }>({});
 
   // --- Cart Selection Modal State ---
@@ -202,7 +202,7 @@ export default function ActiveInvoices({
   const [showInvoicePrintModal, setShowInvoicePrintModal] = useState<
     string | null
   >(null);
-  
+
   // --- Product Confirmation State ---
   const [showAddConfirmation, setShowAddConfirmation] = useState(false);
   const [confirmationProduct, setConfirmationProduct] = useState<{
@@ -218,7 +218,7 @@ export default function ActiveInvoices({
   const [isEditingAlert, setIsEditingAlert] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [loadingAlert, setLoadingAlert] = useState(true);
-  
+
   // Check if user can edit the alert banner
   const canEdit = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
 
@@ -246,12 +246,12 @@ export default function ActiveInvoices({
     setIsEditingAlert(true);
     setEditValue(alertMessage);
   };
-  
+
   // Handle canceling the edit
   const handleCancelEdit = () => {
     setIsEditingAlert(false);
   };
-  
+
   // Save alert message to Firestore
   const handleSaveAlert = async () => {
     setLoadingAlert(true);
@@ -366,20 +366,88 @@ export default function ActiveInvoices({
       verifiedAt: new Date().toISOString(),
       verifiedProducts,
     });
-    
+
     // Trigger appropriate animation based on verification type
     if (isFullyVerified) {
-      triggerApprovalAnimation(verifyInvoiceId, 'approved');
+      triggerApprovalAnimation(verifyInvoiceId, "approved");
     } else {
-      triggerApprovalAnimation(verifyInvoiceId, 'partial');
+      triggerApprovalAnimation(verifyInvoiceId, "partial");
     }
-    
+
     setPartialVerifiedInvoices((prev) => ({
       ...prev,
       [verifyInvoiceId]: !isFullyVerified && anyVerified(),
     }));
     const invoice = invoices.find((inv) => inv.id === verifyInvoiceId);
     if (invoice) {
+      // Log the approval activity
+      if (user?.username) {
+        await logActivity({
+          type: "Invoice",
+          message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} invoice #${invoice.id}`,
+          user: user.username,
+        });
+      }
+
+      // Auto-send email if enabled and fully verified
+      if (isFullyVerified) {
+        const client = clients.find((c) => c.id === invoice.clientId);
+        if (
+          client?.printConfig?.emailSettings?.enabled &&
+          client.printConfig.emailSettings.autoSendOnApproval &&
+          client.email
+        ) {
+          try {
+            // Generate PDF attachment if needed
+            let pdfContent: string | undefined;
+            try {
+              const printConfig = client.printConfig.invoicePrintSettings;
+              pdfContent = await generateInvoicePDF(
+                client,
+                invoice,
+                printConfig
+              );
+            } catch (error) {
+              console.error("Failed to generate PDF for auto-send:", error);
+            }
+
+            // Send email
+            const success = await sendInvoiceEmail(
+              client,
+              invoice,
+              client.printConfig.emailSettings,
+              pdfContent
+            );
+
+            // Update email status in invoice
+            const emailStatusUpdate = {
+              emailStatus: {
+                ...invoice.emailStatus,
+                approvalEmailSent: success,
+                approvalEmailSentAt: success ? new Date().toISOString() : undefined,
+                lastEmailError: success ? undefined : "Failed to send approval email"
+              }
+            };
+
+            await onUpdateInvoice(invoice.id, emailStatusUpdate);
+
+            if (success) {
+              console.log(`Auto-sent invoice email to ${client.email}`);
+              await logActivity({
+                type: "Invoice",
+                message: `Invoice #${invoice.invoiceNumber || invoice.id} auto-sent to ${client.name} (${client.email}) on approval`,
+              });
+            }
+          } catch (error) {
+            console.error("Auto-send email failed:", error);
+            // Don't block the approval process if email fails
+          }
+        }
+
+        // Show print options after approval
+        setShowPrintOptionsModal(invoice.id);
+      }
+
       openPrintInvoice({
         ...invoice,
         verified: isFullyVerified,
@@ -406,10 +474,10 @@ export default function ActiveInvoices({
       return;
     const invoice = invoicesState.find((inv) => inv.id === selectedInvoiceId);
     if (!invoice) return;
-    
+
     const product = products.find((p) => p.id === selectedProduct);
     if (!product) return;
-    
+
     // Create the add callback
     const addProductCallback = async () => {
       // Find or create the cart for this invoice by name (case-insensitive, trimmed)
@@ -432,7 +500,7 @@ export default function ActiveInvoices({
       } else {
         cart = { ...invoice.carts[cartIdx] };
       }
-      
+
       // Add or update product in the cart
       const existingIdx = cart.items.findIndex(
         (item) => item.productId === selectedProduct
@@ -449,7 +517,7 @@ export default function ActiveInvoices({
           addedAt: new Date().toISOString(),
         });
       }
-      
+
       // Update the cart in the invoice
       const updatedCarts = [...invoice.carts];
       updatedCarts[cartIdx] = cart;
@@ -459,12 +527,12 @@ export default function ActiveInvoices({
       setShowAddConfirmation(false);
       setConfirmationProduct(null);
     };
-    
+
     // Show confirmation dialog
     setConfirmationProduct({
       product: product,
       quantity: Number(quantity),
-      addCallback: addProductCallback
+      addCallback: addProductCallback,
     });
     setShowAddConfirmation(true);
   };
@@ -501,11 +569,14 @@ export default function ActiveInvoices({
   };
 
   // --- Animation Helper Functions ---
-  const triggerApprovalAnimation = (invoiceId: string, animationType: 'approved' | 'partial') => {
-    setAnimatingInvoices(prev => ({ ...prev, [invoiceId]: animationType }));
+  const triggerApprovalAnimation = (
+    invoiceId: string,
+    animationType: "approved" | "partial"
+  ) => {
+    setAnimatingInvoices((prev) => ({ ...prev, [invoiceId]: animationType }));
     // Clear animation after it completes (2s as defined in CSS)
     setTimeout(() => {
-      setAnimatingInvoices(prev => ({ ...prev, [invoiceId]: null }));
+      setAnimatingInvoices((prev) => ({ ...prev, [invoiceId]: null }));
     }, 2000);
   };
 
@@ -596,18 +667,18 @@ export default function ActiveInvoices({
   // --- Product Keypad Add Handler ---
   const handleKeypadAdd = async () => {
     if (!productForKeypad || keypadQuantity < 1 || !selectedInvoiceId) return;
-    
+
     // Find the invoice and the selected cart
     const invoice = invoicesState.find((inv) => inv.id === selectedInvoiceId);
     if (!invoice) return;
-    
+
     let cartIdx = invoice.carts.findIndex((c) => c.id === selectedCartModalId);
     if (cartIdx === -1) {
       // If no cart selected, default to first cart
       cartIdx = 0;
     }
     if (cartIdx === -1) return; // No carts at all
-    
+
     // Create confirmation callback
     const addProductCallback = async () => {
       const cart = { ...invoice.carts[cartIdx] };
@@ -627,7 +698,7 @@ export default function ActiveInvoices({
       const updatedCarts = [...invoice.carts];
       updatedCarts[cartIdx] = cart;
       await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
-      
+
       if (user?.username) {
         await logActivity({
           type: "Invoice",
@@ -635,19 +706,19 @@ export default function ActiveInvoices({
           user: user.username,
         });
       }
-      
+
       setShowAddConfirmation(false);
       setConfirmationProduct(null);
       setShowProductKeypad(false);
       setProductForKeypad(null);
     };
-    
+
     // Show confirmation dialog instead of immediately adding
     setConfirmationProduct({
       product: productForKeypad,
       quantity: keypadQuantity,
       cartId: invoice.carts[cartIdx].id,
-      addCallback: addProductCallback
+      addCallback: addProductCallback,
     });
     setShowAddConfirmation(true);
   };
@@ -1044,25 +1115,38 @@ export default function ActiveInvoices({
     <div className="container-fluid py-4">
       {/* Alert Banner */}
       {loadingAlert ? (
-        <div style={{
-          width: "100%", background: "#f3f4f6", borderBottom: "2px solid #d1d5db",
-          padding: "8px 0", textAlign: "center", position: "sticky", top: 0, zIndex: 1000
-        }}>
+        <div
+          style={{
+            width: "100%",
+            background: "#f3f4f6",
+            borderBottom: "2px solid #d1d5db",
+            padding: "8px 0",
+            textAlign: "center",
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
+          }}
+        >
           <span>Loading...</span>
         </div>
       ) : (
-        <div style={{
-          width: "100%", 
-          background: alertMessage ? "#fef3c7" : "#f3f4f6", 
-          borderBottom: alertMessage ? "2px solid #f59e0b" : "2px solid #d1d5db",
-          padding: "12px 0", 
-          textAlign: "center", 
-          position: "sticky", 
-          top: 0, 
-          zIndex: 1000,
-          marginBottom: "16px",
-          display: (!alertMessage && !canEdit && !isEditingAlert) ? "none" : "block"
-        }}>
+        <div
+          style={{
+            width: "100%",
+            background: alertMessage ? "#fef3c7" : "#f3f4f6",
+            borderBottom: alertMessage
+              ? "2px solid #f59e0b"
+              : "2px solid #d1d5db",
+            padding: "12px 0",
+            textAlign: "center",
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
+            marginBottom: "16px",
+            display:
+              !alertMessage && !canEdit && !isEditingAlert ? "none" : "block",
+          }}
+        >
           {isEditingAlert ? (
             <div className="container">
               <div className="row justify-content-center">
@@ -1117,7 +1201,7 @@ export default function ActiveInvoices({
             </div>
           ) : canEdit ? (
             <div className="container">
-              <button 
+              <button
                 className="btn btn-outline-primary"
                 onClick={handleStartEditing}
               >
@@ -1171,30 +1255,36 @@ export default function ActiveInvoices({
               // Compute background based on approval status with enhanced visual feedback
               let cardBackground = "";
               let cardBorderColor = "";
-              
+
               if (isVerified) {
                 // Fully approved - Green card
-                cardBackground = "linear-gradient(135deg, #dcfce7 0%, #16a34a 100%)";
+                cardBackground =
+                  "linear-gradient(135deg, #dcfce7 0%, #16a34a 100%)";
                 cardBorderColor = "#16a34a";
               } else if (isPartiallyVerified) {
                 // Partially approved - Yellow card
-                cardBackground = "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+                cardBackground =
+                  "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
                 cardBorderColor = "#eab308";
               } else if (invoice.status === "completed") {
                 // Completed but not approved - Yellow card
-                cardBackground = "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+                cardBackground =
+                  "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
                 cardBorderColor = "#eab308";
               } else if (isReady) {
                 // Ready status - Light yellow
-                cardBackground = "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
+                cardBackground =
+                  "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
                 cardBorderColor = "#fbbf24";
               } else if (highlight === "yellow") {
                 // Yellow highlight
-                cardBackground = "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
+                cardBackground =
+                  "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
                 cardBorderColor = "#fbbf24";
               } else {
                 // Default - Blue card (not approved)
-                cardBackground = "linear-gradient(135deg, #dbeafe 0%, #3b82f6 100%)";
+                cardBackground =
+                  "linear-gradient(135deg, #dbeafe 0%, #3b82f6 100%)";
                 cardBorderColor = "#3b82f6";
               }
 
@@ -1211,13 +1301,13 @@ export default function ActiveInvoices({
 
               // Only apply overdue-blink if overdue AND not verified
               const showOverdueBlink = isOverdue && !isVerified;
-              
+
               // Get animation class if animation is active
-              const animationClass = animatingInvoices[invoice.id] 
-                ? animatingInvoices[invoice.id] === 'approved' 
-                  ? 'invoice-card-approved' 
-                  : 'invoice-card-partial'
-                : '';
+              const animationClass = animatingInvoices[invoice.id]
+                ? animatingInvoices[invoice.id] === "approved"
+                  ? "invoice-card-approved"
+                  : "invoice-card-partial"
+                : "";
 
               return (
                 <React.Fragment key={invoice.id}>
@@ -1262,35 +1352,38 @@ export default function ActiveInvoices({
                       }}
                     >
                       {/* Delete button in top left corner */}
-                      {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
-                        <button
-                          className="btn"
-                          style={{
-                            position: "absolute",
-                            top: 16,
-                            left: 16,
-                            background: "#fff",
-                            borderRadius: "50%",
-                            width: 44,
-                            height: 44,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: "none",
-                            color: "#ef4444",
-                            fontSize: 22,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteClick(invoice);
-                          }}
-                          title="Delete"
-                          disabled={!!invoice.locked}
-                        >
-                          <i className="bi bi-trash" />
-                        </button>
-                      )}
+                      {user &&
+                        ["Supervisor", "Admin", "Owner"].includes(
+                          user.role
+                        ) && (
+                          <button
+                            className="btn"
+                            style={{
+                              position: "absolute",
+                              top: 16,
+                              left: 16,
+                              background: "#fff",
+                              borderRadius: "50%",
+                              width: 44,
+                              height: 44,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                              border: "none",
+                              color: "#ef4444",
+                              fontSize: 22,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClick(invoice);
+                            }}
+                            title="Delete"
+                            disabled={!!invoice.locked}
+                          >
+                            <i className="bi bi-trash" />
+                          </button>
+                        )}
                       {/* Avatar */}
                       <div
                         style={{
@@ -1361,7 +1454,9 @@ export default function ActiveInvoices({
                           Active Invoice
                         </div>
                         {/* Approval Status Badge */}
-                        {(isVerified || isPartiallyVerified || invoice.status === "completed") && (
+                        {(isVerified ||
+                          isPartiallyVerified ||
+                          invoice.status === "completed") && (
                           <div
                             style={{
                               display: "inline-block",
@@ -1372,19 +1467,19 @@ export default function ActiveInvoices({
                               textTransform: "uppercase",
                               letterSpacing: "0.5px",
                               marginTop: "8px",
-                              background: isVerified 
-                                ? "#16a34a" 
-                                : isPartiallyVerified 
-                                ? "#eab308" 
+                              background: isVerified
+                                ? "#16a34a"
+                                : isPartiallyVerified
+                                ? "#eab308"
                                 : "#eab308", // Yellow for completed but not approved
                               color: "white",
                               boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                             }}
                           >
-                            {isVerified 
-                              ? "✓ APPROVED" 
-                              : isPartiallyVerified 
-                              ? "⚠ PARTIAL" 
+                            {isVerified
+                              ? "✓ APPROVED"
+                              : isPartiallyVerified
+                              ? "⚠ PARTIAL"
                               : "📋 COMPLETED"}
                           </div>
                         )}
@@ -1465,7 +1560,9 @@ export default function ActiveInvoices({
                         {/* Complete button - Step 1 */}
                         <button
                           className={`btn btn-sm ${
-                            invoice.status === "completed" || invoice.verified || invoice.status === "done"
+                            invoice.status === "completed" ||
+                            invoice.verified ||
+                            invoice.status === "done"
                               ? "btn-success"
                               : "btn-warning"
                           }`}
@@ -1489,10 +1586,13 @@ export default function ActiveInvoices({
                               );
                               return;
                             }
-                            
+
                             // Toggle completed status
-                            const isCurrentlyCompleted = invoice.status === "completed" || invoice.verified || invoice.status === "done";
-                            
+                            const isCurrentlyCompleted =
+                              invoice.status === "completed" ||
+                              invoice.verified ||
+                              invoice.status === "done";
+
                             if (isCurrentlyCompleted) {
                               // If shipping is done, cannot revert
                               if (invoice.status === "done") {
@@ -1501,7 +1601,11 @@ export default function ActiveInvoices({
                               }
                               // If approved, ask for confirmation to revert
                               if (invoice.verified) {
-                                if (!window.confirm("This will also remove the approval. Continue?")) {
+                                if (
+                                  !window.confirm(
+                                    "This will also remove the approval. Continue?"
+                                  )
+                                ) {
                                   return;
                                 }
                                 // Remove approval and completion
@@ -1529,10 +1633,10 @@ export default function ActiveInvoices({
                               await onUpdateInvoice(invoice.id, {
                                 status: "completed",
                               });
-                              
+
                               // Trigger completion animation (yellow)
-                              triggerApprovalAnimation(invoice.id, 'partial');
-                              
+                              triggerApprovalAnimation(invoice.id, "partial");
+
                               if (user?.username) {
                                 await logActivity({
                                   type: "Invoice",
@@ -1548,7 +1652,8 @@ export default function ActiveInvoices({
                               ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
                               : invoice.status === "done"
                               ? "Shipped (cannot uncomplete)"
-                              : invoice.status === "completed" || invoice.verified
+                              : invoice.status === "completed" ||
+                                invoice.verified
                               ? "Click to mark as active"
                               : "Mark as Completed"
                           }
@@ -1557,7 +1662,9 @@ export default function ActiveInvoices({
                             className="bi bi-clipboard-check"
                             style={{
                               color:
-                                invoice.status === "completed" || invoice.verified || invoice.status === "done"
+                                invoice.status === "completed" ||
+                                invoice.verified ||
+                                invoice.status === "done"
                                   ? "#fff"
                                   : "#f59e0b",
                               fontSize: 22,
@@ -1581,7 +1688,9 @@ export default function ActiveInvoices({
                             justifyContent: "center",
                             padding: 0,
                             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: invoice.verified ? "none" : "2px solid #22c55e",
+                            border: invoice.verified
+                              ? "none"
+                              : "2px solid #22c55e",
                           }}
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -1619,93 +1728,8 @@ export default function ActiveInvoices({
                                 });
                               }
                             } else {
-                              // Mark invoice as approved (set verified to true for compatibility)
-                              await onUpdateInvoice(invoice.id, {
-                                verified: true,
-                                verifiedBy: user?.username || "",
-                                verifiedAt: new Date().toISOString(),
-                              });
-                              
-                              // Trigger approval animation
-                              triggerApprovalAnimation(invoice.id, 'approved');
-                              
-                              if (user?.username) {
-                                await logActivity({
-                                  type: "Invoice",
-                                  message: `User ${user.username} approved invoice #${invoice.id}`,
-                                  user: user.username,
-                                });
-                              }
-
-                              // Auto-send email if enabled
-                              const client = clients.find(
-                                (c) => c.id === invoice.clientId
-                              );
-                              if (
-                                client?.printConfig?.emailSettings?.enabled &&
-                                client.printConfig.emailSettings
-                                  .autoSendOnApproval &&
-                                client.email
-                              ) {
-                                try {
-                                  // Generate PDF attachment if needed
-                                  let pdfContent: string | undefined;
-                                  try {
-                                    const printConfig =
-                                      client.printConfig.invoicePrintSettings;
-                                    pdfContent = await generateInvoicePDF(
-                                      client,
-                                      invoice,
-                                      printConfig
-                                    );
-                                  } catch (error) {
-                                    console.error(
-                                      "Failed to generate PDF for auto-send:",
-                                      error
-                                    );
-                                  }
-
-                                  // Send email
-                                  const success = await sendInvoiceEmail(
-                                    client,
-                                    invoice,
-                                    client.printConfig.emailSettings,
-                                    pdfContent
-                                  );
-
-                                  // Update email status in invoice
-                                  const emailStatusUpdate = {
-                                    emailStatus: {
-                                      ...invoice.emailStatus,
-                                      approvalEmailSent: success,
-                                      approvalEmailSentAt: success ? new Date().toISOString() : undefined,
-                                      lastEmailError: success ? undefined : "Failed to send approval email"
-                                    }
-                                  };
-
-                                  await onUpdateInvoice(invoice.id, emailStatusUpdate);
-
-                                  if (success) {
-                                    console.log(
-                                      `Auto-sent invoice email to ${client.email}`
-                                    );
-                                    await logActivity({
-                                      type: "Invoice",
-                                      message: `Invoice #${
-                                        invoice.invoiceNumber || invoice.id
-                                      } auto-sent to ${client.name} (${
-                                        client.email
-                                      }) on approval`,
-                                    });
-                                  }
-                                } catch (error) {
-                                  console.error("Auto-send email failed:", error);
-                                  // Don't block the approval process if email fails
-                                }
-                              }
-
-                              // Show print options after approval
-                              setShowPrintOptionsModal(invoice.id);
+                              // Open verification modal to approve the invoice
+                              handleVerifyInvoice(invoice.id);
                             }
                           }}
                           disabled={
@@ -1717,7 +1741,8 @@ export default function ActiveInvoices({
                               ? "Must be completed first"
                               : hasUnnamedCart(invoice)
                               ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
-                              : (invoice as any).status === "done" && invoice.verified
+                              : (invoice as any).status === "done" &&
+                                invoice.verified
                               ? "Approved (cannot unapprove shipped invoice)"
                               : invoice.verified
                               ? "Click to remove approval"
@@ -1749,7 +1774,10 @@ export default function ActiveInvoices({
                             justifyContent: "center",
                             padding: 0,
                             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: invoice.status === "done" ? "none" : "2px solid #0ea5e9",
+                            border:
+                              invoice.status === "done"
+                                ? "none"
+                                : "2px solid #0ea5e9",
                           }}
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -1794,8 +1822,7 @@ export default function ActiveInvoices({
                             }
                           }}
                           disabled={
-                            !invoice.verified ||
-                            hasUnnamedCart(invoice)
+                            !invoice.verified || hasUnnamedCart(invoice)
                           }
                           title={
                             !invoice.verified
@@ -1809,9 +1836,10 @@ export default function ActiveInvoices({
                         >
                           <i
                             className="bi bi-truck"
-                            style={{ 
-                              color: invoice.status === "done" ? "#fff" : "#0ea5e9", 
-                              fontSize: 22 
+                            style={{
+                              color:
+                                invoice.status === "done" ? "#fff" : "#0ea5e9",
+                              fontSize: 22,
                             }}
                           />
                         </button>
@@ -3044,11 +3072,18 @@ export default function ActiveInvoices({
               </div>
               <div className="modal-body text-center">
                 <div className="mb-4">
-                  <h4 className="mb-3">{user?.username || "User"} wants to add</h4>
-                  <div className="display-1 fw-bold text-primary mb-3" style={{ fontSize: "4rem" }}>
+                  <h4 className="mb-3">
+                    {user?.username || "User"} wants to add
+                  </h4>
+                  <div
+                    className="display-1 fw-bold text-primary mb-3"
+                    style={{ fontSize: "4rem" }}
+                  >
                     {confirmationProduct.quantity}
                   </div>
-                  <h3 className="text-secondary">{confirmationProduct.product?.name}</h3>
+                  <h3 className="text-secondary">
+                    {confirmationProduct.product?.name}
+                  </h3>
                 </div>
               </div>
               <div className="modal-footer">
@@ -3199,9 +3234,13 @@ export default function ActiveInvoices({
                           emailStatus: {
                             ...invoice.emailStatus,
                             shippingEmailSent: success,
-                            shippingEmailSentAt: success ? new Date().toISOString() : undefined,
-                            lastEmailError: success ? undefined : "Failed to send shipping email"
-                          }
+                            shippingEmailSentAt: success
+                              ? new Date().toISOString()
+                              : undefined,
+                            lastEmailError: success
+                              ? undefined
+                              : "Failed to send shipping email",
+                          },
                         };
 
                         await onUpdateInvoice(invoice.id, emailStatusUpdate);
@@ -3774,7 +3813,7 @@ export default function ActiveInvoices({
             includeTimestamp: true,
             headerText: "Cart Contents",
             footerText: "",
-            logoUrl: "" // Added missing logoUrl property
+            logoUrl: "", // Added missing logoUrl property
           };
 
           return (
@@ -4003,7 +4042,7 @@ export default function ActiveInvoices({
                               {(printConfig as any)?.logoUrl ? (
                                 <img
                                   src={(printConfig as any).logoUrl}
-                                  alt="Logo" 
+                                  alt="Logo"
                                   style={{ maxHeight: 80 }}
                                 />
                               ) : (
@@ -4642,11 +4681,14 @@ export default function ActiveInvoices({
                                   ...invoice.emailStatus,
                                   approvalEmailSent: true,
                                   approvalEmailSentAt: new Date().toISOString(),
-                                  lastEmailError: undefined
-                                }
+                                  lastEmailError: undefined,
+                                },
                               };
 
-                              await onUpdateInvoice(invoice.id, emailStatusUpdate);
+                              await onUpdateInvoice(
+                                invoice.id,
+                                emailStatusUpdate
+                              );
 
                               alert(
                                 `Invoice emailed successfully to ${client.email}`
@@ -4664,11 +4706,14 @@ export default function ActiveInvoices({
                               const emailStatusUpdate = {
                                 emailStatus: {
                                   ...invoice.emailStatus,
-                                  lastEmailError: "Failed to send manual email"
-                                }
+                                  lastEmailError: "Failed to send manual email",
+                                },
                               };
 
-                              await onUpdateInvoice(invoice.id, emailStatusUpdate);
+                              await onUpdateInvoice(
+                                invoice.id,
+                                emailStatusUpdate
+                              );
 
                               alert("Failed to send email. Please try again.");
                             }
