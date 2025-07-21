@@ -157,6 +157,11 @@ export default function ActiveInvoices({
   const [addToGroupError, setAddToGroupError] = useState("");
   const [addToGroupLoading, setAddToGroupLoading] = useState(false);
 
+  // --- Animation State for Approval Status Changes ---
+  const [animatingInvoices, setAnimatingInvoices] = useState<{
+    [invoiceId: string]: 'approved' | 'partial' | null;
+  }>({});
+
   // --- Cart Selection Modal State ---
   const [showCartSelectModal, setShowCartSelectModal] = useState(false);
   const [cartSelectInvoiceId, setCartSelectInvoiceId] = useState<string | null>(
@@ -361,6 +366,14 @@ export default function ActiveInvoices({
       verifiedAt: new Date().toISOString(),
       verifiedProducts,
     });
+    
+    // Trigger appropriate animation based on verification type
+    if (isFullyVerified) {
+      triggerApprovalAnimation(verifyInvoiceId, 'approved');
+    } else {
+      triggerApprovalAnimation(verifyInvoiceId, 'partial');
+    }
+    
     setPartialVerifiedInvoices((prev) => ({
       ...prev,
       [verifyInvoiceId]: !isFullyVerified && anyVerified(),
@@ -485,6 +498,15 @@ export default function ActiveInvoices({
   const refreshInvoices = async () => {
     const fresh = await getInvoices();
     setInvoicesState(fresh);
+  };
+
+  // --- Animation Helper Functions ---
+  const triggerApprovalAnimation = (invoiceId: string, animationType: 'approved' | 'partial') => {
+    setAnimatingInvoices(prev => ({ ...prev, [invoiceId]: animationType }));
+    // Clear animation after it completes (2s as defined in CSS)
+    setTimeout(() => {
+      setAnimatingInvoices(prev => ({ ...prev, [invoiceId]: null }));
+    }, 2000);
   };
 
   useEffect(() => {
@@ -1146,23 +1168,34 @@ export default function ActiveInvoices({
                 partialVerifiedInvoices[invoice.id];
               // Determine highlight color for this invoice
               const highlight = invoice.highlight || "blue";
-              // Compute background based on highlight color and status
+              // Compute background based on approval status with enhanced visual feedback
               let cardBackground = "";
+              let cardBorderColor = "";
+              
               if (isVerified) {
-                cardBackground =
-                  "linear-gradient(135deg, #bbf7d0 0%, #22c55e 100%)"; // green
+                // Fully approved - Green card
+                cardBackground = "linear-gradient(135deg, #dcfce7 0%, #16a34a 100%)";
+                cardBorderColor = "#16a34a";
               } else if (isPartiallyVerified) {
-                cardBackground =
-                  "linear-gradient(135deg, #fef9c3 0%, #fde047 100%)"; // yellow for partial
+                // Partially approved - Yellow card
+                cardBackground = "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+                cardBorderColor = "#eab308";
+              } else if (invoice.status === "completed") {
+                // Completed but not approved - Yellow card
+                cardBackground = "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+                cardBorderColor = "#eab308";
               } else if (isReady) {
-                cardBackground =
-                  "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)"; // yellow
+                // Ready status - Light yellow
+                cardBackground = "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
+                cardBorderColor = "#fbbf24";
               } else if (highlight === "yellow") {
-                cardBackground =
-                  "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)"; // yellow
+                // Yellow highlight
+                cardBackground = "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
+                cardBorderColor = "#fbbf24";
               } else {
-                cardBackground =
-                  "linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)"; // blue
+                // Default - Blue card (not approved)
+                cardBackground = "linear-gradient(135deg, #dbeafe 0%, #3b82f6 100%)";
+                cardBorderColor = "#3b82f6";
               }
 
               // --- Overdue logic: more than 1 day old ---
@@ -1178,6 +1211,13 @@ export default function ActiveInvoices({
 
               // Only apply overdue-blink if overdue AND not verified
               const showOverdueBlink = isOverdue && !isVerified;
+              
+              // Get animation class if animation is active
+              const animationClass = animatingInvoices[invoice.id] 
+                ? animatingInvoices[invoice.id] === 'approved' 
+                  ? 'invoice-card-approved' 
+                  : 'invoice-card-partial'
+                : '';
 
               return (
                 <React.Fragment key={invoice.id}>
@@ -1192,13 +1232,13 @@ export default function ActiveInvoices({
                     <div
                       className={`modern-invoice-card shadow-lg${
                         showOverdueBlink ? " overdue-blink" : ""
-                      }`}
+                      }${animationClass ? ` ${animationClass}` : ""}`}
                       style={{
                         borderRadius: 24,
                         background: cardBackground,
                         color: "#222",
-                        boxShadow: "0 8px 32px 0 rgba(0,0,0,0.10)",
-                        border: "none",
+                        boxShadow: `0 8px 32px 0 rgba(0,0,0,0.10), 0 0 0 2px ${cardBorderColor}20`,
+                        border: `2px solid ${cardBorderColor}40`,
                         position: "relative",
                         minHeight: 380,
                         maxWidth: 340,
@@ -1209,7 +1249,8 @@ export default function ActiveInvoices({
                         justifyContent: "flex-start",
                         fontFamily: "Inter, Segoe UI, Arial, sans-serif",
                         padding: "2.5rem 1.5rem 1.5rem 1.5rem",
-                        transition: "background 0.3s",
+                        transition: "all 0.3s ease-in-out",
+                        transform: isVerified ? "scale(1.02)" : "scale(1)",
                       }}
                       onClick={() => handleInvoiceClick(invoice.id)}
                       role="button"
@@ -1319,6 +1360,34 @@ export default function ActiveInvoices({
                         >
                           Active Invoice
                         </div>
+                        {/* Approval Status Badge */}
+                        {(isVerified || isPartiallyVerified || invoice.status === "completed") && (
+                          <div
+                            style={{
+                              display: "inline-block",
+                              padding: "4px 12px",
+                              borderRadius: "12px",
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                              marginTop: "8px",
+                              background: isVerified 
+                                ? "#16a34a" 
+                                : isPartiallyVerified 
+                                ? "#eab308" 
+                                : "#eab308", // Yellow for completed but not approved
+                              color: "white",
+                              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                            }}
+                          >
+                            {isVerified 
+                              ? "✓ APPROVED" 
+                              : isPartiallyVerified 
+                              ? "⚠ PARTIAL" 
+                              : "📋 COMPLETED"}
+                          </div>
+                        )}
                       </div>
                       {/* Product summary (total qty per product) */}
                       <div style={{ margin: "12px 0 0 0", width: "100%" }}>
@@ -1393,9 +1462,13 @@ export default function ActiveInvoices({
                           zIndex: 10,
                         }}
                       >
-                        {/* Complete button */}
+                        {/* Complete button - Step 1 */}
                         <button
-                          className="btn btn-warning btn-sm"
+                          className={`btn btn-sm ${
+                            invoice.status === "completed" || invoice.verified || invoice.status === "done"
+                              ? "btn-success"
+                              : "btn-warning"
+                          }`}
                           style={{
                             fontSize: 16,
                             width: 44,
@@ -1412,37 +1485,71 @@ export default function ActiveInvoices({
                             e.stopPropagation();
                             if (hasUnnamedCart(invoice)) {
                               alert(
-                                'Cannot complete invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                'Cannot modify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                               );
                               return;
                             }
-                            // Mark invoice as completed
-                            await onUpdateInvoice(invoice.id, {
-                              status: "completed",
-                            });
-                            if (user?.username) {
-                              await logActivity({
-                                type: "Invoice",
-                                message: `User ${user.username} marked invoice #${invoice.id} as completed`,
-                                user: user.username,
+                            
+                            // Toggle completed status
+                            const isCurrentlyCompleted = invoice.status === "completed" || invoice.verified || invoice.status === "done";
+                            
+                            if (isCurrentlyCompleted) {
+                              // If shipping is done, cannot revert
+                              if (invoice.status === "done") {
+                                alert("Cannot uncomplete a shipped invoice.");
+                                return;
+                              }
+                              // If approved, ask for confirmation to revert
+                              if (invoice.verified) {
+                                if (!window.confirm("This will also remove the approval. Continue?")) {
+                                  return;
+                                }
+                                // Remove approval and completion
+                                await onUpdateInvoice(invoice.id, {
+                                  status: "active",
+                                  verified: false,
+                                  verifiedBy: "",
+                                  verifiedAt: "",
+                                });
+                              } else {
+                                // Just remove completion
+                                await onUpdateInvoice(invoice.id, {
+                                  status: "active",
+                                });
+                              }
+                              if (user?.username) {
+                                await logActivity({
+                                  type: "Invoice",
+                                  message: `User ${user.username} marked invoice #${invoice.id} as active (uncompleted)`,
+                                  user: user.username,
+                                });
+                              }
+                            } else {
+                              // Mark as completed
+                              await onUpdateInvoice(invoice.id, {
+                                status: "completed",
                               });
+                              
+                              // Trigger completion animation (yellow)
+                              triggerApprovalAnimation(invoice.id, 'partial');
+                              
+                              if (user?.username) {
+                                await logActivity({
+                                  type: "Invoice",
+                                  message: `User ${user.username} marked invoice #${invoice.id} as completed`,
+                                  user: user.username,
+                                });
+                              }
                             }
                           }}
-                          disabled={
-                            invoice.status === "completed" ||
-                            invoice.verified ||
-                            invoice.status === "done" ||
-                            hasUnnamedCart(invoice)
-                          }
+                          disabled={hasUnnamedCart(invoice)}
                           title={
-                            invoice.status === "completed"
-                              ? "Completed"
-                              : invoice.verified
-                              ? "Already approved"
+                            hasUnnamedCart(invoice)
+                              ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
                               : invoice.status === "done"
-                              ? "Already shipped"
-                              : hasUnnamedCart(invoice)
-                              ? 'Cannot complete with "CARRO SIN NOMBRE" cart'
+                              ? "Shipped (cannot uncomplete)"
+                              : invoice.status === "completed" || invoice.verified
+                              ? "Click to mark as active"
                               : "Mark as Completed"
                           }
                         >
@@ -1450,18 +1557,20 @@ export default function ActiveInvoices({
                             className="bi bi-clipboard-check"
                             style={{
                               color:
-                                invoice.status === "completed" ||
-                                invoice.verified ||
-                                invoice.status === "done"
-                                  ? "#22c55e"
+                                invoice.status === "completed" || invoice.verified || invoice.status === "done"
+                                  ? "#fff"
                                   : "#f59e0b",
                               fontSize: 22,
                             }}
                           />
                         </button>
-                        {/* Approved button */}
+                        {/* Approved button - Step 2 */}
                         <button
-                          className="btn btn-success btn-sm"
+                          className={`btn btn-sm ${
+                            invoice.verified
+                              ? "btn-success"
+                              : "btn-outline-success"
+                          }`}
                           style={{
                             fontSize: 16,
                             width: 44,
@@ -1472,13 +1581,13 @@ export default function ActiveInvoices({
                             justifyContent: "center",
                             padding: 0,
                             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: "none",
+                            border: invoice.verified ? "none" : "2px solid #22c55e",
                           }}
                           onClick={async (e) => {
                             e.stopPropagation();
                             if (hasUnnamedCart(invoice)) {
                               alert(
-                                'Cannot approve invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                'Cannot modify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                               );
                               return;
                             }
@@ -1488,116 +1597,148 @@ export default function ActiveInvoices({
                               );
                               return;
                             }
-                            // Mark invoice as approved (set verified to true for compatibility)
-                            await onUpdateInvoice(invoice.id, {
-                              verified: true,
-                              verifiedBy: user?.username || "",
-                              verifiedAt: new Date().toISOString(),
-                            });
-                            if (user?.username) {
-                              await logActivity({
-                                type: "Invoice",
-                                message: `User ${user.username} approved invoice #${invoice.id}`,
-                                user: user.username,
-                              });
-                            }
 
-                            // Auto-send email if enabled
-                            const client = clients.find(
-                              (c) => c.id === invoice.clientId
-                            );
-                            if (
-                              client?.printConfig?.emailSettings?.enabled &&
-                              client.printConfig.emailSettings
-                                .autoSendOnApproval &&
-                              client.email
-                            ) {
-                              try {
-                                // Generate PDF attachment if needed
-                                let pdfContent: string | undefined;
+                            // Toggle approval status
+                            if (invoice.verified) {
+                              // If shipped, cannot revert approval
+                              if ((invoice as any).status === "done") {
+                                alert("Cannot unapprove a shipped invoice.");
+                                return;
+                              }
+                              // Remove approval
+                              await onUpdateInvoice(invoice.id, {
+                                verified: false,
+                                verifiedBy: "",
+                                verifiedAt: "",
+                              });
+                              if (user?.username) {
+                                await logActivity({
+                                  type: "Invoice",
+                                  message: `User ${user.username} removed approval from invoice #${invoice.id}`,
+                                  user: user.username,
+                                });
+                              }
+                            } else {
+                              // Mark invoice as approved (set verified to true for compatibility)
+                              await onUpdateInvoice(invoice.id, {
+                                verified: true,
+                                verifiedBy: user?.username || "",
+                                verifiedAt: new Date().toISOString(),
+                              });
+                              
+                              // Trigger approval animation
+                              triggerApprovalAnimation(invoice.id, 'approved');
+                              
+                              if (user?.username) {
+                                await logActivity({
+                                  type: "Invoice",
+                                  message: `User ${user.username} approved invoice #${invoice.id}`,
+                                  user: user.username,
+                                });
+                              }
+
+                              // Auto-send email if enabled
+                              const client = clients.find(
+                                (c) => c.id === invoice.clientId
+                              );
+                              if (
+                                client?.printConfig?.emailSettings?.enabled &&
+                                client.printConfig.emailSettings
+                                  .autoSendOnApproval &&
+                                client.email
+                              ) {
                                 try {
-                                  const printConfig =
-                                    client.printConfig.invoicePrintSettings;
-                                  pdfContent = await generateInvoicePDF(
+                                  // Generate PDF attachment if needed
+                                  let pdfContent: string | undefined;
+                                  try {
+                                    const printConfig =
+                                      client.printConfig.invoicePrintSettings;
+                                    pdfContent = await generateInvoicePDF(
+                                      client,
+                                      invoice,
+                                      printConfig
+                                    );
+                                  } catch (error) {
+                                    console.error(
+                                      "Failed to generate PDF for auto-send:",
+                                      error
+                                    );
+                                  }
+
+                                  // Send email
+                                  const success = await sendInvoiceEmail(
                                     client,
                                     invoice,
-                                    printConfig
+                                    client.printConfig.emailSettings,
+                                    pdfContent
                                   );
-                                } catch (error) {
-                                  console.error(
-                                    "Failed to generate PDF for auto-send:",
-                                    error
-                                  );
-                                }
 
-                                // Send email
-                                const success = await sendInvoiceEmail(
-                                  client,
-                                  invoice,
-                                  client.printConfig.emailSettings,
-                                  pdfContent
-                                );
+                                  // Update email status in invoice
+                                  const emailStatusUpdate = {
+                                    emailStatus: {
+                                      ...invoice.emailStatus,
+                                      approvalEmailSent: success,
+                                      approvalEmailSentAt: success ? new Date().toISOString() : undefined,
+                                      lastEmailError: success ? undefined : "Failed to send approval email"
+                                    }
+                                  };
 
-                                // Update email status in invoice
-                                const emailStatusUpdate = {
-                                  emailStatus: {
-                                    ...invoice.emailStatus,
-                                    approvalEmailSent: success,
-                                    approvalEmailSentAt: success ? new Date().toISOString() : undefined,
-                                    lastEmailError: success ? undefined : "Failed to send approval email"
+                                  await onUpdateInvoice(invoice.id, emailStatusUpdate);
+
+                                  if (success) {
+                                    console.log(
+                                      `Auto-sent invoice email to ${client.email}`
+                                    );
+                                    await logActivity({
+                                      type: "Invoice",
+                                      message: `Invoice #${
+                                        invoice.invoiceNumber || invoice.id
+                                      } auto-sent to ${client.name} (${
+                                        client.email
+                                      }) on approval`,
+                                    });
                                   }
-                                };
-
-                                await onUpdateInvoice(invoice.id, emailStatusUpdate);
-
-                                if (success) {
-                                  console.log(
-                                    `Auto-sent invoice email to ${client.email}`
-                                  );
-                                  await logActivity({
-                                    type: "Invoice",
-                                    message: `Invoice #${
-                                      invoice.invoiceNumber || invoice.id
-                                    } auto-sent to ${client.name} (${
-                                      client.email
-                                    }) on approval`,
-                                  });
+                                } catch (error) {
+                                  console.error("Auto-send email failed:", error);
+                                  // Don't block the approval process if email fails
                                 }
-                              } catch (error) {
-                                console.error("Auto-send email failed:", error);
-                                // Don't block the approval process if email fails
                               }
-                            }
 
-                            // Show print options after approval
-                            setShowPrintOptionsModal(invoice.id);
+                              // Show print options after approval
+                              setShowPrintOptionsModal(invoice.id);
+                            }
                           }}
                           disabled={
                             invoice.status !== "completed" ||
-                            invoice.verified ||
                             hasUnnamedCart(invoice)
                           }
                           title={
-                            invoice.verified
-                              ? "Approved"
-                              : invoice.status !== "completed"
+                            invoice.status !== "completed"
                               ? "Must be completed first"
                               : hasUnnamedCart(invoice)
-                              ? 'Cannot approve with "CARRO SIN NOMBRE" cart'
+                              ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
+                              : (invoice as any).status === "done" && invoice.verified
+                              ? "Approved (cannot unapprove shipped invoice)"
+                              : invoice.verified
+                              ? "Click to remove approval"
                               : "Approve"
                           }
                         >
                           <i
                             className="bi bi-check-circle"
                             style={{
-                              color: invoice.verified ? "#22c55e" : "#166534",
+                              color: invoice.verified ? "#fff" : "#22c55e",
                               fontSize: 22,
                             }}
                           />
                         </button>
-                        {/* Shipped button */}
+                        {/* Shipped button - Step 3 */}
                         <button
-                          className="btn btn-info btn-sm"
+                          className={`btn btn-sm ${
+                            invoice.status === "done"
+                              ? "btn-info"
+                              : "btn-outline-info"
+                          }`}
                           style={{
                             fontSize: 16,
                             width: 44,
@@ -1608,13 +1749,13 @@ export default function ActiveInvoices({
                             justifyContent: "center",
                             padding: 0,
                             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: "none",
+                            border: invoice.status === "done" ? "none" : "2px solid #0ea5e9",
                           }}
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
                             if (hasUnnamedCart(invoice)) {
                               alert(
-                                'Cannot ship invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                'Cannot modify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                               );
                               return;
                             }
@@ -1624,28 +1765,54 @@ export default function ActiveInvoices({
                               );
                               return;
                             }
-                            setShowShippedModal(invoice.id);
-                            setShippedTruckNumber("");
-                            setShippedDeliveryDate("");
+
+                            // Toggle shipping status
+                            if (invoice.status === "done") {
+                              // Unship the invoice
+                              const confirmUnship = window.confirm(
+                                "Are you sure you want to unship this invoice? This will revert it to approved status."
+                              );
+                              if (confirmUnship) {
+                                await onUpdateInvoice(invoice.id, {
+                                  status: "completed",
+                                  truckNumber: "",
+                                  deliveryDate: "",
+                                });
+                                if (user?.username) {
+                                  await logActivity({
+                                    type: "Invoice",
+                                    message: `User ${user.username} unshipped invoice #${invoice.id}`,
+                                    user: user.username,
+                                  });
+                                }
+                              }
+                            } else {
+                              // Ship the invoice - show modal for truck number and delivery date
+                              setShowShippedModal(invoice.id);
+                              setShippedTruckNumber("");
+                              setShippedDeliveryDate("");
+                            }
                           }}
                           disabled={
                             !invoice.verified ||
-                            invoice.status === "done" ||
                             hasUnnamedCart(invoice)
                           }
                           title={
-                            invoice.status === "done"
-                              ? "Shipped"
-                              : !invoice.verified
+                            !invoice.verified
                               ? "Must be approved first"
                               : hasUnnamedCart(invoice)
-                              ? 'Cannot ship with "CARRO SIN NOMBRE" cart'
+                              ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
+                              : invoice.status === "done"
+                              ? "Click to unship"
                               : "Mark as Shipped"
                           }
                         >
                           <i
                             className="bi bi-truck"
-                            style={{ color: "#0ea5e9", fontSize: 22 }}
+                            style={{ 
+                              color: invoice.status === "done" ? "#fff" : "#0ea5e9", 
+                              fontSize: 22 
+                            }}
                           />
                         </button>
                       </div>

@@ -279,3 +279,43 @@ input:focus, select:focus, textarea:focus {
     filter: brightness(1.15);
   }
 }
+
+/* Approval status animations */
+@keyframes approval-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.10);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 12px 40px 0 rgba(34, 197, 94, 0.20);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.10);
+  }
+}
+
+@keyframes partial-approval-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.10);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 12px 40px 0 rgba(234, 179, 8, 0.20);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 8px 32px 0 rgba(0,0,0,0.10);
+  }
+}
+
+/* Apply animations to approved cards */
+.invoice-card-approved {
+  animation: approval-pulse 2s ease-in-out;
+}
+
+.invoice-card-partial {
+  animation: partial-approval-pulse 2s ease-in-out;
+}
