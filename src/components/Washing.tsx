@@ -419,19 +419,27 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
           },
         ],
       };
-      // Create the group
+      // Calculate the next order value to add to the bottom of conventional list
+      const existingConventionalGroups = groups.filter((g) => g.status === "Conventional" && g.status !== "Entregado");
+      const existingManualProducts = manualConventionalProducts.filter((p) => !p.invoiceId);
+      
+      // Find the maximum order value among all conventional items
+      const maxGroupOrder = existingConventionalGroups.reduce((max, g) => 
+        Math.max(max, g.order ?? -1), -1);
+      const maxManualOrder = existingManualProducts.reduce((max, p) => 
+        Math.max(max, p.order ?? -1), -1);
+      const nextOrder = Math.max(maxGroupOrder, maxManualOrder) + 1;
+      
+      // Create the group with Conventional status and washingType
       await addDoc(collection(db, "pickup_groups"), {
         clientId: client.id,
         clientName: client.name,
-        status: "Tunnel",
-        washingType: "Tunnel",
-        carts: [],
-        numCarts: 0,
+        status: "Conventional",
+        washingType: "Conventional", 
+        carts: [cart],
+        numCarts: numCarts,
         createdAt: Timestamp.now(),
-        order: groups.filter(
-          (g) =>
-            g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
-        ).length, // add to end based on current order
+        order: nextOrder, // add to end of all conventional items
       });
       setShowAddConventionalModal(false);
       setSelectedConventionalClientId("");
@@ -2279,169 +2287,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               {numCarts}
                             </strong>
                           </span>
-                          {/* Show segregated carts for non-manual products if supervisor+ and segregatedCarts exists */}
-                          {!group.isManualProduct &&
-                            canReorder &&
-                            typeof group.segregatedCarts === "number" && (
-                              <span
-                                style={{
-                                  color: "#666",
-                                  fontSize: "1rem",
-                                  fontWeight: 500,
-                                  marginTop: 4,
-                                  textAlign: "left",
-                                  display: "block",
-                                }}
-                              >
-                                {editingSegregatedCarts[group.id] ? (
-                                  <div className="d-flex align-items-center gap-2">
-                                    <span>Segregated:</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      className="form-control form-control-sm"
-                                      style={{ width: "70px" }}
-                                      value={
-                                        segregatedCartsInput[group.id] ??
-                                        group.segregatedCarts.toString()
-                                      }
-                                      onChange={(e) =>
-                                        setSegregatedCartsInput((prev) => ({
-                                          ...prev,
-                                          [group.id]: e.target.value,
-                                        }))
-                                      }
-                                      onKeyDown={async (e) => {
-                                        if (e.key === "Enter") {
-                                          const newValue = parseInt(
-                                            segregatedCartsInput[group.id] ||
-                                              "0"
-                                          );
-                                          if (
-                                            !isNaN(newValue) &&
-                                            newValue >= 0
-                                          ) {
-                                            try {
-                                              await updateDoc(
-                                                doc(
-                                                  db,
-                                                  "pickup_groups",
-                                                  group.id
-                                                ),
-                                                {
-                                                  segregatedCarts: newValue,
-                                                }
-                                              );
-                                              setEditingSegregatedCarts(
-                                                (prev) => ({
-                                                  ...prev,
-                                                  [group.id]: false,
-                                                })
-                                              );
-                                              setSegregatedCartsInput((prev) => ({
-                                                ...prev,
-                                                [group.id]: "",
-                                              }));
-                                            } catch (error) {
-                                              alert(
-                                                "Error updating segregated carts"
-                                              );
-                                            }
-                                          }
-                                        } else if (e.key === "Escape") {
-                                          setEditingSegregatedCarts((prev) => ({
-                                            ...prev,
-                                            [group.id]: false,
-                                          }));
-                                          setSegregatedCartsInput((prev) => ({
-                                            ...prev,
-                                            [group.id]: "",
-                                          }));
-                                        }
-                                      }}
-                                      autoFocus
-                                    />
-                                    <button
-                                      className="btn btn-success btn-sm px-1 py-0"
-                                      style={{ fontSize: "10px" }}
-                                      onClick={async () => {
-                                        const newValue = parseInt(
-                                          segregatedCartsInput[group.id] || "0"
-                                        );
-                                        if (!isNaN(newValue) && newValue >= 0) {
-                                          try {
-                                            await updateDoc(
-                                              doc(
-                                                db,
-                                                "pickup_groups",
-                                                group.id
-                                              ),
-                                              {
-                                                segregatedCarts: newValue,
-                                              }
-                                            );
-                                            setEditingSegregatedCarts(
-                                              (prev) => ({
-                                                ...prev,
-                                                [group.id]: false,
-                                              })
-                                            );
-                                            setSegregatedCartsInput((prev) => ({
-                                              ...prev,
-                                              [group.id]: "",
-                                            }));
-                                          } catch (error) {
-                                            alert(
-                                              "Error updating segregated carts"
-                                            );
-                                          }
-                                        }
-                                      }}
-                                      title="Save"
-                                    >
-                                      ✓
-                                    </button>
-                                    <button
-                                      className="btn btn-secondary btn-sm px-1 py-0"
-                                      style={{ fontSize: "10px" }}
-                                      onClick={() => {
-                                        setEditingSegregatedCarts((prev) => ({
-                                          ...prev,
-                                          [group.id]: false,
-                                        }));
-                                        setSegregatedCartsInput((prev) => ({
-                                          ...prev,
-                                          [group.id]: "",
-                                        }));
-                                      }}
-                                      title="Cancel"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="d-flex align-items-center gap-2">
-                                    <span>
-                                      Segregated:{" "}
-                                      <strong>{group.segregatedCarts}</strong>
-                                    </span>
-                                    <button
-                                      className="btn btn-outline-primary btn-sm px-1 py-0"
-                                      style={{ fontSize: "10px" }}
-                                      onClick={() =>
-                                        setEditingSegregatedCarts((prev) => ({
-                                          ...prev,
-                                          [group.id]: true,
-                                        }))
-                                      }
-                                      title="Edit segregated cart count"
-                                    >
-                                      ✏️
-                                    </button>
-                                  </div>
-                                )}
-                              </span>
-                            )}
+                          {/* Manual product details - simplified display */}
                           {group.isManualProduct && (
                             <span
                               style={{
@@ -2454,6 +2300,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               <span style={{ color: "#888" }}>
                                 ({group.type})
                               </span>
+                            </span>
+                          )}
+                          {/* Regular group product details */}
+                          {!group.isManualProduct && group.carts && Array.isArray(group.carts) && group.carts.length > 0 && (
+                            <span
+                              style={{
+                                color: "#888",
+                                fontSize: 15,
+                                marginTop: 1,
+                              }}
+                            >
+                              {group.carts.map((cart: any, cartIdx: number) => 
+                                cart.items && Array.isArray(cart.items) ? cart.items.map((item: any, itemIdx: number) => (
+                                  <span key={`${cartIdx}-${itemIdx}`}>
+                                    <b>{item.productName || item.productId}</b> x{item.quantity}{" "}
+                                    <span style={{ color: "#888" }}>
+                                      ({item.type || 'qty'})
+                                    </span>
+                                    {cartIdx < group.carts.length - 1 || itemIdx < cart.items.length - 1 ? ', ' : ''}
+                                  </span>
+                                )) : null
+                              )}
                             </span>
                           )}
                           {/* Weight section */}
