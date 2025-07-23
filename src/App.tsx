@@ -212,6 +212,13 @@ function App() {
   const canSee = (component: AppComponentKey) =>
     user && canUserSeeComponent(user, component);
 
+  // Auto-redirect drivers to shipping page - MOVED TO TOP TO FIX HOOKS ORDER
+  React.useEffect(() => {
+    if (user && user.role === "Driver" && activePage !== "shipping") {
+      setActivePage("shipping");
+    }
+  }, [user, activePage]);
+
   // Real-time Firestore listeners for invoices, products, and clients
   useEffect(() => {
     // Invoices
@@ -605,13 +612,6 @@ function App() {
       </div>
     );
   }
-
-  // Auto-redirect drivers to shipping page
-  React.useEffect(() => {
-    if (user && user.role === "Driver" && activePage !== "shipping") {
-      setActivePage("shipping");
-    }
-  }, [user, activePage]);
 
   // Role-based tab visibility (now using permissions map)
   const canManageUsers = canSee("UserManagement");

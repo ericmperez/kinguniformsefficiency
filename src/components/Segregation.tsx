@@ -946,9 +946,9 @@ const Segregation: React.FC<SegregationProps> = ({
                 color: "#004085",
               }}
             >
-              <strong>🎯 Trabajar un cliente a la vez:</strong> Solo el primer
-              cliente (🟢) puede ser procesado. Complétalo para pasar al
-              siguiente.
+              <strong>🎯 Trabajar dos clientes a la vez:</strong> Solo los primeros
+              dos clientes (🟢) pueden ser procesados. Complétalos para pasar a los
+              siguientes.
             </div>
           )}
           <div
@@ -958,11 +958,11 @@ const Segregation: React.FC<SegregationProps> = ({
             {displayGroups.map((group, idx) => {
               const isSupervisorOrAbove =
                 user && ["Supervisor", "Admin", "Owner"].includes(user.role);
-              // For employees: only allow interaction with first client (idx === 0)
+              // For employees: only allow interaction with first two clients (idx < 2)
               // For supervisors: only disable if segregationTomorrow is true
               const disableActions =
                 !!group.segregationTomorrow ||
-                (!isSupervisorOrAbove && idx !== 0);
+                (!isSupervisorOrAbove && idx >= 2);
 
               if (group.segregationTomorrow && !isSupervisorOrAbove) {
                 return (
@@ -1016,19 +1016,19 @@ const Segregation: React.FC<SegregationProps> = ({
                   style={{
                     background: group.segregationTomorrow
                       ? "#ffe066"
-                      : !isSupervisorOrAbove && idx === 0
-                      ? "#e8f5e8" // Light green for first client (employees only)
+                      : !isSupervisorOrAbove && idx < 2
+                      ? "#e8f5e8" // Light green for first two clients (employees only)
                       : "#fff",
                     border: group.segregationTomorrow
                       ? "2.5px solid #ffa600"
-                      : !isSupervisorOrAbove && idx === 0
-                      ? "2px solid #28a745" // Green border for active client (employees only)
+                      : !isSupervisorOrAbove && idx < 2
+                      ? "2px solid #28a745" // Green border for active clients (employees only)
                       : "1.5px solid #e3e3e3",
                     fontSize: 14,
                     minHeight: 56,
                     boxShadow: "0 1px 6px rgba(14,98,160,0.06)",
                     transition: "background 0.2s, border 0.2s",
-                    opacity: !isSupervisorOrAbove && idx !== 0 ? 0.6 : 1.0, // Dim non-first clients for employees
+                    opacity: !isSupervisorOrAbove && idx >= 2 ? 0.6 : 1.0, // Dim non-active clients for employees
                   }}
                 >
                   {/* Top row: arrows (if allowed) and client name */}
@@ -1072,18 +1072,18 @@ const Segregation: React.FC<SegregationProps> = ({
                         fontWeight: 700,
                         fontSize: 20,
                         color:
-                          !isSupervisorOrAbove && idx === 0
-                            ? "#28a745" // Green for active client (employees)
-                            : !isSupervisorOrAbove && idx !== 0
+                          !isSupervisorOrAbove && idx < 2
+                            ? "#28a745" // Green for active clients (employees)
+                            : !isSupervisorOrAbove && idx >= 2
                             ? "#6c757d" // Gray for waiting clients (employees)
                             : "#007bff", // Blue for supervisors (all clients)
                         textAlign: "left",
                       }}
                     >
-                      {!isSupervisorOrAbove && idx === 0 && "🟢 "}
-                      {!isSupervisorOrAbove && idx !== 0 && "⏳ "}
+                      {!isSupervisorOrAbove && idx < 2 && "🟢 "}
+                      {!isSupervisorOrAbove && idx >= 2 && "⏳ "}
                       {group.clientName}
-                      {!isSupervisorOrAbove && idx !== 0 && (
+                      {!isSupervisorOrAbove && idx >= 2 && (
                         <span
                           style={{
                             fontSize: 14,
