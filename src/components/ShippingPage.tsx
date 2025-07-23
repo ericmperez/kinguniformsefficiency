@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { Invoice } from "../types";
 import "./ShippingPage.css";
 import InvoiceDetailsPopup from "./InvoiceDetailsPopup";
 import SignatureModal from "./SignatureModal";
+import { useAuth } from "./AuthContext";
 
 interface ShippingTruckData {
   truckNumber: string;
   invoices: ShippingInvoice[];
+  assignedDriver?: string;
 }
 
 interface ShippingInvoice {
@@ -23,7 +25,22 @@ interface ShippingInvoice {
   hasSignature?: boolean;
 }
 
+interface Driver {
+  id: string;
+  name: string;
+  linkedUserId?: string; // Link to user account
+  linkedUsername?: string; // Cached username for display
+}
+
+interface TruckAssignment {
+  truckNumber: string;
+  driverId: string;
+  driverName: string;
+  assignedDate: string;
+}
+
 const ShippingPage: React.FC = () => {
+  const { user } = useAuth(); // Get current authenticated user
   const [shippingData, setShippingData] = useState<ShippingTruckData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedDate, setSelectedDate] = useState<string>("");
@@ -36,6 +53,10 @@ const ShippingPage: React.FC = () => {
     number?: string;
     clientName: string;
   } | null>(null);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [truckAssignments, setTruckAssignments] = useState<{[key: string]: TruckAssignment}>({});
+  const [savingAssignment, setSavingAssignment] = useState<string | null>(null);
+  const [currentDriverId, setCurrentDriverId] = useState<string | null>(null);
 
   // Function to handle clicking on an invoice
   const handleInvoiceClick = (invoiceId: string) => {
@@ -49,6 +70,89 @@ const ShippingPage: React.FC = () => {
       number: invoice.invoiceNumber,
       clientName: invoice.clientName,
     });
+  };
+
+  // Function to fetch drivers from Firebase
+  const fetchDrivers = useCallback(async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "drivers"));
+      const driversData: Driver[] = [];
+      querySnapshot.forEach((doc) => {
+        driversData.push({ id: doc.id, ...doc.data() } as Driver);
+      });
+      setDrivers(driversData);
+    } catch (error) {
+      console.error("Error fetching drivers:", error);
+    }
+  }, []);
+
+  // Effect to find current driver's ID if user is a driver
+  useEffect(() => {
+    if (user && user.role === "Driver" && drivers.length > 0) {
+      const linkedDriver = drivers.find(
+        (driver: any) => driver.linkedUserId === user.id
+      );
+      if (linkedDriver) {
+        setCurrentDriverId(linkedDriver.id);
+      }
+    }
+  }, [user, drivers]);
+
+  // Function to fetch truck assignments for the selected date
+  const fetchTruckAssignments = useCallback(async () => {
+    if (!selectedDate) return;
+    
+    try {
+      const assignmentsQuery = query(
+        collection(db, "truckAssignments"),
+        where("assignedDate", "==", selectedDate)
+      );
+      const querySnapshot = await getDocs(assignmentsQuery);
+      const assignments: {[key: string]: TruckAssignment} = {};
+      
+      querySnapshot.forEach((doc) => {
+        const assignment = doc.data() as TruckAssignment;
+        assignments[assignment.truckNumber] = assignment;
+      });
+      
+      setTruckAssignments(assignments);
+    } catch (error) {
+      console.error("Error fetching truck assignments:", error);
+    }
+  }, [selectedDate]);
+
+  // Function to assign driver to truck
+  const assignDriverToTruck = async (truckNumber: string, driverId: string) => {
+    if (!selectedDate || !driverId) return;
+    
+    setSavingAssignment(truckNumber);
+    try {
+      const driver = drivers.find(d => d.id === driverId);
+      if (!driver) return;
+
+      const assignment: TruckAssignment = {
+        truckNumber,
+        driverId,
+        driverName: driver.name,
+        assignedDate: selectedDate,
+      };
+
+      // Create a unique document ID based on truck number and date
+      const docId = `${truckNumber}_${selectedDate}`;
+      await setDoc(doc(db, "truckAssignments", docId), assignment);
+
+      // Update local state
+      setTruckAssignments(prev => ({
+        ...prev,
+        [truckNumber]: assignment
+      }));
+
+      console.log(`Assigned ${driver.name} to Truck ${truckNumber} for ${selectedDate}`);
+    } catch (error) {
+      console.error("Error assigning driver to truck:", error);
+    } finally {
+      setSavingAssignment(null);
+    }
   };
 
   // Function to fetch shipping data that can be called to refresh the data
@@ -143,7 +247,19 @@ const ShippingPage: React.FC = () => {
     fetchShippingData();
   }, [fetchShippingData]);
 
-  // Filter data by selected date
+  // Fetch drivers on component mount
+  useEffect(() => {
+    fetchDrivers();
+  }, [fetchDrivers]);
+
+  // Fetch truck assignments when date changes
+  useEffect(() => {
+    if (selectedDate) {
+      fetchTruckAssignments();
+    }
+  }, [selectedDate, fetchTruckAssignments]);
+
+  // Filter data by selected date and driver assignments (for driver role)
   const filteredData = selectedDate
     ? shippingData
         .map((truck) => ({
@@ -152,8 +268,21 @@ const ShippingPage: React.FC = () => {
             (invoice) => invoice.deliveryDate === selectedDate
           ),
         }))
-        .filter((truck) => truck.invoices.length > 0)
-    : shippingData;
+        .filter((truck) => {
+          // If user is a driver, only show trucks assigned to them
+          if (user && user.role === "Driver" && currentDriverId) {
+            const assignment = truckAssignments[truck.truckNumber];
+            return truck.invoices.length > 0 && assignment && assignment.driverId === currentDriverId;
+          }
+          // For non-drivers, show all trucks with invoices
+          return truck.invoices.length > 0;
+        })
+    : user && user.role === "Driver" && currentDriverId
+      ? shippingData.filter((truck) => {
+          const assignment = truckAssignments[truck.truckNumber];
+          return assignment && assignment.driverId === currentDriverId;
+        })
+      : shippingData;
 
   // Calculate totals for each truck
   const calculateTruckTotals = (truck: ShippingTruckData) => {
@@ -203,14 +332,28 @@ const ShippingPage: React.FC = () => {
           <div className="row">
             {filteredData.length === 0 ? (
               <div className="col-12 text-center py-5">
-                <h5 className="text-muted">
-                  No shipping data found for trucks 30-39
-                </h5>
-                {selectedDate && (
-                  <p>
-                    No deliveries scheduled for{" "}
-                    {new Date(selectedDate).toLocaleDateString("en-US")}
-                  </p>
+                {user && user.role === "Driver" ? (
+                  <div>
+                    <h5 className="text-muted">
+                      No trucks assigned to you
+                    </h5>
+                    <p>
+                      Please contact your supervisor to assign you to a truck for{" "}
+                      {selectedDate ? new Date(selectedDate).toLocaleDateString("en-US") : "your deliveries"}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <h5 className="text-muted">
+                      No shipping data found for trucks 30-39
+                    </h5>
+                    {selectedDate && (
+                      <p>
+                        No deliveries scheduled for{" "}
+                        {new Date(selectedDate).toLocaleDateString("en-US")}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             ) : (
@@ -224,9 +367,56 @@ const ShippingPage: React.FC = () => {
                   >
                     <div className="card shadow-sm truck-card">
                       <div className="card-header truck-header">
-                        <h4 className="mb-0">Truck #{truck.truckNumber}</h4>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <h4 className="mb-0">Truck #{truck.truckNumber}</h4>
+                          {truckAssignments[truck.truckNumber] && (
+                            <span className="badge bg-success">
+                              <i className="bi bi-person-check"></i> {truckAssignments[truck.truckNumber].driverName}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="card-body">
+                        {/* Driver Assignment Section - Only show for non-driver users */}
+                        {(!user || user.role !== "Driver") && (
+                          <div className="mb-3">
+                            <label className="form-label fw-bold">
+                              <i className="bi bi-person"></i> Assign Driver
+                            </label>
+                            {drivers.filter((driver: any) => driver.linkedUserId).length === 0 ? (
+                              <div className="alert alert-warning py-2">
+                                <small>
+                                  <strong>No linked drivers available.</strong><br />
+                                  Link drivers to user accounts in Settings → Drivers to enable assignments.
+                                </small>
+                              </div>
+                            ) : (
+                              <div className="d-flex gap-2">
+                                <select
+                                  className="form-select form-select-sm"
+                                  value={truckAssignments[truck.truckNumber]?.driverId || ""}
+                                  onChange={(e) => assignDriverToTruck(truck.truckNumber, e.target.value)}
+                                  disabled={savingAssignment === truck.truckNumber}
+                                >
+                                  <option value="">Select Driver...</option>
+                                  {drivers
+                                    .filter((driver: any) => driver.linkedUserId) // Only show drivers linked to user accounts
+                                    .map((driver) => (
+                                      <option key={driver.id} value={driver.id}>
+                                        {driver.name} (ID: {driver.linkedUserId})
+                                      </option>
+                                    ))}
+                                </select>
+                                {savingAssignment === truck.truckNumber && (
+                                  <div className="spinner-border spinner-border-sm text-primary" role="status">
+                                    <span className="visually-hidden">Saving...</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div className="truck-stats">
                           <div className="stat-item">
                             <h5 className="stat-value">{clientCount}</h5>

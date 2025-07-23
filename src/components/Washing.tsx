@@ -109,6 +109,14 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     [groupId: string]: string;
   }>({});
 
+  // State for priority flags in conventional list
+  const [priorityFlags, setPriorityFlags] = useState<{
+    [groupId: string]: boolean;
+  }>({});
+  const [priorityLoading, setPriorityLoading] = useState<{
+    [groupId: string]: boolean;
+  }>({});
+
   const { user } = useAuth();
   const canReorder =
     user && ["Supervisor", "Admin", "Owner"].includes(user.role);
@@ -888,6 +896,62 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     return () => unsub();
   }, []);
 
+  // Load priority flags from Firestore
+  useEffect(() => {
+    const loadPriorityFlags = async () => {
+      try {
+        const prioritiesRef = collection(db, "washing_priorities");
+        const unsubscribe = onSnapshot(prioritiesRef, (snapshot) => {
+          const priorities: { [groupId: string]: boolean } = {};
+          snapshot.docs.forEach((doc) => {
+            priorities[doc.id] = doc.data().isPriority || false;
+          });
+          setPriorityFlags(priorities);
+        });
+        return unsubscribe;
+      } catch (error) {
+        console.error("Error loading priority flags:", error);
+      }
+    };
+    
+    loadPriorityFlags();
+  }, []);
+
+  // Toggle priority status for a group
+  const togglePriorityFlag = async (groupId: string) => {
+    if (priorityLoading[groupId]) return;
+    
+    try {
+      setPriorityLoading(prev => ({ ...prev, [groupId]: true }));
+      
+      const currentPriority = priorityFlags[groupId] || false;
+      const newPriority = !currentPriority;
+      
+      // Update Firestore
+      const priorityRef = doc(db, "washing_priorities", groupId);
+      await setDoc(priorityRef, { 
+        isPriority: newPriority,
+        updatedAt: Timestamp.now(),
+        updatedBy: user?.username || "Unknown"
+      }, { merge: true });
+      
+      // Log activity
+      if (user) {
+        await logActivity({
+          type: newPriority ? "PRIORITY_ADDED" : "PRIORITY_REMOVED",
+          message: `${newPriority ? "Added" : "Removed"} priority flag for group ${groupId}`,
+          user: user.username
+        });
+      }
+      
+    } catch (error) {
+      console.error("Error toggling priority flag:", error);
+      alert("Error updating priority status");
+    } finally {
+      setPriorityLoading(prev => ({ ...prev, [groupId]: false }));
+    }
+  };
+
   return (
     <div className="container py-4">
       {/* Alert Banner */}
@@ -998,6 +1062,27 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
           </button>
         </li>
       </ul>
+      
+      {/* Warning message about priority flags before 12:00 midday - always shown in conventional tab */}
+      {activeTab === "conventional" && (
+        <div 
+          className="alert alert-warning mb-4 text-center mx-auto"
+          style={{
+            background: "#fff3cd",
+            border: "2px solid #ffc107",
+            borderRadius: 12,
+            padding: "16px",
+            fontWeight: 600,
+            fontSize: 16,
+            color: "#856404",
+            maxWidth: 820
+          }}
+        >
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          <strong>⚠️ ADVERTENCIA:</strong> Antes de las 12:00 del mediodía no debería haber filas rojas (prioridad) presentes en la lista.
+        </div>
+      )}
+      
       <div>
         {activeTab === "tunnel" && (
           <div
@@ -2238,7 +2323,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         className="list-group-item d-flex flex-row align-items-center justify-content-between gap-4 py-4 mb-3 shadow-sm rounded"
                         style={{
                           border: "2px solid #e3e3e3",
-                          background: group.isManualProduct
+                          background: priorityFlags[group.id] 
+                            ? "#d32f2f" 
+                            : group.isManualProduct
                             ? "#fffbe6"
                             : "#fff",
                           marginBottom: 8,
@@ -2247,6 +2334,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           alignItems: "center",
                           maxWidth: 1000,
                           width: "100%",
+                          borderColor: priorityFlags[group.id] 
+                            ? "#b71c1c" 
+                            : "#e3e3e3",
+                          color: priorityFlags[group.id] ? "#fff" : "inherit",
                         }}
                       >
                         {/* Info section */}
@@ -2352,8 +2443,36 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         {/* Actions section */}
                         <div
                           className="d-flex flex-row align-items-center gap-2"
-                          style={{ minWidth: 220, maxWidth: 260 }}
+                          style={{ minWidth: 220, maxWidth: 300 }}
                         >
+                          {/* Priority toggle button - only for Supervisor and above */}
+                          {canReorder && (
+                            <button
+                              className={`btn ${
+                                priorityFlags[group.id] 
+                                  ? "btn-danger" 
+                                  : "btn-outline-danger"
+                              } btn-sm`}
+                              title={
+                                priorityFlags[group.id] 
+                                  ? "Remove priority flag" 
+                                  : "Mark as priority"
+                              }
+                              onClick={() => togglePriorityFlag(group.id)}
+                              disabled={priorityLoading[group.id]}
+                              style={{ 
+                                padding: "4px 8px", 
+                                fontSize: 12,
+                                minWidth: 32
+                              }}
+                            >
+                              {priorityLoading[group.id] ? (
+                                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                              ) : (
+                                <span aria-hidden="true">👕</span>
+                              )}
+                            </button>
+                          )}
                           {/* Move up/down arrows for groups only, Supervisor or higher */}
                           {!group.isManualProduct && canReorder && (
                             <>

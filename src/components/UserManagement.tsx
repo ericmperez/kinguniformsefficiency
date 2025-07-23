@@ -19,7 +19,7 @@ interface UserRecord {
 
 type UserManagementProps = {};
 
-const roles: UserRole[] = ["Employee", "Supervisor", "Admin", "Owner"];
+const roles: UserRole[] = ["Employee", "Supervisor", "Admin", "Owner", "Driver"];
 
 const componentOptions: { key: AppComponentKey; label: string }[] = [
   { key: "PickupWashing", label: "Pickup Washing" },

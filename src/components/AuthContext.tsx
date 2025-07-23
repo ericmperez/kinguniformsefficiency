@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { getUsers } from "../services/firebaseService";
 
-export type UserRole = "Employee" | "Supervisor" | "Admin" | "Owner";
+export type UserRole = "Employee" | "Supervisor" | "Admin" | "Owner" | "Driver";
 
 interface AuthUser {
   id: string;

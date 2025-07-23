@@ -1,6 +1,6 @@
 // src/permissions.ts
 // Map of roles to allowed component keys
-export type Role = 'Employee' | 'Supervisor' | 'Admin' | 'Owner';
+export type Role = 'Employee' | 'Supervisor' | 'Admin' | 'Owner' | 'Driver';
 
 // List the keys for each component you want to control
 export type AppComponentKey =
@@ -23,6 +23,7 @@ export type AppComponentKey =
 export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
   Employee: ['PickupWashing', 'ActiveInvoices'],
   Supervisor: ['PickupWashing', 'ActiveInvoices', 'Report', 'Segregation', 'Washing', 'ShippingPage'],
+  Driver: ['ShippingPage'], // Drivers can only see ShippingPage
   Admin: [
     'PickupWashing',
     'ActiveInvoices',

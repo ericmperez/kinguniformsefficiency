@@ -26,6 +26,8 @@ import { db } from "../firebase";
 interface Driver {
   id: string;
   name: string;
+  linkedUserId?: string; // Link to user account
+  linkedUsername?: string; // Cached username for display
 }
 
 interface PickupEntry {

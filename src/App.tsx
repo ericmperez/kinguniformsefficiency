@@ -294,9 +294,19 @@ function App() {
 
   useEffect(() => {
     if (user) {
-      setShowWelcome(true);
-      const timer = setTimeout(() => setShowWelcome(false), 3000);
-      return () => clearTimeout(timer);
+      // For drivers, set shorter welcome screen time and auto-redirect to shipping
+      if (user.role === "Driver") {
+        setShowWelcome(true);
+        const timer = setTimeout(() => {
+          setShowWelcome(false);
+          setActivePage("shipping");
+        }, 1500); // Shorter welcome time for drivers
+        return () => clearTimeout(timer);
+      } else {
+        setShowWelcome(true);
+        const timer = setTimeout(() => setShowWelcome(false), 3000);
+        return () => clearTimeout(timer);
+      }
     }
   }, [user]);
 
@@ -595,6 +605,13 @@ function App() {
       </div>
     );
   }
+
+  // Auto-redirect drivers to shipping page
+  React.useEffect(() => {
+    if (user && user.role === "Driver" && activePage !== "shipping") {
+      setActivePage("shipping");
+    }
+  }, [user, activePage]);
 
   // Role-based tab visibility (now using permissions map)
   const canManageUsers = canSee("UserManagement");
@@ -1007,7 +1024,14 @@ function App() {
             }}
           >
             {navLinks
-              .filter((l: any) => l.visible)
+              .filter((l: any) => {
+                // For drivers, only show shipping link
+                if (user && user.role === "Driver") {
+                  return l.page === "shipping" && l.visible;
+                }
+                // For other roles, use existing visibility logic
+                return l.visible;
+              })
               .map((link: any) =>
                 link.subpages ? (
                   <Box key={link.page} sx={{ position: "relative" }}>
@@ -1205,7 +1229,14 @@ function App() {
         >
           <List>
             {navLinks
-              .filter((l) => l.visible)
+              .filter((l) => {
+                // For drivers, only show shipping link
+                if (user && user.role === "Driver") {
+                  return l.page === "shipping" && l.visible;
+                }
+                // For other roles, use existing visibility logic
+                return l.visible;
+              })
               .map((link: any) =>
                 link.subpages ? (
                   <React.Fragment key={link.page}>
@@ -1601,10 +1632,16 @@ function App() {
           <div className="row justify-content-center g-4">
             {homePages
               .filter(
-                (p) =>
-                  navLinks.find((l) => l.page === p.page && l.visible) &&
-                  p.page !== "reports" &&
-                  p.page !== "settings"
+                (p) => {
+                  // For drivers, only show shipping card
+                  if (user && user.role === "Driver") {
+                    return p.page === "shipping";
+                  }
+                  // For other roles, use existing filter logic
+                  return navLinks.find((l) => l.page === p.page && l.visible) &&
+                    p.page !== "reports" &&
+                    p.page !== "settings";
+                }
               )
               .map((p) => (
                 <div
