@@ -19,6 +19,7 @@ import { db } from "../firebase";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
 import html2pdf from "html2pdf.js";
 import { formatDateOnlySpanish } from "../utils/dateFormatter";
+import { API_BASE_URL } from '../config/api';
 
 const nowrapCellStyle = { whiteSpace: "nowrap" };
 
@@ -270,7 +271,7 @@ const BillingPage: React.FC = () => {
     try {
       const pdfBlob = await html2pdf().from(element).outputPdf("blob");
       const pdfBase64 = await blobToBase64(pdfBlob);
-      const res = await fetch("/api/send-invoice", {
+      const res = await fetch(`${API_BASE_URL}/api/send-invoice`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

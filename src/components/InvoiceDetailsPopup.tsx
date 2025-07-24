@@ -3,6 +3,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { Invoice } from "../types";
 import SignatureModal from "./SignatureModal";
+import { API_BASE_URL } from "../config/api";
 
 interface InvoiceDetailsPopupProps {
   invoiceId: string;
@@ -136,7 +137,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
         </div>
       `;
 
-      const response = await fetch("/api/send-invoice", {
+      const response = await fetch(`${API_BASE_URL}/api/send-invoice`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

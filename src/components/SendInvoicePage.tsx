@@ -7,6 +7,7 @@ import {
 import { Client, Invoice } from "../types";
 import html2pdf from "html2pdf.js";
 import { formatDateOnlySpanish } from "../utils/dateFormatter";
+import { API_BASE_URL } from "../config/api";
 
 const SendInvoicePage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
@@ -65,7 +66,7 @@ const SendInvoicePage: React.FC = () => {
     try {
       const pdfBlob = await html2pdf().from(pdfContent).outputPdf("blob");
       const pdfBase64 = await blobToBase64(pdfBlob);
-      const res = await fetch("/api/send-invoice", {
+      const res = await fetch(`${API_BASE_URL}/api/send-invoice`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

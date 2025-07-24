@@ -1,34 +1,21 @@
 /**
  * Email Service
- * 
- * This service has been simplified to focus only on email functionality.
- * PDF generation has been removed, and emails now directly include processing summaries based on client billing type:
- * - For weight-based clients: Shows total pounds processed
- * - For piece-based clients: Shows itemized breakdown of pieces processed
- * 
- * The generateInvoicePDF function remains as a stub to maintain compatibility with existing code,
- * but it returns undefined instead of generating PDFs.
+ * Handles sending emails for invoices, signatures, and test emails
  */
-import { Client, Invoice, PrintConfiguration } from "../types";
+import { Client, Invoice, PrintConfiguration } from '../types';
+import { API_BASE_URL } from '../config/api';
 
-export interface EmailData {
+interface EmailData {
   to: string;
   cc?: string[];
   subject: string;
   body: string;
 }
 
-// Simplified function that returns undefined instead of generating a PDF
-// This maintains compatibility with existing code while we transition to email-only functionality
-export const generateInvoicePDF = async (
-  client: Client,
-  invoice: Invoice,
-  printConfig: PrintConfiguration["invoicePrintSettings"]
-): Promise<string | undefined> => {
-  console.log("PDF generation removed - focusing on email functionality only");
-  return undefined;
-};
-
+/**
+ * Main function to send invoice emails
+ * Supports both PDF attachments and plain text emails
+ */
 export const sendInvoiceEmail = async (
   client: Client,
   invoice: Invoice,
@@ -54,7 +41,7 @@ export const sendInvoiceEmail = async (
     if (pdfContent) {
       // Use the API endpoint that supports PDF attachments
       try {
-        const response = await fetch('/api/send-invoice', {
+        const response = await fetch(`${API_BASE_URL}/api/send-invoice`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -82,7 +69,7 @@ export const sendInvoiceEmail = async (
     } else {
       // Use the test email endpoint for emails without attachments
       try {
-        const response = await fetch('/api/send-test-email', {
+        const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -154,7 +141,7 @@ export const sendSignatureEmail = async (
     if (pdfContent) {
       // Use the API endpoint that supports PDF attachments
       try {
-        const response = await fetch('/api/send-invoice', {
+        const response = await fetch(`${API_BASE_URL}/api/send-invoice`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -182,7 +169,7 @@ export const sendSignatureEmail = async (
     } else {
       // Use the test email endpoint for emails without attachments
       try {
-        const response = await fetch('/api/send-test-email', {
+        const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -198,7 +185,7 @@ export const sendSignatureEmail = async (
         const data = await response.json();
         
         if (!response.ok) {
-          console.error("❌ Signature email server error:", data.error);
+          console.error("❌ Email server error:", data.error);
           return false;
         }
         
@@ -219,30 +206,25 @@ const generateEmailBody = (
   invoice: Invoice,
   template?: string
 ): string => {
-  // Generate a summary of items or weight based on the client's billing calculation method
-  const getProcessingSummary = () => {
+  // Get processing summary based on client billing type
+  const getProcessingSummary = (): string => {
     if (client.billingCalculation === "byWeight" && invoice.totalWeight) {
       return `Total Pounds Processed: ${invoice.totalWeight.toFixed(2)} lbs`;
     } else {
-      // Generate a breakdown of pieces
-      const itemSummary = invoice.carts.reduce((summary, cart) => {
-        cart.items.forEach(item => {
-          if (!summary[item.productName]) {
-            summary[item.productName] = 0;
-          }
-          summary[item.productName] += item.quantity;
-        });
-        return summary;
-      }, {} as Record<string, number>);
+      // Piece-based calculation
+      const summary = invoice.carts.map((cart, index) => {
+        const items = cart.items || [];
+        const itemSummary = items.map(item => 
+          `${item.quantity} ${item.productName}`
+        ).join(', ');
+        return `${cart.name}: ${itemSummary}`;
+      }).join('\n');
       
-      let result = "Items Processed:\n";
-      Object.entries(itemSummary).forEach(([itemName, qty]) => {
-        result += `- ${itemName}: ${qty} pieces\n`;
-      });
-      return result;
+      return `Items Processed:\n${summary}`;
     }
   };
 
+  // Default template
   const defaultTemplate = `
 Dear ${client.name},
 
@@ -277,16 +259,15 @@ King Uniforms Team
     .replace(/\{clientEmail\}/g, client.email || "");
   
   // Add processing summary if {processingSummary} is in the template, otherwise append it
-  if (body.includes("{processingSummary}")) {
+  if (body.includes('{processingSummary}')) {
     body = body.replace(/\{processingSummary\}/g, getProcessingSummary());
   } else {
     body += `\n\n${getProcessingSummary()}`;
   }
-  
+
   return body;
 };
 
-// Generate email body specifically for signature emails
 const generateSignatureEmailBody = (
   client: Client,
   invoice: Invoice,
@@ -297,54 +278,48 @@ const generateSignatureEmailBody = (
   },
   template?: string
 ): string => {
-  // Generate a summary of items or weight based on the client's billing calculation method
-  const getProcessingSummary = () => {
+  // Get processing summary based on client billing type
+  const getProcessingSummary = (): string => {
     if (client.billingCalculation === "byWeight" && invoice.totalWeight) {
       return `Total Pounds Processed: ${invoice.totalWeight.toFixed(2)} lbs`;
     } else {
-      // Generate a breakdown of pieces
-      const itemSummary = invoice.carts.reduce((summary, cart) => {
-        cart.items.forEach(item => {
-          if (!summary[item.productName]) {
-            summary[item.productName] = 0;
-          }
-          summary[item.productName] += item.quantity;
-        });
-        return summary;
-      }, {} as Record<string, number>);
+      // Piece-based calculation
+      const summary = invoice.carts.map((cart, index) => {
+        const items = cart.items || [];
+        const itemSummary = items.map(item => 
+          `${item.quantity} ${item.productName}`
+        ).join(', ');
+        return `${cart.name}: ${itemSummary}`;
+      }).join('\n');
       
-      let result = "Items Processed:\n";
-      Object.entries(itemSummary).forEach(([itemName, qty]) => {
-        result += `- ${itemName}: ${qty} pieces\n`;
-      });
-      return result;
+      return `Items Processed:\n${summary}`;
     }
   };
 
-  const defaultSignatureTemplate = `
+  // Default signature template
+  const defaultTemplate = `
 Dear ${client.name},
 
-Your delivery has been completed and confirmed with a signature.
+We are pleased to confirm that your order has been successfully delivered and received.
 
-Delivery Details:
-- Invoice: #${invoice.invoiceNumber || invoice.id}
-- Client: ${client.name}
-- Date: ${invoice.date}
-- Total Amount: $${invoice.total.toFixed(2)}
+Delivery Confirmation Details:
+- Invoice #: ${invoice.invoiceNumber || invoice.id}
+- Delivery Date: ${signatureData.signatureDate}
+- Delivery Time: ${signatureData.signatureTime}
 - Received By: ${signatureData.receivedBy}
-- Signature Date: ${signatureData.signatureDate}
-- Signature Time: ${signatureData.signatureTime}
+- Client: ${client.name}
+- Total Amount: $${invoice.total.toFixed(2)}
 
 ${getProcessingSummary()}
 
-Thank you for your business!
+Thank you for choosing King Uniforms for your laundry services. If you have any questions or concerns about this delivery, please don't hesitate to contact us.
 
 Best regards,
 King Uniforms Team
   `.trim();
 
   if (!template) {
-    return defaultSignatureTemplate;
+    return defaultTemplate;
   }
 
   // Replace template variables including signature-specific ones
@@ -360,50 +335,18 @@ King Uniforms Team
     .replace(/\{signatureTime\}/g, signatureData.signatureTime);
   
   // Add processing summary if {processingSummary} is in the template, otherwise append it
-  if (body.includes("{processingSummary}")) {
+  if (body.includes('{processingSummary}')) {
     body = body.replace(/\{processingSummary\}/g, getProcessingSummary());
   } else {
     body += `\n\n${getProcessingSummary()}`;
   }
-  
+
   return body;
 };
 
-// Function to validate email configuration
-export const validateEmailSettings = (
-  client: Client,
-  emailSettings: PrintConfiguration["emailSettings"]
-): { isValid: boolean; errors: string[] } => {
-  const errors: string[] = [];
-
-  if (!emailSettings.enabled) {
-    return { isValid: true, errors: [] };
-  }
-
-  if (!client.email) {
-    errors.push("Client email address is required");
-  }
-
-  if (emailSettings.ccEmails) {
-    emailSettings.ccEmails.forEach((email, index) => {
-      if (!isValidEmail(email)) {
-        errors.push(`Invalid CC email address at position ${index + 1}`);
-      }
-    });
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors
-  };
-};
-
-const isValidEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-// Function to send a test email to verify email configuration
+/**
+ * Function to send test emails to verify email configuration
+ */
 export const sendTestEmail = async (
   client: Client,
   emailSettings: PrintConfiguration["emailSettings"]
@@ -458,7 +401,7 @@ King Uniforms Team`
 
     // Send the test email using the backend API
     try {
-      const response = await fetch('/api/send-test-email', {
+      const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -489,4 +432,61 @@ King Uniforms Team`
     console.error("❌ Failed to send test email:", error);
     return false;
   }
+};
+
+/**
+ * Stub function for PDF generation - returns undefined to indicate no PDF
+ * This maintains compatibility with existing code that expects this function
+ */
+export const generateInvoicePDF = async (
+  client: Client,
+  invoice: Invoice,
+  printConfig: any
+): Promise<string | undefined> => {
+  console.log("📄 PDF generation called but not implemented - emails will be sent without PDF attachments");
+  return undefined;
+};
+
+/**
+ * Validates email settings configuration
+ * Checks if all required email settings are properly configured
+ */
+export const validateEmailSettings = (
+  client: Client,
+  emailSettings?: {
+    subject?: string;
+    ccEmails?: string[];
+    bodyTemplate?: string;
+  }
+): { isValid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+  
+  if (!emailSettings) {
+    errors.push("Email settings are not configured");
+    return { isValid: false, errors };
+  }
+  
+  if (!emailSettings.subject || emailSettings.subject.trim() === "") {
+    errors.push("Email subject is required");
+  }
+  
+  if (!emailSettings.bodyTemplate || emailSettings.bodyTemplate.trim() === "") {
+    errors.push("Email body template is required");
+  }
+  
+  if (emailSettings.ccEmails) {
+    const invalidEmails = emailSettings.ccEmails.filter(email => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return !emailRegex.test(email);
+    });
+    
+    if (invalidEmails.length > 0) {
+      errors.push(`Invalid CC email addresses: ${invalidEmails.join(", ")}`);
+    }
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
 };

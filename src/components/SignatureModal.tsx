@@ -133,7 +133,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         onClose();
         return;
       } catch (error) {
-        console.error("Error saving signature:", error);
+        console.error("Error saving no personnel signature:", error);
         setErrorMessage("Failed to save. Please try again.");
         setIsSaving(false);
         return;
