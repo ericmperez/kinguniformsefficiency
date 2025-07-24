@@ -118,6 +118,29 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   }>({});
 
   const { user } = useAuth();
+  
+  // Helper to get current user (from localStorage or context)
+  const getCurrentUser = () => {
+    try {
+      // First try to get from auth context if available
+      if (user && user.username) {
+        return user.username;
+      }
+      
+      // Fallback to localStorage with correct key
+      const authUserStr = localStorage.getItem("auth_user");
+      if (authUserStr) {
+        const authUser = JSON.parse(authUserStr);
+        if (authUser && authUser.username) {
+          return authUser.username;
+        }
+      }
+    } catch (error) {
+      console.error("Error getting current user:", error);
+    }
+    return "Unknown";
+  };
+  
   const canReorder =
     user && ["Supervisor", "Admin", "Owner"].includes(user.role);
 
@@ -458,7 +481,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       setConventionalModalLoading(false);
       await logActivity({
         type: "Washing",
-        message: `Conventional group with product '${product.name}' added for client '${client.name}' by user`,
+        message: `Conventional group with product '${product.name}' added for client '${client.name}' by ${getCurrentUser()}`,
+        user: getCurrentUser(),
       });
     } catch (err: any) {
       setConventionalModalError(err.message || "Error adding product to group");
@@ -597,6 +621,29 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   };
   // Move Tunnel group up/down in order (optimistic UI update)
   const moveTunnelGroup = async (groupId: string, direction: "up" | "down") => {
+    const currentUser = getCurrentUser();
+    
+    // Get the group being moved and its position before the move
+    const tunnel = groups.filter(
+      (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
+    );
+    const sorted = [...tunnel].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const oldIndex = sorted.findIndex((g) => g.id === groupId);
+    const newIndex = direction === "up" ? oldIndex - 1 : oldIndex + 1;
+    
+    if (oldIndex === -1 || newIndex < 0 || newIndex >= sorted.length) return;
+    
+    const group = sorted[oldIndex];
+    const swapGroup = sorted[newIndex];
+    
+    console.log("🔄 [TUNNEL MOVE GROUP] ===================");
+    console.log(`👤 Action performed by: ${currentUser}`);
+    console.log(`📱 Moving: ${group?.clientName || groupId}`);
+    console.log(`📍 From position: ${oldIndex + 1} → ${newIndex + 1}`);
+    console.log(`⬆️⬇️ Direction: ${direction === "up" ? 'UP' : 'DOWN'}`);
+    console.log(`⏰ Time: ${new Date().toLocaleTimeString()}`);
+    console.log(`🔄 Will swap with: ${swapGroup?.clientName || 'Unknown'}`);
+    
     setTunnelReorderLoading(groupId);
     setGroups((prevGroups) => {
       const tunnel = prevGroups.filter(
@@ -628,8 +675,21 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
               updateDoc(doc(db, "pickup_groups", g.id), { order: i })
             )
           );
+          
+          // Enhanced activity logging with user information
+          await logActivity({
+            type: "Tunnel",
+            message: `Group "${group?.clientName || groupId}" moved ${
+              direction === "up" ? "up" : "down"
+            } by ${currentUser} from position ${oldIndex + 1} to ${newIndex + 1} (swapped with "${swapGroup?.clientName || 'unknown'}")`,
+            user: currentUser,
+          });
+          
+          console.log("📝 [ACTIVITY LOGGED] Tunnel move operation saved to Firestore activity log");
+          console.log("✅ Move completed successfully");
+          console.log("🔄 [END TUNNEL MOVE GROUP] ==============");
         } catch (e) {
-          // Optionally handle error
+          console.error("Error in tunnel group move:", e);
         }
         setTunnelReorderLoading(null);
       })();
@@ -639,6 +699,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
 
   // Move up/down for both manual products and client groups
   const moveConventionalRow = async (id: string, direction: "up" | "down") => {
+    const currentUser = getCurrentUser();
+    
     // Build a combined list of all conventional rows (client groups + manual products)
     const allRows = [
       ...conventionalGroups.map((g) => ({ ...g, isManualProduct: false })),
@@ -650,6 +712,19 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     if (idx === -1) return;
     let newIdx = direction === "up" ? idx - 1 : idx + 1;
     if (newIdx < 0 || newIdx >= allRows.length) return;
+    
+    const movingItem = allRows[idx];
+    const swapItem = allRows[newIdx];
+    
+    console.log("🔄 [CONVENTIONAL MOVE] ===================");
+    console.log(`👤 Action performed by: ${currentUser}`);
+    console.log(`📱 Moving: ${movingItem?.clientName || movingItem?.productName || id}`);
+    console.log(`📍 From position: ${idx + 1} → ${newIdx + 1}`);
+    console.log(`⬆️⬇️ Direction: ${direction === "up" ? 'UP' : 'DOWN'}`);
+    console.log(`🏷️ Type: ${movingItem?.isManualProduct ? 'Manual Product' : 'Client Group'}`);
+    console.log(`⏰ Time: ${new Date().toLocaleTimeString()}`);
+    console.log(`🔄 Will swap with: ${swapItem?.clientName || swapItem?.productName || 'Unknown'}`);
+    
     // Swap order values
     [allRows[idx], allRows[newIdx]] = [allRows[newIdx], allRows[idx]];
     // Re-assign order values to be consecutive
@@ -671,6 +746,20 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       }
     });
     await Promise.all(updates);
+    
+    // Enhanced activity logging with user information
+    await logActivity({
+      type: "Conventional",
+      message: `${movingItem?.isManualProduct ? 'Manual product' : 'Group'} "${movingItem?.clientName || movingItem?.productName || id}" moved ${
+        direction === "up" ? "up" : "down"
+      } by ${currentUser} from position ${idx + 1} to ${newIdx + 1} (swapped with "${swapItem?.clientName || swapItem?.productName || 'unknown'}")`,
+      user: currentUser,
+    });
+    
+    console.log("📝 [ACTIVITY LOGGED] Conventional move operation saved to Firestore activity log");
+    console.log("✅ Move completed successfully");
+    console.log("🔄 [END CONVENTIONAL MOVE] ==============");
+    
     // Update local state
     setManualConventionalProducts((prev) =>
       prev.map((p) => {
@@ -739,8 +828,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     );
     await logActivity({
       type: "Washing",
-      message: `Manual product ${id} marked as washed by user`,
-      // Optionally, add user context if available
+      message: `Manual product ${id} marked as washed by ${getCurrentUser()}`,
+      user: getCurrentUser(),
     });
   };
 
@@ -799,7 +888,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       );
       await logActivity({
         type: "Washing",
-        message: `Group ${group.clientName} marked as washed by user`,
+        message: `Group ${group.clientName} marked as washed by ${getCurrentUser()}`,
+        user: getCurrentUser(),
       });
     } catch (e) {
       alert("Error marking group as washed and creating invoice");
