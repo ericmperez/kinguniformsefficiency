@@ -45,7 +45,7 @@ export default function LocalLoginForm() {
         user: username,
       });
     } else {
-      setError("Please enter a valid 4-digit ID number");
+      // Login failed - no error message shown
     }
     setLoading(false);
   };

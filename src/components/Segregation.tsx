@@ -197,25 +197,28 @@ const Segregation: React.FC<SegregationProps> = ({
       console.log("🎬 [INITIAL ORDER] Setting up segregation order for the first time");
       console.log("📋 Initial order:", sortedGroups.map(g => g.clientName));
     }
-    
-    // Remove ids that are no longer present and add new ones to the bottom
+  }, [segregationGroups.length, orderLoading, groupOrder.length]);
+
+  // Handle new groups being added - separate effect to avoid conflicts
+  useEffect(() => {
     if (!orderLoading && groupOrder.length > 0) {
-      const filtered = groupOrder.filter((id) =>
-        segregationGroups.some((g) => g.id === id)
-      );
-      // Add any new groups to the end to preserve order
+      const currentGroupIds = segregationGroups.map(g => g.id);
       const newGroups = segregationGroups.filter((g) => !groupOrder.includes(g.id));
-      const updatedOrder = [...filtered, ...newGroups.map(g => g.id)];
       
-      // Log new groups being added to bottom
       if (newGroups.length > 0) {
+        const updatedOrder = [...groupOrder, ...newGroups.map(g => g.id)];
+        
+        // Log new groups being added to bottom
         console.log("🆕 [ADDING NEW GROUPS] New clients being added to bottom of segregation queue");
         newGroups.forEach((group, idx) => {
-          const position = filtered.length + idx + 1;
+          const position = groupOrder.length + idx + 1;
           console.log(`   📍 ${group.clientName} added at position ${position} (bottom of queue)`);
           console.log(`   📊 Group details: ID=${group.id}, Weight=${group.totalWeight || 0}lbs`);
         });
         console.log("✅ New groups successfully positioned at bottom");
+        
+        // Update Firestore with new order
+        setDoc(orderDocRef, { order: updatedOrder }, { merge: true });
         
         // Log to Firestore activity log
         const currentUser = getCurrentUser();
@@ -228,11 +231,17 @@ const Segregation: React.FC<SegregationProps> = ({
         });
       }
       
-      if (updatedOrder.length !== groupOrder.length || !updatedOrder.every((id, idx) => id === groupOrder[idx])) {
-        setDoc(orderDocRef, { order: updatedOrder }, { merge: true });
+      // Clean up removed groups from order
+      const cleanedOrder = groupOrder.filter((id) =>
+        segregationGroups.some((g) => g.id === id)
+      );
+      
+      if (cleanedOrder.length !== groupOrder.length) {
+        console.log("🧹 [CLEANUP] Removing deleted groups from order");
+        setDoc(orderDocRef, { order: cleanedOrder }, { merge: true });
       }
     }
-  }, [segregationGroups, groupOrder, orderLoading]);
+  }, [segregationGroups.map(g => g.id).join(','), orderLoading]);
 
   // Move group up/down in the order and persist to Firestore, then update all screens immediately
   const [movingGroupId, setMovingGroupId] = useState<string | null>(null);

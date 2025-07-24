@@ -491,66 +491,64 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   };
 
   // --- Conventional Group Reordering ---
-  // Ensure groups have an 'order' property for sorting
+  // Ensure groups have an 'order' property for sorting - IMPROVED VERSION
   useEffect(() => {
     // If any conventional group is missing 'order', assign it the highest order + 1 to put at bottom
-    if (conventionalGroups.some((g) => typeof g.order !== "number")) {
-      setGroups((prev) => {
-        let changed = false;
-        const updated = prev.map((g) => {
-          if (
-            g.status === "Conventional" &&
-            getWashingType(g.clientId) === "Conventional" &&
-            typeof g.order !== "number"
-          ) {
-            changed = true;
-            // Find the highest order among existing conventional groups
-            const maxOrder = prev
-              .filter(existing => 
-                existing.status === "Conventional" && 
-                getWashingType(existing.clientId) === "Conventional" &&
-                typeof existing.order === "number"
-              )
-              .reduce((max, existing) => Math.max(max, existing.order), -1);
-            return { ...g, order: maxOrder + 1 };
-          }
-          return g;
-        });
-        return changed ? updated : prev;
+    const conventionalGroupsNeedingOrder = conventionalGroups.filter((g) => typeof g.order !== "number");
+    
+    if (conventionalGroupsNeedingOrder.length > 0) {
+      // Process all groups needing order in a single batch to prevent race conditions
+      const existingConventionalGroups = conventionalGroups.filter((g) => typeof g.order === "number");
+      let nextOrder = existingConventionalGroups.reduce((max, g) => Math.max(max, g.order!), -1) + 1;
+      
+      // Batch update all groups that need order assignment
+      const batchUpdates = conventionalGroupsNeedingOrder.map(async (group) => {
+        const assignedOrder = nextOrder++;
+        await updateDoc(doc(db, "pickup_groups", group.id), { order: assignedOrder });
+        return { ...group, order: assignedOrder };
       });
+      
+      // Execute all updates and then update local state once
+      Promise.all(batchUpdates).then((updatedGroups) => {
+        setGroups((prev) => {
+          return prev.map((g) => {
+            const updated = updatedGroups.find(u => u.id === g.id);
+            return updated ? { ...g, order: updated.order } : g;
+          });
+        });
+      }).catch(console.error);
     }
     // eslint-disable-next-line
-  }, [conventionalGroups.length]);
+  }, [conventionalGroups.length, conventionalGroups.filter(g => typeof g.order !== "number").length]);
 
-  // Ensure Tunnel groups have an 'order' property for sorting
+  // Ensure Tunnel groups have an 'order' property for sorting - IMPROVED VERSION
   useEffect(() => {
-    if (tunnelGroups.some((g) => typeof g.order !== "number")) {
-      setGroups((prev) => {
-        let changed = false;
-        const updated = prev.map((g) => {
-          if (
-            g.status === "Tunnel" &&
-            getWashingType(g.clientId) === "Tunnel" &&
-            typeof g.order !== "number"
-          ) {
-            changed = true;
-            // Find the highest order among existing tunnel groups
-            const maxOrder = prev
-              .filter(existing => 
-                existing.status === "Tunnel" && 
-                getWashingType(existing.clientId) === "Tunnel" &&
-                typeof existing.order === "number"
-              )
-              .reduce((max, existing) => Math.max(max, existing.order), -1);
-            return { ...g, order: maxOrder + 1 };
-          }
-          return g;
-        });
-        return changed ? updated : prev;
+    const tunnelGroupsNeedingOrder = tunnelGroups.filter((g) => typeof g.order !== "number");
+    
+    if (tunnelGroupsNeedingOrder.length > 0) {
+      // Process all groups needing order in a single batch to prevent race conditions
+      const existingTunnelGroups = tunnelGroups.filter((g) => typeof g.order === "number");
+      let nextOrder = existingTunnelGroups.reduce((max, g) => Math.max(max, g.order!), -1) + 1;
+      
+      // Batch update all groups that need order assignment
+      const batchUpdates = tunnelGroupsNeedingOrder.map(async (group) => {
+        const assignedOrder = nextOrder++;
+        await updateDoc(doc(db, "pickup_groups", group.id), { order: assignedOrder });
+        return { ...group, order: assignedOrder };
       });
+      
+      // Execute all updates and then update local state once
+      Promise.all(batchUpdates).then((updatedGroups) => {
+        setGroups((prev) => {
+          return prev.map((g) => {
+            const updated = updatedGroups.find(u => u.id === g.id);
+            return updated ? { ...g, order: updated.order } : g;
+          });
+        });
+      }).catch(console.error);
     }
     // eslint-disable-next-line
-  }, [tunnelGroups.length]);
+  }, [tunnelGroups.length, tunnelGroups.filter(g => typeof g.order !== "number").length]);
 
   // Move group up/down in order
   const moveConventionalGroup = async (
@@ -605,8 +603,57 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     string | null
   >(null);
 
+  // Helper function to normalize tunnel order values (ensure consecutive 0, 1, 2, ...)
+  const normalizeTunnelOrders = async () => {
+    const tunnelGroups = groups.filter(
+      (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
+    );
+    
+    if (tunnelGroups.length === 0) return;
+    
+    // Sort by current order, then by creation time for consistency
+    const sorted = [...tunnelGroups].sort((a, b) => {
+      if (typeof a.order === "number" && typeof b.order === "number") {
+        return a.order - b.order;
+      }
+      if (typeof a.order === "number") return -1;
+      if (typeof b.order === "number") return 1;
+      // Both missing order, sort by creation time
+      const timeA = a.startTime?.getTime?.() || 0;
+      const timeB = b.startTime?.getTime?.() || 0;
+      return timeA - timeB;
+    });
+    
+    // Check if normalization is needed
+    const needsNormalization = sorted.some((group, index) => group.order !== index);
+    
+    if (needsNormalization) {
+      console.log("🔧 [TUNNEL ORDER] Normalizing tunnel group order values...");
+      
+      // Batch update all tunnel groups with consecutive order values
+      const batchUpdates = sorted.map(async (group, index) => {
+        if (group.order !== index) {
+          await updateDoc(doc(db, "pickup_groups", group.id), { order: index });
+          console.log(`   Updated ${group.clientName}: order ${group.order} → ${index}`);
+        }
+      });
+      
+      await Promise.all(batchUpdates);
+      console.log("✅ [TUNNEL ORDER] Normalization complete");
+    }
+  };
+
+  // Normalize tunnel orders when component loads and when tunnel groups change significantly
+  useEffect(() => {
+    if (!loading && tunnelGroups.length > 0) {
+      // Add a small delay to ensure all groups are loaded
+      setTimeout(() => normalizeTunnelOrders(), 1000);
+    }
+    // eslint-disable-next-line
+  }, [loading]);
+
   // Ensure Tunnel groups have a unique, consecutive 'order' property after every move
-  const normalizeTunnelOrders = (groupsArr: any[]) => {
+  const normalizeTunnelOrdersInMemory = (groupsArr: any[]) => {
     const tunnel = groupsArr.filter(
       (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
     );
@@ -1504,18 +1551,21 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           </div>
                           <span
                             style={{
-                              fontSize: "1.2rem",
-                              color: "#000", // Force black
-                              minWidth: 120,
+                              display: "inline-block",
+                              backgroundColor: "#28a745",
+                              color: "white",
+                              padding: "4px 12px",
+                              borderRadius: "20px",
+                              fontSize: "1rem",
+                              fontWeight: "bold",
+                              minWidth: "80px",
+                              textAlign: "center",
+                              whiteSpace: "nowrap"
                             }}
                           >
-                            Total:{" "}
-                            <strong style={{ color: "#000" }}>
-                              {typeof group.totalWeight === "number"
-                                ? group.totalWeight.toFixed(2)
-                                : "?"}{" "}
-                              lbs
-                            </strong>
+                            {typeof group.totalWeight === "number"
+                              ? Math.round(group.totalWeight)
+                              : "?"} lbs
                           </span>
                           {/* If locked, skip verification and show counter directly */}
                           {isLocked ? (
@@ -2525,24 +2575,21 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           {!group.isManualProduct && (
                             <span
                               style={{
-                                fontSize: "1.2rem",
-                                color: "#28a745",
-                                minWidth: 120,
+                                display: "inline-block",
+                                backgroundColor: "#28a745",
+                                color: "white",
+                                padding: "4px 12px",
+                                borderRadius: "20px",
+                                fontSize: "1rem",
+                                fontWeight: "bold",
+                                minWidth: "80px",
                                 textAlign: "center",
+                                whiteSpace: "nowrap"
                               }}
                             >
-                              Total:{" "}
-                              <strong>
-                                {typeof group.totalWeight === "number"
-                                  ? group.totalWeight.toLocaleString(
-                                      undefined,
-                                      {
-                                        maximumFractionDigits: 0,
-                                      }
-                                    )
-                                  : "?"}{" "}
-                                lbs
-                              </strong>
+                              {typeof group.totalWeight === "number"
+                                ? Math.round(group.totalWeight)
+                                : "?"} lbs
                             </span>
                           )}
                         </div>

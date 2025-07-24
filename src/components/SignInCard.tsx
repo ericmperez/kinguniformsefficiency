@@ -13,7 +13,7 @@ export default function SignInCard({ noCard, headingProps }: { noCard?: boolean,
     setError(null);
     const success = await login(id);
     if (!success) {
-      setError('Please enter a valid 4-digit ID number');
+      // Login failed - no error message shown
     }
     setLoading(false);
   };

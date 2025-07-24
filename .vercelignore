@@ -1,0 +1,43 @@
+# Test files and directories
+**/*.test.js
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.js
+**/*.spec.ts
+**/*.spec.tsx
+**/test/**
+**/tests/**
+**/__tests__/**
+
+# Scripts directory (contains test scripts)
+scripts/
+
+# Development files
+*.md
+CONTRIBUTING.md
+README.md
+delivery-date-implementation-complete.md
+delivery-date-test.md
+schedule-delivery-button-implementation.md
+PRINTING_SYSTEM_DOCUMENTATION.md
+
+# Database rules and configs (not needed for frontend deployment)
+database.rules.json
+firestore.rules
+firestore.indexes.json
+storage.rules
+
+# Local development files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# VS Code workspace files
+**/*.code-workspace
+
+# Other unnecessary files
+baby\ blankets.jpg
+package.json.fixed
+server.cjs
+server.js
