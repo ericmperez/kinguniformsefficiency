@@ -114,6 +114,106 @@ export const sendInvoiceEmail = async (
   }
 };
 
+// New function to send signature-specific emails
+export const sendSignatureEmail = async (
+  client: Client,
+  invoice: Invoice,
+  emailSettings: PrintConfiguration["emailSettings"],
+  signatureData: {
+    receivedBy: string;
+    signatureDate: string;
+    signatureTime: string;
+  },
+  pdfContent?: string
+): Promise<boolean> => {
+  try {
+    // Use signature-specific template if available, otherwise fall back to regular template
+    const subject = emailSettings.signatureEmailSubject || 
+      emailSettings.subject || 
+      `Delivery Confirmed - Invoice #${invoice.invoiceNumber || invoice.id} for ${client.name}`;
+    
+    const template = emailSettings.signatureEmailTemplate || 
+      emailSettings.bodyTemplate;
+
+    const emailData: EmailData = {
+      to: client.email || "",
+      cc: emailSettings.ccEmails || [],
+      subject: subject,
+      body: generateSignatureEmailBody(client, invoice, signatureData, template)
+    };
+
+    // Log the signature email details
+    console.log("📧 Signature Email Service - Sending signature email:", {
+      to: emailData.to,
+      cc: emailData.cc,
+      subject: emailData.subject,
+      signatureData: signatureData,
+      bodyPreview: emailData.body.substring(0, 100) + "..."
+    });
+    
+    if (pdfContent) {
+      // Use the API endpoint that supports PDF attachments
+      try {
+        const response = await fetch('/api/send-invoice', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: emailData.to,
+            subject: emailData.subject,
+            text: emailData.body,
+            pdfBase64: pdfContent.split(',')[1] || pdfContent
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          console.error("❌ Signature email server error:", data.error);
+          return false;
+        }
+        
+        return true;
+      } catch (fetchError) {
+        console.error("❌ Failed to connect to email server for signature email:", fetchError);
+        return false;
+      }
+    } else {
+      // Use the test email endpoint for emails without attachments
+      try {
+        const response = await fetch('/api/send-test-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: emailData.to,
+            cc: emailData.cc,
+            subject: emailData.subject,
+            body: emailData.body
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          console.error("❌ Signature email server error:", data.error);
+          return false;
+        }
+        
+        return true;
+      } catch (fetchError) {
+        console.error("❌ Failed to connect to email server for signature email:", fetchError);
+        return false;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to send signature email:", error);
+    return false;
+  }
+};
+
 const generateEmailBody = (
   client: Client,
   invoice: Invoice,
@@ -175,6 +275,89 @@ King Uniforms Team
     .replace(/\{totalAmount\}/g, invoice.total.toFixed(2))
     .replace(/\{cartCount\}/g, String(invoice.carts.length))
     .replace(/\{clientEmail\}/g, client.email || "");
+  
+  // Add processing summary if {processingSummary} is in the template, otherwise append it
+  if (body.includes("{processingSummary}")) {
+    body = body.replace(/\{processingSummary\}/g, getProcessingSummary());
+  } else {
+    body += `\n\n${getProcessingSummary()}`;
+  }
+  
+  return body;
+};
+
+// Generate email body specifically for signature emails
+const generateSignatureEmailBody = (
+  client: Client,
+  invoice: Invoice,
+  signatureData: {
+    receivedBy: string;
+    signatureDate: string;
+    signatureTime: string;
+  },
+  template?: string
+): string => {
+  // Generate a summary of items or weight based on the client's billing calculation method
+  const getProcessingSummary = () => {
+    if (client.billingCalculation === "byWeight" && invoice.totalWeight) {
+      return `Total Pounds Processed: ${invoice.totalWeight.toFixed(2)} lbs`;
+    } else {
+      // Generate a breakdown of pieces
+      const itemSummary = invoice.carts.reduce((summary, cart) => {
+        cart.items.forEach(item => {
+          if (!summary[item.productName]) {
+            summary[item.productName] = 0;
+          }
+          summary[item.productName] += item.quantity;
+        });
+        return summary;
+      }, {} as Record<string, number>);
+      
+      let result = "Items Processed:\n";
+      Object.entries(itemSummary).forEach(([itemName, qty]) => {
+        result += `- ${itemName}: ${qty} pieces\n`;
+      });
+      return result;
+    }
+  };
+
+  const defaultSignatureTemplate = `
+Dear ${client.name},
+
+Your delivery has been completed and confirmed with a signature.
+
+Delivery Details:
+- Invoice: #${invoice.invoiceNumber || invoice.id}
+- Client: ${client.name}
+- Date: ${invoice.date}
+- Total Amount: $${invoice.total.toFixed(2)}
+- Received By: ${signatureData.receivedBy}
+- Signature Date: ${signatureData.signatureDate}
+- Signature Time: ${signatureData.signatureTime}
+
+${getProcessingSummary()}
+
+Thank you for your business!
+
+Best regards,
+King Uniforms Team
+  `.trim();
+
+  if (!template) {
+    return defaultSignatureTemplate;
+  }
+
+  // Replace template variables including signature-specific ones
+  let body = template
+    .replace(/\{clientName\}/g, client.name)
+    .replace(/\{invoiceNumber\}/g, String(invoice.invoiceNumber || invoice.id))
+    .replace(/\{invoiceDate\}/g, invoice.date)
+    .replace(/\{totalAmount\}/g, invoice.total.toFixed(2))
+    .replace(/\{cartCount\}/g, String(invoice.carts.length))
+    .replace(/\{clientEmail\}/g, client.email || "")
+    .replace(/\{receivedBy\}/g, signatureData.receivedBy)
+    .replace(/\{signatureDate\}/g, signatureData.signatureDate)
+    .replace(/\{signatureTime\}/g, signatureData.signatureTime);
   
   // Add processing summary if {processingSummary} is in the template, otherwise append it
   if (body.includes("{processingSummary}")) {
@@ -250,6 +433,7 @@ Test Details:
 - Email: ${client.email}
 - Auto-send on Approval: ${emailSettings.autoSendOnApproval ? 'Enabled' : 'Disabled'}
 - Auto-send on Shipping: ${emailSettings.autoSendOnShipping ? 'Enabled' : 'Disabled'}
+- Auto-send on Signature: ${emailSettings.autoSendOnSignature ? 'Enabled' : 'Disabled'}
 - CC Recipients: ${emailSettings.ccEmails?.length || 0}
 
 ${client.billingCalculation === "byWeight" ? 

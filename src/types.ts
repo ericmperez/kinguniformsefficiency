@@ -55,9 +55,13 @@ export interface PrintConfiguration {
     enabled: boolean;
     autoSendOnApproval: boolean;
     autoSendOnShipping: boolean;
+    autoSendOnSignature: boolean; // New option for signature emails
     ccEmails?: string[];
     subject?: string;
     bodyTemplate?: string;
+    // Signature-specific email settings
+    signatureEmailSubject?: string;
+    signatureEmailTemplate?: string;
   };
 }
 
@@ -109,9 +113,10 @@ export interface Invoice {
   specialServiceRequested?: boolean; // Flag for special service delivery
   specialServiceCost?: number; // Cost for special service delivery
   signature?: { // Digital signature
-    image: string; // Data URL of the signature
+    image: string | null; // Data URL of the signature or null if no personnel available
     name: string; // Name of person who signed
     timestamp: any; // Firebase Timestamp when signature was captured
+    noPersonnelAvailable?: boolean; // Flag for when no authorized personnel is available
   };
   receivedBy?: string; // Name of the person who received the delivery
   shippingComplete?: boolean; // Whether truck loading/shipping is complete
@@ -130,4 +135,25 @@ export interface LaundryCart {
   id: string;
   name: string;
   isActive: boolean;
+}
+
+export interface TruckPosition {
+  row: number;
+  col: number;
+  clientId?: string | null;
+  clientName?: string | null;
+  color?: string | null;
+  cartCount?: number;
+}
+
+export interface TruckLoadingVerification {
+  truckNumber: string;
+  verifiedDate: string;
+  verifiedBy: string;
+  verifiedAt: string;
+  actualCartCount: number;
+  expectedCartCount: number;
+  notes?: string;
+  isVerified: boolean;
+  truckDiagram?: TruckPosition[]; // 3x4 grid positions
 }

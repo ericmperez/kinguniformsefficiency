@@ -49,9 +49,12 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
           enabled: false,
           autoSendOnApproval: false,
           autoSendOnShipping: false,
+          autoSendOnSignature: false,
           ccEmails: [],
           subject: "",
           bodyTemplate: "",
+          signatureEmailSubject: "",
+          signatureEmailTemplate: "",
         },
       }
   );
@@ -721,6 +724,30 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                           </label>
                         </div>
 
+                        <div className="form-check mb-3">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="autoSendOnSignature"
+                            checked={config.emailSettings.autoSendOnSignature}
+                            onChange={(e) =>
+                              setConfig({
+                                ...config,
+                                emailSettings: {
+                                  ...config.emailSettings,
+                                  autoSendOnSignature: e.target.checked,
+                                },
+                              })
+                            }
+                          />
+                          <label
+                            className="form-check-label"
+                            htmlFor="autoSendOnSignature"
+                          >
+                            Auto-send on signature capture
+                          </label>
+                        </div>
+
                         <div className="mb-3">
                           <label htmlFor="emailSubject" className="form-label">
                             Email Subject
@@ -800,6 +827,65 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                             <code>{"{date}"}</code>,{" "}
                             <code>{"{truckNumber}"}</code>,{" "}
                             <code>{"{deliveryDate}"}</code>
+                          </div>
+                        </div>
+
+                        {/* Signature Email Settings */}
+                        <div className="mb-3">
+                          <label
+                            htmlFor="signatureEmailSubject"
+                            className="form-label"
+                          >
+                            <strong>Signature Email Subject</strong>
+                            <small className="text-muted ms-2">(Optional - different from regular emails)</small>
+                          </label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            id="signatureEmailSubject"
+                            value={config.emailSettings.signatureEmailSubject || ""}
+                            onChange={(e) =>
+                              setConfig({
+                                ...config,
+                                emailSettings: {
+                                  ...config.emailSettings,
+                                  signatureEmailSubject: e.target.value,
+                                },
+                              })
+                            }
+                            placeholder="Delivery Confirmed - Invoice #{invoiceNumber} for {clientName}"
+                          />
+                        </div>
+
+                        <div className="mb-3">
+                          <label
+                            htmlFor="signatureEmailTemplate"
+                            className="form-label"
+                          >
+                            <strong>Signature Email Template</strong>
+                            <small className="text-muted ms-2">(Optional - different from regular emails)</small>
+                          </label>
+                          <textarea
+                            className="form-control"
+                            id="signatureEmailTemplate"
+                            rows={6}
+                            value={config.emailSettings.signatureEmailTemplate || ""}
+                            onChange={(e) =>
+                              setConfig({
+                                ...config,
+                                emailSettings: {
+                                  ...config.emailSettings,
+                                  signatureEmailTemplate: e.target.value,
+                                },
+                              })
+                            }
+                            placeholder="Dear {clientName}, your delivery has been completed and signed for by {receivedBy}..."
+                          />
+                          <div className="form-text">
+                            Additional signature placeholders:{" "}
+                            <code>{"{receivedBy}"}</code>,{" "}
+                            <code>{"{signatureDate}"}</code>,{" "}
+                            <code>{"{signatureTime}"}</code>
                           </div>
                         </div>
                       </div>
@@ -943,6 +1029,11 @@ King Uniforms Team`}
                             {config.emailSettings.autoSendOnShipping && (
                               <span className="badge bg-warning ms-2">
                                 Auto-send on Shipping
+                              </span>
+                            )}
+                            {config.emailSettings.autoSendOnSignature && (
+                              <span className="badge bg-success ms-2">
+                                Auto-send on Signature
                               </span>
                             )}
                           </div>

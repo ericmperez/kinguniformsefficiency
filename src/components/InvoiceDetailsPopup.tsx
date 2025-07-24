@@ -449,16 +449,30 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
                     <div className="card-body">
                       <div className="row">
                         <div className="col-md-6 d-flex flex-column align-items-center justify-content-center">
-                          <div
-                            className="border rounded p-2 mb-3 bg-light"
-                            style={{ width: "100%" }}
-                          >
-                            <img
-                              src={invoice.signature.image}
-                              alt="Signature"
-                              className="signature-img"
-                            />
-                          </div>
+                          {invoice.signature?.noPersonnelAvailable ? (
+                            <div className="alert alert-warning text-center">
+                              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                              <strong>No Signature Available</strong>
+                              <br />
+                              <small>No authorized personnel was available at the time of delivery</small>
+                            </div>
+                          ) : invoice.signature?.image ? (
+                            <div
+                              className="border rounded p-2 mb-3 bg-light"
+                              style={{ width: "100%" }}
+                            >
+                              <img
+                                src={invoice.signature.image}
+                                alt="Signature"
+                                className="signature-img"
+                              />
+                            </div>
+                          ) : (
+                            <div className="alert alert-info text-center">
+                              <i className="bi bi-info-circle me-2"></i>
+                              <small>No signature image available</small>
+                            </div>
+                          )}
                         </div>
                         <div className="col-md-6">
                           <div className="mb-3">
@@ -530,6 +544,8 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
           invoiceId={invoice.id}
           invoiceNumber={invoice.invoiceNumber?.toString()}
           clientName={invoice.clientName}
+          clientId={invoice.clientId}
+          invoice={invoice}
           onSignatureSaved={() => {
             // Refresh the invoice details
             const fetchInvoiceDetails = async () => {

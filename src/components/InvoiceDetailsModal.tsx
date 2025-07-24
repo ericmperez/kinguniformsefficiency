@@ -63,6 +63,11 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [invoiceName, setInvoiceName] = React.useState(invoice.name || "");
   const [savingInvoiceName, setSavingInvoiceName] = React.useState(false);
 
+  // --- Delivery Date Editing ---
+  const [editingDeliveryDate, setEditingDeliveryDate] = React.useState(false);
+  const [deliveryDate, setDeliveryDate] = React.useState(invoice.deliveryDate || "");
+  const [savingDeliveryDate, setSavingDeliveryDate] = React.useState(false);
+
   // Sync local carts with invoice changes
   React.useEffect(() => {
     setLocalCarts(invoice.carts);
@@ -75,6 +80,27 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   React.useEffect(() => {
     setInvoiceName(invoice.name || "");
   }, [invoice.name]);
+
+  // Helper function to convert date to YYYY-MM-DD format for date input
+  const formatDateForInput = (dateString: string): string => {
+    if (!dateString) return "";
+    
+    try {
+      // Parse the date (handles both ISO strings and YYYY-MM-DD format)
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "";
+      
+      // Return in YYYY-MM-DD format for HTML date input
+      return date.toISOString().slice(0, 10);
+    } catch (error) {
+      console.warn("Error formatting date for input:", dateString, error);
+      return "";
+    }
+  };
+
+  React.useEffect(() => {
+    setDeliveryDate(formatDateForInput(invoice.deliveryDate || ""));
+  }, [invoice.deliveryDate]);
 
   const getVerifierName = (verifierId: string) => {
     if (!verifierId) return "-";
@@ -140,6 +166,36 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     } finally {
       setSavingInvoiceName(false);
       setEditingInvoiceName(false);
+    }
+  };
+
+  // Save delivery date to Firestore
+  const handleSaveDeliveryDate = async () => {
+    // Convert delivery date to ISO format to match invoice.date format
+    const currentFormattedDate = invoice.deliveryDate 
+      ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
+      : "";
+    
+    if (deliveryDate === currentFormattedDate) {
+      setEditingDeliveryDate(false);
+      return;
+    }
+    
+    setSavingDeliveryDate(true);
+    try {
+      // Convert YYYY-MM-DD to ISO string format to match other dates in the system
+      const formattedDeliveryDate = deliveryDate 
+        ? new Date(deliveryDate + "T00:00:00").toISOString()
+        : "";
+      
+      // Use onAddCart with special key to trigger delivery date update
+      if (typeof onAddCart === "function") {
+        await onAddCart(`__delivery_date__${deliveryDate}`);
+      }
+      if (refreshInvoices) await refreshInvoices();
+    } finally {
+      setSavingDeliveryDate(false);
+      setEditingDeliveryDate(false);
     }
   };
 
@@ -281,6 +337,54 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             <h6>
               Date: {invoice.date ? formatDateSpanish(invoice.date) : "-"}
             </h6>
+            <div className="d-flex align-items-center mb-3">
+              <h6 className="mb-0">
+                Delivery Date: {editingDeliveryDate ? (
+                  <span style={{ marginLeft: 16 }}>
+                    <input
+                      type="date"
+                      className="form-control d-inline-block"
+                      style={{ width: 180, display: "inline-block" }}
+                      value={formatDateForInput(deliveryDate)}
+                      onChange={(e) => setDeliveryDate(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveDeliveryDate();
+                        if (e.key === "Escape") setEditingDeliveryDate(false);
+                      }}
+                      autoFocus
+                      disabled={savingDeliveryDate}
+                    />
+                    <button
+                      className="btn btn-success btn-sm ms-2"
+                      onClick={handleSaveDeliveryDate}
+                      disabled={savingDeliveryDate}
+                    >
+                      Save
+                    </button>
+                    <button
+                      className="btn btn-secondary btn-sm ms-2"
+                      onClick={() => setEditingDeliveryDate(false)}
+                      disabled={savingDeliveryDate}
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                ) : (
+                  <>
+                    <span style={{ marginLeft: 16, color: invoice.deliveryDate ? "#0E62A0" : "#6c757d" }}>
+                      {invoice.deliveryDate ? formatDateSpanish(invoice.deliveryDate) : "Not set"}
+                    </span>
+                    <button
+                      className="btn btn-outline-primary btn-sm ms-2"
+                      title="Edit Delivery Date"
+                      onClick={() => setEditingDeliveryDate(true)}
+                    >
+                      <i className="bi bi-pencil" />
+                    </button>
+                  </>
+                )}
+              </h6>
+            </div>
             {/* Show verifier if present */}
             {invoice.verifiedBy && (
               <h6 className="text-success">

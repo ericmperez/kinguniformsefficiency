@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Client, Invoice, Product } from "../types";
+import { getCurrentLocalDate, dateStringToLocalISOString } from "../utils/dateFormatter";
 
 interface InvoiceFormProps {
   clients: Client[];
@@ -17,9 +18,10 @@ export default function InvoiceForm({
   const [selectedClient, setSelectedClient] = useState<string>("");
   const [showConfirm, setShowConfirm] = useState(false);
   const [invoiceDate, setInvoiceDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
+    getCurrentLocalDate()
   );
   const [invoiceStatus, setInvoiceStatus] = useState<string>("active");
+  const [deliveryDate, setDeliveryDate] = useState<string>("");
 
   // Sort clients alphabetically by name
   const sortedClients = [...clients].sort((a, b) =>
@@ -38,11 +40,12 @@ export default function InvoiceForm({
     const newInvoice: Omit<Invoice, "id"> = {
       clientId: client.id,
       clientName: client.name,
-      date: new Date(invoiceDate + "T00:00:00").toISOString(),
+      date: dateStringToLocalISOString(invoiceDate),
       products: [],
       total: 0,
       carts: [],
       status: invoiceStatus,
+      ...(deliveryDate && { deliveryDate: dateStringToLocalISOString(deliveryDate) }),
     };
     try {
       await onAddInvoice(newInvoice); // The parent will handle adding and return the ID
@@ -138,8 +141,21 @@ export default function InvoiceForm({
                   className="form-control"
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
-                  max={new Date().toISOString().slice(0, 10)}
+                  max={getCurrentLocalDate()}
                 />
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Delivery Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={deliveryDate}
+                  onChange={(e) => setDeliveryDate(e.target.value)}
+                  min={getCurrentLocalDate()}
+                />
+                <small className="form-text text-muted">
+                  Optional: Set a delivery date for scheduling
+                </small>
               </div>
               <div className="mb-3">
                 <label className="form-label">Invoice Status</label>

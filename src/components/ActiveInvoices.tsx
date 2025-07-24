@@ -625,6 +625,51 @@ export default function ActiveInvoices({
     alert(`Unshipped invoices: ${unshipSelectedIds.join(", ")}`);
   };
 
+  // --- Delivery Schedule Handler ---
+  const handleScheduleDelivery = (invoice: Invoice) => {
+    setShowDeliveryScheduleModal(invoice.id);
+    // Pre-fill with current values if they exist
+    const existingDeliveryDate = invoice.deliveryDate 
+      ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
+      : "";
+    setScheduleDeliveryDate(existingDeliveryDate);
+    setScheduleTruckNumber(invoice.truckNumber?.toString() || "");
+  };
+
+  const handleConfirmScheduleDelivery = async () => {
+    if (!scheduleDeliveryDate || !scheduleTruckNumber) {
+      alert("Please select both delivery date and truck number.");
+      return;
+    }
+
+    const invoice = invoicesState.find(inv => inv.id === showDeliveryScheduleModal);
+    if (!invoice) return;
+
+    try {
+      await onUpdateInvoice(invoice.id, {
+        deliveryDate: new Date(scheduleDeliveryDate + "T00:00:00").toISOString(),
+        truckNumber: scheduleTruckNumber.toString(),
+      });
+
+      if (user?.username) {
+        await logActivity({
+          type: "Invoice",
+          message: `User ${user.username} scheduled invoice #${invoice.invoiceNumber || invoice.id} for delivery on ${scheduleDeliveryDate} via Truck #${scheduleTruckNumber}`,
+          user: user.username,
+        });
+      }
+
+      await refreshInvoices();
+      setShowDeliveryScheduleModal(null);
+      setScheduleDeliveryDate("");
+      setScheduleTruckNumber("");
+      alert(`Invoice scheduled for delivery on ${new Date(scheduleDeliveryDate).toLocaleDateString()} via Truck #${scheduleTruckNumber}`);
+    } catch (error) {
+      console.error("Error scheduling delivery:", error);
+      alert("Error scheduling delivery. Please try again.");
+    }
+  };
+
   // --- Delete Confirmation Logic ---
   const handleDeleteClick = (invoice: Invoice) => {
     setInvoiceToDelete(invoice);
@@ -1039,6 +1084,11 @@ export default function ActiveInvoices({
   const [showShippedModal, setShowShippedModal] = useState<string | null>(null);
   const [shippedTruckNumber, setShippedTruckNumber] = useState("");
   const [shippedDeliveryDate, setShippedDeliveryDate] = useState("");
+
+  // Delivery scheduling modal state
+  const [showDeliveryScheduleModal, setShowDeliveryScheduleModal] = useState<string | null>(null);
+  const [scheduleDeliveryDate, setScheduleDeliveryDate] = useState("");
+  const [scheduleTruckNumber, setScheduleTruckNumber] = useState("");
 
   // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
   const hasOverdue = invoices.some((inv) => {
@@ -1483,6 +1533,31 @@ export default function ActiveInvoices({
                               : "📋 COMPLETED"}
                           </div>
                         )}
+                        
+                        {/* Delivery Schedule Badge */}
+                        {invoice.deliveryDate && invoice.truckNumber && (
+                          <div
+                            style={{
+                              display: "inline-block",
+                              padding: "4px 12px",
+                              borderRadius: "12px",
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                              marginTop: "8px",
+                              marginLeft: "8px",
+                              background: "#3b82f6",
+                              color: "white",
+                              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                            }}
+                          >
+                            🚛 {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric"
+                            })} - Truck #{invoice.truckNumber}
+                          </div>
+                        )}
                       </div>
                       {/* Product summary (total qty per product) */}
                       <div style={{ margin: "12px 0 0 0", width: "100%" }}>
@@ -1557,6 +1632,35 @@ export default function ActiveInvoices({
                           zIndex: 10,
                         }}
                       >
+                        {/* Schedule Delivery button - Step 0 */}
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          style={{
+                            fontSize: 16,
+                            width: 44,
+                            height: 44,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border: "2px solid #3b82f6",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleScheduleDelivery(invoice);
+                          }}
+                          title={`Schedule delivery date and truck assignment${invoice.deliveryDate ? `\nCurrent: ${new Date(invoice.deliveryDate).toLocaleDateString()} via Truck #${invoice.truckNumber}` : ''}`}
+                        >
+                          <i
+                            className="bi bi-calendar-check"
+                            style={{
+                              color: invoice.deliveryDate ? "#22c55e" : "#3b82f6",
+                              fontSize: 22,
+                            }}
+                          />
+                        </button>
                         {/* Complete button - Step 1 */}
                         <button
                           className={`btn btn-sm ${
@@ -1817,8 +1921,12 @@ export default function ActiveInvoices({
                             } else {
                               // Ship the invoice - show modal for truck number and delivery date
                               setShowShippedModal(invoice.id);
-                              setShippedTruckNumber("");
-                              setShippedDeliveryDate("");
+                              // Pre-fill with existing values if they exist
+                              setShippedTruckNumber(invoice.truckNumber?.toString() || "");
+                              const existingDeliveryDate = invoice.deliveryDate 
+                                ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
+                                : "";
+                              setShippedDeliveryDate(existingDeliveryDate);
                             }
                           }}
                           disabled={
@@ -3166,7 +3274,7 @@ export default function ActiveInvoices({
                     await onUpdateInvoice(invoice.id, {
                       status: "done",
                       truckNumber: shippedTruckNumber.toString(),
-                      deliveryDate: shippedDeliveryDate,
+                      deliveryDate: new Date(shippedDeliveryDate + "T00:00:00").toISOString(),
                     });
                     if (user?.username) {
                       await logActivity({
@@ -3292,6 +3400,102 @@ export default function ActiveInvoices({
                   }}
                 >
                   Ship
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Schedule Modal */}
+      {showDeliveryScheduleModal && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-calendar-check me-2"></i>
+                  Schedule Delivery
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowDeliveryScheduleModal(null)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="alert alert-info">
+                  <i className="bi bi-info-circle-fill me-2"></i>
+                  Set the delivery date and truck assignment for this invoice. This will make it appear in the shipping dashboard on the selected date.
+                </div>
+                
+                <div className="mb-3">
+                  <label className="form-label">
+                    <strong>Delivery Date</strong> <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={scheduleDeliveryDate}
+                    onChange={(e) => setScheduleDeliveryDate(e.target.value)}
+                    min={new Date().toISOString().slice(0, 10)}
+                    required
+                  />
+                  <small className="form-text text-muted">
+                    Select tomorrow or any future date for delivery
+                  </small>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">
+                    <strong>Truck Number</strong> <span className="text-danger">*</span>
+                  </label>
+                  <select
+                    className="form-select"
+                    value={scheduleTruckNumber}
+                    onChange={(e) => setScheduleTruckNumber(e.target.value)}
+                    required
+                  >
+                    <option value="">Select truck number...</option>
+                    {Array.from({ length: 10 }, (_, i) => 30 + i).map(num => (
+                      <option key={num} value={num}>Truck #{num}</option>
+                    ))}
+                  </select>
+                  <small className="form-text text-muted">
+                    Available trucks: #30 through #39
+                  </small>
+                </div>
+
+                {scheduleDeliveryDate && scheduleTruckNumber && (
+                  <div className="alert alert-success">
+                    <i className="bi bi-check-circle-fill me-2"></i>
+                    <strong>Ready to schedule:</strong><br />
+                    Delivery on {new Date(scheduleDeliveryDate).toLocaleDateString("en-US", {
+                      weekday: "long",
+                      year: "numeric", 
+                      month: "long",
+                      day: "numeric"
+                    })} via Truck #{scheduleTruckNumber}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowDeliveryScheduleModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={!scheduleDeliveryDate || !scheduleTruckNumber}
+                  onClick={handleConfirmScheduleDelivery}
+                >
+                  <i className="bi bi-calendar-check me-1"></i>
+                  Schedule Delivery
                 </button>
               </div>
             </div>
@@ -3525,6 +3729,18 @@ export default function ActiveInvoices({
               await onUpdateInvoice(invoice.id, { name: newInvoiceName });
               await refreshInvoices();
               return { id: invoice.id, name: newInvoiceName, isActive: true };
+            }
+            // --- Delivery Date Edit Logic ---
+            if (cartName.startsWith("__delivery_date__")) {
+              const newDeliveryDate = cartName.replace("__delivery_date__", "");
+              const formattedDeliveryDate = newDeliveryDate 
+                ? new Date(newDeliveryDate + "T00:00:00").toISOString()
+                : undefined;
+              await onUpdateInvoice(invoice.id, { 
+                deliveryDate: formattedDeliveryDate
+              });
+              await refreshInvoices();
+              return { id: invoice.id, name: cartName, isActive: true };
             }
             // --- Special Service Logic ---
             if (cartName.startsWith("__special_service__")) {
