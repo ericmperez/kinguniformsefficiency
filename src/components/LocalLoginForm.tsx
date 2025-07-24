@@ -6,7 +6,7 @@ import kingUniformsLogo from "../assets/King Uniforms Logo.png";
 import { logActivity } from "../services/firebaseService";
 
 export default function LocalLoginForm() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const [id, setId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,11 +24,25 @@ export default function LocalLoginForm() {
     }
     const success = await login(id);
     if (success) {
-      // Log successful login
+      // Get the user information after successful login
+      // The user context should be updated after login
+      const loggedInUser = localStorage.getItem("auth_user");
+      let username = id; // fallback to ID
+      
+      if (loggedInUser) {
+        try {
+          const userObj = JSON.parse(loggedInUser);
+          username = userObj.username || id;
+        } catch (e) {
+          console.error("Error parsing user data:", e);
+        }
+      }
+      
+      // Log successful login with username
       await logActivity({
         type: "Login",
-        message: `User with ID '${id}' logged in`,
-        user: id,
+        message: `${username} logged in`,
+        user: username,
       });
     } else {
       setError("Please enter a valid 4-digit ID number");

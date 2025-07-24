@@ -260,9 +260,9 @@ const Segregation: React.FC<SegregationProps> = ({
     // Enhanced activity logging with user information
     await logActivity({
       type: "Segregation",
-      message: `Group "${group?.clientName || groupId}" moved ${
+      message: `Group "${getGroupDisplayName(groupId, group)}" moved ${
         direction === -1 ? "up" : "down"
-      } by ${currentUser} from position ${idx + 1} to ${swapIdx + 1} (swapped with "${swapGroup?.clientName || 'unknown'}")`,
+      } by ${currentUser} from position ${idx + 1} to ${swapIdx + 1} (swapped with "${getGroupDisplayName(newOrder[swapIdx], swapGroup)}")`,
       user: currentUser,
     });
     
@@ -322,6 +322,25 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   };
 
+  // Helper to get group name with fallback to client lookup
+  const getGroupDisplayName = (groupId: string, group?: any) => {
+    // If group has clientName, use it
+    if (group?.clientName) {
+      return group.clientName;
+    }
+    
+    // If group has clientId, look up client name
+    if (group?.clientId) {
+      const client = clients.find(c => c.id === group.clientId);
+      if (client?.name) {
+        return client.name;
+      }
+    }
+    
+    // Fallback to group ID
+    return groupId;
+  };
+
   // Handler for input change
   const handleInputChange = (groupId: string, value: string) => {
     if (/^\d*$/.test(value)) {
@@ -335,7 +354,7 @@ const Segregation: React.FC<SegregationProps> = ({
     const oldValue = parseInt(segregatedCounts[groupId] || "0", 10);
     const newValue = String(oldValue + 1);
     
-    console.log(`➕ [INCREMENT] ${group?.clientName || groupId}: ${oldValue} → ${newValue}`);
+    console.log(`➕ [INCREMENT] ${getGroupDisplayName(groupId, group)}: ${oldValue} → ${newValue}`);
     
     setSegregatedCounts((prev) => ({ ...prev, [groupId]: newValue }));
     // Persist the new value to Firestore
@@ -345,9 +364,7 @@ const Segregation: React.FC<SegregationProps> = ({
     });
     await logActivity({
       type: "Segregation",
-      message: `+1 to group ${
-        group?.clientName || groupId
-      } (${groupId}) by ${getCurrentUser()}`,
+      message: `+1 to group ${getGroupDisplayName(groupId, group)} (${groupId}) by ${getCurrentUser()}`,
       user: getCurrentUser(),
     });
   };
@@ -358,7 +375,7 @@ const Segregation: React.FC<SegregationProps> = ({
     const oldValue = parseInt(segregatedCounts[groupId] || "0", 10);
     const newValue = String(Math.max(0, oldValue - 1));
     
-    console.log(`➖ [DECREMENT] ${group?.clientName || groupId}: ${oldValue} → ${newValue}`);
+    console.log(`➖ [DECREMENT] ${getGroupDisplayName(groupId, group)}: ${oldValue} → ${newValue}`);
     
     setSegregatedCounts((prev) => ({ ...prev, [groupId]: newValue }));
     // Persist the new value to Firestore
@@ -368,9 +385,7 @@ const Segregation: React.FC<SegregationProps> = ({
     });
     await logActivity({
       type: "Segregation",
-      message: `-1 to group ${
-        group?.clientName || groupId
-      } (${groupId}) by ${getCurrentUser()}`,
+      message: `-1 to group ${getGroupDisplayName(groupId, group)} (${groupId}) by ${getCurrentUser()}`,
       user: getCurrentUser(),
     });
   };
@@ -617,9 +632,7 @@ const Segregation: React.FC<SegregationProps> = ({
       if (onGroupComplete) onGroupComplete();
       await logActivity({
         type: "Segregation",
-        message: `Group ${
-          group?.clientName || groupId
-        } completed segregation by ${getCurrentUser()}`,
+        message: `Group ${getGroupDisplayName(groupId, group)} completed segregation by ${getCurrentUser()}`,
         user: getCurrentUser(),
       });
       
@@ -686,9 +699,7 @@ const Segregation: React.FC<SegregationProps> = ({
       if (onGroupComplete) onGroupComplete();
       await logActivity({
         type: "Segregation",
-        message: `Group ${
-          group?.clientName || groupId
-        } skipped segregation by ${getCurrentUser()}`,
+        message: `Group ${getGroupDisplayName(groupId, group)} skipped segregation by ${getCurrentUser()}`,
         user: getCurrentUser(),
       });
     } catch (err) {

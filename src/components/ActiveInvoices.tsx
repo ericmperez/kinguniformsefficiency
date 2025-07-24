@@ -444,8 +444,8 @@ export default function ActiveInvoices({
           }
         }
 
-        // Show print options after approval
-        setShowPrintOptionsModal(invoice.id);
+        // Show delivery scheduling modal first after approval
+        setShowDeliveryScheduleModal(invoice.id);
       }
 
       openPrintInvoice({
@@ -660,9 +660,17 @@ export default function ActiveInvoices({
       }
 
       await refreshInvoices();
+      
+      // Store the invoice ID before clearing the delivery modal
+      const invoiceId = invoice.id;
+      
       setShowDeliveryScheduleModal(null);
       setScheduleDeliveryDate("");
       setScheduleTruckNumber("");
+      
+      // Show print options modal after delivery is scheduled
+      setShowPrintOptionsModal(invoiceId);
+      
       alert(`Invoice scheduled for delivery on ${new Date(scheduleDeliveryDate).toLocaleDateString()} via Truck #${scheduleTruckNumber}`);
     } catch (error) {
       console.error("Error scheduling delivery:", error);
@@ -1632,35 +1640,37 @@ export default function ActiveInvoices({
                           zIndex: 10,
                         }}
                       >
-                        {/* Schedule Delivery button - Step 0 */}
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          style={{
-                            fontSize: 16,
-                            width: 44,
-                            height: 44,
-                            borderRadius: "50%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: 0,
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: "2px solid #3b82f6",
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleScheduleDelivery(invoice);
-                          }}
-                          title={`Schedule delivery date and truck assignment${invoice.deliveryDate ? `\nCurrent: ${new Date(invoice.deliveryDate).toLocaleDateString()} via Truck #${invoice.truckNumber}` : ''}`}
-                        >
-                          <i
-                            className="bi bi-calendar-check"
+                        {/* Schedule Delivery button - Step 0 - Only show when invoice is approved */}
+                        {(invoice.verified || invoice.partiallyVerified) && (
+                          <button
+                            className="btn btn-sm btn-outline-primary"
                             style={{
-                              color: invoice.deliveryDate ? "#22c55e" : "#3b82f6",
-                              fontSize: 22,
+                              fontSize: 16,
+                              width: 44,
+                              height: 44,
+                              borderRadius: "50%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: 0,
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                              border: "2px solid #3b82f6",
                             }}
-                          />
-                        </button>
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleScheduleDelivery(invoice);
+                            }}
+                            title={`Schedule delivery date and truck assignment${invoice.deliveryDate ? `\nCurrent: ${new Date(invoice.deliveryDate).toLocaleDateString()} via Truck #${invoice.truckNumber}` : ''}`}
+                          >
+                            <i
+                              className="bi bi-calendar-check"
+                              style={{
+                                color: invoice.deliveryDate ? "#22c55e" : "#3b82f6",
+                                fontSize: 22,
+                              }}
+                            />
+                          </button>
+                        )}
                         {/* Complete button - Step 1 */}
                         <button
                           className={`btn btn-sm ${
@@ -3418,18 +3428,25 @@ export default function ActiveInvoices({
               <div className="modal-header">
                 <h5 className="modal-title">
                   <i className="bi bi-calendar-check me-2"></i>
-                  Schedule Delivery
+                  Schedule Delivery (Step 1 of 2)
                 </h5>
                 <button
                   type="button"
                   className="btn-close"
-                  onClick={() => setShowDeliveryScheduleModal(null)}
+                  onClick={() => {
+                    const invoiceId = showDeliveryScheduleModal;
+                    setShowDeliveryScheduleModal(null);
+                    // Show print options even if user closes modal
+                    if (invoiceId) {
+                      setShowPrintOptionsModal(invoiceId);
+                    }
+                  }}
                 ></button>
               </div>
               <div className="modal-body">
                 <div className="alert alert-info">
                   <i className="bi bi-info-circle-fill me-2"></i>
-                  Set the delivery date and truck assignment for this invoice. This will make it appear in the shipping dashboard on the selected date.
+                  <strong>Invoice Approved!</strong> Now schedule the delivery date and truck assignment. You can skip this step if you want to schedule later.
                 </div>
                 
                 <div className="mb-3">
@@ -3485,9 +3502,32 @@ export default function ActiveInvoices({
               <div className="modal-footer">
                 <button
                   className="btn btn-secondary"
-                  onClick={() => setShowDeliveryScheduleModal(null)}
+                  onClick={() => {
+                    const invoiceId = showDeliveryScheduleModal;
+                    setShowDeliveryScheduleModal(null);
+                    // Show print options even if user cancels delivery scheduling
+                    if (invoiceId) {
+                      setShowPrintOptionsModal(invoiceId);
+                    }
+                  }}
                 >
                   Cancel
+                </button>
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={() => {
+                    const invoiceId = showDeliveryScheduleModal;
+                    setShowDeliveryScheduleModal(null);
+                    setScheduleDeliveryDate("");
+                    setScheduleTruckNumber("");
+                    // Skip delivery scheduling and go directly to print options
+                    if (invoiceId) {
+                      setShowPrintOptionsModal(invoiceId);
+                    }
+                  }}
+                >
+                  <i className="bi bi-skip-forward me-1"></i>
+                  Skip for Now
                 </button>
                 <button
                   className="btn btn-primary"
