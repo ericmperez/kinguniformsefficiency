@@ -8,7 +8,8 @@ import {
   query,
   where,
   Timestamp,
-  getDoc
+  getDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
@@ -275,6 +276,37 @@ export async function logActivity({ type, message, user }: { type: string; messa
     });
   } catch (e) {
     // Silent fail for logging
+  }
+}
+
+// Cleanup old activity logs (older than 15 days)
+export async function cleanupOldActivityLogs() {
+  try {
+    const fifteenDaysAgo = new Date();
+    fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+    const cutoffTimestamp = Timestamp.fromDate(fifteenDaysAgo);
+    
+    const logsQuery = query(
+      collection(db, "activity_log"),
+      where("createdAt", "<", cutoffTimestamp)
+    );
+    
+    const snapshot = await getDocs(logsQuery);
+    
+    if (snapshot.empty) {
+      return; // No old logs to delete
+    }
+    
+    // Use batch delete for better performance
+    const batch = writeBatch(db);
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    
+    await batch.commit();
+    console.log(`Deleted ${snapshot.docs.length} old activity log entries`);
+  } catch (error) {
+    console.error("Error cleaning up old activity logs:", error);
   }
 }
 

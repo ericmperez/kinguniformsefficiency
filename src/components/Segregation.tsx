@@ -171,7 +171,22 @@ const Segregation: React.FC<SegregationProps> = ({
       segregationGroups.length > 0 &&
       groupOrder.length === 0
     ) {
-      const initialOrder = segregationGroups.map((g) => g.id);
+      // Sort by creation time or existing order to maintain consistency
+      const sortedGroups = [...segregationGroups].sort((a, b) => {
+        // If both have order, sort by order
+        if (typeof a.order === "number" && typeof b.order === "number") {
+          return a.order - b.order;
+        }
+        // If one has order and other doesn't, prioritize the one with order
+        if (typeof a.order === "number") return -1;
+        if (typeof b.order === "number") return 1;
+        // If neither has order, sort by timestamp or ID
+        const timeA = a.startTime?.getTime() || new Date(a.id.substring(0, 8), 16).getTime() || 0;
+        const timeB = b.startTime?.getTime() || new Date(b.id.substring(0, 8), 16).getTime() || 0;
+        return timeA - timeB;
+      });
+      
+      const initialOrder = sortedGroups.map((g) => g.id);
       setDoc(orderDocRef, { order: initialOrder }, { merge: true });
     }
     // Remove ids that are no longer present
@@ -179,8 +194,12 @@ const Segregation: React.FC<SegregationProps> = ({
       const filtered = groupOrder.filter((id) =>
         segregationGroups.some((g) => g.id === id)
       );
-      if (filtered.length !== groupOrder.length) {
-        setDoc(orderDocRef, { order: filtered }, { merge: true });
+      // Add any new groups to the end to preserve order
+      const newGroups = segregationGroups.filter((g) => !groupOrder.includes(g.id));
+      const updatedOrder = [...filtered, ...newGroups.map(g => g.id)];
+      
+      if (updatedOrder.length !== groupOrder.length || !updatedOrder.every((id, idx) => id === groupOrder[idx])) {
+        setDoc(orderDocRef, { order: updatedOrder }, { merge: true });
       }
     }
   }, [segregationGroups, groupOrder, orderLoading]);
@@ -353,10 +372,41 @@ const Segregation: React.FC<SegregationProps> = ({
       const segregatedCount = parseInt(segregatedCounts[groupId] || "0", 10);
       // Always set status to Tunnel or Conventional only
       let newStatus = "Conventional";
-      if (client?.washingType === "Tunnel") newStatus = "Tunnel";
+      let orderUpdate: any = {};
+      
+      if (client?.washingType === "Tunnel") {
+        newStatus = "Tunnel";
+        // Find max order among existing Tunnel groups and add 1 to put at bottom
+        const existingTunnelGroups = groups.filter(
+          (g) =>
+            g.status === "Tunnel" &&
+            clients.find((c) => c.id === g.clientId)?.washingType === "Tunnel"
+        );
+        const maxOrder = existingTunnelGroups.reduce(
+          (max, g) =>
+            typeof g.order === "number" && g.order > max ? g.order : max,
+          -1
+        );
+        orderUpdate = { order: maxOrder + 1 };
+      } else {
+        // For Conventional groups, also assign order to put at bottom
+        const existingConventionalGroups = groups.filter(
+          (g) =>
+            g.status === "Conventional" &&
+            clients.find((c) => c.id === g.clientId)?.washingType === "Conventional"
+        );
+        const maxOrder = existingConventionalGroups.reduce(
+          (max, g) =>
+            typeof g.order === "number" && g.order > max ? g.order : max,
+          -1
+        );
+        orderUpdate = { order: maxOrder + 1 };
+      }
+      
       await updateDoc(doc(db, "pickup_groups", groupId), {
         segregatedCarts: segregatedCount,
         status: newStatus,
+        ...orderUpdate,
       });
       // --- LOG TO segregation_done_logs ---
       // Calculate total weight for this group (sum all carts' totalWeight or use group.totalWeight if available)
@@ -405,21 +455,36 @@ const Segregation: React.FC<SegregationProps> = ({
       const cartCount = getCartCount(groupId);
       let newStatus = "Conventional";
       let orderUpdate: any = {};
+      
       if (client?.washingType === "Tunnel") {
         newStatus = "Tunnel";
-        // Find max order among Tunnel groups
-        const tunnelGroups = groups.filter(
+        // Find max order among existing Tunnel groups and add 1 to put at bottom
+        const existingTunnelGroups = groups.filter(
           (g) =>
             g.status === "Tunnel" &&
             clients.find((c) => c.id === g.clientId)?.washingType === "Tunnel"
         );
-        const maxOrder = tunnelGroups.reduce(
+        const maxOrder = existingTunnelGroups.reduce(
+          (max, g) =>
+            typeof g.order === "number" && g.order > max ? g.order : max,
+          -1
+        );
+        orderUpdate = { order: maxOrder + 1 };
+      } else {
+        // For Conventional groups, also assign order to put at bottom
+        const existingConventionalGroups = groups.filter(
+          (g) =>
+            g.status === "Conventional" &&
+            clients.find((c) => c.id === g.clientId)?.washingType === "Conventional"
+        );
+        const maxOrder = existingConventionalGroups.reduce(
           (max, g) =>
             typeof g.order === "number" && g.order > max ? g.order : max,
           -1
         );
         orderUpdate = { order: maxOrder + 1 };
       }
+      
       await updateDoc(doc(db, "pickup_groups", groupId), {
         segregatedCarts: cartCount,
         status: newStatus,

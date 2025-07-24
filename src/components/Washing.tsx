@@ -469,18 +469,26 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   // --- Conventional Group Reordering ---
   // Ensure groups have an 'order' property for sorting
   useEffect(() => {
-    // If any conventional group is missing 'order', assign it based on current order
+    // If any conventional group is missing 'order', assign it the highest order + 1 to put at bottom
     if (conventionalGroups.some((g) => typeof g.order !== "number")) {
       setGroups((prev) => {
         let changed = false;
-        const updated = prev.map((g, idx) => {
+        const updated = prev.map((g) => {
           if (
             g.status === "Conventional" &&
             getWashingType(g.clientId) === "Conventional" &&
             typeof g.order !== "number"
           ) {
             changed = true;
-            return { ...g, order: idx };
+            // Find the highest order among existing conventional groups
+            const maxOrder = prev
+              .filter(existing => 
+                existing.status === "Conventional" && 
+                getWashingType(existing.clientId) === "Conventional" &&
+                typeof existing.order === "number"
+              )
+              .reduce((max, existing) => Math.max(max, existing.order), -1);
+            return { ...g, order: maxOrder + 1 };
           }
           return g;
         });
@@ -495,14 +503,22 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     if (tunnelGroups.some((g) => typeof g.order !== "number")) {
       setGroups((prev) => {
         let changed = false;
-        const updated = prev.map((g, idx) => {
+        const updated = prev.map((g) => {
           if (
             g.status === "Tunnel" &&
             getWashingType(g.clientId) === "Tunnel" &&
             typeof g.order !== "number"
           ) {
             changed = true;
-            return { ...g, order: idx };
+            // Find the highest order among existing tunnel groups
+            const maxOrder = prev
+              .filter(existing => 
+                existing.status === "Tunnel" && 
+                getWashingType(existing.clientId) === "Tunnel" &&
+                typeof existing.order === "number"
+              )
+              .reduce((max, existing) => Math.max(max, existing.order), -1);
+            return { ...g, order: maxOrder + 1 };
           }
           return g;
         });
