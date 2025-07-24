@@ -141,6 +141,10 @@ const Segregation: React.FC<SegregationProps> = ({
   const [groupOrder, setGroupOrder] = useState<string[]>([]);
   const [orderLoading, setOrderLoading] = useState(true);
 
+  // Enhanced tracking for new clients and order changes
+  const [previousGroups, setPreviousGroups] = useState<string[]>([]);
+  const [previousOrder, setPreviousOrder] = useState<string[]>([]);
+
   // Today's date string for Firestore doc
   const todayStr = new Date().toISOString().slice(0, 10);
   const orderDocRef = doc(db, "segregation_orders", todayStr);
@@ -188,8 +192,13 @@ const Segregation: React.FC<SegregationProps> = ({
       
       const initialOrder = sortedGroups.map((g) => g.id);
       setDoc(orderDocRef, { order: initialOrder }, { merge: true });
+      
+      // Log initial order setup
+      console.log("🎬 [INITIAL ORDER] Setting up segregation order for the first time");
+      console.log("📋 Initial order:", sortedGroups.map(g => g.clientName));
     }
-    // Remove ids that are no longer present
+    
+    // Remove ids that are no longer present and add new ones to the bottom
     if (!orderLoading && groupOrder.length > 0) {
       const filtered = groupOrder.filter((id) =>
         segregationGroups.some((g) => g.id === id)
@@ -197,6 +206,27 @@ const Segregation: React.FC<SegregationProps> = ({
       // Add any new groups to the end to preserve order
       const newGroups = segregationGroups.filter((g) => !groupOrder.includes(g.id));
       const updatedOrder = [...filtered, ...newGroups.map(g => g.id)];
+      
+      // Log new groups being added to bottom
+      if (newGroups.length > 0) {
+        console.log("🆕 [ADDING NEW GROUPS] New clients being added to bottom of segregation queue");
+        newGroups.forEach((group, idx) => {
+          const position = filtered.length + idx + 1;
+          console.log(`   📍 ${group.clientName} added at position ${position} (bottom of queue)`);
+          console.log(`   📊 Group details: ID=${group.id}, Weight=${group.totalWeight || 0}lbs`);
+        });
+        console.log("✅ New groups successfully positioned at bottom");
+        
+        // Log to Firestore activity log
+        const currentUser = getCurrentUser();
+        newGroups.forEach(async (group) => {
+          await logActivity({
+            type: "Segregation", 
+            message: `New client "${group.clientName}" automatically added to bottom of segregation queue by system (user context: ${currentUser})`,
+            user: currentUser,
+          });
+        });
+      }
       
       if (updatedOrder.length !== groupOrder.length || !updatedOrder.every((id, idx) => id === groupOrder[idx])) {
         setDoc(orderDocRef, { order: updatedOrder }, { merge: true });
@@ -218,15 +248,26 @@ const Segregation: React.FC<SegregationProps> = ({
     }
     const swapIdx = idx + direction;
     if (swapIdx < 0 || swapIdx >= newOrder.length) return;
+    
+    const group = segregationGroups.find(g => g.id === groupId);
+    const swapGroup = segregationGroups.find(g => g.id === newOrder[swapIdx]);
+    const currentUser = getCurrentUser();
+    
     [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
     setGroupOrder(newOrder); // Optimistic UI update
     await setDoc(orderDocRef, { order: newOrder }, { merge: true });
+    
+    // Enhanced activity logging with user information
     await logActivity({
       type: "Segregation",
-      message: `Group ${groupId} moved ${
+      message: `Group "${group?.clientName || groupId}" moved ${
         direction === -1 ? "up" : "down"
-      } by user`,
+      } by ${currentUser} from position ${idx + 1} to ${swapIdx + 1} (swapped with "${swapGroup?.clientName || 'unknown'}")`,
+      user: currentUser,
     });
+    
+    // Additional console logging for detailed tracking
+    console.log("📝 [ACTIVITY LOGGED] Move operation saved to Firestore activity log");
   };
 
   // Listen for order changes in Firestore and update local state immediately
@@ -269,8 +310,13 @@ const Segregation: React.FC<SegregationProps> = ({
   // Helper to get current user (from localStorage or context)
   const getCurrentUser = () => {
     try {
-      const user = JSON.parse(localStorage.getItem("ku_user") || "null");
-      return user?.username || user?.id || "Unknown";
+      // First try to get from auth context if available
+      if (user && user.username) {
+        return user.username;
+      }
+      // Fallback to localStorage with correct key
+      const storedUser = JSON.parse(localStorage.getItem("auth_user") || "null");
+      return storedUser?.username || storedUser?.id || "Unknown";
     } catch {
       return "Unknown";
     }
@@ -285,9 +331,13 @@ const Segregation: React.FC<SegregationProps> = ({
 
   // In the + button handler:
   const handleIncrement = async (groupId: string) => {
-    const newValue = String(parseInt(segregatedCounts[groupId] || "0", 10) + 1);
-    setSegregatedCounts((prev) => ({ ...prev, [groupId]: newValue }));
     const group = groups.find((g) => g.id === groupId);
+    const oldValue = parseInt(segregatedCounts[groupId] || "0", 10);
+    const newValue = String(oldValue + 1);
+    
+    console.log(`➕ [INCREMENT] ${group?.clientName || groupId}: ${oldValue} → ${newValue}`);
+    
+    setSegregatedCounts((prev) => ({ ...prev, [groupId]: newValue }));
     // Persist the new value to Firestore
     await updateDoc(doc(db, "pickup_groups", groupId), {
       segregatedCarts: parseInt(newValue, 10),
@@ -297,17 +347,20 @@ const Segregation: React.FC<SegregationProps> = ({
       type: "Segregation",
       message: `+1 to group ${
         group?.clientName || groupId
-      } (${groupId}) by user`,
+      } (${groupId}) by ${getCurrentUser()}`,
+      user: getCurrentUser(),
     });
   };
 
   // In the - button handler:
   const handleDecrement = async (groupId: string) => {
-    const newValue = String(
-      Math.max(0, parseInt(segregatedCounts[groupId] || "0", 10) - 1)
-    );
-    setSegregatedCounts((prev) => ({ ...prev, [groupId]: newValue }));
     const group = groups.find((g) => g.id === groupId);
+    const oldValue = parseInt(segregatedCounts[groupId] || "0", 10);
+    const newValue = String(Math.max(0, oldValue - 1));
+    
+    console.log(`➖ [DECREMENT] ${group?.clientName || groupId}: ${oldValue} → ${newValue}`);
+    
+    setSegregatedCounts((prev) => ({ ...prev, [groupId]: newValue }));
     // Persist the new value to Firestore
     await updateDoc(doc(db, "pickup_groups", groupId), {
       segregatedCarts: parseInt(newValue, 10),
@@ -317,7 +370,8 @@ const Segregation: React.FC<SegregationProps> = ({
       type: "Segregation",
       message: `-1 to group ${
         group?.clientName || groupId
-      } (${groupId}) by user`,
+      } (${groupId}) by ${getCurrentUser()}`,
+      user: getCurrentUser(),
     });
   };
 
@@ -328,6 +382,126 @@ const Segregation: React.FC<SegregationProps> = ({
       .filter(Boolean),
     ...segregationGroups.filter((g) => !groupOrder.includes(g.id)),
   ];
+
+  // Console logging for segregation order (runs whenever the order changes)
+  useEffect(() => {
+    if (displayGroups.length > 0) {
+      console.log("🔍 [SEGREGATION ORDER LOG] ===================");
+      console.log("📊 Current Segregation Processing Order:");
+      displayGroups.forEach((group, idx) => {
+        const status = idx < 2 ? "🟢 ACTIVE" : "⏳ WAITING";
+        console.log(`  ${idx + 1}. ${status} - ${group.clientName} (ID: ${group.id})`);
+        console.log(`     - Status: ${group.status}`);
+        console.log(`     - Segregated Carts: ${group.segregatedCarts || 0}`);
+        console.log(`     - Total Weight: ${group.totalWeight || 0} lbs`);
+        console.log(`     - Flagged for Tomorrow: ${group.segregationTomorrow ? 'Yes' : 'No'}`);
+      });
+      console.log(`📈 Summary: ${displayGroups.length} total groups, ${Math.min(2, displayGroups.length)} active, ${Math.max(0, displayGroups.length - 2)} waiting`);
+      console.log("🔍 [END SEGREGATION ORDER LOG] ===============");
+    }
+  }, [displayGroups.length, displayGroups.map(g => g.id).join(','), displayGroups.map(g => g.segregatedCarts).join(',')]);
+
+  // Track new clients appearing at bottom of list
+  useEffect(() => {
+    const currentGroupIds = segregationGroups.map(g => g.id);
+    const newClients = currentGroupIds.filter(id => !previousGroups.includes(id));
+    
+    if (newClients.length > 0 && previousGroups.length > 0) {
+      console.log("🆕 [NEW CLIENTS DETECTED] ===================");
+      newClients.forEach(id => {
+        const group = segregationGroups.find(g => g.id === id);
+        const position = displayGroups.findIndex(g => g.id === id) + 1;
+        console.log(`📍 NEW CLIENT ADDED: ${group?.clientName || 'Unknown'}`);
+        console.log(`   - Client ID: ${id}`);
+        console.log(`   - Position in queue: ${position} of ${displayGroups.length}`);
+        console.log(`   - Added at: ${new Date().toLocaleTimeString()}`);
+        console.log(`   - Status: ${group?.status || 'Unknown'}`);
+        console.log(`   - Total Weight: ${group?.totalWeight || 0} lbs`);
+        
+        if (position === displayGroups.length) {
+          console.log(`   - ✅ POSITIONED AT BOTTOM OF LIST (as expected)`);
+        } else {
+          console.log(`   - ⚠️ POSITIONED ELSEWHERE (position ${position})`);
+        }
+      });
+      console.log("🆕 [END NEW CLIENTS DETECTED] ==============");
+    }
+    
+    setPreviousGroups(currentGroupIds);
+  }, [segregationGroups.map(g => g.id).join(',')]);
+
+  // Enhanced logging for order changes with user tracking
+  useEffect(() => {
+    if (groupOrder.length > 0 && previousOrder.length > 0) {
+      // Check if order actually changed
+      const orderChanged = groupOrder.length !== previousOrder.length || 
+                          !groupOrder.every((id, idx) => id === previousOrder[idx]);
+      
+      if (orderChanged) {
+        console.log("📋 [ORDER CHANGE] ===================");
+        console.log("🔄 Order has been modified");
+        console.log("👤 Changed by: User interaction (manual reordering)");
+        console.log("⏰ Time: " + new Date().toLocaleTimeString());
+        console.log("📊 Previous order:", previousOrder.map(id => {
+          const group = segregationGroups.find(g => g.id === id);
+          return group ? `${group.clientName}` : `Unknown`;
+        }));
+        console.log("📊 New order:", groupOrder.map(id => {
+          const group = segregationGroups.find(g => g.id === id);
+          return group ? `${group.clientName}` : `Unknown`;
+        }));
+        
+        // Identify specific changes
+        const changes = [];
+        for (let i = 0; i < Math.max(groupOrder.length, previousOrder.length); i++) {
+          if (groupOrder[i] !== previousOrder[i]) {
+            const currentGroup = segregationGroups.find(g => g.id === groupOrder[i]);
+            const previousGroup = segregationGroups.find(g => g.id === previousOrder[i]);
+            if (currentGroup && previousGroup && currentGroup.id !== previousGroup.id) {
+              changes.push(`Position ${i + 1}: ${previousGroup.clientName} → ${currentGroup.clientName}`);
+            }
+          }
+        }
+        
+        if (changes.length > 0) {
+          console.log("🔄 Specific position changes:");
+          changes.forEach(change => console.log(`   ${change}`));
+        }
+        
+        console.log("📋 [END ORDER CHANGE] ==================");
+      }
+    }
+    
+    if (groupOrder.length > 0) {
+      setPreviousOrder([...groupOrder]);
+    }
+  }, [groupOrder]);
+
+  // Log when groups are moved with enhanced user tracking
+  const moveGroupWithLogging = async (groupId: string, direction: -1 | 1) => {
+    const group = segregationGroups.find(g => g.id === groupId);
+    const oldIndex = groupOrder.indexOf(groupId);
+    const newIndex = oldIndex + direction;
+    const currentUser = getCurrentUser();
+    
+    console.log("🔄 [MOVE GROUP] ===================");
+    console.log(`👤 Action performed by: ${currentUser}`);
+    console.log(`📱 Moving: ${group?.clientName || groupId}`);
+    console.log(`📍 From position: ${oldIndex + 1} → ${newIndex + 1}`);
+    console.log(`⬆️⬇️ Direction: ${direction === -1 ? 'UP' : 'DOWN'}`);
+    console.log(`⏰ Time: ${new Date().toLocaleTimeString()}`);
+    
+    // Show what groups will be affected
+    if (newIndex >= 0 && newIndex < groupOrder.length) {
+      const swapGroup = segregationGroups.find(g => g.id === groupOrder[newIndex]);
+      console.log(`🔄 Will swap with: ${swapGroup?.clientName || 'Unknown'}`);
+    }
+    
+    await moveGroup(groupId, direction);
+    
+    console.log("✅ Move completed successfully");
+    console.log("🔄 [END MOVE GROUP] ==============");
+  };
 
   // --- Pending Conventional Products Widget ---
   const [pendingConventionalGroups, setPendingConventionalGroups] = useState<
@@ -365,11 +539,17 @@ const Segregation: React.FC<SegregationProps> = ({
 
   // Handler for completing segregation for a group
   const handleComplete = async (groupId: string) => {
+    const group = groups.find((g) => g.id === groupId);
+    const segregatedCount = parseInt(segregatedCounts[groupId] || "0", 10);
+    
+    console.log("✅ [COMPLETE GROUP] ===================");
+    console.log(`📱 Completing: ${group?.clientName || groupId}`);
+    console.log(`📊 Segregated Count: ${segregatedCount}`);
+    console.log(`🎯 Moving to next phase`);
+    
     setCompletingGroup(groupId);
     try {
-      const group = groups.find((g) => g.id === groupId);
       const client = clients.find((c) => c.id === group?.clientId);
-      const segregatedCount = parseInt(segregatedCounts[groupId] || "0", 10);
       // Always set status to Tunnel or Conventional only
       let newStatus = "Conventional";
       let orderUpdate: any = {};
@@ -402,6 +582,9 @@ const Segregation: React.FC<SegregationProps> = ({
         );
         orderUpdate = { order: maxOrder + 1 };
       }
+      
+      console.log(`📋 New Status: ${newStatus}`);
+      console.log(`📈 Order Update:`, orderUpdate);
       
       await updateDoc(doc(db, "pickup_groups", groupId), {
         segregatedCarts: segregatedCount,
@@ -436,9 +619,14 @@ const Segregation: React.FC<SegregationProps> = ({
         type: "Segregation",
         message: `Group ${
           group?.clientName || groupId
-        } completed segregation by user`,
+        } completed segregation by ${getCurrentUser()}`,
+        user: getCurrentUser(),
       });
+      
+      console.log("✅ Group completion successful");
+      console.log("✅ [END COMPLETE GROUP] ==============");
     } catch (err) {
+      console.error("❌ Error completing segregation:", err);
       alert("Error completing segregation for this group");
     } finally {
       setCompletingGroup(null);
@@ -500,7 +688,8 @@ const Segregation: React.FC<SegregationProps> = ({
         type: "Segregation",
         message: `Group ${
           group?.clientName || groupId
-        } skipped segregation by user`,
+        } skipped segregation by ${getCurrentUser()}`,
+        user: getCurrentUser(),
       });
     } catch (err) {
       alert("Error skipping segregation for this group");
@@ -999,6 +1188,7 @@ const Segregation: React.FC<SegregationProps> = ({
           >
             Groups for Segregation
           </h4>
+          
           {user && !["Supervisor", "Admin", "Owner"].includes(user.role) && (
             <div
               className="alert alert-info text-center mb-3"
@@ -1114,7 +1304,7 @@ const Segregation: React.FC<SegregationProps> = ({
                           className="btn btn-outline-secondary btn-sm"
                           title="Move up"
                           disabled={disableActions || idx === 0}
-                          onClick={() => moveGroup(group.id, -1)}
+                          onClick={() => moveGroupWithLogging(group.id, -1)}
                           style={{ padding: "2px 7px", fontSize: 13 }}
                         >
                           <span aria-hidden="true">▲</span>
@@ -1125,7 +1315,7 @@ const Segregation: React.FC<SegregationProps> = ({
                           disabled={
                             disableActions || idx === displayGroups.length - 1
                           }
-                          onClick={() => moveGroup(group.id, 1)}
+                          onClick={() => moveGroupWithLogging(group.id, 1)}
                           style={{ padding: "2px 7px", fontSize: 13 }}
                         >
                           <span aria-hidden="true">▼</span>
@@ -1370,6 +1560,7 @@ const Segregation: React.FC<SegregationProps> = ({
                                 } for segregation tomorrow by ${
                                   user.username || user.id
                                 }`,
+                                user: user.username || user.id,
                               });
                             }}
                           >

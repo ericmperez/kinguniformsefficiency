@@ -106,6 +106,8 @@ export interface Invoice {
   lockedAt?: string; // Timestamp when invoice was closed
   note?: string; // Public note for all users to see
   truckNumber?: string; // Add truck number for shipped invoices
+  tripNumber?: number; // Trip number (1 or 2) for this truck
+  tripType?: "Trip 1" | "Trip 2"; // Descriptive trip label
   deliveryDate?: string; // Add delivery date for shipped invoices
   pickupGroupId?: string; // Link to pickup group if present
   name?: string; // Optional invoice-level name
@@ -156,4 +158,6 @@ export interface TruckLoadingVerification {
   notes?: string;
   isVerified: boolean;
   truckDiagram?: TruckPosition[]; // 3x4 grid positions
+  tripNumber: number; // 1 for first trip, 2 for second trip
+  tripType: "Trip 1" | "Trip 2";
 }

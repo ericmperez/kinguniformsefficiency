@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { collection, query, where, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { Invoice, TruckLoadingVerification, TruckPosition } from "../types";
 import "./ShippingPage.css";
@@ -24,6 +24,8 @@ interface ShippingInvoice {
   truckNumber: string;
   receivedBy?: string;
   hasSignature?: boolean;
+  tripNumber?: number; // Trip number (1 or 2)
+  tripType?: "Trip 1" | "Trip 2"; // Descriptive trip label
 }
 
 interface Driver {
@@ -46,6 +48,8 @@ interface TruckCompletion {
   completedBy: string;
   completedAt: string;
   isCompleted: boolean;
+  tripNumber: number; // 1 for first trip, 2 for second trip
+  tripType: "Trip 1" | "Trip 2";
 }
 
 interface EmergencyDelivery {
@@ -202,6 +206,7 @@ const ShippingPage: React.FC = () => {
     if (!selectedDate) return;
     
     try {
+      // Query for all completions on the selected date (both trips)
       const completionsQuery = query(
         collection(db, "truckCompletions"),
         where("completedDate", "==", selectedDate)
@@ -211,7 +216,12 @@ const ShippingPage: React.FC = () => {
       
       querySnapshot.forEach((doc) => {
         const completion = doc.data() as TruckCompletion;
-        completions[completion.truckNumber] = completion;
+        const truckNumber = completion.truckNumber;
+        
+        // Keep the most recent trip completion for each truck
+        if (!completions[truckNumber] || completion.tripNumber > completions[truckNumber].tripNumber) {
+          completions[truckNumber] = completion;
+        }
       });
       
       setTruckCompletions(completions);
@@ -353,6 +363,7 @@ const ShippingPage: React.FC = () => {
     if (!selectedDate) return;
     
     try {
+      // Query for all verifications on the selected date (both trips)
       const verificationsQuery = query(
         collection(db, "truckLoadingVerifications"),
         where("verifiedDate", "==", selectedDate)
@@ -362,7 +373,12 @@ const ShippingPage: React.FC = () => {
       
       querySnapshot.forEach((doc) => {
         const verification = doc.data() as TruckLoadingVerification;
-        verifications[verification.truckNumber] = verification;
+        const truckNumber = verification.truckNumber;
+        
+        // Keep the most recent trip verification for each truck
+        if (!verifications[truckNumber] || verification.tripNumber > verifications[truckNumber].tripNumber) {
+          verifications[truckNumber] = verification;
+        }
       });
       
       setTruckLoadingVerifications(verifications);
@@ -422,7 +438,16 @@ const ShippingPage: React.FC = () => {
       return;
     }
 
-    if (!window.confirm(`Mark Truck #${truckNumber} as completed? This action will indicate that all deliveries for this truck have been finished.`)) {
+    const currentTripNumber = getCurrentTripNumber(truckNumber);
+    const currentTripType = getCurrentTripType(truckNumber);
+    
+    // Determine completion message based on trip
+    const tripLabel = currentTripType;
+    const confirmMessage = currentTripNumber === 1 
+      ? `Mark Truck #${truckNumber} ${tripLabel} as completed? The truck will then be available for Trip 2 assignments.`
+      : `Mark Truck #${truckNumber} ${tripLabel} as completed? This will complete all deliveries for this truck today.`;
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
@@ -434,10 +459,12 @@ const ShippingPage: React.FC = () => {
         completedBy: user.username || user.id,
         completedAt: new Date().toISOString(),
         isCompleted: true,
+        tripNumber: currentTripNumber,
+        tripType: currentTripType,
       };
 
-      // Create a unique document ID based on truck number and date
-      const docId = `${truckNumber}_${selectedDate}`;
+      // Create a unique document ID based on truck number, date, and trip
+      const docId = `${truckNumber}_${selectedDate}_trip${currentTripNumber}`;
       await setDoc(doc(db, "truckCompletions", docId), completion);
 
       // Update local state
@@ -446,7 +473,7 @@ const ShippingPage: React.FC = () => {
         [truckNumber]: completion
       }));
 
-      console.log(`Truck ${truckNumber} marked as completed for ${selectedDate}`);
+      console.log(`Truck ${truckNumber} ${tripLabel} marked as completed for ${selectedDate}`);
     } catch (error) {
       console.error("Error marking truck as completed:", error);
       alert("Error marking truck as completed. Please try again.");
@@ -459,36 +486,151 @@ const ShippingPage: React.FC = () => {
   const unmarkTruckAsCompleted = async (truckNumber: string) => {
     if (!selectedDate || !user) return;
 
-    if (!window.confirm(`Unmark Truck #${truckNumber} as completed? This will reopen the truck for deliveries.`)) {
+    const completion = truckCompletions[truckNumber];
+    if (!completion) return;
+
+    const tripLabel = completion.tripType;
+    const isTrip2 = completion.tripNumber === 2;
+    
+    const confirmMessage = isTrip2 
+      ? `Unmark Truck #${truckNumber} ${tripLabel} as completed? This will reopen the truck for Trip 2 deliveries.`
+      : `Unmark Truck #${truckNumber} ${tripLabel} as completed? This will reopen the truck for Trip 1 deliveries.`;
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     setCompletingTruck(truckNumber);
     try {
-      // Remove the completion document
-      const docId = `${truckNumber}_${selectedDate}`;
-      await setDoc(doc(db, "truckCompletions", docId), {
-        truckNumber,
-        completedDate: selectedDate,
-        completedBy: user.username || user.id,
-        completedAt: new Date().toISOString(),
-        isCompleted: false,
-      });
+      // Delete the specific trip completion document
+      const docId = `${truckNumber}_${selectedDate}_trip${completion.tripNumber}`;
+      await deleteDoc(doc(db, "truckCompletions", docId));
 
-      // Update local state
-      setTruckCompletions(prev => {
-        const updated = { ...prev };
-        delete updated[truckNumber];
-        return updated;
-      });
+      // If this was Trip 2, we need to check if there's a Trip 1 completion to revert to
+      if (completion.tripNumber === 2) {
+        // Query for Trip 1 completion
+        const trip1DocId = `${truckNumber}_${selectedDate}_trip1`;
+        const trip1Doc = await getDoc(doc(db, "truckCompletions", trip1DocId));
+        
+        if (trip1Doc.exists()) {
+          // Revert to Trip 1 completion state
+          const trip1Completion = trip1Doc.data() as TruckCompletion;
+          setTruckCompletions(prev => ({
+            ...prev,
+            [truckNumber]: trip1Completion
+          }));
+        } else {
+          // No Trip 1 completion found, remove from state
+          setTruckCompletions(prev => {
+            const updated = { ...prev };
+            delete updated[truckNumber];
+            return updated;
+          });
+        }
+      } else {
+        // Trip 1 was unmarked, remove from state completely
+        setTruckCompletions(prev => {
+          const updated = { ...prev };
+          delete updated[truckNumber];
+          return updated;
+        });
+      }
 
-      console.log(`Truck ${truckNumber} unmarked as completed for ${selectedDate}`);
+      console.log(`Truck ${truckNumber} ${tripLabel} unmarked as completed for ${selectedDate}`);
     } catch (error) {
       console.error("Error unmarking truck as completed:", error);
       alert("Error unmarking truck as completed. Please try again.");
     } finally {
       setCompletingTruck(null);
     }
+  };
+
+  // Function to get current trip number for a truck based on completions
+  const getCurrentTripNumber = (truckNumber: string): number => {
+    const completion = truckCompletions[truckNumber];
+    if (!completion || !completion.isCompleted) {
+      return 1; // If no completion or not completed, we're on Trip 1
+    }
+    
+    // If Trip 1 is completed, we're on Trip 2
+    if (completion.tripNumber === 1) {
+      return 2;
+    }
+    
+    // If Trip 2 is completed, no more trips for today
+    return 2; // Still return 2 to prevent errors, but truck should be fully completed
+  };
+
+  // Function to get current trip type for a truck
+  const getCurrentTripType = (truckNumber: string): "Trip 1" | "Trip 2" => {
+    const tripNumber = getCurrentTripNumber(truckNumber);
+    return tripNumber === 1 ? "Trip 1" : "Trip 2";
+  };
+
+  // Function to check if a truck can accept new invoices
+  const canTruckAcceptNewInvoices = (truckNumber: string): boolean => {
+    const completion = truckCompletions[truckNumber];
+    if (!completion || !completion.isCompleted) {
+      return true; // Trip 1 not completed, can accept invoices
+    }
+    
+    // If Trip 1 is completed but Trip 2 is not, can accept invoices for Trip 2
+    if (completion.tripNumber === 1) {
+      return true;
+    }
+    
+    // If Trip 2 is completed, cannot accept more invoices
+    return false;
+  };
+
+  // Function to get trip status message for users
+  const getTripStatusMessage = (truckNumber: string): string => {
+    const completion = truckCompletions[truckNumber];
+    const currentTrip = getCurrentTripNumber(truckNumber);
+    const canAccept = canTruckAcceptNewInvoices(truckNumber);
+    
+    if (!completion || !completion.isCompleted) {
+      return `Currently on Trip 1. Can accept new invoices.`;
+    }
+    
+    if (completion.tripNumber === 1) {
+      return `Trip 1 completed. Now accepting invoices for Trip 2.`;
+    }
+    
+    if (completion.tripNumber === 2) {
+      return `All trips completed. No more invoices can be assigned to this truck today.`;
+    }
+    
+    return `Unknown trip status.`;
+  };
+
+  // Function to get overflow recommendation
+  const getOverflowRecommendation = (truckNumber: string): string | null => {
+    if (!canTruckAcceptNewInvoices(truckNumber)) {
+      // Find available trucks that can still accept invoices
+      const availableTrucks = Array.from({ length: 10 }, (_, i) => (30 + i).toString())
+        .filter(truck => canTruckAcceptNewInvoices(truck))
+        .slice(0, 3); // Show max 3 recommendations
+      
+      if (availableTrucks.length > 0) {
+        return `Truck #${truckNumber} is full. Consider assigning to: ${availableTrucks.map(t => `#${t}`).join(', ')}`;
+      } else {
+        return `All trucks appear to be at capacity. Contact supervisor for guidance.`;
+      }
+    }
+    
+    return null;
+  };
+
+  // Function to determine which trip an invoice belongs to based on truck state
+  const determineInvoiceTrip = (truckNumber: string): { tripNumber: number; tripType: "Trip 1" | "Trip 2" } => {
+    const currentTrip = getCurrentTripNumber(truckNumber);
+    const currentTripType = getCurrentTripType(truckNumber);
+    
+    return {
+      tripNumber: currentTrip,
+      tripType: currentTripType
+    };
   };
 
   // Function to calculate expected cart count for a truck
@@ -644,7 +786,9 @@ const ShippingPage: React.FC = () => {
         expectedCartCount: Number(expectedCount) || 0,
         notes: String(verificationNotes || ""),
         isVerified: true,
-        truckDiagram: sanitizedTruckDiagram || []
+        truckDiagram: sanitizedTruckDiagram || [],
+        tripNumber: getCurrentTripNumber(showLoadingVerificationModal),
+        tripType: getCurrentTripType(showLoadingVerificationModal)
       };
 
       // Double-check for any undefined values before saving
@@ -655,8 +799,8 @@ const ShippingPage: React.FC = () => {
         return value === undefined ? null : value;
       }));
 
-      // Create a unique document ID based on truck number and date
-      const docId = `${showLoadingVerificationModal}_${selectedDate}`;
+      // Create a unique document ID based on truck number, date, and trip
+      const docId = `${showLoadingVerificationModal}_${selectedDate}_trip${getCurrentTripNumber(showLoadingVerificationModal)}`;
       console.log("🔧 [DEBUG] Saving to document ID:", docId);
       console.log("🔧 [DEBUG] Clean verification object:", cleanVerification);
       
@@ -672,7 +816,9 @@ const ShippingPage: React.FC = () => {
         expectedCartCount: cleanVerification.expectedCartCount,
         notes: cleanVerification.notes,
         isVerified: cleanVerification.isVerified,
-        truckDiagram: cleanVerification.truckDiagram
+        truckDiagram: cleanVerification.truckDiagram,
+        tripNumber: 1, // Default to Trip 1 for now, will be enhanced with automatic detection
+        tripType: "Trip 1"
       };
 
       setTruckLoadingVerifications(prev => ({
@@ -1258,6 +1404,9 @@ const ShippingPage: React.FC = () => {
               filteredData.map((truck) => {
                 const { totalCarts, clientCount } = calculateTruckTotals(truck);
                 const isCompleted = truckCompletions[truck.truckNumber]?.isCompleted;
+                const currentTripNumber = getCurrentTripNumber(truck.truckNumber);
+                const currentTripType = getCurrentTripType(truck.truckNumber);
+                const canAcceptNewInvoices = canTruckAcceptNewInvoices(truck.truckNumber);
                 const allInvoicesSigned = areAllInvoicesSigned(truck);
                 const canMarkComplete = allInvoicesSigned && !isCompleted;
                 const isCurrentUserDriver = user && user.role === "Driver";
@@ -1283,14 +1432,31 @@ const ShippingPage: React.FC = () => {
                             )}
                           </h4>
                           <div className="d-flex flex-column align-items-end">
+                            {/* Trip Status Badge */}
+                            <span className={`badge mb-1 ${
+                              currentTripNumber === 1 
+                                ? (isCompleted ? 'bg-success' : 'bg-info') 
+                                : (isCompleted ? 'bg-success' : 'bg-warning text-dark')
+                            }`}>
+                              <i className="bi bi-arrow-repeat me-1"></i>
+                              {currentTripType} {isCompleted && currentTripNumber === 2 ? '(Final)' : ''}
+                            </span>
+                            
                             {truckAssignments[truck.truckNumber] && (
                               <span className="badge bg-primary mb-1">
                                 <i className="bi bi-person-check"></i> {truckAssignments[truck.truckNumber].driverName}
                               </span>
                             )}
+                            
+                            {!canAcceptNewInvoices && (
+                              <span className="badge bg-secondary mb-1">
+                                <i className="bi bi-lock-fill"></i> No More Trips
+                              </span>
+                            )}
+                            
                             {isCompleted && (
                               <span className="badge bg-light text-dark">
-                                <i className="bi bi-flag-fill"></i> Completed
+                                <i className="bi bi-flag-fill"></i> {currentTripType} Complete
                               </span>
                             )}
                           </div>
@@ -1459,14 +1625,14 @@ const ShippingPage: React.FC = () => {
                           {isCompleted ? (
                             <div className="d-flex align-items-center gap-2">
                               <span className="badge bg-success">
-                                <i className="bi bi-check-circle-fill"></i> Completed
+                                <i className="bi bi-check-circle-fill"></i> {currentTripType} Complete
                               </span>
                               {isSupervisorOrAbove && (
                                 <button
                                   className="btn btn-sm btn-outline-warning"
                                   onClick={() => unmarkTruckAsCompleted(truck.truckNumber)}
                                   disabled={completingTruck === truck.truckNumber}
-                                  title="Unmark as completed (Supervisor only)"
+                                  title={`Unmark ${currentTripType} as completed (Supervisor only)`}
                                 >
                                   {completingTruck === truck.truckNumber ? (
                                     <div className="spinner-border spinner-border-sm" role="status">
@@ -1474,7 +1640,7 @@ const ShippingPage: React.FC = () => {
                                     </div>
                                   ) : (
                                     <>
-                                      <i className="bi bi-arrow-clockwise"></i> Reopen
+                                      <i className="bi bi-arrow-clockwise"></i> Reopen {currentTripType}
                                     </>
                                   )}
                                 </button>
@@ -1486,7 +1652,7 @@ const ShippingPage: React.FC = () => {
                                 className="btn btn-sm btn-success"
                                 onClick={() => markTruckAsCompleted(truck.truckNumber)}
                                 disabled={completingTruck === truck.truckNumber}
-                                title="Mark truck as completed"
+                                title={`Mark ${currentTripType} as completed`}
                               >
                                 {completingTruck === truck.truckNumber ? (
                                   <div className="spinner-border spinner-border-sm text-white" role="status">
@@ -1494,7 +1660,7 @@ const ShippingPage: React.FC = () => {
                                   </div>
                                 ) : (
                                   <>
-                                    <i className="bi bi-flag-fill"></i> Mark Complete
+                                    <i className="bi bi-flag-fill"></i> Complete {currentTripType}
                                   </>
                                 )}
                               </button>
@@ -1507,6 +1673,46 @@ const ShippingPage: React.FC = () => {
                             </small>
                           )}
                         </div>
+                      </div>
+                      
+                      {/* Trip Status Information Section */}
+                      <div className="mt-3 p-3 bg-light border-top">
+                        <h6 className="mb-2">
+                          <i className="bi bi-info-circle me-1"></i>
+                          Trip Status Information
+                        </h6>
+                        <div className="row">
+                          <div className="col-md-6">
+                            <div className="small">
+                              <strong>Current Status:</strong><br />
+                              <span className="text-muted">{getTripStatusMessage(truck.truckNumber)}</span>
+                            </div>
+                          </div>
+                          <div className="col-md-6">
+                            <div className="small">
+                              <strong>Accept New Invoices:</strong><br />
+                              <span className={`fw-bold ${canAcceptNewInvoices ? 'text-success' : 'text-danger'}`}>
+                                <i className={`bi ${canAcceptNewInvoices ? 'bi-check-circle' : 'bi-x-circle'} me-1`}></i>
+                                {canAcceptNewInvoices ? 'Yes' : 'No'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Overflow Recommendation */}
+                        {(() => {
+                          const overflowRec = getOverflowRecommendation(truck.truckNumber);
+                          return overflowRec ? (
+                            <div className="mt-2">
+                              <div className="alert alert-warning py-2 mb-0">
+                                <small>
+                                  <i className="bi bi-exclamation-triangle me-1"></i>
+                                  <strong>Overflow Advisory:</strong> {overflowRec}
+                                </small>
+                              </div>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                       
                       {/* Truck Loading Diagram Display */}
@@ -1587,7 +1793,7 @@ const ShippingPage: React.FC = () => {
               <div className="modal-header">
                 <h5 className="modal-title">
                   <i className="bi bi-clipboard-check me-2"></i>
-                  Verify Truck Loading - Truck #{showLoadingVerificationModal}
+                  Verify Truck Loading - Truck #{showLoadingVerificationModal} ({getCurrentTripType(showLoadingVerificationModal)})
                 </h5>
                 <button
                   type="button"
@@ -1911,7 +2117,10 @@ const ShippingPage: React.FC = () => {
               <div className="modal-header">
                 <h5 className="modal-title">
                   <i className="bi bi-diagram-3 me-2"></i>
-                  Truck Loading Layout - Truck #{showViewLoadingDiagramModal}
+                  Truck Loading Layout - Truck #{showViewLoadingDiagramModal} ({(() => {
+                    const verification = truckLoadingVerifications[showViewLoadingDiagramModal];
+                    return verification ? verification.tripType : 'Trip 1';
+                  })()})
                 </h5>
                 <button
                   type="button"

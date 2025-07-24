@@ -1,10 +1,17 @@
 // API configuration for development vs production
 const getApiBaseUrl = () => {
-  // In development, use the Express server
-  if (process.env.NODE_ENV === 'development') {
+  // Check if we're running in development mode
+  if (import.meta.env.DEV) {
     return 'http://localhost:5173';
   }
-  // In production, use relative paths (Vercel will handle routing)
+  
+  // Check if we're running locally (even in production build)
+  // This handles the case when you run the built version locally for testing
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return 'http://localhost:5173';
+  }
+  
+  // In actual production deployment (Vercel), use relative paths
   return '';
 };
 
