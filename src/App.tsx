@@ -80,6 +80,7 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import GroupWorkIcon from "@mui/icons-material/GroupWork";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import CalculateIcon from "@mui/icons-material/Calculate";
 import kingUniformsLogo from "./assets/King Uniforms Logo.jpeg";
 import SignInSide from "./components/SignInSide";
 import RutasPorCamion from "./components/RutasPorCamion";
@@ -676,7 +677,7 @@ function App() {
     {
       label: "Billing",
       page: "billing" as const,
-      icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
+      icon: <CalculateIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
       visible: canSee("BillingPage"),
     },
     {
