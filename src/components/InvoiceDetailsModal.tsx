@@ -29,6 +29,22 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   onAddProductToCart,
   refreshInvoices,
 }) => {
+  // Add debugging for incoming invoice data
+  console.log("📥 InvoiceDetailsModal received invoice update:", {
+    invoiceId: invoice.id,
+    carts: invoice.carts?.map(c => ({ id: c.id, name: c.name })),
+    timestamp: new Date().toISOString()
+  });
+
+  // Force re-render counter for debugging
+  const [rerenderCounter, setRerenderCounter] = React.useState(0);
+  
+  // Add invoice change detection
+  React.useEffect(() => {
+    console.log("🔄 Invoice prop changed, forcing component re-render");
+    setRerenderCounter(prev => prev + 1);
+  }, [invoice]);
+
   const [newCartName, setNewCartName] = React.useState("");
   const [addProductCartId, setAddProductCartId] = React.useState<string | null>(
     null
@@ -68,10 +84,19 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [deliveryDate, setDeliveryDate] = React.useState(invoice.deliveryDate || "");
   const [savingDeliveryDate, setSavingDeliveryDate] = React.useState(false);
 
-  // Sync local carts with invoice changes
+  // Sync local carts with invoice changes - Force update with deep comparison
   React.useEffect(() => {
-    setLocalCarts(invoice.carts);
-  }, [invoice.carts]);
+    console.log("🔄 Syncing localCarts with invoice.carts:", {
+      fromInvoice: invoice.carts?.map(c => ({ id: c.id, name: c.name })),
+      currentLocal: localCarts?.map(c => ({ id: c.id, name: c.name }))
+    });
+    
+    // Force update localCarts with a new array reference to trigger re-render
+    const newCarts = invoice.carts ? [...invoice.carts.map(cart => ({ ...cart }))] : [];
+    setLocalCarts(newCarts);
+    
+    console.log("✅ Force updated localCarts:", newCarts.map(c => ({ id: c.id, name: c.name })));
+  }, [invoice.carts, invoice.id]); // Include invoice.id to ensure updates on invoice changes
 
   React.useEffect(() => {
     getUsers().then(setUsers);
@@ -226,14 +251,28 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     if (typeof logActivity === "function") {
       await logActivity({
         type: "Cart",
-        message: `Cart '${cartName}' created in invoice '${
-          invoice.name || invoice.invoiceNumber
+        message: `Cart '${cartName}' created in invoice #${
+          invoice.invoiceNumber || invoice.id
         }'`,
         user: user?.username,
       });
     }
     return newCart;
   };
+
+  // Force re-render trigger for cart name updates
+  const [cartNamesVersion, setCartNamesVersion] = React.useState(0);
+  
+  // Create a stable cart names string for change detection
+  const cartNamesSnapshot = React.useMemo(() => {
+    return (localCarts || []).map(c => `${c.id}:${c.name}`).join('|');
+  }, [localCarts]);
+  
+  // Trigger re-render when cart names change
+  React.useEffect(() => {
+    setCartNamesVersion(prev => prev + 1);
+    console.log("🔄 Cart names changed, version:", cartNamesVersion + 1, "snapshot:", cartNamesSnapshot);
+  }, [cartNamesSnapshot]);
 
   return (
     <div
@@ -624,7 +663,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             </div>
             {localCarts.map((cart) => (
               <div
-                key={cart.id}
+                key={`${cart.id}-${cart.name}`} // Include cart name in key to force re-render on name changes
                 className="cart-section mb-4 p-2 border rounded"
                 style={{
                   background: "#bae6fd", // Darker blue background
@@ -646,6 +685,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       }}
                     >
                       {cart.name}
+                      {/* Debug render counter */}
+                      <span style={{ fontSize: 10, color: '#999', marginLeft: 8 }}>
+                        (r:{rerenderCounter})
+                      </span>
                     </h3>
                   </div>
                   <div className="d-flex gap-2">
@@ -663,9 +706,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                               type: "Cart",
                               message: `Cart '${
                                 cart.name
-                              }' deleted from invoice '${
-                                invoice.name || invoice.invoiceNumber
-                              }'`,
+                              }' deleted from invoice #${
+                                invoice.invoiceNumber || invoice.id
+                              }`,
                               user: user?.username,
                             });
                           }
@@ -685,6 +728,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           newName.trim() &&
                           newName !== cart.name
                         ) {
+                          console.log("🎯 Cart editing started:", { 
+                            cartId: cart.id, 
+                            oldName: cart.name, 
+                            newName: newName.trim() 
+                          });
+                          
+                          // Immediately update local state for instant UI feedback
                           setLocalCarts(
                             localCarts.map((c) =>
                               c.id === cart.id
@@ -692,27 +742,31 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                 : c
                             )
                           );
+                          
+                          // Trigger backend update
                           await onAddCart(
                             `__edit__${cart.id}__${newName.trim()}`
                           );
+                          
                           if (typeof logActivity === "function") {
                             await logActivity({
                               type: "Cart",
                               message: `Cart '${
                                 cart.name
-                              }' renamed to '${newName.trim()}' in invoice '${
-                                invoice.name || invoice.invoiceNumber
-                              }'`,
+                              }' renamed to '${newName.trim()}' in invoice #${
+                                invoice.invoiceNumber || invoice.id
+                              }`,
                               user: user?.username,
                             });
                           }
-                          if (refreshInvoices) await refreshInvoices();
-                          // Sync localCarts with latest invoice.carts after refresh
-                          setLocalCarts(
-                            typeof invoice.carts === "object"
-                              ? [...invoice.carts]
-                              : []
-                          );
+                          
+                          // Refresh invoices to get latest data
+                          if (refreshInvoices) {
+                            console.log("🔄 Refreshing invoices after cart name edit...");
+                            await refreshInvoices();
+                          }
+                          
+                          console.log("🎉 Cart name update completed successfully");
                         }
                       }}
                     >

@@ -144,6 +144,13 @@ const ShippingPage: React.FC = () => {
 
   // Function to handle capturing a signature
   const handleSignatureCapture = (invoice: ShippingInvoice) => {
+    // Check if truck loading verification has been completed
+    const loadingVerification = truckLoadingVerifications[invoice.truckNumber];
+    if (!loadingVerification || !loadingVerification.isVerified) {
+      alert("Truck loading verification must be completed before capturing signatures. Please verify the loading layout first.");
+      return;
+    }
+
     setSignatureInvoice({
       id: invoice.id,
       number: invoice.invoiceNumber,
@@ -438,6 +445,13 @@ const ShippingPage: React.FC = () => {
       return;
     }
 
+    // Check if truck loading verification has been completed
+    const loadingVerification = truckLoadingVerifications[truckNumber];
+    if (!loadingVerification || !loadingVerification.isVerified) {
+      alert("Truck loading diagram must be completed and verified before marking truck as done. Please verify the loading layout first.");
+      return;
+    }
+
     const currentTripNumber = getCurrentTripNumber(truckNumber);
     const currentTripType = getCurrentTripType(truckNumber);
     
@@ -656,6 +670,13 @@ const ShippingPage: React.FC = () => {
     return positions;
   };
 
+  // Function to calculate total cart count from truck diagram
+  const calculateTotalCartCountFromDiagram = (diagram: TruckPosition[]): number => {
+    return diagram.reduce((total, position) => {
+      return total + (position.cartCount || 0);
+    }, 0);
+  };
+
   // Function to get unique clients from truck invoices
   const getUniqueClientsFromTruck = (truck: ShippingTruckData) => {
     const clientMap = new Map();
@@ -673,14 +694,15 @@ const ShippingPage: React.FC = () => {
   };
 
   // Function to assign client to truck position
-  const assignClientToPosition = (row: number, col: number, clientId: string, clientName: string, color: string) => {
+  const assignClientToPosition = (row: number, col: number, clientId: string, clientName: string, color: string, cartCount?: number) => {
     setTruckDiagram(prev => prev.map(pos => {
       if (pos.row === row && pos.col === col) {
         return {
           ...pos,
           clientId,
           clientName,
-          color
+          color,
+          cartCount: cartCount || 0
         };
       }
       return pos;
@@ -1408,7 +1430,8 @@ const ShippingPage: React.FC = () => {
                 const currentTripType = getCurrentTripType(truck.truckNumber);
                 const canAcceptNewInvoices = canTruckAcceptNewInvoices(truck.truckNumber);
                 const allInvoicesSigned = areAllInvoicesSigned(truck);
-                const canMarkComplete = allInvoicesSigned && !isCompleted;
+                const hasLoadingVerification = truckLoadingVerifications[truck.truckNumber]?.isVerified || false;
+                const canMarkComplete = allInvoicesSigned && !isCompleted && hasLoadingVerification;
                 const isCurrentUserDriver = user && user.role === "Driver";
                 const isSupervisorOrAbove = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
 
@@ -1580,7 +1603,9 @@ const ShippingPage: React.FC = () => {
                                       </button>
                                       <button
                                         className={`btn btn-sm ${
-                                          invoice.hasSignature
+                                          !truckLoadingVerifications[invoice.truckNumber]?.isVerified
+                                            ? "btn-secondary"
+                                            : invoice.hasSignature
                                             ? "btn-success"
                                             : "btn-outline-success"
                                         }`}
@@ -1588,20 +1613,27 @@ const ShippingPage: React.FC = () => {
                                           e.stopPropagation();
                                           handleSignatureCapture(invoice);
                                         }}
+                                        disabled={!truckLoadingVerifications[invoice.truckNumber]?.isVerified}
                                         title={
-                                          invoice.hasSignature
+                                          !truckLoadingVerifications[invoice.truckNumber]?.isVerified
+                                            ? "Loading verification required before signatures"
+                                            : invoice.hasSignature
                                             ? "Update signature"
                                             : "Capture signature"
                                         }
                                       >
                                         <i
                                           className={`bi ${
-                                            invoice.hasSignature
+                                            !truckLoadingVerifications[invoice.truckNumber]?.isVerified
+                                              ? "bi-lock"
+                                              : invoice.hasSignature
                                               ? "bi-pencil-square"
                                               : "bi-pen"
                                           }`}
                                         ></i>
-                                        {invoice.hasSignature ? "Update" : "Sign"}
+                                        {!truckLoadingVerifications[invoice.truckNumber]?.isVerified
+                                          ? "Locked"
+                                          : invoice.hasSignature ? "Update" : "Sign"}
                                       </button>
                                     </div>
                                   </div>
@@ -1620,6 +1652,38 @@ const ShippingPage: React.FC = () => {
                           </small>
                         </div>
                         
+                        {/* Truck Loading Verification Button Section */}
+                        <div className="d-flex gap-2 align-items-center mb-2">
+                          {!hasLoadingVerification && !isCompleted && (
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => handleVerifyTruckLoading(truck.truckNumber)}
+                              disabled={verifyingTruckLoading === truck.truckNumber}
+                              title="Verify truck loading and cart count"
+                            >
+                              {verifyingTruckLoading === truck.truckNumber ? (
+                                <div className="spinner-border spinner-border-sm" role="status">
+                                  <span className="visually-hidden">Processing...</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <i className="bi bi-clipboard-check"></i> Verify Loading
+                                </>
+                              )}
+                            </button>
+                          )}
+                          
+                          {hasLoadingVerification && !isCompleted && (
+                            <button
+                              className="btn btn-sm btn-outline-info"
+                              onClick={() => handleViewLoadingDiagram(truck.truckNumber)}
+                              title="View truck loading diagram"
+                            >
+                              <i className="bi bi-eye"></i> View Layout
+                            </button>
+                          )}
+                        </div>
+
                         {/* Completion Button Section */}
                         <div className="d-flex gap-2 align-items-center">
                           {isCompleted ? (
@@ -1647,29 +1711,53 @@ const ShippingPage: React.FC = () => {
                               )}
                             </div>
                           ) : (
-                            canMarkComplete && isCurrentUserDriver && (
-                              <button
-                                className="btn btn-sm btn-success"
-                                onClick={() => markTruckAsCompleted(truck.truckNumber)}
-                                disabled={completingTruck === truck.truckNumber}
-                                title={`Mark ${currentTripType} as completed`}
-                              >
-                                {completingTruck === truck.truckNumber ? (
-                                  <div className="spinner-border spinner-border-sm text-white" role="status">
-                                    <span className="visually-hidden">Processing...</span>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <i className="bi bi-flag-fill"></i> Complete {currentTripType}
-                                  </>
-                                )}
-                              </button>
-                            )
+                            <>
+                              {canMarkComplete && isCurrentUserDriver && (
+                                <button
+                                  className="btn btn-sm btn-success"
+                                  onClick={() => markTruckAsCompleted(truck.truckNumber)}
+                                  disabled={completingTruck === truck.truckNumber}
+                                  title={`Mark ${currentTripType} as completed`}
+                                >
+                                  {completingTruck === truck.truckNumber ? (
+                                    <div className="spinner-border spinner-border-sm text-white" role="status">
+                                      <span className="visually-hidden">Processing...</span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <i className="bi bi-flag-fill"></i> Complete {currentTripType}
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                              
+                              {!canMarkComplete && isCurrentUserDriver && !isCompleted && (
+                                <button
+                                  className="btn btn-sm btn-secondary"
+                                  disabled={true}
+                                  title={
+                                    !allInvoicesSigned 
+                                      ? "All invoices must have signatures first"
+                                      : !hasLoadingVerification
+                                      ? "Truck loading verification must be completed first"
+                                      : "Cannot mark as complete"
+                                  }
+                                >
+                                  <i className="bi bi-flag"></i> Complete {currentTripType}
+                                </button>
+                              )}
+                            </>
                           )}
                           
                           {!allInvoicesSigned && !isCompleted && (
                             <small className="text-warning">
                               <i className="bi bi-exclamation-triangle-fill"></i> Pending signatures
+                            </small>
+                          )}
+                          
+                          {allInvoicesSigned && !hasLoadingVerification && !isCompleted && (
+                            <small className="text-warning">
+                              <i className="bi bi-diagram-3"></i> Loading verification required
                             </small>
                           )}
                         </div>
@@ -1972,8 +2060,11 @@ const ShippingPage: React.FC = () => {
                                     >
                                       {position?.clientId ? (
                                         <>
-                                          <small className="fw-bold text-white text-center" style={{ fontSize: "10px", lineHeight: "1" }}>
+                                          <small className="fw-bold text-white text-center" style={{ fontSize: "9px", lineHeight: "1" }}>
                                             {position.clientName}
+                                          </small>
+                                          <small className="fw-bold text-white text-center" style={{ fontSize: "8px", lineHeight: "1" }}>
+                                            {position.cartCount || 0} carts
                                           </small>
                                           <button
                                             className="btn btn-sm position-absolute"
@@ -2022,7 +2113,7 @@ const ShippingPage: React.FC = () => {
                             <h6 className="mb-2">
                               Assign Client to Position {selectedPosition.row + 1}-{selectedPosition.col + 1}
                             </h6>
-                            <div className="d-flex flex-wrap gap-2">
+                            <div className="d-flex flex-wrap gap-2 mb-3">
                               {getUniqueClientsFromTruck(truck).map((client, index) => (
                                 <button
                                   key={client.id}
@@ -2033,21 +2124,38 @@ const ShippingPage: React.FC = () => {
                                     border: "none"
                                   }}
                                   onClick={() => {
+                                    // Find any existing position for this client to get their cart count
+                                    const existingPositions = truckDiagram.filter(p => p.clientId === client.id);
+                                    const alreadyPlaced = existingPositions.reduce((sum, pos) => sum + (pos.cartCount || 0), 0);
+                                    const remainingCarts = client.totalCarts - alreadyPlaced;
+                                    
+                                    // If client already has all their carts placed, don't allow more positions
+                                    if (remainingCarts <= 0) {
+                                      alert(`${client.name} already has all ${client.totalCarts} carts placed on the truck. Cannot assign to additional positions.`);
+                                      return;
+                                    }
+                                    
+                                    // Use a reasonable default (but don't exceed remaining carts)
+                                    const defaultCartCount = Math.min(remainingCarts, Math.max(1, Math.floor(remainingCarts / 2)));
+                                    
                                     assignClientToPosition(
                                       selectedPosition.row, 
                                       selectedPosition.col, 
                                       client.id, 
                                       client.name, 
-                                      availableColors[index % availableColors.length]
+                                      availableColors[index % availableColors.length],
+                                      defaultCartCount
                                     );
                                     setSelectedPosition(null);
                                   }}
                                   title={`Assign ${client.name} to this position`}
                                 >
                                   {client.name}
-                                  <small>({client.totalCarts})</small>
+                                  <small>({client.totalCarts} total)</small>
                                 </button>
                               ))}
+                            </div>
+                            <div className="d-flex gap-2">
                               <button
                                 className="btn btn-sm btn-outline-secondary"
                                 onClick={() => setSelectedPosition(null)}
@@ -2057,6 +2165,164 @@ const ShippingPage: React.FC = () => {
                             </div>
                           </div>
                         )}
+
+                        {/* Edit Cart Count for Selected Position */}
+                        {(() => {
+                          const currentPosition = truckDiagram.find(p => 
+                            selectedPosition && p.row === selectedPosition.row && p.col === selectedPosition.col && p.clientId
+                          );
+                          
+                          if (currentPosition && selectedPosition) {
+                            return (
+                              <div className="mt-2 p-3 border rounded" style={{ backgroundColor: "#fff3cd" }}>
+                                <h6 className="mb-2">
+                                  Edit Cart Count for {currentPosition.clientName} at Position {selectedPosition.row + 1}-{selectedPosition.col + 1}
+                                </h6>
+                                <div className="d-flex align-items-center gap-2">
+                                  <label className="form-label mb-0">Cart Count:</label>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    style={{ width: "80px" }}
+                                    min="0"
+                                    max={(() => {
+                                      // Get the client's total expected carts
+                                      const client = getUniqueClientsFromTruck(truck).find(c => c.id === currentPosition.clientId);
+                                      if (!client) return 0;
+                                      
+                                      // Calculate how many carts this client already has placed in other positions
+                                      const otherPositionsTotal = truckDiagram
+                                        .filter(p => p.clientId === currentPosition.clientId && 
+                                                    !(p.row === selectedPosition.row && p.col === selectedPosition.col))
+                                        .reduce((sum, pos) => sum + (pos.cartCount || 0), 0);
+                                      
+                                      // Maximum for this position = total expected - already placed elsewhere
+                                      return Math.max(0, client.totalCarts - otherPositionsTotal);
+                                    })()}
+                                    value={currentPosition.cartCount || 0}
+                                    onChange={(e) => {
+                                      const newCount = parseInt(e.target.value) || 0;
+                                      const client = getUniqueClientsFromTruck(truck).find(c => c.id === currentPosition.clientId);
+                                      
+                                      if (client) {
+                                        // Calculate how many carts this client already has placed in other positions
+                                        const otherPositionsTotal = truckDiagram
+                                          .filter(p => p.clientId === currentPosition.clientId && 
+                                                      !(p.row === selectedPosition.row && p.col === selectedPosition.col))
+                                          .reduce((sum, pos) => sum + (pos.cartCount || 0), 0);
+                                        
+                                        // Check if the new count would exceed the client's total
+                                        if (otherPositionsTotal + newCount > client.totalCarts) {
+                                          alert(`Cannot place ${newCount} carts for ${client.name}. Maximum allowed: ${client.totalCarts - otherPositionsTotal} (${client.totalCarts} total - ${otherPositionsTotal} already placed)`);
+                                          return;
+                                        }
+                                      }
+                                      
+                                      setTruckDiagram(prev => prev.map(pos => {
+                                        if (pos.row === selectedPosition.row && pos.col === selectedPosition.col) {
+                                          return { ...pos, cartCount: newCount };
+                                        }
+                                        return pos;
+                                      }));
+                                    }}
+                                  />
+                                  <button
+                                    className="btn btn-sm btn-success"
+                                    onClick={() => setSelectedPosition(null)}
+                                  >
+                                    Done
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+
+                        {/* Diagram Cart Count Summary */}
+                        <div className="mt-3 p-3 border rounded" style={{ backgroundColor: "#f8f9fa" }}>
+                          <h6 className="mb-2">Cart Count Summary from Diagram</h6>
+                          <div className="row">
+                            {(() => {
+                              const diagramTotal = calculateTotalCartCountFromDiagram(truckDiagram);
+                              const clientBreakdown = getUniqueClientsFromTruck(truck).map(client => {
+                                const clientPositions = truckDiagram.filter(p => p.clientId === client.id);
+                                const clientCartCount = clientPositions.reduce((sum, pos) => sum + (pos.cartCount || 0), 0);
+                                return { ...client, cartCountFromDiagram: clientCartCount };
+                              });
+
+                              return (
+                                <>
+                                  <div className="col-md-6">
+                                    <div className="card">
+                                      <div className="card-body text-center">
+                                        <h6 className="card-title text-muted">Total from Diagram</h6>
+                                        <h4 className={`${diagramTotal === expectedCount ? 'text-success' : 'text-warning'}`}>
+                                          {diagramTotal}
+                                        </h4>
+                                        <small className="text-muted">carts placed</small>
+                                        {diagramTotal !== expectedCount && (
+                                          <div className="mt-1">
+                                            <small className="text-warning">
+                                              {diagramTotal > expectedCount ? 
+                                                `${diagramTotal - expectedCount} over expected` : 
+                                                `${expectedCount - diagramTotal} under expected`
+                                              }
+                                            </small>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="col-md-6">
+                                    <div className="table-responsive">
+                                      <table className="table table-sm">
+                                        <thead>
+                                          <tr>
+                                            <th>Client</th>
+                                            <th className="text-center">Expected</th>
+                                            <th className="text-center">Placed</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {clientBreakdown.map(client => (
+                                            <tr key={client.id} className={client.cartCountFromDiagram > client.totalCarts ? 'table-danger' : ''}>
+                                              <td>{client.name}</td>
+                                              <td className="text-center">
+                                                <span className="badge bg-info">{client.totalCarts}</span>
+                                              </td>
+                                              <td className="text-center">
+                                                <span className={`badge ${
+                                                  client.cartCountFromDiagram === client.totalCarts ? 'bg-success' : 
+                                                  client.cartCountFromDiagram > client.totalCarts ? 'bg-danger' : 'bg-warning'
+                                                }`}>
+                                                  {client.cartCountFromDiagram}
+                                                  {client.cartCountFromDiagram > client.totalCarts && (
+                                                    <i className="bi bi-exclamation-triangle-fill ms-1" title="Exceeds expected count!"></i>
+                                                  )}
+                                                </span>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                  <div className="col-12 mt-2">
+                                    <button
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={() => {
+                                        setActualCartCount(diagramTotal);
+                                      }}
+                                    >
+                                      <i className="bi bi-arrow-down-circle"></i> Use Diagram Total ({diagramTotal}) as Actual Count
+                                    </button>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="mb-3">

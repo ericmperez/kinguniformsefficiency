@@ -25,7 +25,7 @@ export const sendInvoiceEmail = async (
   try {
     const emailData: EmailData = {
       to: client.email || "",
-      cc: emailSettings.ccEmails || [],
+      cc: (emailSettings.ccEmails || []).filter(email => email && email.trim() !== ""),
       subject: emailSettings.subject || `Invoice #${invoice.invoiceNumber || invoice.id} - ${client.name}`,
       body: generateEmailBody(client, invoice, emailSettings.bodyTemplate)
     };
@@ -475,9 +475,11 @@ export const validateEmailSettings = (
   }
   
   if (emailSettings.ccEmails) {
-    const invalidEmails = emailSettings.ccEmails.filter(email => {
+    // Filter out empty strings first
+    const nonEmptyEmails = emailSettings.ccEmails.filter(email => email && email.trim() !== "");
+    const invalidEmails = nonEmptyEmails.filter(email => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return !emailRegex.test(email);
+      return !emailRegex.test(email.trim());
     });
     
     if (invalidEmails.length > 0) {

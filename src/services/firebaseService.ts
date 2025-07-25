@@ -207,21 +207,25 @@ export const updateInvoice = async (
   invoice: Partial<Invoice>
 ): Promise<void> => {
   try {
-    console.log("Updating invoice in Firebase:", { invoiceId, invoice });
+    console.log("🔥 Firebase updateInvoice called:", { invoiceId, invoice });
     const invoiceRef = doc(db, "invoices", invoiceId);
     const invoiceDoc = await getDoc(invoiceRef);
     if (!invoiceDoc.exists()) {
+      console.error("❌ Invoice does not exist:", invoiceId);
       throw new Error(`Invoice with ID ${invoiceId} does not exist`);
     }
+    
     // Sanitize invoice data before sending to Firestore
     const sanitizedInvoice = sanitizeForFirestore({
       ...invoice,
       updatedAt: new Date().toISOString(),
     });
+    
+    console.log("💾 Writing to Firestore:", { invoiceId, sanitizedInvoice });
     await updateDoc(invoiceRef, sanitizedInvoice);
-    console.log("Invoice updated successfully");
+    console.log("✅ Invoice updated successfully in Firestore");
   } catch (error) {
-    console.error("Error updating invoice:", error);
+    console.error("❌ Error updating invoice:", error);
     throw error;
   }
 };

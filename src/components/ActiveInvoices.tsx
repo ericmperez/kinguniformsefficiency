@@ -382,9 +382,9 @@ export default function ActiveInvoices({
     if (invoice) {
       // Log the approval activity
       if (user?.username) {
-        await logActivity({
+        await        logActivity({
           type: "Invoice",
-          message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} invoice #${invoice.id}`,
+          message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} invoice #${invoice.invoiceNumber || invoice.id}`,
           user: user.username,
         });
       }
@@ -544,22 +544,50 @@ export default function ActiveInvoices({
     setInvoicesState(invoices);
   }, [invoices]);
 
-  // Real-time Firestore listener for invoices
+  // Real-time Firestore listener for invoices with debouncing
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     const unsub = onSnapshot(
       collection(db, "invoices"),
       (snapshot) => {
-        const updated = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Invoice[];
-        setInvoicesState(updated);
+        console.log("🔄 Real-time Firestore update received, docs:", snapshot.docs.length);
+        
+        // Clear any pending update
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        // Debounce updates to prevent rapid state changes
+        timeoutId = setTimeout(() => {
+          const updated = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Invoice[];
+          
+          console.log("📱 Updating invoicesState with", updated.length, "invoices");
+          setInvoicesState(updated);
+          
+          // If modal is open, update selectedInvoice with latest data
+          if (showInvoiceDetailsModal && selectedInvoice) {
+            const updatedSelectedInvoice = updated.find(inv => inv.id === selectedInvoice.id);
+            if (updatedSelectedInvoice) {
+              console.log("🔄 Updating selectedInvoice with latest data:", {
+                invoiceId: updatedSelectedInvoice.id,
+                carts: updatedSelectedInvoice.carts?.map(c => ({ id: c.id, name: c.name }))
+              });
+              setSelectedInvoice({ ...updatedSelectedInvoice });
+            }
+          }
+        }, 50); // 50ms debounce
       },
       (error) => {
         console.error("Error listening to invoices:", error);
       }
     );
-    return () => unsub();
+    
+    return () => {
+      unsub();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   // Refresh invoices from Firestore
@@ -755,7 +783,7 @@ export default function ActiveInvoices({
       if (user?.username) {
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to invoice #${selectedInvoiceId}`,
+          message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to invoice #${invoice.invoiceNumber || invoice.id}`,
           user: user.username,
         });
       }
@@ -1154,10 +1182,19 @@ export default function ActiveInvoices({
   // Handler to select an invoice (for card click)
   function handleInvoiceClick(invoiceId: string) {
     const invoice = invoicesState.find((inv) => inv.id === invoiceId);
+    console.log("🔍 handleInvoiceClick:", { 
+      invoiceId, 
+      foundInvoice: !!invoice, 
+      carts: invoice?.carts?.map(c => ({ id: c.id, name: c.name })),
+      timestamp: new Date().toISOString()
+    });
+    
     if (invoice) {
-      setSelectedInvoice(invoice);
+      // Ensure we have the latest invoice data
+      setSelectedInvoice({ ...invoice }); // Create a new object to trigger re-render
       setShowInvoiceDetailsModal(true);
     }
+    
     if (typeof setSelectedInvoiceId === "function") {
       setSelectedInvoiceId(invoiceId);
     }
@@ -1736,9 +1773,9 @@ export default function ActiveInvoices({
                                 });
                               }
                               if (user?.username) {
-                                await logActivity({
+                                await                                logActivity({
                                   type: "Invoice",
-                                  message: `User ${user.username} marked invoice #${invoice.id} as active (uncompleted)`,
+                                  message: `User ${user.username} marked invoice #${invoice.invoiceNumber || invoice.id} as active (uncompleted)`,
                                   user: user.username,
                                 });
                               }
@@ -1752,9 +1789,9 @@ export default function ActiveInvoices({
                               triggerApprovalAnimation(invoice.id, "partial");
 
                               if (user?.username) {
-                                await logActivity({
+                                await                                logActivity({
                                   type: "Invoice",
-                                  message: `User ${user.username} marked invoice #${invoice.id} as completed`,
+                                  message: `User ${user.username} marked invoice #${invoice.invoiceNumber || invoice.id} as completed`,
                                   user: user.username,
                                 });
                               }
@@ -1835,9 +1872,9 @@ export default function ActiveInvoices({
                                 verifiedAt: "",
                               });
                               if (user?.username) {
-                                await logActivity({
+                                await                                logActivity({
                                   type: "Invoice",
-                                  message: `User ${user.username} removed approval from invoice #${invoice.id}`,
+                                  message: `User ${user.username} removed approval from invoice #${invoice.invoiceNumber || invoice.id}`,
                                   user: user.username,
                                 });
                               }
@@ -1921,9 +1958,9 @@ export default function ActiveInvoices({
                                   deliveryDate: "",
                                 });
                                 if (user?.username) {
-                                  await logActivity({
+                                  await                                  logActivity({
                                     type: "Invoice",
-                                    message: `User ${user.username} unshipped invoice #${invoice.id}`,
+                                    message: `User ${user.username} unshipped invoice #${invoice.invoiceNumber || invoice.id}`,
                                     user: user.username,
                                   });
                                 }
@@ -2173,15 +2210,22 @@ export default function ActiveInvoices({
                                   newName.trim() &&
                                   newName !== cart.name
                                 ) {
-                                  const updatedCarts = (carts || []).map((c) =>
-                                    c.id === cart.id
-                                      ? { ...c, name: newName.trim() }
-                                      : c
-                                  );
-                                  await onUpdateInvoice(invoice.id, {
-                                    carts: updatedCarts,
-                                  });
-                                  await refreshInvoices(); // <-- Ensure UI syncs with Firestore
+                                  try {
+                                    const updatedCarts = (carts || []).map((c) =>
+                                      c.id === cart.id
+                                        ? { ...c, name: newName.trim() }
+                                        : c
+                                    );
+                                    await onUpdateInvoice(invoice.id, {
+                                      carts: updatedCarts,
+                                    });
+                                    // Small delay to ensure Firestore write is propagated
+                                    await new Promise(resolve => setTimeout(resolve, 100));
+                                    // The real-time listener will automatically update the UI
+                                  } catch (error: any) {
+                                    console.error("Error updating cart name:", error);
+                                    alert(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
+                                  }
                                 }
                               }}
                             >
@@ -3287,9 +3331,9 @@ export default function ActiveInvoices({
                       deliveryDate: new Date(shippedDeliveryDate + "T00:00:00").toISOString(),
                     });
                     if (user?.username) {
-                      await logActivity({
+                      await                      logActivity({
                         type: "Invoice",
-                        message: `User ${user.username} marked invoice #${invoice.id} as shipped (Truck #${shippedTruckNumber}, Delivery Date: ${shippedDeliveryDate})`,
+                        message: `User ${user.username} marked invoice #${invoice.invoiceNumber || invoice.id} as shipped (Truck #${shippedTruckNumber}, Delivery Date: ${shippedDeliveryDate})`,
                         user: user.username,
                       });
                     }
@@ -3734,10 +3778,16 @@ export default function ActiveInvoices({
       {/* Invoice Details Modal */}
       {showInvoiceDetailsModal && selectedInvoice && (
         <InvoiceDetailsModal
-          invoice={
-            invoicesState.find((inv) => inv.id === selectedInvoice.id) ||
-            selectedInvoice
-          }
+          invoice={(() => {
+            const currentInvoice = invoicesState.find((inv) => inv.id === selectedInvoice.id) || selectedInvoice;
+            console.log("📤 Passing invoice to modal:", { 
+              invoiceId: currentInvoice.id, 
+              carts: currentInvoice.carts?.map(c => ({ id: c.id, name: c.name })),
+              fromState: !!invoicesState.find((inv) => inv.id === selectedInvoice.id),
+              selectedInvoiceId: selectedInvoice.id
+            });
+            return currentInvoice;
+          })()}
           client={clients.find((c) => c.id === selectedInvoice.clientId)}
           products={products}
           onClose={() => setShowInvoiceDetailsModal(false)}
@@ -3749,19 +3799,39 @@ export default function ActiveInvoices({
             if (cartName.startsWith("__delete__")) {
               const cartId = cartName.replace("__delete__", "");
               const updatedCarts = invoice.carts.filter((c) => c.id !== cartId);
-              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-              await refreshInvoices();
-              return { id: cartId, name: "", isActive: false };
+              try {
+                await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+                // Small delay to ensure Firestore write is propagated
+                await new Promise(resolve => setTimeout(resolve, 100));
+                // The real-time listener will handle global updates
+                return { id: cartId, name: "", isActive: false };
+              } catch (error: any) {
+                console.error("Error deleting cart:", error);
+                throw new Error(`Failed to delete cart: ${error?.message || 'Unknown error'}`);
+              }
             }
             if (cartName.startsWith("__edit__")) {
               const [_, cartId, ...nameParts] = cartName.split("__");
               const newName = nameParts.join("__");
+              console.log("🔧 Cart editing request:", { cartId, oldName: invoice.carts.find(c => c.id === cartId)?.name, newName });
+              
               const updatedCarts = invoice.carts.map((c) =>
                 c.id === cartId ? { ...c, name: newName } : c
               );
-              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-              await refreshInvoices();
-              return { id: cartId, name: newName, isActive: true };
+              
+              try {
+                console.log("💾 Updating cart in Firestore...", { invoiceId: invoice.id, updatedCarts });
+                await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+                console.log("✅ Cart update successful in Firestore");
+                
+                // Small delay to ensure Firestore write is propagated before real-time listener updates
+                await new Promise(resolve => setTimeout(resolve, 100));
+                // The real-time listener will automatically update the UI
+                return { id: cartId, name: newName, isActive: true };
+              } catch (error: any) {
+                console.error("❌ Error updating cart name:", error);
+                throw new Error(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
+              }
             }
             // --- Invoice Name Edit Logic ---
             if (cartName.startsWith("__invoice_name__")) {

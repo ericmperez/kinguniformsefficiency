@@ -77,6 +77,26 @@ const Segregation: React.FC<SegregationProps> = ({
       typeof g.status === "string" &&
       ["segregacion", "segregation"].includes(g.status.toLowerCase())
   );
+  
+  // Debug logging for segregation groups
+  useEffect(() => {
+    if (segregationGroups.length > 0) {
+      console.log("🔍 [SEGREGATION GROUPS] Current groups in segregation:");
+      segregationGroups.forEach((group, idx) => {
+        console.log(`   ${idx + 1}. ${group.clientName} (ID: ${group.id}) - Status: ${group.status}`);
+      });
+    }
+  }, [segregationGroups.map(g => g.id + g.status).join(',')]);
+  
+  // Debug logging for all groups with their statuses
+  useEffect(() => {
+    if (groups.length > 0) {
+      console.log("📊 [ALL GROUPS STATUS] Current status of all groups:");
+      groups.forEach((group) => {
+        console.log(`   ${group.clientName || 'Unknown'} (${group.id}): ${group.status || 'No status'}`);
+      });
+    }
+  }, [groups.map(g => g.id + (g.status || '')).join(',')]);
 
   // Only set group status to 'Segregation' if it is in a pre-segregation state (e.g., 'Pickup Complete')
   useEffect(() => {
@@ -185,8 +205,8 @@ const Segregation: React.FC<SegregationProps> = ({
         if (typeof a.order === "number") return -1;
         if (typeof b.order === "number") return 1;
         // If neither has order, sort by timestamp or ID
-        const timeA = a.startTime?.getTime() || new Date(a.id.substring(0, 8), 16).getTime() || 0;
-        const timeB = b.startTime?.getTime() || new Date(b.id.substring(0, 8), 16).getTime() || 0;
+        const timeA = (a.startTime instanceof Date ? a.startTime.getTime() : a.startTime?.toDate?.()?.getTime()) || new Date(a.id.substring(0, 8), 16).getTime() || 0;
+        const timeB = (b.startTime instanceof Date ? b.startTime.getTime() : b.startTime?.toDate?.()?.getTime()) || new Date(b.id.substring(0, 8), 16).getTime() || 0;
         return timeA - timeB;
       });
       
@@ -658,8 +678,14 @@ const Segregation: React.FC<SegregationProps> = ({
   // Handler to skip segregation for a group
   const handleSkipSegregation = async (groupId: string) => {
     setCompletingGroup(groupId);
+    
+    const group = groups.find((g) => g.id === groupId);
+    console.log("🚀 [SKIP SEGREGATION] ===================");
+    console.log(`📱 Skipping segregation for: ${group?.clientName || groupId}`);
+    console.log(`📊 Current status: ${group?.status}`);
+    console.log(`🏷️ Group ID: ${groupId}`);
+    
     try {
-      const group = groups.find((g) => g.id === groupId);
       const client = clients.find((c) => c.id === group?.clientId);
       // Use the current cart count as the segregatedCarts value
       const cartCount = getCartCount(groupId);
@@ -668,6 +694,7 @@ const Segregation: React.FC<SegregationProps> = ({
       
       if (client?.washingType === "Tunnel") {
         newStatus = "Tunnel";
+        console.log(`🔄 Client washing type is Tunnel, changing status to: ${newStatus}`);
         // Find max order among existing Tunnel groups and add 1 to put at bottom
         const existingTunnelGroups = groups.filter(
           (g) =>
@@ -680,7 +707,9 @@ const Segregation: React.FC<SegregationProps> = ({
           -1
         );
         orderUpdate = { order: maxOrder + 1 };
+        console.log(`📈 Assigned tunnel order: ${maxOrder + 1}`);
       } else {
+        console.log(`🔄 Client washing type is Conventional, changing status to: ${newStatus}`);
         // For Conventional groups, also assign order to put at bottom
         const existingConventionalGroups = groups.filter(
           (g) =>
@@ -693,13 +722,52 @@ const Segregation: React.FC<SegregationProps> = ({
           -1
         );
         orderUpdate = { order: maxOrder + 1 };
+        console.log(`📈 Assigned conventional order: ${maxOrder + 1}`);
       }
       
-      await updateDoc(doc(db, "pickup_groups", groupId), {
+      console.log(`💾 Updating Firestore with status: ${newStatus}, order: ${orderUpdate.order}`);
+      
+      // Update Firestore
+      const groupRef = doc(db, "pickup_groups", groupId);
+      await updateDoc(groupRef, {
         segregatedCarts: cartCount,
         status: newStatus,
         ...orderUpdate,
       });
+      
+      console.log(`✅ Firestore update complete`);
+      
+      // Verify the update worked by reading back the document
+      try {
+        const { getDoc } = await import("firebase/firestore");
+        const updatedDoc = await getDoc(groupRef);
+        if (updatedDoc.exists()) {
+          const updatedData = updatedDoc.data();
+          console.log(`🔍 Verification: Status is now "${updatedData.status}"`);
+          if (updatedData.status !== newStatus) {
+            console.error(`❌ Status update failed! Expected: "${newStatus}", Got: "${updatedData.status}"`);
+            throw new Error(`Status update verification failed. Expected ${newStatus}, got ${updatedData.status}`);
+          }
+        } else {
+          console.error(`❌ Document ${groupId} no longer exists after update!`);
+          throw new Error("Document disappeared after update");
+        }
+      } catch (verifyError) {
+        console.error(`❌ Error verifying update:`, verifyError);
+        throw verifyError;
+      }
+      
+      console.log(`📤 Group should now disappear from segregation and appear in ${newStatus}`);
+      
+      // Force immediate UI update to prevent race conditions
+      setGroups((prevGroups) => 
+        prevGroups.map((g) => 
+          g.id === groupId 
+            ? { ...g, status: newStatus, segregatedCarts: cartCount, ...orderUpdate }
+            : g
+        )
+      );
+      
       setStatusUpdating(groupId);
       setSegregatedCounts((prev) => ({
         ...prev,
@@ -711,8 +779,24 @@ const Segregation: React.FC<SegregationProps> = ({
         message: `Group ${getGroupDisplayName(groupId, group)} skipped segregation by ${getCurrentUser()}`,
         user: getCurrentUser(),
       });
+      
+      // Delayed verification to catch race conditions
+      setTimeout(() => {
+        console.log(`🕐 [DELAYED CHECK] Group ${groupId} (${group?.clientName}) should no longer be in segregation`);
+        const stillInSegregation = groups.some(g => 
+          g.id === groupId && 
+          typeof g.status === "string" && 
+          ["segregacion", "segregation"].includes(g.status.toLowerCase())
+        );
+        if (stillInSegregation) {
+          console.warn(`⚠️ Group ${groupId} is still showing in segregation after skip!`);
+        }
+      }, 2000);
+      
+      console.log("🏁 [END SKIP SEGREGATION] ==============");
     } catch (err) {
-      alert("Error skipping segregation for this group");
+      console.error("❌ Error skipping segregation:", err);
+      alert(`Error skipping segregation for this group: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setCompletingGroup(null);
     }

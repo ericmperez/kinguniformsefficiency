@@ -1186,19 +1186,82 @@ King Uniforms Team`;
                 </div>
 
                 <div className="mb-3">
-                  <label htmlFor="ccEmails" className="form-label">
-                    CC Emails (comma-separated)
+                  <label className="form-label">
+                    CC Emails
+                    <small className="text-muted ms-2">(Additional recipients)</small>
                   </label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    id="ccEmails"
-                    value={
-                      selectedClient.printConfig?.emailSettings?.ccEmails?.join(
-                        ", "
-                      ) || ""
-                    }
-                    onChange={(e) => {
+                  
+                  {/* Existing CC Email inputs */}
+                  {(selectedClient.printConfig?.emailSettings?.ccEmails || []).map((email, index) => (
+                    <div key={index} className="input-group mb-2">
+                      <input
+                        type="email"
+                        className="form-control"
+                        value={email}
+                        onChange={(e) => {
+                          // Create a safe copy of the current config
+                          const safeConfig = selectedClient.printConfig || {
+                            ...defaultPrintConfig,
+                          };
+                          // Create a safe copy of email settings
+                          const safeEmailSettings = safeConfig.emailSettings || {
+                            ...defaultPrintConfig.emailSettings,
+                          };
+                          
+                          const newCcEmails = [...(safeEmailSettings.ccEmails || [])];
+                          newCcEmails[index] = e.target.value;
+
+                          setSelectedClient({
+                            ...selectedClient,
+                            printConfig: {
+                              ...safeConfig,
+                              emailSettings: {
+                                ...safeEmailSettings,
+                                ccEmails: newCcEmails,
+                              },
+                            },
+                          });
+                        }}
+                        placeholder={`cc-email-${index + 1}@example.com`}
+                      />
+                      <button
+                        className="btn btn-outline-danger"
+                        type="button"
+                        onClick={() => {
+                          // Create a safe copy of the current config
+                          const safeConfig = selectedClient.printConfig || {
+                            ...defaultPrintConfig,
+                          };
+                          // Create a safe copy of email settings
+                          const safeEmailSettings = safeConfig.emailSettings || {
+                            ...defaultPrintConfig.emailSettings,
+                          };
+                          
+                          const newCcEmails = (safeEmailSettings.ccEmails || []).filter((_, i) => i !== index);
+
+                          setSelectedClient({
+                            ...selectedClient,
+                            printConfig: {
+                              ...safeConfig,
+                              emailSettings: {
+                                ...safeEmailSettings,
+                                ccEmails: newCcEmails,
+                              },
+                            },
+                          });
+                        }}
+                        title="Remove this CC email"
+                      >
+                        <i className="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  ))}
+                  
+                  {/* Add new CC email button */}
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary btn-sm"
+                    onClick={() => {
                       // Create a safe copy of the current config
                       const safeConfig = selectedClient.printConfig || {
                         ...defaultPrintConfig,
@@ -1207,6 +1270,8 @@ King Uniforms Team`;
                       const safeEmailSettings = safeConfig.emailSettings || {
                         ...defaultPrintConfig.emailSettings,
                       };
+                      
+                      const newCcEmails = [...(safeEmailSettings.ccEmails || []), ""];
 
                       setSelectedClient({
                         ...selectedClient,
@@ -1214,16 +1279,21 @@ King Uniforms Team`;
                           ...safeConfig,
                           emailSettings: {
                             ...safeEmailSettings,
-                            ccEmails: e.target.value
-                              .split(",")
-                              .map((email) => email.trim())
-                              .filter((email) => email),
+                            ccEmails: newCcEmails,
                           },
                         },
                       });
                     }}
-                    placeholder="admin@example.com, manager@example.com"
-                  />
+                  >
+                    <i className="bi bi-plus-circle me-1"></i>
+                    Add CC Email
+                  </button>
+                  
+                  {(selectedClient.printConfig?.emailSettings?.ccEmails || []).length === 0 && (
+                    <div className="text-muted small mt-1">
+                      Click "Add CC Email" to include additional recipients on all emails
+                    </div>
+                  )}
                 </div>
 
                 <div className="mb-3">
