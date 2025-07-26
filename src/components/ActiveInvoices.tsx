@@ -74,6 +74,7 @@ function getInitialCartsForGroup(groupData: any) {
       items: [],
       total: 0,
       createdAt: new Date().toISOString(),
+      createdBy: "System", // System-created initial cart
     },
   ];
 }
@@ -494,6 +495,7 @@ export default function ActiveInvoices({
           items: [],
           total: 0,
           createdAt: new Date().toISOString(),
+          createdBy: user?.username || "Unknown",
         };
         invoice.carts.push(cart);
         cartIdx = invoice.carts.length - 1;
@@ -2909,6 +2911,7 @@ export default function ActiveInvoices({
                           items: [],
                           total: 0,
                           createdAt: new Date().toISOString(),
+                          createdBy: user?.username || "Unknown",
                         };
                         updatedCarts.push(newCart);
                         cartIdx = updatedCarts.length - 1;
@@ -2949,6 +2952,7 @@ export default function ActiveInvoices({
                         ],
                         total: 0,
                         createdAt: new Date().toISOString(),
+                        createdBy: user?.username || "Unknown",
                       };
                       updatedCarts.push(newCart);
                     }
@@ -3775,6 +3779,7 @@ export default function ActiveInvoices({
               items: [],
               total: 0,
               createdAt: new Date().toISOString(),
+              createdBy: user?.username || "Unknown",
             };
             await onUpdateInvoice(invoice.id, {
               carts: [...invoice.carts, newCart],
@@ -3905,6 +3910,7 @@ export default function ActiveInvoices({
               items: [],
               total: 0,
               createdAt: new Date().toISOString(),
+              createdBy: user?.username || "Unknown",
             };
             await onUpdateInvoice(invoice.id, {
               carts: [...invoice.carts, newCart],

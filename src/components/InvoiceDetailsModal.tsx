@@ -733,10 +733,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       }}
                     >
                       {cart.name}
-                      {/* Debug render counter */}
-                      <span style={{ fontSize: 10, color: '#999', marginLeft: 8 }}>
-                        (r:{rerenderCounter})
-                      </span>
                     </h3>
                   </div>
                   <div className="d-flex gap-2">
@@ -1276,6 +1272,27 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                         </div>
                       );
                     })}
+                </div>
+                
+                {/* Cart Creator Information */}
+                <div
+                  style={{
+                    marginTop: 16,
+                    paddingTop: 12,
+                    borderTop: "1px solid #e5e7eb",
+                    fontSize: 12,
+                    color: "#6b7280",
+                    textAlign: "center",
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>
+                    Created by: {cart.createdBy || "Unknown"}
+                  </span>
+                  {cart.createdAt && (
+                    <span style={{ marginLeft: 8 }}>
+                      on {formatDateSpanish(cart.createdAt)}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

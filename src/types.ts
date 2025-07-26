@@ -82,6 +82,7 @@ export interface Cart {
   items: CartItem[];
   total: number;
   createdAt: string;
+  createdBy?: string; // Username of who created this cart
 }
 
 export interface Invoice {

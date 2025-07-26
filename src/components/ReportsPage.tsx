@@ -14,8 +14,10 @@ import { db } from "../firebase";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
 import InvoiceForm from "./InvoiceForm";
 import Report from "./Report";
+import { useAuth } from "./AuthContext";
 
 const ReportsPage: React.FC = () => {
+  const { user } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [showInvoiceDetailsModal, setShowInvoiceDetailsModal] = useState(false);
@@ -289,6 +291,7 @@ const ReportsPage: React.FC = () => {
                   items: [],
                   total: 0,
                   createdAt: new Date().toISOString(),
+                  createdBy: user?.username || "Unknown",
                 };
                 const updatedCarts = [
                   ...(selectedInvoice.carts || []),
@@ -819,6 +822,7 @@ const ReportsPage: React.FC = () => {
               items: [],
               total: 0,
               createdAt: new Date().toISOString(),
+              createdBy: user?.username || "Unknown",
             };
             const updatedCarts = [
               ...(selectedInvoice.carts || []),

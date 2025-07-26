@@ -2,6 +2,7 @@
 import React from 'react';
 import { updateInvoice } from '../services/firebaseService';
 import { Invoice, Cart } from '../types';
+import { useAuth } from './AuthContext';
 
 interface CartEditHandlerProps {
   invoice: Invoice;
@@ -11,6 +12,7 @@ interface CartEditHandlerProps {
 
 export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: Invoice) => void) => {
   const [isUpdating, setIsUpdating] = React.useState(false);
+  const { user } = useAuth();
 
   const updateCartName = async (cartId: string, newName: string): Promise<boolean> => {
     if (!newName.trim()) {
@@ -133,6 +135,7 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
         items: [],
         total: 0,
         createdAt: new Date().toISOString(),
+        createdBy: user?.username || 'Unknown',
       };
 
       // Create updated carts array
