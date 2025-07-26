@@ -96,6 +96,24 @@ function hasUnnamedCart(invoice: Invoice) {
   );
 }
 
+// Helper function to merge cart items as individual entries
+function mergeCartItems(existingItems: CartItem[], newItems: CartItem[]): CartItem[] {
+  // Simply combine all items as individual entries without grouping
+  const mergedItems = [...existingItems];
+  
+  newItems.forEach(newItem => {
+    // Add each item as a separate entry, regardless of product or price duplicates
+    mergedItems.push({
+      ...newItem,
+      addedAt: new Date().toISOString(), // Update timestamp for merged item
+      editedBy: newItem.addedBy || "System",
+      editedAt: new Date().toISOString()
+    });
+  });
+  
+  return mergedItems;
+}
+
 export default function ActiveInvoices({
   clients,
   products,
@@ -3977,13 +3995,37 @@ export default function ActiveInvoices({
               await refreshInvoices();
               return { id: invoice.id, name: cartName, isActive: true };
             }
+            // Check for duplicate cart names and handle merging
             if (
               invoice.carts.some(
                 (c) =>
                   c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
               )
             ) {
-              throw new Error("Duplicate cart name");
+              // Check if user wants to merge or create separate cart
+              const userWantsToMerge = window.confirm(
+                `A cart named "${cartName}" already exists.\n\n` +
+                `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
+              );
+              
+              if (userWantsToMerge) {
+                // Find the existing cart and return its ID for merging
+                const existingCart = invoice.carts.find(
+                  (c) => c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
+                );
+                if (existingCart) {
+                  return { id: existingCart.id, name: existingCart.name, isActive: true };
+                }
+              } else {
+                // Create a cart with numbered suffix
+                let suffix = 2;
+                let newCartName = `${cartName} (${suffix})`;
+                while (invoice.carts.some(c => c.name.trim().toLowerCase() === newCartName.trim().toLowerCase())) {
+                  suffix++;
+                  newCartName = `${cartName} (${suffix})`;
+                }
+                cartName = newCartName;
+              }
             }
             const newCart = {
               id: Date.now().toString(),
@@ -4108,13 +4150,37 @@ export default function ActiveInvoices({
               await refreshInvoices();
               return { id: invoice.id, name: cartName, isActive: true };
             }
+            // Check for duplicate cart names and handle merging
             if (
               invoice.carts.some(
                 (c) =>
                   c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
               )
             ) {
-              throw new Error("Duplicate cart name");
+              // Check if user wants to merge or create separate cart
+              const userWantsToMerge = window.confirm(
+                `A cart named "${cartName}" already exists.\n\n` +
+                `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
+              );
+              
+              if (userWantsToMerge) {
+                // Find the existing cart and return its ID for merging
+                const existingCart = invoice.carts.find(
+                  (c) => c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
+                );
+                if (existingCart) {
+                  return { id: existingCart.id, name: existingCart.name, isActive: true };
+                }
+              } else {
+                // Create a cart with numbered suffix
+                let suffix = 2;
+                let newCartName = `${cartName} (${suffix})`;
+                while (invoice.carts.some(c => c.name.trim().toLowerCase() === newCartName.trim().toLowerCase())) {
+                  suffix++;
+                  newCartName = `${cartName} (${suffix})`;
+                }
+                cartName = newCartName;
+              }
             }
             const newCart = {
               id: Date.now().toString(),

@@ -35,16 +35,7 @@ export default function LaundryCartModal({
     setCartNameError("");
     const trimmedName = newCartName.trim();
     if (!trimmedName) return;
-    // Check for duplicate name (case-insensitive)
-    const duplicate = carts.some(
-      (c) => c.name.trim().toLowerCase() === trimmedName.toLowerCase()
-    );
-    if (duplicate) {
-      setCartNameError(
-        "A cart with this name already exists. Please choose a unique name."
-      );
-      return;
-    }
+    
     try {
       const newCart = await onAddCart(trimmedName);
       await onSelect(newCart);

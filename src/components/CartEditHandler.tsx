@@ -1,8 +1,26 @@
 // Cart editing utility component with direct Firebase integration
 import React from 'react';
 import { updateInvoice } from '../services/firebaseService';
-import { Invoice, Cart } from '../types';
+import { Invoice, Cart, CartItem } from '../types';
 import { useAuth } from './AuthContext';
+
+// Helper function to merge cart items as individual entries
+function mergeCartItems(existingItems: CartItem[], newItems: CartItem[]): CartItem[] {
+  // Simply combine all items as individual entries without grouping
+  const mergedItems = [...existingItems];
+  
+  newItems.forEach(newItem => {
+    // Add each item as a separate entry, regardless of product or price duplicates
+    mergedItems.push({
+      ...newItem,
+      addedAt: new Date().toISOString(), // Update timestamp for merged item
+      editedBy: newItem.addedBy || "System",
+      editedAt: new Date().toISOString()
+    });
+  });
+  
+  return mergedItems;
+}
 
 interface CartEditHandlerProps {
   invoice: Invoice;
@@ -19,13 +37,59 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
       throw new Error('Cart name cannot be empty');
     }
 
-    // Check for duplicate cart names
+    // Check for duplicate cart names (excluding the current cart being edited)
     const existingCart = invoice.carts.find(c => 
       c.id !== cartId && c.name.trim().toLowerCase() === newName.trim().toLowerCase()
     );
     
     if (existingCart) {
-      throw new Error('A cart with this name already exists');
+      // Instead of throwing an error, show merge dialog like the main handlers
+      const userWantsToMerge = window.confirm(
+        `A cart named "${newName.trim()}" already exists.\n\n` +
+        `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
+      );
+      
+      if (userWantsToMerge) {
+        // Merge the current cart items into the existing cart
+        const currentCart = invoice.carts.find(c => c.id === cartId);
+        if (currentCart && currentCart.items && currentCart.items.length > 0) {
+          // Merge items from current cart into existing cart using the same logic as ActiveInvoices
+          const mergedItems = mergeCartItems(existingCart.items || [], currentCart.items);
+          const updatedCarts = invoice.carts
+            .map(cart => cart.id === existingCart.id 
+              ? { ...cart, items: mergedItems, total: mergedItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) }
+              : cart
+            )
+            .filter(cart => cart.id !== cartId); // Remove the current cart
+          
+          await updateInvoice(invoice.id, { carts: updatedCarts });
+          
+          const updatedInvoice = { ...invoice, carts: updatedCarts };
+          onCartUpdate(updatedInvoice);
+          
+          console.log('✅ Cart merged successfully');
+          return true;
+        } else {
+          // If current cart has no items, just delete it and return existing cart ID
+          const updatedCarts = invoice.carts.filter(cart => cart.id !== cartId);
+          await updateInvoice(invoice.id, { carts: updatedCarts });
+          
+          const updatedInvoice = { ...invoice, carts: updatedCarts };
+          onCartUpdate(updatedInvoice);
+          
+          console.log('✅ Empty cart removed, existing cart kept');
+          return true;
+        }
+      } else {
+        // Create a cart with numbered suffix
+        let suffix = 2;
+        let newCartName = `${newName.trim()} (${suffix})`;
+        while (invoice.carts.some(c => c.name.trim().toLowerCase() === newCartName.trim().toLowerCase())) {
+          suffix++;
+          newCartName = `${newName.trim()} (${suffix})`;
+        }
+        newName = newCartName;
+      }
     }
 
     setIsUpdating(true);
@@ -111,13 +175,31 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
       throw new Error('Cart name cannot be empty');
     }
 
-    // Check for duplicate cart names
+    // Check for duplicate cart names and handle merging
     const existingCart = invoice.carts.find(c => 
       c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
     );
     
     if (existingCart) {
-      throw new Error('A cart with this name already exists');
+      // Show merge dialog like the main handlers
+      const userWantsToMerge = window.confirm(
+        `A cart named "${cartName.trim()}" already exists.\n\n` +
+        `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
+      );
+      
+      if (userWantsToMerge) {
+        // Return the existing cart for merging
+        return existingCart;
+      } else {
+        // Create a cart with numbered suffix
+        let suffix = 2;
+        let newCartName = `${cartName.trim()} (${suffix})`;
+        while (invoice.carts.some(c => c.name.trim().toLowerCase() === newCartName.trim().toLowerCase())) {
+          suffix++;
+          newCartName = `${cartName.trim()} (${suffix})`;
+        }
+        cartName = newCartName;
+      }
     }
 
     setIsUpdating(true);
