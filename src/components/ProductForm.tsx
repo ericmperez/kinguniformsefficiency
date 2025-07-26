@@ -150,18 +150,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                   <tr key={product.id}>
                     <td>{product.name}</td>
                     <td style={{ width: "60px" }}>
-                      {product.imageUrl && (
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="rounded"
-                          style={{
-                            width: "40px",
-                            height: "40px",
-                            objectFit: "cover",
-                          }}
-                        />
-                      )}
+                      {/* Product image removed - showing name only */}
+                      -
                     </td>
                     <td>
                       <div className="d-flex gap-2">

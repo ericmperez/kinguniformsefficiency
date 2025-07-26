@@ -11,6 +11,7 @@ import InvoiceForm from "./InvoiceForm";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
 import LaundryCartModal from "./LaundryCartModal";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
+import SignatureModal from "./SignatureModal";
 import {
   getAllPickupGroups,
   updatePickupGroupStatus,
@@ -664,11 +665,17 @@ export default function ActiveInvoices({
       : "";
     setScheduleDeliveryDate(existingDeliveryDate);
     setScheduleTruckNumber(invoice.truckNumber?.toString() || "");
+    setScheduleDeliveryMethod(invoice.deliveryMethod || "truck");
   };
 
   const handleConfirmScheduleDelivery = async () => {
-    if (!scheduleDeliveryDate || !scheduleTruckNumber) {
-      alert("Please select both delivery date and truck number.");
+    if (!scheduleDeliveryDate) {
+      alert("Please select a delivery date.");
+      return;
+    }
+
+    if (scheduleDeliveryMethod === "truck" && !scheduleTruckNumber) {
+      alert("Please select a truck number for truck delivery.");
       return;
     }
 
@@ -676,15 +683,26 @@ export default function ActiveInvoices({
     if (!invoice) return;
 
     try {
-      await onUpdateInvoice(invoice.id, {
+      const updateData: Partial<Invoice> = {
         deliveryDate: new Date(scheduleDeliveryDate + "T00:00:00").toISOString(),
-        truckNumber: scheduleTruckNumber.toString(),
-      });
+        deliveryMethod: scheduleDeliveryMethod,
+      };
+
+      // Only include truck number for truck delivery
+      if (scheduleDeliveryMethod === "truck") {
+        updateData.truckNumber = scheduleTruckNumber.toString();
+      }
+
+      await onUpdateInvoice(invoice.id, updateData);
 
       if (user?.username) {
+        const deliveryMethodText = scheduleDeliveryMethod === "truck" 
+          ? `via Truck #${scheduleTruckNumber}` 
+          : "for client pickup";
+        
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} scheduled laundry ticket #${invoice.invoiceNumber || invoice.id} for delivery on ${scheduleDeliveryDate} via Truck #${scheduleTruckNumber}`,
+          message: `User ${user.username} scheduled laundry ticket #${invoice.invoiceNumber || invoice.id} for delivery on ${scheduleDeliveryDate} ${deliveryMethodText}`,
           user: user.username,
         });
       }
@@ -697,14 +715,64 @@ export default function ActiveInvoices({
       setShowDeliveryScheduleModal(null);
       setScheduleDeliveryDate("");
       setScheduleTruckNumber("");
+      setScheduleDeliveryMethod("truck");
       
       // Show print options modal after delivery is scheduled
       setShowPrintOptionsModal(invoiceId);
       
-      alert(`Laundry Ticket scheduled for delivery on ${new Date(scheduleDeliveryDate).toLocaleDateString()} via Truck #${scheduleTruckNumber}`);
+      const deliveryMethodText = scheduleDeliveryMethod === "truck" 
+        ? `via Truck #${scheduleTruckNumber}` 
+        : "for client pickup";
+      alert(`Laundry Ticket scheduled for delivery on ${new Date(scheduleDeliveryDate).toLocaleDateString()} ${deliveryMethodText}`);
     } catch (error) {
       console.error("Error scheduling delivery:", error);
       alert("Error scheduling delivery. Please try again.");
+    }
+  };
+
+  // --- Client Pickup Handler ---
+  const handleMarkAsPickedUp = (invoice: Invoice) => {
+    setPickupSignatureInvoice(invoice);
+    setShowPickupSignatureModal(invoice.id);
+  };
+
+  // --- Client Pickup Signature Saved Handler ---
+  const handlePickupSignatureSaved = async () => {
+    if (!pickupSignatureInvoice || !user) return;
+
+    try {
+      // Mark the invoice as done (picked up)
+      await onUpdateInvoice(pickupSignatureInvoice.id, {
+        status: "done",
+      });
+
+      // Log the activity
+      await logActivity({
+        type: "Invoice",
+        message: `User ${user.username} marked laundry ticket #${pickupSignatureInvoice.invoiceNumber || pickupSignatureInvoice.id} as picked up by client`,
+        user: user.username,
+      });
+
+      // Update group status if invoice has pickupGroupId
+      if (pickupSignatureInvoice.pickupGroupId) {
+        try {
+          const { updatePickupGroupStatus } = await import(
+            "../services/firebaseService"
+          );
+          await updatePickupGroupStatus(pickupSignatureInvoice.pickupGroupId, "done");
+        } catch (err) {
+          console.error("Error updating group status:", err);
+        }
+      }
+
+      // Close the modal
+      setShowPickupSignatureModal(null);
+      setPickupSignatureInvoice(null);
+
+      alert(`Laundry Ticket #${pickupSignatureInvoice.invoiceNumber || pickupSignatureInvoice.id} marked as picked up!`);
+    } catch (error) {
+      console.error("Error marking as picked up:", error);
+      alert("Error marking as picked up. Please try again.");
     }
   };
 
@@ -1127,6 +1195,11 @@ export default function ActiveInvoices({
   const [showDeliveryScheduleModal, setShowDeliveryScheduleModal] = useState<string | null>(null);
   const [scheduleDeliveryDate, setScheduleDeliveryDate] = useState("");
   const [scheduleTruckNumber, setScheduleTruckNumber] = useState("");
+  const [scheduleDeliveryMethod, setScheduleDeliveryMethod] = useState<"truck" | "client_pickup">("truck");
+
+  // Client pickup signature modal state
+  const [showPickupSignatureModal, setShowPickupSignatureModal] = useState<string | null>(null);
+  const [pickupSignatureInvoice, setPickupSignatureInvoice] = useState<Invoice | null>(null);
 
   // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
   const hasOverdue = invoices.some((inv) => {
@@ -1354,10 +1427,18 @@ export default function ActiveInvoices({
               let cardBorderColor = "";
 
               if (isVerified) {
-                // Fully approved - Green card
-                cardBackground =
-                  "linear-gradient(135deg, #dcfce7 0%, #16a34a 100%)";
-                cardBorderColor = "#16a34a";
+                // Check if this is a client pickup order - make it pink instead of green
+                if (invoice.deliveryMethod === "client_pickup") {
+                  // Fully approved client pickup - Pink card
+                  cardBackground =
+                    "linear-gradient(135deg, #fce7f3 0%, #ec4899 100%)";
+                  cardBorderColor = "#ec4899";
+                } else {
+                  // Fully approved - Green card
+                  cardBackground =
+                    "linear-gradient(135deg, #dcfce7 0%, #16a34a 100%)";
+                  cardBorderColor = "#16a34a";
+                }
               } else if (isPartiallyVerified) {
                 // Partially approved - Yellow card
                 cardBackground =
@@ -1582,7 +1663,7 @@ export default function ActiveInvoices({
                         )}
                         
                         {/* Delivery Schedule Badge */}
-                        {invoice.deliveryDate && invoice.truckNumber && (
+                        {invoice.deliveryDate && (
                           <div
                             style={{
                               display: "inline-block",
@@ -1599,10 +1680,21 @@ export default function ActiveInvoices({
                               boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                             }}
                           >
-                            🚛 {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric"
-                            })} - Truck #{invoice.truckNumber}
+                            {invoice.deliveryMethod === "client_pickup" ? (
+                              <>
+                                👤 {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric"
+                                })} - Client Pickup
+                              </>
+                            ) : (
+                              <>
+                                🚛 {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric"
+                                })} - Truck #{invoice.truckNumber || "TBD"}
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1910,96 +2002,181 @@ export default function ActiveInvoices({
                             }}
                           />
                         </button>
-                        {/* Shipped button - Step 3 */}
-                        <button
-                          className={`btn btn-sm ${
-                            invoice.status === "done"
-                              ? "btn-info"
-                              : "btn-outline-info"
-                          }`}
-                          style={{
-                            fontSize: 16,
-                            width: 44,
-                            height: 44,
-                            borderRadius: "50%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: 0,
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border:
+                        {/* Shipping/Pickup button - Step 3 - Conditional based on delivery method */}
+                        {invoice.deliveryMethod === "client_pickup" ? (
+                          /* Mark as Picked Up button for client pickup orders */
+                          <button
+                            className={`btn btn-sm ${
                               invoice.status === "done"
-                                ? "none"
-                                : "2px solid #0ea5e9",
-                          }}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (hasUnnamedCart(invoice)) {
-                              alert(
-                                'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                              );
-                              return;
-                            }
-                            if (!invoice.verified) {
-                              alert(
-                                "Laundry Ticket must be approved before it can be shipped."
-                              );
-                              return;
-                            }
-
-                            // Toggle shipping status
-                            if (invoice.status === "done") {
-                              // Unship the invoice
-                              const confirmUnship = window.confirm(
-                                "Are you sure you want to unship this invoice? This will revert it to approved status."
-                              );
-                              if (confirmUnship) {
-                                await onUpdateInvoice(invoice.id, {
-                                  status: "completed",
-                                  truckNumber: "",
-                                  deliveryDate: "",
-                                });
-                                if (user?.username) {
-                                  await                                  logActivity({
-                                    type: "Invoice",
-                                    message: `User ${user.username} unshipped laundry ticket #${invoice.invoiceNumber || invoice.id}`,
-                                    user: user.username,
-                                  });
-                                }
-                              }
-                            } else {
-                              // Ship the invoice - show modal for truck number and delivery date
-                              setShowShippedModal(invoice.id);
-                              // Pre-fill with existing values if they exist
-                              setShippedTruckNumber(invoice.truckNumber?.toString() || "");
-                              const existingDeliveryDate = invoice.deliveryDate 
-                                ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
-                                : "";
-                              setShippedDeliveryDate(existingDeliveryDate);
-                            }
-                          }}
-                          disabled={
-                            !invoice.verified || hasUnnamedCart(invoice)
-                          }
-                          title={
-                            !invoice.verified
-                              ? "Must be approved first"
-                              : hasUnnamedCart(invoice)
-                              ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
-                              : invoice.status === "done"
-                              ? "Click to unship"
-                              : "Mark as Shipped"
-                          }
-                        >
-                          <i
-                            className="bi bi-truck"
+                                ? "btn-success"
+                                : "btn-outline-success"
+                            }`}
                             style={{
-                              color:
-                                invoice.status === "done" ? "#fff" : "#0ea5e9",
-                              fontSize: 22,
+                              fontSize: 16,
+                              width: 44,
+                              height: 44,
+                              borderRadius: "50%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: 0,
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                              border:
+                                invoice.status === "done"
+                                  ? "none"
+                                  : "2px solid #22c55e",
                             }}
-                          />
-                        </button>
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (hasUnnamedCart(invoice)) {
+                                alert(
+                                  'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                );
+                                return;
+                              }
+                              if (!invoice.verified) {
+                                alert(
+                                  "Laundry Ticket must be approved before it can be marked as picked up."
+                                );
+                                return;
+                              }
+
+                              if (invoice.status === "done") {
+                                // Allow unmarking as picked up (revert to approved status)
+                                const confirmUnpickup = window.confirm(
+                                  "Are you sure you want to mark this as not picked up? This will revert it to approved status."
+                                );
+                                if (confirmUnpickup) {
+                                  await onUpdateInvoice(invoice.id, {
+                                    status: "completed",
+                                  });
+                                  if (user?.username) {
+                                    await logActivity({
+                                      type: "Invoice",
+                                      message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as not picked up`,
+                                      user: user.username,
+                                    });
+                                  }
+                                }
+                              } else {
+                                // Mark as picked up - show signature modal
+                                handleMarkAsPickedUp(invoice);
+                              }
+                            }}
+                            disabled={
+                              !invoice.verified || hasUnnamedCart(invoice)
+                            }
+                            title={
+                              !invoice.verified
+                                ? "Must be approved first"
+                                : hasUnnamedCart(invoice)
+                                ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
+                                : invoice.status === "done"
+                                ? "Click to mark as not picked up"
+                                : "Mark as Picked Up"
+                            }
+                          >
+                            <i
+                              className="bi bi-person-check"
+                              style={{
+                                color:
+                                  invoice.status === "done" ? "#fff" : "#22c55e",
+                                fontSize: 22,
+                              }}
+                            />
+                          </button>
+                        ) : (
+                          /* Shipped button for truck delivery orders */
+                          <button
+                            className={`btn btn-sm ${
+                              invoice.status === "done"
+                                ? "btn-info"
+                                : "btn-outline-info"
+                            }`}
+                            style={{
+                              fontSize: 16,
+                              width: 44,
+                              height: 44,
+                              borderRadius: "50%",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: 0,
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                              border:
+                                invoice.status === "done"
+                                  ? "none"
+                                  : "2px solid #0ea5e9",
+                            }}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (hasUnnamedCart(invoice)) {
+                                alert(
+                                  'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                );
+                                return;
+                              }
+                              if (!invoice.verified) {
+                                alert(
+                                  "Laundry Ticket must be approved before it can be shipped."
+                                );
+                                return;
+                              }
+
+                              // Toggle shipping status
+                              if (invoice.status === "done") {
+                                // Unship the invoice
+                                const confirmUnship = window.confirm(
+                                  "Are you sure you want to unship this invoice? This will revert it to approved status."
+                                );
+                                if (confirmUnship) {
+                                  await onUpdateInvoice(invoice.id, {
+                                    status: "completed",
+                                    truckNumber: "",
+                                    deliveryDate: "",
+                                  });
+                                  if (user?.username) {
+                                    await logActivity({
+                                      type: "Invoice",
+                                      message: `User ${user.username} unshipped laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+                                      user: user.username,
+                                    });
+                                  }
+                                }
+                              } else {
+                                // Ship the invoice - show modal for truck number and delivery date
+                                setShowShippedModal(invoice.id);
+                                // Pre-fill with existing values if they exist
+                                setShippedTruckNumber(invoice.truckNumber?.toString() || "");
+                                const existingDeliveryDate = invoice.deliveryDate 
+                                  ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
+                                  : "";
+                                setShippedDeliveryDate(existingDeliveryDate);
+                              }
+                            }}
+                            disabled={
+                              !invoice.verified || hasUnnamedCart(invoice)
+                            }
+                            title={
+                              !invoice.verified
+                                ? "Must be approved first"
+                                : hasUnnamedCart(invoice)
+                                ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
+                                : invoice.status === "done"
+                                ? "Click to unship"
+                                : "Mark as Shipped"
+                            }
+                          >
+                            <i
+                              className="bi bi-truck"
+                              style={{
+                                color:
+                                  invoice.status === "done" ? "#fff" : "#0ea5e9",
+                                fontSize: 22,
+                              }}
+                            />
+                          </button>
+                        )}
                       </div>
                       {/* Show approval status and details on invoice card */}
                       {(invoice.verified || invoice.partiallyVerified) && (
@@ -2285,43 +2462,6 @@ export default function ActiveInvoices({
                                 setKeypadQuantity(1);
                               }}
                             >
-                              {/* Show product image or icon */}
-                              {(() => {
-                                const name = product.name.toLowerCase();
-                                if (
-                                  name.includes("scrub shirt") ||
-                                  name.includes("scrub top") ||
-                                  name.includes("scrub")
-                                ) {
-                                  return (
-                                    <img
-                                      src={"/images/products/scrubshirt.png"}
-                                      alt="Scrub Shirt"
-                                      style={{
-                                        width: "100%",
-                                        height: 90,
-                                        objectFit: "contain",
-                                        borderRadius: 8,
-                                      }}
-                                    />
-                                  );
-                                }
-                                if (product.imageUrl) {
-                                  return (
-                                    <img
-                                      src={product.imageUrl}
-                                      alt={product.name}
-                                      style={{
-                                        width: "100%",
-                                        height: 90,
-                                        objectFit: "cover",
-                                        borderRadius: 8,
-                                      }}
-                                    />
-                                  );
-                                }
-                                return null;
-                              })()}
                               <div className="card-body py-2 px-3 text-center">
                                 <div
                                   className="fw-bold"
@@ -3494,7 +3634,48 @@ export default function ActiveInvoices({
               <div className="modal-body">
                 <div className="alert alert-info">
                   <i className="bi bi-info-circle-fill me-2"></i>
-                  <strong>Laundry Ticket Approved!</strong> Now schedule the delivery date and truck assignment. You can skip this step if you want to schedule later.
+                  <strong>Laundry Ticket Approved!</strong> Now schedule the delivery date and method. You can skip this step if you want to schedule later.
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">
+                    <strong>Delivery Method</strong> <span className="text-danger">*</span>
+                  </label>
+                  <div className="d-flex gap-3">
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="deliveryMethod"
+                        id="deliveryMethodTruck"
+                        value="truck"
+                        checked={scheduleDeliveryMethod === "truck"}
+                        onChange={(e) => setScheduleDeliveryMethod(e.target.value as "truck" | "client_pickup")}
+                      />
+                      <label className="form-check-label" htmlFor="deliveryMethodTruck">
+                        <i className="bi bi-truck me-1"></i>
+                        Truck Delivery
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="deliveryMethod"
+                        id="deliveryMethodPickup"
+                        value="client_pickup"
+                        checked={scheduleDeliveryMethod === "client_pickup"}
+                        onChange={(e) => setScheduleDeliveryMethod(e.target.value as "truck" | "client_pickup")}
+                      />
+                      <label className="form-check-label" htmlFor="deliveryMethodPickup">
+                        <i className="bi bi-person-check me-1"></i>
+                        Pick Up by Client
+                      </label>
+                    </div>
+                  </div>
+                  <small className="form-text text-muted">
+                    Choose whether to deliver via truck or have client pick up at facility
+                  </small>
                 </div>
                 
                 <div className="mb-3">
@@ -3510,40 +3691,53 @@ export default function ActiveInvoices({
                     required
                   />
                   <small className="form-text text-muted">
-                    Select tomorrow or any future date for delivery
+                    {scheduleDeliveryMethod === "truck" 
+                      ? "Select tomorrow or any future date for delivery" 
+                      : "Select date when client will pick up the order"}
                   </small>
                 </div>
 
-                <div className="mb-3">
-                  <label className="form-label">
-                    <strong>Truck Number</strong> <span className="text-danger">*</span>
-                  </label>
-                  <select
-                    className="form-select"
-                    value={scheduleTruckNumber}
-                    onChange={(e) => setScheduleTruckNumber(e.target.value)}
-                    required
-                  >
-                    <option value="">Select truck number...</option>
-                    {Array.from({ length: 10 }, (_, i) => 30 + i).map(num => (
-                      <option key={num} value={num}>Truck #{num}</option>
-                    ))}
-                  </select>
-                  <small className="form-text text-muted">
-                    Available trucks: #30 through #39
-                  </small>
-                </div>
+                {scheduleDeliveryMethod === "truck" && (
+                  <div className="mb-3">
+                    <label className="form-label">
+                      <strong>Truck Number</strong> <span className="text-danger">*</span>
+                    </label>
+                    <select
+                      className="form-select"
+                      value={scheduleTruckNumber}
+                      onChange={(e) => setScheduleTruckNumber(e.target.value)}
+                      required
+                    >
+                      <option value="">Select truck number...</option>
+                      {Array.from({ length: 10 }, (_, i) => 30 + i).map(num => (
+                        <option key={num} value={num}>Truck #{num}</option>
+                      ))}
+                    </select>
+                    <small className="form-text text-muted">
+                      Available trucks: #30 through #39
+                    </small>
+                  </div>
+                )}
 
-                {scheduleDeliveryDate && scheduleTruckNumber && (
+                {scheduleDeliveryDate && (scheduleDeliveryMethod === "client_pickup" || scheduleTruckNumber) && (
                   <div className="alert alert-success">
                     <i className="bi bi-check-circle-fill me-2"></i>
                     <strong>Ready to schedule:</strong><br />
-                    Delivery on {new Date(scheduleDeliveryDate).toLocaleDateString("en-US", {
-                      weekday: "long",
-                      year: "numeric", 
-                      month: "long",
-                      day: "numeric"
-                    })} via Truck #{scheduleTruckNumber}
+                    {scheduleDeliveryMethod === "truck" ? (
+                      <>Delivery on {new Date(scheduleDeliveryDate).toLocaleDateString("en-US", {
+                        weekday: "long",
+                        year: "numeric", 
+                        month: "long",
+                        day: "numeric"
+                      })} via Truck #{scheduleTruckNumber}</>
+                    ) : (
+                      <>Client pickup on {new Date(scheduleDeliveryDate).toLocaleDateString("en-US", {
+                        weekday: "long",
+                        year: "numeric", 
+                        month: "long",
+                        day: "numeric"
+                      })}</>
+                    )}
                   </div>
                 )}
               </div>
@@ -3568,6 +3762,7 @@ export default function ActiveInvoices({
                     setShowDeliveryScheduleModal(null);
                     setScheduleDeliveryDate("");
                     setScheduleTruckNumber("");
+                    setScheduleDeliveryMethod("truck");
                     // Skip delivery scheduling and go directly to print options
                     if (invoiceId) {
                       setShowPrintOptionsModal(invoiceId);
@@ -3579,16 +3774,33 @@ export default function ActiveInvoices({
                 </button>
                 <button
                   className="btn btn-primary"
-                  disabled={!scheduleDeliveryDate || !scheduleTruckNumber}
+                  disabled={!scheduleDeliveryDate || (scheduleDeliveryMethod === "truck" && !scheduleTruckNumber)}
                   onClick={handleConfirmScheduleDelivery}
                 >
                   <i className="bi bi-calendar-check me-1"></i>
-                  Schedule Delivery
+                  Schedule {scheduleDeliveryMethod === "truck" ? "Delivery" : "Pickup"}
                 </button>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Client Pickup Signature Modal */}
+      {showPickupSignatureModal && pickupSignatureInvoice && (
+        <SignatureModal
+          show={!!showPickupSignatureModal}
+          onClose={() => {
+            setShowPickupSignatureModal(null);
+            setPickupSignatureInvoice(null);
+          }}
+          invoiceId={pickupSignatureInvoice.id}
+          invoiceNumber={pickupSignatureInvoice.invoiceNumber?.toString()}
+          clientName={pickupSignatureInvoice.clientName}
+          clientId={pickupSignatureInvoice.clientId}
+          invoice={pickupSignatureInvoice}
+          onSignatureSaved={handlePickupSignatureSaved}
+        />
       )}
 
       {/* Unship Recent Invoices Modal */}

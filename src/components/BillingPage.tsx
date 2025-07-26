@@ -2651,23 +2651,6 @@ const BillingPage: React.FC = () => {
                                         fontSize: 13,
                                       }}
                                     >
-                                      {lower.includes("scrub shirt") ||
-                                      lower.includes("scrub top") ||
-                                      lower.includes("scrub") ? (
-                                        <img
-                                          src={
-                                            "/images/products/scrubshirt.png"
-                                          }
-                                          alt="Scrub Shirt"
-                                          style={{
-                                            width: 20,
-                                            height: 20,
-                                            objectFit: "contain",
-                                            marginRight: 6,
-                                            verticalAlign: "middle",
-                                          }}
-                                        />
-                                      ) : null}
                                       {name}
                                     </td>
                                     <td

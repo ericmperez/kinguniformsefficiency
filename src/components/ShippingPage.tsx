@@ -1046,10 +1046,17 @@ const ShippingPage: React.FC = () => {
         // Only include invoices matching the selected date
         if (invoiceDate !== date) return;
 
-        // Assign a default truck number if not set
-        const truckNumberStr = invoiceData.truckNumber
-          ? (typeof invoiceData.truckNumber === "number" ? String(invoiceData.truckNumber) : String(invoiceData.truckNumber))
-          : "TBD"; // To Be Determined
+        // Handle truck number based on delivery method
+        let truckNumberStr;
+        if (invoiceData.deliveryMethod === "client_pickup") {
+          // Skip client pickup orders - they should stay in Active Invoices page
+          return;
+        } else {
+          // For truck delivery, assign default truck number if not set
+          truckNumberStr = invoiceData.truckNumber
+            ? (typeof invoiceData.truckNumber === "number" ? String(invoiceData.truckNumber) : String(invoiceData.truckNumber))
+            : "TBD"; // To Be Determined
+        }
 
         // Calculate cart count
         const cartCount = invoiceData.carts?.length || 0;
@@ -1440,8 +1447,15 @@ const ShippingPage: React.FC = () => {
                     className="col-md-6 col-lg-4 mb-4"
                     key={truck.truckNumber}
                   >
-                    <div className={`card shadow-sm truck-card ${isCompleted ? 'border-success' : ''}`}>
-                      <div className={`card-header truck-header ${isCompleted ? 'bg-success text-white' : ''}`}>
+                    <div className={`card shadow-sm truck-card ${
+                      isCompleted ? 'border-success' : ''
+                    } ${truck.truckNumber === "CLIENT_PICKUP" ? 'bg-light-pink' : ''}`} 
+                    style={truck.truckNumber === "CLIENT_PICKUP" ? { backgroundColor: '#fce4ec' } : {}}>
+                      <div className={`card-header truck-header ${
+                        isCompleted ? 'bg-success text-white' : 
+                        truck.truckNumber === "CLIENT_PICKUP" ? 'bg-pink text-dark' : ''
+                      }`} 
+                      style={truck.truckNumber === "CLIENT_PICKUP" && !isCompleted ? { backgroundColor: '#f8bbd9' } : {}}>
                         <div className="d-flex justify-content-between align-items-center">
                           <h4 className="mb-0">
                             {isCompleted && <i className="bi bi-check-circle-fill me-2"></i>}
@@ -1486,8 +1500,8 @@ const ShippingPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="card-body">
-                        {/* Driver Assignment Section - Only show for non-driver users */}
-                        {(!user || user.role !== "Driver") && (
+                        {/* Driver Assignment Section - Only show for non-driver users and actual trucks */}
+                        {(!user || user.role !== "Driver") && truck.truckNumber !== "CLIENT_PICKUP" && (
                           <div className="mb-3">
                             <label className="form-label fw-bold">
                               <i className="bi bi-person"></i> Assign Driver
@@ -1652,40 +1666,43 @@ const ShippingPage: React.FC = () => {
                           </small>
                         </div>
                         
-                        {/* Truck Loading Verification Button Section */}
-                        <div className="d-flex gap-2 align-items-center mb-2">
-                          {!hasLoadingVerification && !isCompleted && (
-                            <button
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() => handleVerifyTruckLoading(truck.truckNumber)}
-                              disabled={verifyingTruckLoading === truck.truckNumber}
-                              title="Verify truck loading and cart count"
-                            >
-                              {verifyingTruckLoading === truck.truckNumber ? (
-                                <div className="spinner-border spinner-border-sm" role="status">
-                                  <span className="visually-hidden">Processing...</span>
-                                </div>
-                              ) : (
-                                <>
-                                  <i className="bi bi-clipboard-check"></i> Verify Loading
-                                </>
-                              )}
-                            </button>
-                          )}
-                          
-                          {hasLoadingVerification && !isCompleted && (
-                            <button
-                              className="btn btn-sm btn-outline-info"
-                              onClick={() => handleViewLoadingDiagram(truck.truckNumber)}
-                              title="View truck loading diagram"
-                            >
-                              <i className="bi bi-eye"></i> View Layout
-                            </button>
-                          )}
-                        </div>
+                        {/* Truck Loading Verification Button Section - Only for actual trucks */}
+                        {truck.truckNumber !== "CLIENT_PICKUP" && (
+                          <div className="d-flex gap-2 align-items-center mb-2">
+                            {!hasLoadingVerification && !isCompleted && (
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => handleVerifyTruckLoading(truck.truckNumber)}
+                                disabled={verifyingTruckLoading === truck.truckNumber}
+                                title="Verify truck loading and cart count"
+                              >
+                                {verifyingTruckLoading === truck.truckNumber ? (
+                                  <div className="spinner-border spinner-border-sm" role="status">
+                                    <span className="visually-hidden">Processing...</span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <i className="bi bi-clipboard-check"></i> Verify Loading
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            
+                            {hasLoadingVerification && !isCompleted && (
+                              <button
+                                className="btn btn-sm btn-outline-info"
+                                onClick={() => handleViewLoadingDiagram(truck.truckNumber)}
+                                title="View truck loading diagram"
+                              >
+                                <i className="bi bi-eye"></i> View Layout
+                              </button>
+                            )}
+                          </div>
+                        )}
 
-                        {/* Completion Button Section */}
-                        <div className="d-flex gap-2 align-items-center">
+                        {/* Completion Button Section - Only for actual trucks */}
+                        {truck.truckNumber !== "CLIENT_PICKUP" && (
+                          <div className="d-flex gap-2 align-items-center">
                           {isCompleted ? (
                             <div className="d-flex align-items-center gap-2">
                               <span className="badge bg-success">
@@ -1761,10 +1778,12 @@ const ShippingPage: React.FC = () => {
                             </small>
                           )}
                         </div>
+                        )}
                       </div>
                       
-                      {/* Trip Status Information Section */}
-                      <div className="mt-3 p-3 bg-light border-top">
+                      {/* Trip Status Information Section - Only for actual trucks */}
+                      {truck.truckNumber !== "CLIENT_PICKUP" && (
+                        <div className="mt-3 p-3 bg-light border-top">
                         <h6 className="mb-2">
                           <i className="bi bi-info-circle me-1"></i>
                           Trip Status Information
@@ -1802,9 +1821,10 @@ const ShippingPage: React.FC = () => {
                           ) : null;
                         })()}
                       </div>
+                      )}
                       
-                      {/* Truck Loading Diagram Display */}
-                      {truckLoadingVerifications[truck.truckNumber] && (
+                      {/* Truck Loading Diagram Display - Only for actual trucks */}
+                      {truck.truckNumber !== "CLIENT_PICKUP" && truckLoadingVerifications[truck.truckNumber] && (
                         <div className="mt-3 p-2 bg-light border-top">
                           <h6 className="mb-2 text-center">
                             <i className="bi bi-diagram-3 me-1"></i>

@@ -890,18 +890,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                     setKeypadQty("");
                                   }}
                                 >
-                                  {product.imageUrl && (
-                                    <img
-                                      src={product.imageUrl}
-                                      alt={product.name}
-                                      style={{
-                                        width: "100%",
-                                        height: 90,
-                                        objectFit: "cover",
-                                        borderRadius: 8,
-                                      }}
-                                    />
-                                  )}
                                   <div className="card-body py-2 px-3 text-center">
                                     <div
                                       className="fw-bold"
@@ -1079,105 +1067,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                             style={{ background: "#fff", minHeight: 72 }}
                           >
                             <div className="d-flex align-items-center mb-2">
-                              <div
-                                style={{
-                                  width: 48,
-                                  height: 48,
-                                  marginRight: 12,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  fontSize: 32,
-                                }}
-                              >
-                                {product.imageUrl ? (
-                                  <img
-                                    src={product.imageUrl}
-                                    alt={product.name}
-                                    style={{
-                                      width: 40,
-                                      height: 40,
-                                      objectFit: "contain",
-                                    }}
-                                  />
-                                ) : (
-                                  (() => {
-                                    const name = product.name.toLowerCase();
-                                    if (
-                                      name.includes("scrub shirt") ||
-                                      name.includes("scrub top") ||
-                                      name.includes("scrub")
-                                    )
-                                      return (
-                                        <img
-                                          src="/images/products/scrubshirt.png"
-                                          alt="Scrub Shirt"
-                                          style={{
-                                            width: 40,
-                                            height: 40,
-                                            objectFit: "contain",
-                                          }}
-                                        />
-                                      );
-                                    if (name.includes("sábanas"))
-                                      return (
-                                        <span role="img" aria-label="sheets">
-                                          🛏️
-                                        </span>
-                                      );
-                                    if (name.includes("fundas"))
-                                      return (
-                                        <span role="img" aria-label="covers">
-                                          🧺
-                                        </span>
-                                      );
-                                    if (name.includes("toallas de baño"))
-                                      return (
-                                        <span
-                                          role="img"
-                                          aria-label="bath towel"
-                                        >
-                                          🛁
-                                        </span>
-                                      );
-                                    if (name.includes("toalla de piso"))
-                                      return (
-                                        <span
-                                          role="img"
-                                          aria-label="floor towel"
-                                        >
-                                          🧍
-                                        </span>
-                                      );
-                                    if (name.includes("toalla de cara"))
-                                      return (
-                                        <span
-                                          role="img"
-                                          aria-label="face towel"
-                                        >
-                                          🧻
-                                        </span>
-                                      );
-                                    if (name.includes("frisas"))
-                                      return (
-                                        <span role="img" aria-label="frisas">
-                                          🦢
-                                        </span>
-                                      );
-                                    if (name.includes("cortinas"))
-                                      return (
-                                        <span role="img" aria-label="curtains">
-                                          🪟
-                                        </span>
-                                      );
-                                    return (
-                                      <span role="img" aria-label="product">
-                                        🖼️
-                                      </span>
-                                    );
-                                  })()
-                                )}
-                              </div>
                               <div style={{ flex: 1 }}>
                                 <div
                                   style={{

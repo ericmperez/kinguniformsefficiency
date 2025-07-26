@@ -110,6 +110,7 @@ export interface Invoice {
   tripNumber?: number; // Trip number (1 or 2) for this truck
   tripType?: "Trip 1" | "Trip 2"; // Descriptive trip label
   deliveryDate?: string; // Add delivery date for shipped invoices
+  deliveryMethod?: "truck" | "client_pickup"; // Delivery method: truck delivery or client pickup
   pickupGroupId?: string; // Link to pickup group if present
   name?: string; // Optional invoice-level name
   highlight?: "yellow" | "blue"; // Real-time highlight sync
