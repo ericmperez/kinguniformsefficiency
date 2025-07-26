@@ -11,7 +11,6 @@ import InvoiceForm from "./InvoiceForm";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
 import LaundryCartModal from "./LaundryCartModal";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
-import SignatureModal from "./SignatureModal";
 import {
   getAllPickupGroups,
   updatePickupGroupStatus,
@@ -75,7 +74,6 @@ function getInitialCartsForGroup(groupData: any) {
       items: [],
       total: 0,
       createdAt: new Date().toISOString(),
-      createdBy: "System", // System-created initial cart
     },
   ];
 }
@@ -94,24 +92,6 @@ function hasUnnamedCart(invoice: Invoice) {
   return (invoice.carts || []).some((c) =>
     c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
   );
-}
-
-// Helper function to merge cart items as individual entries
-function mergeCartItems(existingItems: CartItem[], newItems: CartItem[]): CartItem[] {
-  // Simply combine all items as individual entries without grouping
-  const mergedItems = [...existingItems];
-  
-  newItems.forEach(newItem => {
-    // Add each item as a separate entry, regardless of product or price duplicates
-    mergedItems.push({
-      ...newItem,
-      addedAt: new Date().toISOString(), // Update timestamp for merged item
-      editedBy: newItem.addedBy || "System",
-      editedAt: new Date().toISOString()
-    });
-  });
-  
-  return mergedItems;
 }
 
 export default function ActiveInvoices({
@@ -200,13 +180,6 @@ export default function ActiveInvoices({
     getUsers().then((userList) => setUsers(userList));
   }, []);
 
-  // --- Invoice Merge State ---
-  const [showMergeModal, setShowMergeModal] = useState(false);
-  const [mergeSourceInvoiceId, setMergeSourceInvoiceId] = useState<string | null>(null);
-  const [mergeTargetInvoiceId, setMergeTargetInvoiceId] = useState<string>("");
-  const [mergeLoading, setMergeLoading] = useState(false);
-  const [mergeError, setMergeError] = useState("");
-
   // --- Verification State ---
   const [verifyInvoiceId, setVerifyInvoiceId] = useState<string | null>(null);
   const [verifyChecks, setVerifyChecks] = useState<{
@@ -229,6 +202,13 @@ export default function ActiveInvoices({
   const [showInvoicePrintModal, setShowInvoicePrintModal] = useState<
     string | null
   >(null);
+
+  // --- Invoice Merge State ---
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeSourceInvoiceId, setMergeSourceInvoiceId] = useState<string | null>(null);
+  const [mergeTargetInvoiceId, setMergeTargetInvoiceId] = useState<string>("");
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [mergeError, setMergeError] = useState("");
 
   // --- Product Confirmation State ---
   const [showAddConfirmation, setShowAddConfirmation] = useState(false);
@@ -409,9 +389,9 @@ export default function ActiveInvoices({
     if (invoice) {
       // Log the approval activity
       if (user?.username) {
-        await        logActivity({
+        await logActivity({
           type: "Invoice",
-          message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+          message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} invoice #${invoice.id}`,
           user: user.username,
         });
       }
@@ -462,7 +442,7 @@ export default function ActiveInvoices({
               console.log(`Auto-sent invoice email to ${client.email}`);
               await logActivity({
                 type: "Invoice",
-                message: `Laundry Ticket #${invoice.invoiceNumber || invoice.id} auto-sent to ${client.name} (${client.email}) on approval`,
+                message: `Invoice #${invoice.invoiceNumber || invoice.id} auto-sent to ${client.name} (${client.email}) on approval`,
               });
             }
           } catch (error) {
@@ -471,8 +451,8 @@ export default function ActiveInvoices({
           }
         }
 
-        // Show delivery scheduling modal first after approval
-        setShowDeliveryScheduleModal(invoice.id);
+        // Show print options after approval
+        setShowPrintOptionsModal(invoice.id);
       }
 
       openPrintInvoice({
@@ -521,7 +501,6 @@ export default function ActiveInvoices({
           items: [],
           total: 0,
           createdAt: new Date().toISOString(),
-          createdBy: user?.username || "Unknown",
         };
         invoice.carts.push(cart);
         cartIdx = invoice.carts.length - 1;
@@ -572,50 +551,22 @@ export default function ActiveInvoices({
     setInvoicesState(invoices);
   }, [invoices]);
 
-  // Real-time Firestore listener for invoices with debouncing
+  // Real-time Firestore listener for invoices
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    
     const unsub = onSnapshot(
       collection(db, "invoices"),
       (snapshot) => {
-        console.log("🔄 Real-time Firestore update received, docs:", snapshot.docs.length);
-        
-        // Clear any pending update
-        if (timeoutId) clearTimeout(timeoutId);
-        
-        // Debounce updates to prevent rapid state changes
-        timeoutId = setTimeout(() => {
-          const updated = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Invoice[];
-          
-          console.log("📱 Updating invoicesState with", updated.length, "invoices");
-          setInvoicesState(updated);
-          
-          // If modal is open, update selectedInvoice with latest data
-          if (showInvoiceDetailsModal && selectedInvoice) {
-            const updatedSelectedInvoice = updated.find(inv => inv.id === selectedInvoice.id);
-            if (updatedSelectedInvoice) {
-              console.log("🔄 Updating selectedInvoice with latest data:", {
-                invoiceId: updatedSelectedInvoice.id,
-                carts: updatedSelectedInvoice.carts?.map(c => ({ id: c.id, name: c.name }))
-              });
-              setSelectedInvoice({ ...updatedSelectedInvoice });
-            }
-          }
-        }, 50); // 50ms debounce
+        const updated = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Invoice[];
+        setInvoicesState(updated);
       },
       (error) => {
         console.error("Error listening to invoices:", error);
       }
     );
-    
-    return () => {
-      unsub();
-      if (timeoutId) clearTimeout(timeoutId);
-    };
+    return () => unsub();
   }, []);
 
   // Refresh invoices from Firestore
@@ -650,7 +601,7 @@ export default function ActiveInvoices({
     if (user?.username) {
       await logActivity({
         type: "Invoice",
-        message: `User ${user.username} opened Create New Laundry Ticket modal`,
+        message: `User ${user.username} opened Create New Invoice modal`,
         user: user.username,
       });
     }
@@ -678,127 +629,7 @@ export default function ActiveInvoices({
     setShowUnshipModal(false);
     setUnshipSelectedIds([]);
     await refreshInvoices();
-    alert(`Unshipped laundry tickets: ${unshipSelectedIds.join(", ")}`);
-  };
-
-  // --- Delivery Schedule Handler ---
-  const handleScheduleDelivery = (invoice: Invoice) => {
-    setShowDeliveryScheduleModal(invoice.id);
-    // Pre-fill with current values if they exist
-    const existingDeliveryDate = invoice.deliveryDate 
-      ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
-      : "";
-    setScheduleDeliveryDate(existingDeliveryDate);
-    setScheduleTruckNumber(invoice.truckNumber?.toString() || "");
-    setScheduleDeliveryMethod(invoice.deliveryMethod || "truck");
-  };
-
-  const handleConfirmScheduleDelivery = async () => {
-    if (!scheduleDeliveryDate) {
-      alert("Please select a delivery date.");
-      return;
-    }
-
-    if (scheduleDeliveryMethod === "truck" && !scheduleTruckNumber) {
-      alert("Please select a truck number for truck delivery.");
-      return;
-    }
-
-    const invoice = invoicesState.find(inv => inv.id === showDeliveryScheduleModal);
-    if (!invoice) return;
-
-    try {
-      const updateData: Partial<Invoice> = {
-        deliveryDate: new Date(scheduleDeliveryDate + "T00:00:00").toISOString(),
-        deliveryMethod: scheduleDeliveryMethod,
-      };
-
-      // Only include truck number for truck delivery
-      if (scheduleDeliveryMethod === "truck") {
-        updateData.truckNumber = scheduleTruckNumber.toString();
-      }
-
-      await onUpdateInvoice(invoice.id, updateData);
-
-      if (user?.username) {
-        const deliveryMethodText = scheduleDeliveryMethod === "truck" 
-          ? `via Truck #${scheduleTruckNumber}` 
-          : "for client pickup";
-        
-        await logActivity({
-          type: "Invoice",
-          message: `User ${user.username} scheduled laundry ticket #${invoice.invoiceNumber || invoice.id} for delivery on ${scheduleDeliveryDate} ${deliveryMethodText}`,
-          user: user.username,
-        });
-      }
-
-      await refreshInvoices();
-      
-      // Store the invoice ID before clearing the delivery modal
-      const invoiceId = invoice.id;
-      
-      setShowDeliveryScheduleModal(null);
-      setScheduleDeliveryDate("");
-      setScheduleTruckNumber("");
-      setScheduleDeliveryMethod("truck");
-      
-      // Show print options modal after delivery is scheduled
-      setShowPrintOptionsModal(invoiceId);
-      
-      const deliveryMethodText = scheduleDeliveryMethod === "truck" 
-        ? `via Truck #${scheduleTruckNumber}` 
-        : "for client pickup";
-      alert(`Laundry Ticket scheduled for delivery on ${new Date(scheduleDeliveryDate).toLocaleDateString()} ${deliveryMethodText}`);
-    } catch (error) {
-      console.error("Error scheduling delivery:", error);
-      alert("Error scheduling delivery. Please try again.");
-    }
-  };
-
-  // --- Client Pickup Handler ---
-  const handleMarkAsPickedUp = (invoice: Invoice) => {
-    setPickupSignatureInvoice(invoice);
-    setShowPickupSignatureModal(invoice.id);
-  };
-
-  // --- Client Pickup Signature Saved Handler ---
-  const handlePickupSignatureSaved = async () => {
-    if (!pickupSignatureInvoice || !user) return;
-
-    try {
-      // Mark the invoice as done (picked up)
-      await onUpdateInvoice(pickupSignatureInvoice.id, {
-        status: "done",
-      });
-
-      // Log the activity
-      await logActivity({
-        type: "Invoice",
-        message: `User ${user.username} marked laundry ticket #${pickupSignatureInvoice.invoiceNumber || pickupSignatureInvoice.id} as picked up by client`,
-        user: user.username,
-      });
-
-      // Update group status if invoice has pickupGroupId
-      if (pickupSignatureInvoice.pickupGroupId) {
-        try {
-          const { updatePickupGroupStatus } = await import(
-            "../services/firebaseService"
-          );
-          await updatePickupGroupStatus(pickupSignatureInvoice.pickupGroupId, "done");
-        } catch (err) {
-          console.error("Error updating group status:", err);
-        }
-      }
-
-      // Close the modal
-      setShowPickupSignatureModal(null);
-      setPickupSignatureInvoice(null);
-
-      alert(`Laundry Ticket #${pickupSignatureInvoice.invoiceNumber || pickupSignatureInvoice.id} marked as picked up!`);
-    } catch (error) {
-      console.error("Error marking as picked up:", error);
-      alert("Error marking as picked up. Please try again.");
-    }
+    alert(`Unshipped invoices: ${unshipSelectedIds.join(", ")}`);
   };
 
   // --- Delete Confirmation Logic ---
@@ -811,7 +642,7 @@ export default function ActiveInvoices({
       if (user?.username) {
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} deleted laundry ticket #${
+          message: `User ${user.username} deleted invoice #${
             invoiceToDelete.invoiceNumber || invoiceToDelete.id
           }`,
           user: user.username,
@@ -878,7 +709,7 @@ export default function ActiveInvoices({
       if (user?.username) {
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+          message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to invoice #${selectedInvoiceId}`,
           user: user.username,
         });
       }
@@ -1216,16 +1047,6 @@ export default function ActiveInvoices({
   const [shippedTruckNumber, setShippedTruckNumber] = useState("");
   const [shippedDeliveryDate, setShippedDeliveryDate] = useState("");
 
-  // Delivery scheduling modal state
-  const [showDeliveryScheduleModal, setShowDeliveryScheduleModal] = useState<string | null>(null);
-  const [scheduleDeliveryDate, setScheduleDeliveryDate] = useState("");
-  const [scheduleTruckNumber, setScheduleTruckNumber] = useState("");
-  const [scheduleDeliveryMethod, setScheduleDeliveryMethod] = useState<"truck" | "client_pickup">("truck");
-
-  // Client pickup signature modal state
-  const [showPickupSignatureModal, setShowPickupSignatureModal] = useState<string | null>(null);
-  const [pickupSignatureInvoice, setPickupSignatureInvoice] = useState<Invoice | null>(null);
-
   // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
   const hasOverdue = invoices.some((inv) => {
     if (!inv.date) return false;
@@ -1282,19 +1103,10 @@ export default function ActiveInvoices({
   // Handler to select an invoice (for card click)
   function handleInvoiceClick(invoiceId: string) {
     const invoice = invoicesState.find((inv) => inv.id === invoiceId);
-    console.log("🔍 handleInvoiceClick:", { 
-      invoiceId, 
-      foundInvoice: !!invoice, 
-      carts: invoice?.carts?.map(c => ({ id: c.id, name: c.name })),
-      timestamp: new Date().toISOString()
-    });
-    
     if (invoice) {
-      // Ensure we have the latest invoice data
-      setSelectedInvoice({ ...invoice }); // Create a new object to trigger re-render
+      setSelectedInvoice(invoice);
       setShowInvoiceDetailsModal(true);
     }
-    
     if (typeof setSelectedInvoiceId === "function") {
       setSelectedInvoiceId(invoiceId);
     }
@@ -1306,25 +1118,32 @@ export default function ActiveInvoices({
     // Optionally, set selected cart state here if your UI needs it
   }
 
+  // --- Invoice Merge State ---
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeSourceInvoiceId, setMergeSourceInvoiceId] = useState<string | null>(null);
+  const [mergeTargetInvoiceId, setMergeTargetInvoiceId] = useState<string>("");
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [mergeError, setMergeError] = useState("");
+
   // --- Invoice Merge Functions ---
   
   // Get invoices that can be merged with the given invoice (same client name)
   const getMergeableInvoices = (sourceInvoiceId: string) => {
-    const sourceInvoice = invoices.find(inv => inv.id === sourceInvoiceId);
+    const sourceInvoice = invoicesState.find(inv => inv.id === sourceInvoiceId);
     if (!sourceInvoice) return [];
     
-    return invoices.filter(inv => 
+    return invoicesState.filter(inv => 
       inv.id !== sourceInvoiceId && 
       inv.clientName === sourceInvoice.clientName &&
       inv.status !== "done" // Don't merge with shipped invoices
     );
   };
-  
-  // Open merge modal for selecting target invoice
+
+  // Handle opening merge modal
   const handleOpenMergeModal = (sourceInvoiceId: string) => {
     const mergeableInvoices = getMergeableInvoices(sourceInvoiceId);
     if (mergeableInvoices.length === 0) {
-      alert("No invoices with the same client name found to merge with.");
+      alert("No other invoices found for this client that can be merged.");
       return;
     }
     
@@ -1333,64 +1152,170 @@ export default function ActiveInvoices({
     setMergeError("");
     setShowMergeModal(true);
   };
-  
-  // Handle the actual merge operation
+
+  // Handle merging two invoices
   const handleMergeInvoices = async () => {
     if (!mergeSourceInvoiceId || !mergeTargetInvoiceId) {
       setMergeError("Please select both source and target invoices.");
       return;
     }
-    
+
     setMergeLoading(true);
     setMergeError("");
-    
+
     try {
-      const sourceInvoice = invoices.find(inv => inv.id === mergeSourceInvoiceId);
-      const targetInvoice = invoices.find(inv => inv.id === mergeTargetInvoiceId);
-      
+      const sourceInvoice = invoicesState.find(inv => inv.id === mergeSourceInvoiceId);
+      const targetInvoice = invoicesState.find(inv => inv.id === mergeTargetInvoiceId);
+
       if (!sourceInvoice || !targetInvoice) {
-        throw new Error("Source or target invoice not found");
+        throw new Error("One or both invoices not found.");
       }
-      
-      // Handle cart name conflicts by renaming duplicates
+
+      // Check for cart name conflicts and resolve them
       const targetCartNames = new Set(targetInvoice.carts.map(c => c.name.toLowerCase()));
-      
       const resolvedSourceCarts = sourceInvoice.carts.map(cart => {
         let newName = cart.name;
-        let counter = 1;
+        let suffix = 1;
         
+        // If cart name conflicts, add suffix
         while (targetCartNames.has(newName.toLowerCase())) {
-          newName = `${cart.name} (${counter})`;
-          counter++;
+          suffix++;
+          newName = `${cart.name} (${suffix})`;
         }
         
-        return { ...cart, name: newName };
+        // Add the resolved name to the set to avoid conflicts with other source carts
+        targetCartNames.add(newName.toLowerCase());
+        
+        return {
+          ...cart,
+          name: newName,
+          id: `${cart.id}_merged_${Date.now()}` // Ensure unique cart IDs
+        };
       });
-      
+
       // Combine carts from both invoices
       const mergedCarts = [...targetInvoice.carts, ...resolvedSourceCarts];
-      
-      // Update target invoice with merged carts
+
+      // Update the target invoice with merged carts
       await onUpdateInvoice(targetInvoice.id, {
         carts: mergedCarts
       });
-      
-      // Delete source invoice
+
+      // Delete the source invoice
       await onDeleteInvoice(sourceInvoice.id);
-      
-      // Log merge activity
+
+      // Log the merge activity
       if (user?.username) {
         await logActivity({
-          type: "invoice_merge",
-          message: `User ${user.username} merged invoice #${sourceInvoice.id} into invoice #${targetInvoice.id}`,
-          user: user.username
+          type: "Invoice",
+          message: `User ${user.username} merged invoice #${sourceInvoice.invoiceNumber || sourceInvoice.id} into invoice #${targetInvoice.invoiceNumber || targetInvoice.id} for client ${sourceInvoice.clientName}`,
+          user: user.username,
         });
       }
+
+      alert(`Successfully merged invoice #${sourceInvoice.invoiceNumber || sourceInvoice.id} into invoice #${targetInvoice.invoiceNumber || targetInvoice.id}`);
       
-      // Close modal and reset state
       setShowMergeModal(false);
       setMergeSourceInvoiceId(null);
       setMergeTargetInvoiceId("");
+      
+    } catch (error: any) {
+      console.error("Error merging invoices:", error);
+      setMergeError(error.message || "Failed to merge invoices. Please try again.");
+    } finally {
+      setMergeLoading(false);
+    }
+  };
+    const sourceInvoice = invoicesState.find(inv => inv.id === sourceInvoiceId);
+    if (!sourceInvoice) return [];
+    
+    return invoicesState.filter(inv => 
+      inv.id !== sourceInvoiceId && 
+      inv.clientName === sourceInvoice.clientName &&
+      inv.status !== "done" // Don't merge with shipped invoices
+    );
+  };
+
+  // Handle opening merge modal
+  const handleOpenMergeModal = (sourceInvoiceId: string) => {
+    const mergeableInvoices = getMergeableInvoices(sourceInvoiceId);
+    if (mergeableInvoices.length === 0) {
+      alert("No other invoices found for this client that can be merged.");
+      return;
+    }
+    
+    setMergeSourceInvoiceId(sourceInvoiceId);
+    setMergeTargetInvoiceId("");
+    setMergeError("");
+    setShowMergeModal(true);
+  };
+
+  // Handle merging two invoices
+  const handleMergeInvoices = async () => {
+    if (!mergeSourceInvoiceId || !mergeTargetInvoiceId) {
+      setMergeError("Please select both source and target invoices.");
+      return;
+    }
+
+    setMergeLoading(true);
+    setMergeError("");
+
+    try {
+      const sourceInvoice = invoicesState.find(inv => inv.id === mergeSourceInvoiceId);
+      const targetInvoice = invoicesState.find(inv => inv.id === mergeTargetInvoiceId);
+
+      if (!sourceInvoice || !targetInvoice) {
+        throw new Error("One or both invoices not found.");
+      }
+
+      // Check for cart name conflicts and resolve them
+      const targetCartNames = new Set(targetInvoice.carts.map(c => c.name.toLowerCase()));
+      const resolvedSourceCarts = sourceInvoice.carts.map(cart => {
+        let newName = cart.name;
+        let suffix = 1;
+        
+        // If cart name conflicts, add suffix
+        while (targetCartNames.has(newName.toLowerCase())) {
+          suffix++;
+          newName = `${cart.name} (${suffix})`;
+        }
+        
+        // Add the resolved name to the set to avoid conflicts with other source carts
+        targetCartNames.add(newName.toLowerCase());
+        
+        return {
+          ...cart,
+          name: newName,
+          id: `${cart.id}_merged_${Date.now()}` // Ensure unique cart IDs
+        };
+      });
+
+      // Combine carts from both invoices
+      const mergedCarts = [...targetInvoice.carts, ...resolvedSourceCarts];
+
+      // Update the target invoice with merged carts
+      await onUpdateInvoice(targetInvoice.id, {
+        carts: mergedCarts
+      });
+
+      // Delete the source invoice
+      await onDeleteInvoice(sourceInvoice.id);
+
+      // Log the merge activity
+      if (user?.username) {
+        await logActivity({
+          type: "Invoice",
+          message: `User ${user.username} merged invoice #${sourceInvoice.invoiceNumber || sourceInvoice.id} into invoice #${targetInvoice.invoiceNumber || targetInvoice.id} for client ${sourceInvoice.clientName}`,
+          user: user.username,
+        });
+      }
+
+      alert(`Successfully merged invoice #${sourceInvoice.invoiceNumber || sourceInvoice.id} into invoice #${targetInvoice.invoiceNumber || targetInvoice.id}`);
+      
+      setShowMergeModal(false);
+      setMergeSourceInvoiceId(null);
+      setMergeTargetInvoiceId("");
+      
     } catch (error: any) {
       console.error("Error merging invoices:", error);
       setMergeError(error.message || "Failed to merge invoices. Please try again.");
@@ -1503,11 +1428,11 @@ export default function ActiveInvoices({
 
       <div className="row">
         <div className="col-md-6">
-          <h3 className="mb-4">Active Laundry Tickets</h3>
+          <h3 className="mb-4">Active Invoices</h3>
         </div>
         <div className="col-md-6 text-md-end">
           <button className="btn btn-primary me-2" onClick={handleAddInvoice}>
-            Create New Laundry Ticket
+            Create New Invoice
           </button>
           {/* Only show Unship button for Supervisor, Admin, Owner */}
           {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
@@ -1515,7 +1440,7 @@ export default function ActiveInvoices({
               className="btn btn-warning"
               onClick={handleUnshipRecentInvoices}
             >
-              Unship Recent Laundry Tickets
+              Unship Recent Invoices
             </button>
           )}
         </div>
@@ -1524,7 +1449,7 @@ export default function ActiveInvoices({
       <div className="row">
         {invoicesState.filter((inv) => inv.status !== "done").length === 0 ? (
           <div className="text-center text-muted py-5">
-            No active laundry tickets found. Create a new laundry ticket to get started.
+            No active invoices found. Create a new invoice to get started.
           </div>
         ) : (
           sortedInvoices
@@ -1545,18 +1470,10 @@ export default function ActiveInvoices({
               let cardBorderColor = "";
 
               if (isVerified) {
-                // Check if this is a client pickup order - make it pink instead of green
-                if (invoice.deliveryMethod === "client_pickup") {
-                  // Fully approved client pickup - Pink card
-                  cardBackground =
-                    "linear-gradient(135deg, #fce7f3 0%, #ec4899 100%)";
-                  cardBorderColor = "#ec4899";
-                } else {
-                  // Fully approved - Green card
-                  cardBackground =
-                    "linear-gradient(135deg, #dcfce7 0%, #16a34a 100%)";
-                  cardBorderColor = "#16a34a";
-                }
+                // Fully approved - Green card
+                cardBackground =
+                  "linear-gradient(135deg, #dcfce7 0%, #16a34a 100%)";
+                cardBorderColor = "#16a34a";
               } else if (isPartiallyVerified) {
                 // Partially approved - Yellow card
                 cardBackground =
@@ -1680,44 +1597,6 @@ export default function ActiveInvoices({
                             <i className="bi bi-trash" />
                           </button>
                         )}
-                      
-                      {/* Merge button in top left corner (next to delete) */}
-                      {user &&
-                        ["Supervisor", "Admin", "Owner"].includes(
-                          user.role
-                        ) && 
-                        true && (  /* Temporarily always show for debugging */
-                          <button
-                            className="btn"
-                            style={{
-                              position: "absolute",
-                              top: 16,
-                              left: 70,
-                              background: "#fff",
-                              borderRadius: "50%",
-                              width: 44,
-                              height: 44,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              border: "none",
-                              color: "#0ea5e9",
-                              fontSize: 22,
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              console.log("Merge button clicked for invoice:", invoice.id);
-                              console.log("Mergeable invoices:", getMergeableInvoices(invoice.id));
-                              handleOpenMergeModal(invoice.id);
-                            }}
-                            title="Merge with another invoice from same client"
-                            disabled={!!invoice.locked}
-                          >
-                            <i className="bi bi-shuffle" />
-                          </button>
-                        )}
-                      
                       {/* Avatar */}
                       <div
                         style={{
@@ -1817,42 +1696,6 @@ export default function ActiveInvoices({
                               : "📋 COMPLETED"}
                           </div>
                         )}
-                        
-                        {/* Delivery Schedule Badge */}
-                        {invoice.deliveryDate && (
-                          <div
-                            style={{
-                              display: "inline-block",
-                              padding: "4px 12px",
-                              borderRadius: "12px",
-                              fontSize: "11px",
-                              fontWeight: "700",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.5px",
-                              marginTop: "8px",
-                              marginLeft: "8px",
-                              background: "#3b82f6",
-                              color: "white",
-                              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                            }}
-                          >
-                            {invoice.deliveryMethod === "client_pickup" ? (
-                              <>
-                                👤 {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric"
-                                })} - Client Pickup
-                              </>
-                            ) : (
-                              <>
-                                🚛 {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric"
-                                })} - Truck #{invoice.truckNumber || "TBD"}
-                              </>
-                            )}
-                          </div>
-                        )}
                       </div>
                       {/* Product summary (total qty per product) */}
                       <div style={{ margin: "12px 0 0 0", width: "100%" }}>
@@ -1927,37 +1770,6 @@ export default function ActiveInvoices({
                           zIndex: 10,
                         }}
                       >
-                        {/* Schedule Delivery button - Step 0 - Only show when invoice is approved */}
-                        {(invoice.verified || invoice.partiallyVerified) && (
-                          <button
-                            className="btn btn-sm btn-outline-primary"
-                            style={{
-                              fontSize: 16,
-                              width: 44,
-                              height: 44,
-                              borderRadius: "50%",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 0,
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              border: "2px solid #3b82f6",
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleScheduleDelivery(invoice);
-                            }}
-                            title={`Schedule delivery date and truck assignment${invoice.deliveryDate ? `\nCurrent: ${new Date(invoice.deliveryDate).toLocaleDateString()} via Truck #${invoice.truckNumber}` : ''}`}
-                          >
-                            <i
-                              className="bi bi-calendar-check"
-                              style={{
-                                color: invoice.deliveryDate ? "#22c55e" : "#3b82f6",
-                                fontSize: 22,
-                              }}
-                            />
-                          </button>
-                        )}
                         {/* Complete button - Step 1 */}
                         <button
                           className={`btn btn-sm ${
@@ -1983,7 +1795,7 @@ export default function ActiveInvoices({
                             e.stopPropagation();
                             if (hasUnnamedCart(invoice)) {
                               alert(
-                                'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                'Cannot modify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                               );
                               return;
                             }
@@ -1997,7 +1809,7 @@ export default function ActiveInvoices({
                             if (isCurrentlyCompleted) {
                               // If shipping is done, cannot revert
                               if (invoice.status === "done") {
-                                alert("Cannot uncomplete a shipped laundry ticket.");
+                                alert("Cannot uncomplete a shipped invoice.");
                                 return;
                               }
                               // If approved, ask for confirmation to revert
@@ -2023,9 +1835,9 @@ export default function ActiveInvoices({
                                 });
                               }
                               if (user?.username) {
-                                await                                logActivity({
+                                await logActivity({
                                   type: "Invoice",
-                                  message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as active (uncompleted)`,
+                                  message: `User ${user.username} marked invoice #${invoice.id} as active (uncompleted)`,
                                   user: user.username,
                                 });
                               }
@@ -2039,9 +1851,9 @@ export default function ActiveInvoices({
                               triggerApprovalAnimation(invoice.id, "partial");
 
                               if (user?.username) {
-                                await                                logActivity({
+                                await logActivity({
                                   type: "Invoice",
-                                  message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as completed`,
+                                  message: `User ${user.username} marked invoice #${invoice.id} as completed`,
                                   user: user.username,
                                 });
                               }
@@ -2097,13 +1909,13 @@ export default function ActiveInvoices({
                             e.stopPropagation();
                             if (hasUnnamedCart(invoice)) {
                               alert(
-                                'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                'Cannot modify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                               );
                               return;
                             }
                             if (invoice.status !== "completed") {
                               alert(
-                                "Laundry Ticket must be completed before it can be approved."
+                                "Invoice must be completed before it can be approved."
                               );
                               return;
                             }
@@ -2112,7 +1924,7 @@ export default function ActiveInvoices({
                             if (invoice.verified) {
                               // If shipped, cannot revert approval
                               if ((invoice as any).status === "done") {
-                                alert("Cannot unapprove a shipped laundry ticket.");
+                                alert("Cannot unapprove a shipped invoice.");
                                 return;
                               }
                               // Remove approval
@@ -2122,9 +1934,9 @@ export default function ActiveInvoices({
                                 verifiedAt: "",
                               });
                               if (user?.username) {
-                                await                                logActivity({
+                                await logActivity({
                                   type: "Invoice",
-                                  message: `User ${user.username} removed approval from laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+                                  message: `User ${user.username} removed approval from invoice #${invoice.id}`,
                                   user: user.username,
                                 });
                               }
@@ -2144,7 +1956,7 @@ export default function ActiveInvoices({
                               ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
                               : (invoice as any).status === "done" &&
                                 invoice.verified
-                              ? "Approved (cannot unapprove shipped laundry ticket)"
+                              ? "Approved (cannot unapprove shipped invoice)"
                               : invoice.verified
                               ? "Click to remove approval"
                               : "Approve"
@@ -2158,181 +1970,92 @@ export default function ActiveInvoices({
                             }}
                           />
                         </button>
-                        {/* Shipping/Pickup button - Step 3 - Conditional based on delivery method */}
-                        {invoice.deliveryMethod === "client_pickup" ? (
-                          /* Mark as Picked Up button for client pickup orders */
-                          <button
-                            className={`btn btn-sm ${
+                        {/* Shipped button - Step 3 */}
+                        <button
+                          className={`btn btn-sm ${
+                            invoice.status === "done"
+                              ? "btn-info"
+                              : "btn-outline-info"
+                          }`}
+                          style={{
+                            fontSize: 16,
+                            width: 44,
+                            height: 44,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border:
                               invoice.status === "done"
-                                ? "btn-success"
-                                : "btn-outline-success"
-                            }`}
-                            style={{
-                              fontSize: 16,
-                              width: 44,
-                              height: 44,
-                              borderRadius: "50%",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 0,
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              border:
-                                invoice.status === "done"
-                                  ? "none"
-                                  : "2px solid #22c55e",
-                            }}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (hasUnnamedCart(invoice)) {
-                                alert(
-                                  'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                                );
-                                return;
-                              }
-                              if (!invoice.verified) {
-                                alert(
-                                  "Laundry Ticket must be approved before it can be marked as picked up."
-                                );
-                                return;
-                              }
+                                ? "none"
+                                : "2px solid #0ea5e9",
+                          }}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (hasUnnamedCart(invoice)) {
+                              alert(
+                                'Cannot modify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                              );
+                              return;
+                            }
+                            if (!invoice.verified) {
+                              alert(
+                                "Invoice must be approved before it can be shipped."
+                              );
+                              return;
+                            }
 
-                              if (invoice.status === "done") {
-                                // Allow unmarking as picked up (revert to approved status)
-                                const confirmUnpickup = window.confirm(
-                                  "Are you sure you want to mark this as not picked up? This will revert it to approved status."
-                                );
-                                if (confirmUnpickup) {
-                                  await onUpdateInvoice(invoice.id, {
-                                    status: "completed",
+                            // Toggle shipping status
+                            if (invoice.status === "done") {
+                              // Unship the invoice
+                              const confirmUnship = window.confirm(
+                                "Are you sure you want to unship this invoice? This will revert it to approved status."
+                              );
+                              if (confirmUnship) {
+                                await onUpdateInvoice(invoice.id, {
+                                  status: "completed",
+                                  truckNumber: "",
+                                  deliveryDate: "",
+                                });
+                                if (user?.username) {
+                                  await logActivity({
+                                    type: "Invoice",
+                                    message: `User ${user.username} unshipped invoice #${invoice.id}`,
+                                    user: user.username,
                                   });
-                                  if (user?.username) {
-                                    await logActivity({
-                                      type: "Invoice",
-                                      message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as not picked up`,
-                                      user: user.username,
-                                    });
-                                  }
                                 }
-                              } else {
-                                // Mark as picked up - show signature modal
-                                handleMarkAsPickedUp(invoice);
                               }
-                            }}
-                            disabled={
-                              !invoice.verified || hasUnnamedCart(invoice)
+                            } else {
+                              // Ship the invoice - show modal for truck number and delivery date
+                              setShowShippedModal(invoice.id);
+                              setShippedTruckNumber("");
+                              setShippedDeliveryDate("");
                             }
-                            title={
-                              !invoice.verified
-                                ? "Must be approved first"
-                                : hasUnnamedCart(invoice)
-                                ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
-                                : invoice.status === "done"
-                                ? "Click to mark as not picked up"
-                                : "Mark as Picked Up"
-                            }
-                          >
-                            <i
-                              className="bi bi-person-check"
-                              style={{
-                                color:
-                                  invoice.status === "done" ? "#fff" : "#22c55e",
-                                fontSize: 22,
-                              }}
-                            />
-                          </button>
-                        ) : (
-                          /* Shipped button for truck delivery orders */
-                          <button
-                            className={`btn btn-sm ${
-                              invoice.status === "done"
-                                ? "btn-info"
-                                : "btn-outline-info"
-                            }`}
+                          }}
+                          disabled={
+                            !invoice.verified || hasUnnamedCart(invoice)
+                          }
+                          title={
+                            !invoice.verified
+                              ? "Must be approved first"
+                              : hasUnnamedCart(invoice)
+                              ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
+                              : invoice.status === "done"
+                              ? "Click to unship"
+                              : "Mark as Shipped"
+                          }
+                        >
+                          <i
+                            className="bi bi-truck"
                             style={{
-                              fontSize: 16,
-                              width: 44,
-                              height: 44,
-                              borderRadius: "50%",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 0,
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              border:
-                                invoice.status === "done"
-                                  ? "none"
-                                  : "2px solid #0ea5e9",
+                              color:
+                                invoice.status === "done" ? "#fff" : "#0ea5e9",
+                              fontSize: 22,
                             }}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (hasUnnamedCart(invoice)) {
-                                alert(
-                                  'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                                );
-                                return;
-                              }
-                              if (!invoice.verified) {
-                                alert(
-                                  "Laundry Ticket must be approved before it can be shipped."
-                                );
-                                return;
-                              }
-
-                              // Toggle shipping status
-                              if (invoice.status === "done") {
-                                // Unship the invoice
-                                const confirmUnship = window.confirm(
-                                  "Are you sure you want to unship this invoice? This will revert it to approved status."
-                                );
-                                if (confirmUnship) {
-                                  await onUpdateInvoice(invoice.id, {
-                                    status: "completed",
-                                    truckNumber: "",
-                                    deliveryDate: "",
-                                  });
-                                  if (user?.username) {
-                                    await logActivity({
-                                      type: "Invoice",
-                                      message: `User ${user.username} unshipped laundry ticket #${invoice.invoiceNumber || invoice.id}`,
-                                      user: user.username,
-                                    });
-                                  }
-                                }
-                              } else {
-                                // Ship the invoice - show modal for truck number and delivery date
-                                setShowShippedModal(invoice.id);
-                                // Pre-fill with existing values if they exist
-                                setShippedTruckNumber(invoice.truckNumber?.toString() || "");
-                                const existingDeliveryDate = invoice.deliveryDate 
-                                  ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
-                                  : "";
-                                setShippedDeliveryDate(existingDeliveryDate);
-                              }
-                            }}
-                            disabled={
-                              !invoice.verified || hasUnnamedCart(invoice)
-                            }
-                            title={
-                              !invoice.verified
-                                ? "Must be approved first"
-                                : hasUnnamedCart(invoice)
-                                ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
-                                : invoice.status === "done"
-                                ? "Click to unship"
-                                : "Mark as Shipped"
-                            }
-                          >
-                            <i
-                              className="bi bi-truck"
-                              style={{
-                                color:
-                                  invoice.status === "done" ? "#fff" : "#0ea5e9",
-                                fontSize: 22,
-                              }}
-                            />
-                          </button>
-                        )}
+                          />
+                        </button>
                       </div>
                       {/* Show approval status and details on invoice card */}
                       {(invoice.verified || invoice.partiallyVerified) && (
@@ -2432,7 +2155,7 @@ export default function ActiveInvoices({
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Laundry Ticket Cart</h5>
+                <h5 className="modal-title">Invoice Cart</h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -2545,22 +2268,15 @@ export default function ActiveInvoices({
                                   newName.trim() &&
                                   newName !== cart.name
                                 ) {
-                                  try {
-                                    const updatedCarts = (carts || []).map((c) =>
-                                      c.id === cart.id
-                                        ? { ...c, name: newName.trim() }
-                                        : c
-                                    );
-                                    await onUpdateInvoice(invoice.id, {
-                                      carts: updatedCarts,
-                                    });
-                                    // Small delay to ensure Firestore write is propagated
-                                    await new Promise(resolve => setTimeout(resolve, 100));
-                                    // The real-time listener will automatically update the UI
-                                  } catch (error: any) {
-                                    console.error("Error updating cart name:", error);
-                                    alert(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
-                                  }
+                                  const updatedCarts = (carts || []).map((c) =>
+                                    c.id === cart.id
+                                      ? { ...c, name: newName.trim() }
+                                      : c
+                                  );
+                                  await onUpdateInvoice(invoice.id, {
+                                    carts: updatedCarts,
+                                  });
+                                  await refreshInvoices(); // <-- Ensure UI syncs with Firestore
                                 }
                               }}
                             >
@@ -2570,11 +2286,13 @@ export default function ActiveInvoices({
                               className="mb-1"
                               style={{ fontSize: 15, paddingLeft: 18 }}
                             >
-                              {Object.values(productTotals).map((prod, idx) => (
-                                <li key={prod.name + idx}>
-                                  <span>{prod.name}</span>: <b>{prod.qty}</b>
-                                </li>
-                              ))}
+                              {Object.values(productTotals).map(
+                                (prod, idx) => (
+                                  <li key={prod.name + idx}>
+                                    <span>{prod.name}</span>: <b>{prod.qty}</b>
+                                  </li>
+                                )
+                              )}
                             </ul>
                           </div>
                         );
@@ -2618,13 +2336,43 @@ export default function ActiveInvoices({
                                 setKeypadQuantity(1);
                               }}
                             >
-                              <div className="card-body py-2 px-3 text-center">
-                                <div
-                                  className="fw-bold"
-                                  style={{ fontSize: 18 }}
-                                >
-                                  {product.name}
-                                </div>
+                              {/* Show product image or icon */}
+                              {(() => {
+                                const name = product.name.toLowerCase();
+                                if (
+                                  name.includes("scrub shirt") ||
+                                  name.includes("scrub top") ||
+                                  name.includes("scrub")
+                                ) {
+                                  return (
+                                    <img
+                                      src={"/images/products/scrubshirt.png"}
+                                      alt="Scrub Shirt"
+                                      style={{
+                                        width: "100%",
+                                        height: 90,
+                                        objectFit: "contain",
+                                        borderRadius: 8,
+                                      }}
+                                    />
+                                  );
+                                }
+                                if (product.imageUrl) {
+                                  return (
+                                    <img
+                                      src={product.imageUrl}
+                                      alt={product.name}
+                                      style={{
+                                        width: "100%",
+                                        height: 90,
+                                        objectFit: "cover",
+                                        borderRadius: 8,
+                                      }}
+                                    />
+                                  );
+                                }
+                                return null;
+                              })()}
                               </div>
                             </div>
                           </div>
@@ -2848,9 +2596,7 @@ export default function ActiveInvoices({
                                       return { ...c, items: newItems };
                                     }
                                   );
-                                  await onUpdateInvoice(invoice.id, {
-                                    carts: updatedCarts,
-                                  });
+                                  await onUpdateInvoice(invoice.id, { carts: updatedCarts });
                                   await refreshInvoices();
                                   setCartProductSelections((prev) => ({
                                     ...prev,
@@ -2892,98 +2638,6 @@ export default function ActiveInvoices({
           onConfirm={handleConfirmDelete}
           onCancel={() => setInvoiceToDelete(null)}
         />
-      )}
-
-      {/* Invoice Merge Modal */}
-      {showMergeModal && (
-        <div
-          className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-        >
-          <div className="modal-dialog modal-lg">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Merge Invoices</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowMergeModal(false)}
-                ></button>
-              </div>
-              <div className="modal-body">
-                {mergeError && (
-                  <div className="alert alert-danger">{mergeError}</div>
-                )}
-                
-                <div className="mb-3">
-                  <label className="form-label">
-                    <strong>Source Invoice (will be deleted after merge):</strong>
-                  </label>
-                  {mergeSourceInvoiceId && (() => {
-                    const sourceInvoice = invoices.find(inv => inv.id === mergeSourceInvoiceId);
-                    return sourceInvoice ? (
-                      <div className="p-2 bg-light rounded">
-                        #{sourceInvoice.invoiceNumber || sourceInvoice.id} - {sourceInvoice.clientName}
-                        ({sourceInvoice.carts.length} cart{sourceInvoice.carts.length !== 1 ? 's' : ''})
-                      </div>
-                    ) : null;
-                  })()}
-                </div>
-
-                <div className="mb-3">
-                  <label htmlFor="mergeTarget" className="form-label">
-                    <strong>Target Invoice (carts will be merged into this invoice):</strong>
-                  </label>
-                  <select
-                    id="mergeTarget"
-                    className="form-select"
-                    value={mergeTargetInvoiceId}
-                    onChange={(e) => setMergeTargetInvoiceId(e.target.value)}
-                    disabled={mergeLoading}
-                  >
-                    <option value="">Select target invoice...</option>
-                    {mergeSourceInvoiceId && getMergeableInvoices(mergeSourceInvoiceId).map(invoice => (
-                      <option key={invoice.id} value={invoice.id}>
-                        #{invoice.invoiceNumber || invoice.id} - {invoice.clientName} 
-                        ({invoice.carts.length} cart{invoice.carts.length !== 1 ? 's' : ''})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="alert alert-info">
-                  <strong>Note:</strong> All carts from the source invoice will be merged into the target invoice. 
-                  If cart names conflict, they will be automatically renamed. The source invoice will be deleted after the merge.
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowMergeModal(false)}
-                  disabled={mergeLoading}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleMergeInvoices}
-                  disabled={mergeLoading || !mergeTargetInvoiceId}
-                >
-                  {mergeLoading ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                      Merging...
-                    </>
-                  ) : (
-                    'Merge Invoices'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Product Keypad Modal */}
@@ -3299,7 +2953,6 @@ export default function ActiveInvoices({
                           items: [],
                           total: 0,
                           createdAt: new Date().toISOString(),
-                          createdBy: user?.username || "Unknown",
                         };
                         updatedCarts.push(newCart);
                         cartIdx = updatedCarts.length - 1;
@@ -3340,7 +2993,6 @@ export default function ActiveInvoices({
                         ],
                         total: 0,
                         createdAt: new Date().toISOString(),
-                        createdBy: user?.username || "Unknown",
                       };
                       updatedCarts.push(newCart);
                     }
@@ -3509,92 +3161,121 @@ export default function ActiveInvoices({
                 </button>
                 <button
                   className="btn btn-primary"
-                  disabled={addToGroupLoading}
+                  disabled={
+                    !selectedAddProductId ||
+                    (addProductMode === "cart" && !selectedCartId) ||
+                    ((addProductMode === "quantity" ||
+                      addProductMode === "pounds") &&
+                      addProductQty < 1)
+                  }
                   onClick={async () => {
-                    setAddToGroupError("");
-                    setAddToGroupLoading(true);
-                    try {
-                      if (
-                        !addToGroupClientId ||
-                        !addToGroupProductId ||
-                        (addToGroupMode !== "carts" && addToGroupValue < 1)
-                      ) {
-                        setAddToGroupError(
-                          "Please select all fields and enter a valid value."
-                        );
-                        setAddToGroupLoading(false);
-                        return;
-                      }
-                      // Find the group for this client (Conventional or Tunnel)
-                      const group = pickupGroups.find(
-                        (g) =>
-                          g.clientId === addToGroupClientId &&
-                          (g.status === "Conventional" || g.status === "Tunnel")
+                    const product = products.find(
+                      (p) => p.id === selectedAddProductId
+                    );
+                    if (!product) return;
+                    // Find or create 'Pending Products' group for this client
+                    let pendingGroup = pickupGroups.find(
+                      (g) =>
+                        g.clientId === addProductGroup.clientId &&
+                        g.status === "Pending Products"
+                    );
+                    if (!pendingGroup) {
+                      // Create new group in Firestore
+                      const now = new Date();
+                      const initialCarts = getInitialCartsForGroup({
+                        clientId: addProductGroup.clientId,
+                        clientName: addProductGroup.clientName,
+                      });
+                      const groupData = {
+                        clientId: addProductGroup.clientId,
+                        clientName: addProductGroup.clientName,
+                        startTime: now,
+                        endTime: now,
+                        totalWeight: 0,
+                        status: "Pending Products",
+                        carts: initialCarts,
+                        numCarts: initialCarts.length, // Add number of carts as a value
+                        segregatedCarts: null, // Set segregatedCarts to null
+
+                        createdAt: now.toISOString(),
+                        // washingType: 'Conventional', // Ensure this is set for filtering
+                      };
+                      const groupRef = await import("../firebase").then(
+                        ({ db }) =>
+                          import("firebase/firestore").then(
+                            ({ collection, addDoc }) =>
+                              addDoc(collection(db, "pickup_groups"), groupData)
+                          )
                       );
-                      if (!group) {
-                        setAddToGroupError(
-                          "No group found for this client today."
-                        );
-                        setAddToGroupLoading(false);
-                        return;
+                      pendingGroup = { ...groupData, id: groupRef.id };
+                      setPickupGroups((prev) => [...prev, pendingGroup]);
+                    } else {
+                      // If group exists but status is not 'Pending Products', update it
+                      if (pendingGroup.status !== "Pending Products") {
+                        pendingGroup.status = "Pending Products";
                       }
-                      // Find or create cart
-                      let carts = Array.isArray(group.carts)
-                        ? [...group.carts]
-                        : [];
-                      let cartId =
-                        carts.length > 0 ? carts[0].id : Date.now().toString();
-                      let cartIdx = carts.findIndex((c) => c.id === cartId);
+                    }
+                    // Add product to the group's carts
+                    let updatedCarts = Array.isArray(pendingGroup.carts)
+                      ? [...pendingGroup.carts]
+                      : [];
+                    if (addProductMode === "cart") {
+                      let cartIdx = updatedCarts.findIndex(
+                        (c: any) => c.id === selectedCartId
+                      );
                       if (cartIdx === -1) {
-                        carts.push({
-                          id: cartId,
-                          name: `Cart ${carts.length + 1}`,
+                        const newCart = {
+                          id: Date.now().toString(),
+                          name: `Cart ${updatedCarts.length + 1}`,
                           items: [],
                           total: 0,
                           createdAt: new Date().toISOString(),
-                        });
-                        cartIdx = carts.length - 1;
+                        };
+                        updatedCarts.push(newCart);
+                        cartIdx = updatedCarts.length - 1;
                       }
-                      const product = products.find(
-                        (p) => p.id === addToGroupProductId
+
+                      const cart = { ...updatedCarts[cartIdx] };
+                      const existingItemIdx = cart.items.findIndex(
+                        (item: any) => item.productId === product.id
                       );
-                      if (!product) throw new Error("Product not found");
-                      let cart = { ...carts[cartIdx] };
-                      // Add product with the selected mode
-                      let item: any = {
-                        productId: product.id,
-                        productName: product.name,
-                        price: product.price,
-                        addedBy: user?.username || "Unknown",
-                        addedAt: new Date().toISOString(),
-                      };
-                      if (addToGroupMode === "carts") {
-                        item.quantity = 1;
-                      } else if (addToGroupMode === "quantity") {
-                        item.quantity = addToGroupValue;
-                      } else if (addToGroupMode === "pounds") {
-                        item.quantity = addToGroupValue;
-                      }
-                      // If product already exists, update quantity
-                      const existingIdx = cart.items.findIndex(
-                        (i: any) => i.productId === product.id
-                      );
-                      if (existingIdx > -1) {
-                        cart.items[existingIdx].quantity += item.quantity;
+                      if (existingItemIdx > -1) {
+                        cart.items[existingItemIdx].quantity += addProductQty;
                       } else {
-                        cart.items.push(item);
+                        cart.items.push({
+                          productId: product.id,
+                          productName: product.name,
+                          quantity: addProductQty,
+                          price: product.price,
+                          addedBy: user?.username || "Unknown",
+                          addedAt: new Date().toISOString(),
+                        });
                       }
-                      carts[cartIdx] = cart;
-                      // Update in Firestore
-                      // Removed Pending Products logic and group update since Pending Products section is removed
-                      setShowAddToGroupModal(false);
-                    } catch (err: any) {
-                      setAddToGroupError(
-                        err.message || "Error adding product to group"
-                      );
-                    } finally {
-                      setAddToGroupLoading(false);
+                      updatedCarts[cartIdx] = cart;
+                    } else {
+                      const newCart = {
+                        id: Date.now().toString(),
+                        name: `${
+                          addProductMode === "quantity" ? "Qty" : "Lbs"
+                        } Cart - ${new Date().toLocaleTimeString()}`,
+                        items: [
+                          {
+                            productId: product.id,
+                            productName: product.name,
+                            quantity: addProductQty,
+                            price: product.price,
+                            addedBy: user?.username || "Unknown",
+                            addedAt: new Date().toISOString(),
+                          },
+                        ],
+                        total: 0,
+                        createdAt: new Date().toISOString(),
+                      };
+                      updatedCarts.push(newCart);
                     }
+                    // Update in Firestore
+                    // Removed Pending Products logic and group update since Pending Products section is removed
+                    setShowAddToGroupModal(false);
                   }}
                 >
                   Add
@@ -3720,12 +3401,12 @@ export default function ActiveInvoices({
                     await onUpdateInvoice(invoice.id, {
                       status: "done",
                       truckNumber: shippedTruckNumber.toString(),
-                      deliveryDate: new Date(shippedDeliveryDate + "T00:00:00").toISOString(),
+                      deliveryDate: shippedDeliveryDate,
                     });
                     if (user?.username) {
-                      await                      logActivity({
+                      await logActivity({
                         type: "Invoice",
-                        message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as shipped (Truck #${shippedTruckNumber}, Delivery Date: ${shippedDeliveryDate})`,
+                        message: `User ${user.username} marked invoice #${invoice.id} as shipped (Truck #${shippedTruckNumber}, Delivery Date: ${shippedDeliveryDate})`,
                         user: user.username,
                       });
                     }
@@ -3743,8 +3424,7 @@ export default function ActiveInvoices({
                         // Generate PDF attachment if needed
                         let pdfContent: string | undefined;
                         try {
-                          const printConfig =
-                            client.printConfig.invoicePrintSettings;
+                          const printConfig = client.printConfig.invoicePrintSettings;
                           pdfContent = await generateInvoicePDF(
                             client,
                             invoice,
@@ -3853,204 +3533,6 @@ export default function ActiveInvoices({
         </div>
       )}
 
-      {/* Delivery Schedule Modal */}
-      {showDeliveryScheduleModal && (
-        <div
-          className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-        >
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  <i className="bi bi-calendar-check me-2"></i>
-                  Schedule Delivery (Step 1 of 2)
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => {
-                    const invoiceId = showDeliveryScheduleModal;
-                    setShowDeliveryScheduleModal(null);
-                    // Show print options even if user closes modal
-                    if (invoiceId) {
-                      setShowPrintOptionsModal(invoiceId);
-                    }
-                  }}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <div className="alert alert-info">
-                  <i className="bi bi-info-circle-fill me-2"></i>
-                  <strong>Laundry Ticket Approved!</strong> Now schedule the delivery date and method. You can skip this step if you want to schedule later.
-                </div>
-
-                <div className="mb-3">
-                  <label className="form-label">
-                    <strong>Delivery Method</strong> <span className="text-danger">*</span>
-                  </label>
-                  <div className="d-flex gap-3">
-                    <div className="form-check">
-                      <input
-                        className="form-check-input"
-                        type="radio"
-                        name="deliveryMethod"
-                        id="deliveryMethodTruck"
-                        value="truck"
-                        checked={scheduleDeliveryMethod === "truck"}
-                        onChange={(e) => setScheduleDeliveryMethod(e.target.value as "truck" | "client_pickup")}
-                      />
-                      <label className="form-check-label" htmlFor="deliveryMethodTruck">
-                        <i className="bi bi-truck me-1"></i>
-                        Truck Delivery
-                      </label>
-                    </div>
-                    <div className="form-check">
-                      <input
-                        className="form-check-input"
-                        type="radio"
-                        name="deliveryMethod"
-                        id="deliveryMethodPickup"
-                        value="client_pickup"
-                        checked={scheduleDeliveryMethod === "client_pickup"}
-                        onChange={(e) => setScheduleDeliveryMethod(e.target.value as "truck" | "client_pickup")}
-                      />
-                      <label className="form-check-label" htmlFor="deliveryMethodPickup">
-                        <i className="bi bi-person-check me-1"></i>
-                        Pick Up by Client
-                      </label>
-                    </div>
-                  </div>
-                  <small className="form-text text-muted">
-                    Choose whether to deliver via truck or have client pick up at facility
-                  </small>
-                </div>
-                
-                <div className="mb-3">
-                  <label className="form-label">
-                    <strong>Delivery Date</strong> <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={scheduleDeliveryDate}
-                    onChange={(e) => setScheduleDeliveryDate(e.target.value)}
-                    min={new Date().toISOString().slice(0, 10)}
-                    required
-                  />
-                  <small className="form-text text-muted">
-                    {scheduleDeliveryMethod === "truck" 
-                      ? "Select tomorrow or any future date for delivery" 
-                      : "Select date when client will pick up the order"}
-                  </small>
-                </div>
-
-                {scheduleDeliveryMethod === "truck" && (
-                  <div className="mb-3">
-                    <label className="form-label">
-                      <strong>Truck Number</strong> <span className="text-danger">*</span>
-                    </label>
-                    <select
-                      className="form-select"
-                      value={scheduleTruckNumber}
-                      onChange={(e) => setScheduleTruckNumber(e.target.value)}
-                      required
-                    >
-                      <option value="">Select truck number...</option>
-                      {Array.from({ length: 10 }, (_, i) => 30 + i).map(num => (
-                        <option key={num} value={num}>Truck #{num}</option>
-                      ))}
-                    </select>
-                    <small className="form-text text-muted">
-                      Available trucks: #30 through #39
-                    </small>
-                  </div>
-                )}
-
-                {scheduleDeliveryDate && (scheduleDeliveryMethod === "client_pickup" || scheduleTruckNumber) && (
-                  <div className="alert alert-success">
-                    <i className="bi bi-check-circle-fill me-2"></i>
-                    <strong>Ready to schedule:</strong><br />
-                    {scheduleDeliveryMethod === "truck" ? (
-                      <>Delivery on {new Date(scheduleDeliveryDate).toLocaleDateString("en-US", {
-                        weekday: "long",
-                        year: "numeric", 
-                        month: "long",
-                        day: "numeric"
-                      })} via Truck #{scheduleTruckNumber}</>
-                    ) : (
-                      <>Client pickup on {new Date(scheduleDeliveryDate).toLocaleDateString("en-US", {
-                        weekday: "long",
-                        year: "numeric", 
-                        month: "long",
-                        day: "numeric"
-                      })}</>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="modal-footer">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    const invoiceId = showDeliveryScheduleModal;
-                    setShowDeliveryScheduleModal(null);
-                    // Show print options even if user cancels delivery scheduling
-                    if (invoiceId) {
-                      setShowPrintOptionsModal(invoiceId);
-                    }
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-outline-secondary"
-                  onClick={() => {
-                    const invoiceId = showDeliveryScheduleModal;
-                    setShowDeliveryScheduleModal(null);
-                    setScheduleDeliveryDate("");
-                    setScheduleTruckNumber("");
-                    setScheduleDeliveryMethod("truck");
-                    // Skip delivery scheduling and go directly to print options
-                    if (invoiceId) {
-                      setShowPrintOptionsModal(invoiceId);
-                    }
-                  }}
-                >
-                  <i className="bi bi-skip-forward me-1"></i>
-                  Skip for Now
-                </button>
-                <button
-                  className="btn btn-primary"
-                  disabled={!scheduleDeliveryDate || (scheduleDeliveryMethod === "truck" && !scheduleTruckNumber)}
-                  onClick={handleConfirmScheduleDelivery}
-                >
-                  <i className="bi bi-calendar-check me-1"></i>
-                  Schedule {scheduleDeliveryMethod === "truck" ? "Delivery" : "Pickup"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Client Pickup Signature Modal */}
-      {showPickupSignatureModal && pickupSignatureInvoice && (
-        <SignatureModal
-          show={!!showPickupSignatureModal}
-          onClose={() => {
-            setShowPickupSignatureModal(null);
-            setPickupSignatureInvoice(null);
-          }}
-          invoiceId={pickupSignatureInvoice.id}
-          invoiceNumber={pickupSignatureInvoice.invoiceNumber?.toString()}
-          clientName={pickupSignatureInvoice.clientName}
-          clientId={pickupSignatureInvoice.clientId}
-          invoice={pickupSignatureInvoice}
-          onSignatureSaved={handlePickupSignatureSaved}
-        />
-      )}
-
       {/* Unship Recent Invoices Modal */}
       {showUnshipModal &&
         user &&
@@ -4091,7 +3573,7 @@ export default function ActiveInvoices({
                     if (eligible.length === 0)
                       return (
                         <div className="text-muted">
-                          No recently shipped laundry tickets found.
+                          No recently shipped invoices found.
                         </div>
                       );
                     return (
@@ -4171,33 +3653,13 @@ export default function ActiveInvoices({
             }
             // Handle edit cart name
             if (cartName.startsWith("__edit__")) {
-              try {
-                const [_, cartId, ...nameParts] = cartName.split("__");
-                const newName = nameParts.join("__");
-                
-                console.log("🔄 Processing cart name edit:", { 
-                  invoiceId: invoice.id, 
-                  cartId, 
-                  newName,
-                  timestamp: new Date().toISOString()
-                });
-                
-                const updatedCarts = invoice.carts.map((c) =>
-                  c.id === cartId ? { ...c, name: newName } : c
-                );
-                
-                await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-                
-                // Small delay to ensure Firestore write propagation
-                await new Promise(resolve => setTimeout(resolve, 50));
-                
-                console.log("✅ Cart name edit completed successfully:", { cartId, newName });
-                
-                return { id: cartId, name: newName, isActive: true };
-              } catch (error: any) {
-                console.error("❌ Error updating cart name:", error);
-                throw new Error(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
-              }
+              const [_, cartId, ...nameParts] = cartName.split("__");
+              const newName = nameParts.join("__");
+              const updatedCarts = invoice.carts.map((c) =>
+                c.id === cartId ? { ...c, name: newName } : c
+              );
+              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+              return { id: cartId, name: newName, isActive: true };
             }
             // --- Invoice Name Edit Logic ---
             if (cartName.startsWith("__invoice_name__")) {
@@ -4225,37 +3687,13 @@ export default function ActiveInvoices({
               await refreshInvoices();
               return { id: invoice.id, name: cartName, isActive: true };
             }
-            // Check for duplicate cart names and handle merging
             if (
               invoice.carts.some(
                 (c) =>
                   c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
               )
             ) {
-              // Check if user wants to merge or create separate cart
-              const userWantsToMerge = window.confirm(
-                `A cart named "${cartName}" already exists.\n\n` +
-                `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
-              );
-              
-              if (userWantsToMerge) {
-                // Find the existing cart and return its ID for merging
-                const existingCart = invoice.carts.find(
-                  (c) => c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
-                );
-                if (existingCart) {
-                  return { id: existingCart.id, name: existingCart.name, isActive: true };
-                }
-              } else {
-                // Create a cart with numbered suffix
-                let suffix = 2;
-                let newCartName = `${cartName} (${suffix})`;
-                while (invoice.carts.some(c => c.name.trim().toLowerCase() === newCartName.trim().toLowerCase())) {
-                  suffix++;
-                  newCartName = `${cartName} (${suffix})`;
-                }
-                cartName = newCartName;
-              }
+              throw new Error("Duplicate cart name");
             }
             const newCart = {
               id: Date.now().toString(),
@@ -4263,7 +3701,6 @@ export default function ActiveInvoices({
               items: [],
               total: 0,
               createdAt: new Date().toISOString(),
-              createdBy: user?.username || "Unknown",
             };
             await onUpdateInvoice(invoice.id, {
               carts: [...invoice.carts, newCart],
@@ -4287,16 +3724,10 @@ export default function ActiveInvoices({
       {/* Invoice Details Modal */}
       {showInvoiceDetailsModal && selectedInvoice && (
         <InvoiceDetailsModal
-          invoice={(() => {
-            const currentInvoice = invoicesState.find((inv) => inv.id === selectedInvoice.id) || selectedInvoice;
-            console.log("📤 Passing invoice to modal:", { 
-              invoiceId: currentInvoice.id, 
-              carts: currentInvoice.carts?.map(c => ({ id: c.id, name: c.name })),
-              fromState: !!invoicesState.find((inv) => inv.id === selectedInvoice.id),
-              selectedInvoiceId: selectedInvoice.id
-            });
-            return currentInvoice;
-          })()}
+          invoice={
+            invoicesState.find((inv) => inv.id === selectedInvoice.id) ||
+            selectedInvoice
+          }
           client={clients.find((c) => c.id === selectedInvoice.clientId)}
           products={products}
           onClose={() => setShowInvoiceDetailsModal(false)}
@@ -4308,39 +3739,19 @@ export default function ActiveInvoices({
             if (cartName.startsWith("__delete__")) {
               const cartId = cartName.replace("__delete__", "");
               const updatedCarts = invoice.carts.filter((c) => c.id !== cartId);
-              try {
-                await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-                // Small delay to ensure Firestore write is propagated
-                await new Promise(resolve => setTimeout(resolve, 100));
-                // The real-time listener will handle global updates
-                return { id: cartId, name: "", isActive: false };
-              } catch (error: any) {
-                console.error("Error deleting cart:", error);
-                throw new Error(`Failed to delete cart: ${error?.message || 'Unknown error'}`);
-              }
+              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+              await refreshInvoices();
+              return { id: cartId, name: "", isActive: false };
             }
             if (cartName.startsWith("__edit__")) {
               const [_, cartId, ...nameParts] = cartName.split("__");
               const newName = nameParts.join("__");
-              console.log("🔧 Cart editing request:", { cartId, oldName: invoice.carts.find(c => c.id === cartId)?.name, newName });
-              
               const updatedCarts = invoice.carts.map((c) =>
                 c.id === cartId ? { ...c, name: newName } : c
               );
-              
-              try {
-                console.log("💾 Updating cart in Firestore...", { invoiceId: invoice.id, updatedCarts });
-                await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-                console.log("✅ Cart update successful in Firestore");
-                
-                // Small delay to ensure Firestore write is propagated before real-time listener updates
-                await new Promise(resolve => setTimeout(resolve, 100));
-                // The real-time listener will automatically update the UI
-                return { id: cartId, name: newName, isActive: true };
-              } catch (error: any) {
-                console.error("❌ Error updating cart name:", error);
-                throw new Error(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
-              }
+              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+              await refreshInvoices();
+              return { id: cartId, name: newName, isActive: true };
             }
             // --- Invoice Name Edit Logic ---
             if (cartName.startsWith("__invoice_name__")) {
@@ -4348,18 +3759,6 @@ export default function ActiveInvoices({
               await onUpdateInvoice(invoice.id, { name: newInvoiceName });
               await refreshInvoices();
               return { id: invoice.id, name: newInvoiceName, isActive: true };
-            }
-            // --- Delivery Date Edit Logic ---
-            if (cartName.startsWith("__delivery_date__")) {
-              const newDeliveryDate = cartName.replace("__delivery_date__", "");
-              const formattedDeliveryDate = newDeliveryDate 
-                ? new Date(newDeliveryDate + "T00:00:00").toISOString()
-                : undefined;
-              await onUpdateInvoice(invoice.id, { 
-                deliveryDate: formattedDeliveryDate
-              });
-              await refreshInvoices();
-              return { id: invoice.id, name: cartName, isActive: true };
             }
             // --- Special Service Logic ---
             if (cartName.startsWith("__special_service__")) {
@@ -4380,37 +3779,13 @@ export default function ActiveInvoices({
               await refreshInvoices();
               return { id: invoice.id, name: cartName, isActive: true };
             }
-            // Check for duplicate cart names and handle merging
             if (
               invoice.carts.some(
                 (c) =>
                   c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
               )
             ) {
-              // Check if user wants to merge or create separate cart
-              const userWantsToMerge = window.confirm(
-                `A cart named "${cartName}" already exists.\n\n` +
-                `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
-              );
-              
-              if (userWantsToMerge) {
-                // Find the existing cart and return its ID for merging
-                const existingCart = invoice.carts.find(
-                  (c) => c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
-                );
-                if (existingCart) {
-                  return { id: existingCart.id, name: existingCart.name, isActive: true };
-                }
-              } else {
-                // Create a cart with numbered suffix
-                let suffix = 2;
-                let newCartName = `${cartName} (${suffix})`;
-                while (invoice.carts.some(c => c.name.trim().toLowerCase() === newCartName.trim().toLowerCase())) {
-                  suffix++;
-                  newCartName = `${cartName} (${suffix})`;
-                }
-                cartName = newCartName;
-              }
+              throw new Error("Duplicate cart name");
             }
             const newCart = {
               id: Date.now().toString(),
@@ -4418,7 +3793,6 @@ export default function ActiveInvoices({
               items: [],
               total: 0,
               createdAt: new Date().toISOString(),
-              createdBy: user?.username || "Unknown",
             };
             await onUpdateInvoice(invoice.id, {
               carts: [...invoice.carts, newCart],
@@ -4484,7 +3858,7 @@ export default function ActiveInvoices({
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Verify Laundry Ticket Items</h5>
+                <h5 className="modal-title">Verify Invoice Items</h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -4573,7 +3947,7 @@ export default function ActiveInvoices({
                   </div>
                   <div className="modal-body">
                     <p>
-                      Laundry Ticket has been approved! Choose what you'd like to
+                      Invoice has been approved! Choose what you'd like to
                       print:
                     </p>
 
@@ -4600,7 +3974,7 @@ export default function ActiveInvoices({
 
                       {/* Print Full Invoice */}
                       <div className="border rounded p-3">
-                        <h6 className="mb-3">Print/Email Complete Laundry Ticket</h6>
+                        <h6 className="mb-3">Print/Email Complete Invoice</h6>
                         <button
                           className="btn btn-primary me-2"
                           onClick={() => {
@@ -4608,7 +3982,7 @@ export default function ActiveInvoices({
                             setShowPrintOptionsModal(null);
                           }}
                         >
-                          Print Complete Laundry Ticket
+                          Print Complete Invoice
                         </button>
                         {client?.printConfig?.emailSettings?.enabled && (
                           <button
@@ -4630,7 +4004,7 @@ export default function ActiveInvoices({
                               setShowPrintOptionsModal(null);
                             }}
                           >
-                            Email Laundry Ticket
+                            Email Invoice
                           </button>
                         )}
                       </div>
@@ -4726,7 +4100,7 @@ export default function ActiveInvoices({
                                 {printConfig.headerText || "Cart Contents"}
                               </h2>
                               <div style={{ fontSize: 14, color: "#666" }}>
-                                <strong>Laundry Ticket:</strong> #
+                                <strong>Invoice:</strong> #
                                 {invoice.invoiceNumber || invoice.id} |
                                 <strong> Client:</strong> {invoice.clientName} |
                                 <strong> Cart:</strong> {cart.name}
@@ -5189,7 +4563,7 @@ export default function ActiveInvoices({
               <div className="modal-dialog modal-xl">
                 <div className="modal-content">
                   <div className="modal-header d-print-none">
-                    <h5 className="modal-title">Print Laundry Ticket</h5>
+                    <h5 className="modal-title">Print Invoice</h5>
                     <button
                       type="button"
                       className="btn-close"
@@ -5283,137 +4657,7 @@ export default function ActiveInvoices({
                           </h4>
                           {invoice.carts.map((cart, index) => (
                             <div
-                              key={cart.id}
-                              style={{
-                                marginBottom: 20,
-                                border: "1px solid #eee",
-                                padding: 15,
-                              }}
-                            >
-                              <h6
-                                style={{ margin: "0 0 10px 0", color: "#333" }}
-                              >
-                                {cart.name}
-                              </h6>
-                              <table style={{ width: "100%", fontSize: 14 }}>
-                                {cart.items.map((item, itemIndex) => (
-                                  <tr key={itemIndex}>
-                                    <td style={{ padding: "2px 0" }}>
-                                      {item.productName}
-                                    </td>
-                                    <td
-                                      style={{
-                                        textAlign: "center",
-                                        padding: "2px 0",
-                                      }}
-                                    >
-                                      ×{item.quantity}
-                                    </td>
-                                    <td
-                                      style={{
-                                        textAlign: "right",
-                                        padding: "2px 0",
-                                      }}
-                                    >
-                                      ${(item.quantity * item.price).toFixed(2)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </table>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Product Summary */}
-                      {printConfig.showProductSummary && (
-                        <div style={{ marginBottom: 30 }}>
-                          <h4 style={{ color: "#0E62A0", marginBottom: 15 }}>
-                            Product Summary:
-                          </h4>
-                          <table
-                            style={{
-                              width: "100%",
-                              borderCollapse: "collapse",
-                            }}
-                          >
-                            <thead>
-                              <tr style={{ borderBottom: "2px solid #0E62A0" }}>
-                                <th style={{ textAlign: "left", padding: 8 }}>
-                                  Product
-                                </th>
-                                <th style={{ textAlign: "center", padding: 8 }}>
-                                  Total Quantity
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {Object.entries(productMap).map(
-                                ([productName, quantity]) => (
-                                  <tr
-                                    key={productName}
-                                    style={{ borderBottom: "1px solid #eee" }}
-                                  >
-                                    <td style={{ padding: 8 }}>
-                                      {productName}
-                                    </td>
-                                    <td
-                                      style={{
-                                        textAlign: "center",
-                                        padding: 8,
-                                      }}
-                                    >
-                                      {quantity}
-                                    </td>
-                                  </tr>
-                                )
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-
-                      {/* Weight Information */}
-                      {printConfig.showTotalWeight && invoice.totalWeight && (
-                        <div style={{ marginBottom: 20 }}>
-                          <strong>Total Weight:</strong> {invoice.totalWeight}{" "}
-                          lbs
-                        </div>
-                      )}
-
-                      {/* Totals */}
-                      <div
-                        style={{
-                          borderTop: "2px solid #0E62A0",
-                          paddingTop: 15,
-                          textAlign: "right",
-                        }}
-                      >
-                        {printConfig.showSubtotal && (
-                          <div style={{ fontSize: 16, marginBottom: 5 }}>
-                            <strong>Subtotal: ${grandTotal.toFixed(2)}</strong>
-                          </div>
-                        )}
-                        {printConfig.showTaxes && (
-                          <div
-                            style={{
-                              fontSize: 14,
-                              marginBottom: 5,
-                              color: "#666",
-                            }}
-                          >
-                            Tax: $0.00
-                          </div>
-                        )}
-                        {printConfig.showGrandTotal && (
-                          <div
-                            style={{
-                              fontSize: 20,
-                              fontWeight: "bold",
-                              color: "#0E62A0",
-                            }}
-                          >
-                            Total: ${grandTotal.toFixed(2)}
+                              key={cart.id
                           </div>
                         )}
                       </div>
