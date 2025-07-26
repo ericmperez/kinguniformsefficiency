@@ -84,7 +84,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         // Log the email activity
         await logActivity({
           type: "Email",
-          message: `Signature confirmation email sent automatically to ${client.name} (${client.email}) for invoice #${invoice.invoiceNumber || invoice.id}`,
+          message: `Signature confirmation email sent automatically to ${client.name} (${client.email}) for laundry ticket #${invoice.invoiceNumber || invoice.id}`,
         });
         console.log("✅ Signature email sent successfully");
       } else {
@@ -218,7 +218,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                 Signature for {clientName}
               </h4>
               {invoiceNumber && (
-                <small className="text-muted">Invoice #{invoiceNumber}</small>
+                <small className="text-muted">Laundry Ticket #{invoiceNumber}</small>
               )}
             </div>
             <button

@@ -279,7 +279,7 @@ function App() {
       // If user has a defaultPage, set it as the active page on login
       if (user.defaultPage) {
         setActivePage(
-          user.defaultPage === "ActiveInvoices"
+          user.defaultPage === "ActiveLaundryTickets"
             ? "home"
             : user.defaultPage === "PickupWashing"
             ? "entradas"

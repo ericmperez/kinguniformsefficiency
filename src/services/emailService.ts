@@ -1,6 +1,6 @@
 /**
  * Email Service
- * Handles sending emails for invoices, signatures, and test emails
+ * Handles sending emails for laundry tickets, signatures, and test emails
  */
 import { Client, Invoice, PrintConfiguration } from '../types';
 import { API_BASE_URL } from '../config/api';
@@ -13,7 +13,7 @@ interface EmailData {
 }
 
 /**
- * Main function to send invoice emails
+ * Main function to send laundry ticket emails
  * Supports both PDF attachments and plain text emails
  */
 export const sendInvoiceEmail = async (
@@ -26,7 +26,7 @@ export const sendInvoiceEmail = async (
     const emailData: EmailData = {
       to: client.email || "",
       cc: (emailSettings.ccEmails || []).filter(email => email && email.trim() !== ""),
-      subject: emailSettings.subject || `Invoice #${invoice.invoiceNumber || invoice.id} - ${client.name}`,
+      subject: emailSettings.subject || `Laundry Ticket #${invoice.invoiceNumber || invoice.id} - ${client.name}`,
       body: generateEmailBody(client, invoice, emailSettings.bodyTemplate)
     };
 
@@ -117,14 +117,14 @@ export const sendSignatureEmail = async (
     // Use signature-specific template if available, otherwise fall back to regular template
     const subject = emailSettings.signatureEmailSubject || 
       emailSettings.subject || 
-      `Delivery Confirmed - Invoice #${invoice.invoiceNumber || invoice.id} for ${client.name}`;
+      `Delivery Confirmed - Laundry Ticket #${invoice.invoiceNumber || invoice.id} for ${client.name}`;
     
     const template = emailSettings.signatureEmailTemplate || 
       emailSettings.bodyTemplate;
 
     const emailData: EmailData = {
       to: client.email || "",
-      cc: emailSettings.ccEmails || [],
+      cc: (emailSettings.ccEmails || []).filter(email => email && email.trim() !== ""),
       subject: subject,
       body: generateSignatureEmailBody(client, invoice, signatureData, template)
     };
@@ -303,7 +303,7 @@ Dear ${client.name},
 We are pleased to confirm that your order has been successfully delivered and received.
 
 Delivery Confirmation Details:
-- Invoice #: ${invoice.invoiceNumber || invoice.id}
+- Laundry Ticket #: ${invoice.invoiceNumber || invoice.id}
 - Delivery Date: ${signatureData.signatureDate}
 - Delivery Time: ${signatureData.signatureTime}
 - Received By: ${signatureData.receivedBy}
@@ -363,7 +363,7 @@ export const sendTestEmail = async (
     // Create a test email data object
     const testEmailData: EmailData = {
       to: client.email,
-      cc: emailSettings.ccEmails || [],
+      cc: (emailSettings.ccEmails || []).filter(email => email && email.trim() !== ""),
       subject: emailSettings.subject ? 
         `TEST EMAIL: ${emailSettings.subject}`.replace(/\{clientName\}/g, client.name) :
         `TEST EMAIL: Invoice Configuration Test - ${client.name}`,

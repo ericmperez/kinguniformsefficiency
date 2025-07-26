@@ -348,7 +348,7 @@ const BillingPage: React.FC = () => {
     }
     const element = document.getElementById("print-area");
     if (!element) {
-      setEmailStatus("Invoice content not found.");
+      setEmailStatus("Laundry Ticket content not found.");
       return;
     }
     try {
@@ -359,8 +359,8 @@ const BillingPage: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: emailTo,
-          subject: `Factura #${invoiceToPrint?.invoiceNumber}`,
-          text: "Adjunto su factura.",
+          subject: `Boleta de Lavandería #${invoiceToPrint?.invoiceNumber}`,
+          text: "Adjunto su boleta de lavandería.",
           pdfBase64: pdfBase64.split(",")[1], // remove data:...base64,
         }),
       });
@@ -914,7 +914,7 @@ const BillingPage: React.FC = () => {
                   >
                     <option value="percentage">% of Subtotal</option>
                     <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Invoice</option>
+                    <option value="perInvoice">Per Laundry Ticket</option>
                   </select>
                 </div>
                 <div className="col-md-3">
@@ -965,7 +965,7 @@ const BillingPage: React.FC = () => {
                   >
                     <option value="percentage">% of Subtotal</option>
                     <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Invoice</option>
+                    <option value="perInvoice">Per Laundry Ticket</option>
                   </select>
                 </div>
                 <div className="col-md-3">
@@ -1017,7 +1017,7 @@ const BillingPage: React.FC = () => {
                   >
                     <option value="percentage">% of Subtotal</option>
                     <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Invoice</option>
+                    <option value="perInvoice">Per Laundry Ticket</option>
                   </select>
                 </div>
                 <div className="col-md-3">
@@ -1069,7 +1069,7 @@ const BillingPage: React.FC = () => {
                   >
                     <option value="percentage">% of Subtotal</option>
                     <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Invoice</option>
+                    <option value="perInvoice">Per Laundry Ticket</option>
                   </select>
                 </div>
                 <div className="col-md-3">
@@ -1128,7 +1128,7 @@ const BillingPage: React.FC = () => {
                   >
                     <option value="percentage">% of Subtotal</option>
                     <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Invoice</option>
+                    <option value="perInvoice">Per Laundry Ticket</option>
                     <option value="perUnit">Per Unit</option>
                   </select>
                 </div>
@@ -1201,7 +1201,7 @@ const BillingPage: React.FC = () => {
           return acc;
         }, {} as Record<string, Invoice[]>);
         if (Object.keys(grouped).length === 0) {
-          return <div className="text-muted">No completed invoices found.</div>;
+          return <div className="text-muted">No completed laundry tickets found.</div>;
         }
         // Get product columns for selected client
         let productColumns: { id: string; name: string }[] = [];
@@ -1267,7 +1267,7 @@ const BillingPage: React.FC = () => {
                             }}
                           />
                         </th>
-                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Invoice #</th>
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Laundry Ticket #</th>
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Date</th>
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Truck #</th>
                         {/* Add Verifier column */}
@@ -2334,7 +2334,7 @@ const BillingPage: React.FC = () => {
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Group Selected Invoices</h5>
+                <h5 className="modal-title">Group Selected Laundry Tickets</h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -2370,7 +2370,7 @@ const BillingPage: React.FC = () => {
                 </div>
 
                 <div className="mt-3">
-                  <h6>Selected Invoices:</h6>
+                  <h6>Selected Laundry Tickets:</h6>
                   <ul className="list-group">
                     {invoices
                       .filter((inv) => selectedInvoiceIds.includes(inv.id))
@@ -2426,7 +2426,7 @@ const BillingPage: React.FC = () => {
                   ) : (
                     <>
                       <i className="bi bi-object-ungroup me-1"></i> Group
-                      Invoices
+                      Laundry Tickets
                     </>
                   )}
                 </button>
@@ -2468,7 +2468,7 @@ const BillingPage: React.FC = () => {
             <div className="modal-content">
               <div className="modal-header d-print-none">
                 <h5 className="modal-title">
-                  Imprimir Factura #{invoiceToPrint.invoiceNumber}
+                  Imprimir Boleta de Lavandería #{invoiceToPrint.invoiceNumber}
                 </h5>
                 <button
                   type="button"
@@ -2740,7 +2740,7 @@ const BillingPage: React.FC = () => {
                         printWindow.document.write(`
                         <html>
                           <head>
-                            <title>Print Invoice</title>
+                            <title>Print Laundry Ticket</title>
                             <style>
                               @media print {
                                 @page { size: 5.5in 8.5in portrait; margin: 0; }

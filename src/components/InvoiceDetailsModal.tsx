@@ -3,6 +3,7 @@ import { Invoice, Product, Client, Cart, LaundryCart } from "../types";
 import { getUsers, UserRecord, logActivity } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
 import { formatDateSpanish } from "../utils/dateFormatter";
+import { useCartEditor } from "./CartEditHandler";
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice;
@@ -45,6 +46,12 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     setRerenderCounter(prev => prev + 1);
   }, [invoice]);
 
+  // State for local invoice data to enable instant UI updates
+  const [localInvoice, setLocalInvoice] = React.useState(invoice);
+
+  // Initialize the cart editor with direct Firebase operations
+  const cartEditor = useCartEditor(localInvoice, setLocalInvoice);
+
   const [newCartName, setNewCartName] = React.useState("");
   const [addProductCartId, setAddProductCartId] = React.useState<string | null>(
     null
@@ -84,19 +91,41 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [deliveryDate, setDeliveryDate] = React.useState(invoice.deliveryDate || "");
   const [savingDeliveryDate, setSavingDeliveryDate] = React.useState(false);
 
-  // Sync local carts with invoice changes - Force update with deep comparison
+  // Sync local invoice with prop changes
   React.useEffect(() => {
-    console.log("🔄 Syncing localCarts with invoice.carts:", {
-      fromInvoice: invoice.carts?.map(c => ({ id: c.id, name: c.name })),
-      currentLocal: localCarts?.map(c => ({ id: c.id, name: c.name }))
+    console.log("🔄 Syncing localInvoice with invoice prop:", {
+      invoiceId: invoice.id,
+      timestamp: new Date().toISOString()
     });
+    setLocalInvoice(invoice);
+  }, [invoice]);
+
+  // Sync local carts with local invoice changes
+  React.useEffect(() => {
+    const currentCartData = localCarts.map(c => `${c.id}:${c.name}`).sort().join('|');
+    const newCartData = (localInvoice.carts || []).map(c => `${c.id}:${c.name}`).sort().join('|');
     
-    // Force update localCarts with a new array reference to trigger re-render
-    const newCarts = invoice.carts ? [...invoice.carts.map(cart => ({ ...cart }))] : [];
-    setLocalCarts(newCarts);
-    
-    console.log("✅ Force updated localCarts:", newCarts.map(c => ({ id: c.id, name: c.name })));
-  }, [invoice.carts, invoice.id]); // Include invoice.id to ensure updates on invoice changes
+    if (currentCartData !== newCartData) {
+      console.log("🔄 Syncing localCarts with localInvoice.carts - changes detected:", {
+        invoiceId: localInvoice.id,
+        fromInvoice: localInvoice.carts?.map(c => ({ id: c.id, name: c.name })),
+        currentLocal: localCarts?.map(c => ({ id: c.id, name: c.name })),
+        timestamp: new Date().toISOString()
+      });
+      
+      // Create deep copy to ensure React recognizes the change
+      const newCarts = localInvoice.carts ? localInvoice.carts.map(cart => ({ 
+        ...cart,
+        items: cart.items ? [...cart.items] : []
+      })) : [];
+      
+      setLocalCarts(newCarts);
+      
+      console.log("✅ Updated localCarts:", newCarts.map(c => ({ id: c.id, name: c.name })));
+    } else {
+      console.log("🔄 Cart sync skipped - no changes detected");
+    }
+  }, [localInvoice.carts, localInvoice.id]);
 
   React.useEffect(() => {
     getUsers().then(setUsers);
@@ -310,7 +339,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
         <div className="modal-content">
           <div className="modal-header">
             <h5 className="modal-title">
-              Invoice #{invoice.invoiceNumber}
+              Laundry Ticket #{invoice.invoiceNumber}
               {editingInvoiceName ? (
                 <span style={{ marginLeft: 16 }}>
                   <input
@@ -357,7 +386,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   )}
                   <button
                     className="btn btn-outline-primary btn-sm ms-2"
-                    title="Edit Invoice Name"
+                    title="Edit Laundry Ticket Name"
                     onClick={() => setEditingInvoiceName(true)}
                   >
                     <i className="bi bi-pencil" />
@@ -538,28 +567,40 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     className="btn btn-success"
                     onClick={async () => {
                       if (newCartName.trim()) {
-                        const newCart: LaundryCart = await handleAddCart(
-                          newCartName.trim()
-                        );
-                        setLocalCarts([
-                          ...localCarts,
-                          {
-                            id: newCart.id,
-                            name: newCart.name,
-                            items: [],
-                            total: 0,
-                            createdAt: new Date().toISOString(),
-                          },
-                        ]);
-                        setNewCartName("");
-                        setShowNewCartInput(false);
-                        setShowCartKeypad(false);
-                        if (refreshInvoices) await refreshInvoices();
+                        try {
+                          // Use the new direct cart editor
+                          const newCart = await cartEditor.addCart(newCartName.trim());
+                          
+                          // Log activity
+                          if (typeof logActivity === "function") {
+                            await logActivity({
+                              type: "Cart",
+                              message: `Cart '${newCartName.trim()}' created in invoice #${
+                                localInvoice.invoiceNumber || localInvoice.id
+                              }`,
+                              user: user?.username,
+                            });
+                          }
+                          
+                          setNewCartName("");
+                          setShowNewCartInput(false);
+                          setShowCartKeypad(false);
+                          
+                          console.log("🎉 Cart creation completed successfully with direct approach");
+                          
+                        } catch (error: any) {
+                          console.error("❌ Error creating cart:", error);
+                          alert(`Failed to create cart: ${error?.message || 'Network error. Please try again.'}`);
+                        }
                       }
                     }}
-                    disabled={!newCartName.trim()}
+                    disabled={!newCartName.trim() || cartEditor.isUpdating}
                   >
-                    Add
+                    {cartEditor.isUpdating ? (
+                      <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    ) : (
+                      "Add"
+                    )}
                   </button>
                   <button
                     className="btn btn-secondary"
@@ -618,36 +659,43 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                 height: 48,
                                 fontSize: 22,
                                 fontWeight: 600,
-                              }}
-                              onClick={async () => {
-                                if (btn === "OK") {
-                                  if (newCartName.trim()) {
-                                    const newCart: LaundryCart =
-                                      await handleAddCart(newCartName.trim());
-                                    setLocalCarts([
-                                      ...localCarts,
-                                      {
-                                        id: newCart.id,
-                                        name: newCart.name,
-                                        items: [],
-                                        total: 0,
-                                        createdAt: new Date().toISOString(),
-                                      },
-                                    ]);
-                                    setNewCartName("");
-                                    setShowNewCartInput(false);
-                                    setShowCartKeypad(false);
-                                    if (refreshInvoices)
-                                      await refreshInvoices();
+                              }}                                onClick={async () => {
+                                  if (btn === "OK") {
+                                    if (newCartName.trim()) {
+                                      try {
+                                        // Use the new direct cart editor
+                                        const newCart = await cartEditor.addCart(newCartName.trim());
+                                        
+                                        // Log activity
+                                        if (typeof logActivity === "function") {
+                                          await logActivity({
+                                            type: "Cart",
+                                            message: `Cart '${newCartName.trim()}' created in invoice #${
+                                              localInvoice.invoiceNumber || localInvoice.id
+                                            }`,
+                                            user: user?.username,
+                                          });
+                                        }
+                                        
+                                        setNewCartName("");
+                                        setShowNewCartInput(false);
+                                        setShowCartKeypad(false);
+                                        
+                                        console.log("🎉 Cart creation via keypad completed successfully");
+                                        
+                                      } catch (error: any) {
+                                        console.error("❌ Error creating cart via keypad:", error);
+                                        alert(`Failed to create cart: ${error?.message || 'Network error. Please try again.'}`);
+                                      }
+                                    } else {
+                                      setShowCartKeypad(false);
+                                    }
+                                  } else if (btn === "←") {
+                                    setNewCartName((prev) => prev.slice(0, -1));
                                   } else {
-                                    setShowCartKeypad(false);
+                                    setNewCartName((prev) => prev + btn);
                                   }
-                                } else if (btn === "←") {
-                                  setNewCartName((prev) => prev.slice(0, -1));
-                                } else {
-                                  setNewCartName((prev) => prev + btn);
-                                }
-                              }}
+                                }}
                               tabIndex={-1}
                               type="button"
                             >
@@ -697,26 +745,36 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       title="Delete Cart"
                       onClick={async () => {
                         if (window.confirm(`Delete cart '${cart.name}'?`)) {
-                          setLocalCarts(
-                            localCarts.filter((c) => c.id !== cart.id)
-                          );
-                          await onAddCart("__delete__" + cart.id);
-                          if (typeof logActivity === "function") {
-                            await logActivity({
-                              type: "Cart",
-                              message: `Cart '${
-                                cart.name
-                              }' deleted from invoice #${
-                                invoice.invoiceNumber || invoice.id
-                              }`,
-                              user: user?.username,
-                            });
+                          try {
+                            // Use the new direct cart editor
+                            await cartEditor.deleteCart(cart.id);
+                            
+                            // Log activity
+                            if (typeof logActivity === "function") {
+                              await logActivity({
+                                type: "Cart",
+                                message: `Cart '${cart.name}' deleted from invoice #${
+                                  localInvoice.invoiceNumber || localInvoice.id
+                                }`,
+                                user: user?.username,
+                              });
+                            }
+                            
+                            console.log("🎉 Cart deletion completed successfully with direct approach");
+                            
+                          } catch (error: any) {
+                            console.error("❌ Error deleting cart:", error);
+                            alert(`Failed to delete cart: ${error?.message || 'Network error. Please try again.'}`);
                           }
-                          if (refreshInvoices) await refreshInvoices();
                         }
                       }}
+                      disabled={cartEditor.isUpdating}
                     >
-                      <i className="bi bi-trash" />
+                      {cartEditor.isUpdating ? (
+                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                      ) : (
+                        <i className="bi bi-trash" />
+                      )}
                     </button>
                     <button
                       className="btn btn-outline-primary btn-sm"
@@ -728,49 +786,44 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           newName.trim() &&
                           newName !== cart.name
                         ) {
-                          console.log("🎯 Cart editing started:", { 
+                          console.log("🎯 Cart editing started with direct approach:", { 
                             cartId: cart.id, 
                             oldName: cart.name, 
                             newName: newName.trim() 
                           });
                           
-                          // Immediately update local state for instant UI feedback
-                          setLocalCarts(
-                            localCarts.map((c) =>
-                              c.id === cart.id
-                                ? { ...c, name: newName.trim() }
-                                : c
-                            )
-                          );
-                          
-                          // Trigger backend update
-                          await onAddCart(
-                            `__edit__${cart.id}__${newName.trim()}`
-                          );
-                          
-                          if (typeof logActivity === "function") {
-                            await logActivity({
-                              type: "Cart",
-                              message: `Cart '${
-                                cart.name
-                              }' renamed to '${newName.trim()}' in invoice #${
-                                invoice.invoiceNumber || invoice.id
-                              }`,
-                              user: user?.username,
-                            });
+                          try {
+                            // Use the new direct cart editor
+                            await cartEditor.updateCartName(cart.id, newName.trim());
+                            
+                            // Log activity
+                            if (typeof logActivity === "function") {
+                              await logActivity({
+                                type: "Cart",
+                                message: `Cart '${cart.name}' renamed to '${newName.trim()}' in invoice #${
+                                  localInvoice.invoiceNumber || localInvoice.id
+                                }`,
+                                user: user?.username,
+                              });
+                            }
+                            
+                            console.log("🎉 Cart name update completed successfully with direct approach");
+                            
+                          } catch (error: any) {
+                            console.error("❌ Error updating cart name:", error);
+                            
+                            // Show user-friendly error message
+                            alert(`Failed to update cart name: ${error?.message || 'Network error. Please try again.'}`);
                           }
-                          
-                          // Refresh invoices to get latest data
-                          if (refreshInvoices) {
-                            console.log("🔄 Refreshing invoices after cart name edit...");
-                            await refreshInvoices();
-                          }
-                          
-                          console.log("🎉 Cart name update completed successfully");
                         }
                       }}
+                      disabled={cartEditor.isUpdating}
                     >
-                      <i className="bi bi-pencil" />
+                      {cartEditor.isUpdating ? (
+                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                      ) : (
+                        <i className="bi bi-pencil" />
+                      )}
                     </button>
                   </div>
                 </div>

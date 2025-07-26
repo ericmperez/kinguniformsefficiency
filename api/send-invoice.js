@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       text,
       attachments: [
         {
-          filename: 'invoice.pdf',
+          filename: 'laundry-ticket.pdf',
           content: Buffer.from(pdfBase64, 'base64'),
           contentType: 'application/pdf'
         }

@@ -23,18 +23,18 @@ const roles: UserRole[] = ["Employee", "Supervisor", "Admin", "Owner", "Driver"]
 
 const componentOptions: { key: AppComponentKey; label: string }[] = [
   { key: "PickupWashing", label: "Pickup Washing" },
-  { key: "ActiveInvoices", label: "Active Invoices" },
+  { key: "ActiveLaundryTickets", label: "Active Laundry Tickets" },
   { key: "UserManagement", label: "User Management" },
   { key: "Report", label: "Report" },
   { key: "Segregation", label: "Segregation" },
   { key: "Washing", label: "Washing" },
   { key: "GlobalActivityLog", label: "Global Activity Log" },
-  { key: "InvoiceDetailsModal", label: "Invoice Details Modal" },
+  { key: "LaundryTicketDetailsModal", label: "Laundry Ticket Details Modal" },
   { key: "LaundryCartModal", label: "Laundry Cart Modal" },
   { key: "DriverManagement", label: "Driver Management" },
   { key: "BillingPage", label: "Billing Page" },
   { key: "RutasPorCamion", label: "Rutas Por Camion" },
-  { key: "SendInvoicePage", label: "Send Invoice Page" },
+  { key: "SendLaundryTicketPage", label: "Send Laundry Ticket Page" },
   { key: "ShippingPage", label: "Shipping Page" },
 ];
 

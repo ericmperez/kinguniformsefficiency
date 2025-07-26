@@ -289,7 +289,7 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
               <div className="col-md-6">
                 <div className="card">
                   <div className="card-header">
-                    <h6 className="mb-0">Invoice Print Settings</h6>
+                    <h6 className="mb-0">Laundry Ticket Print Settings</h6>
                   </div>
                   <div className="card-body">
                     <div className="form-check mb-3">
@@ -868,7 +868,7 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                           <div className="form-text">
                             Available placeholders:{" "}
                             <code>{"{clientName}"}</code>,{" "}
-                            <code>{"{invoiceNumber}"}</code>,{" "}
+                            <code>{"{invoiceNumber}"}</code> - Laundry Ticket number,{" "}
                             <code>{"{date}"}</code>,{" "}
                             <code>{"{truckNumber}"}</code>,{" "}
                             <code>{"{deliveryDate}"}</code>
@@ -967,13 +967,13 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                               </div>
                             </div>
                             {config.emailSettings.ccEmails &&
-                              config.emailSettings.ccEmails.length > 0 && (
+                              config.emailSettings.ccEmails.filter(email => email && email.trim() !== "").length > 0 && (
                                 <div className="row">
                                   <div className="col-3 text-muted small">
                                     CC:
                                   </div>
                                   <div className="col-9 small">
-                                    {config.emailSettings.ccEmails.join(", ")}
+                                    {config.emailSettings.ccEmails.filter(email => email && email.trim() !== "").join(", ")}
                                   </div>
                                 </div>
                               )}
@@ -1049,7 +1049,7 @@ King Uniforms Team`}
                           >
                             <div className="d-flex align-items-center text-muted small">
                               <i className="bi bi-paperclip me-2"></i>
-                              <span>📎 invoice.pdf (attached)</span>
+                              <span>📎 laundry-ticket.pdf (attached)</span>
                             </div>
                           </div>
 

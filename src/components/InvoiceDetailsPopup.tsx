@@ -197,7 +197,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
         <div className="modal-dialog">
           <div className="modal-content">
             <div className="modal-header">
-              <h5 className="modal-title">Loading Invoice Details...</h5>
+              <h5 className="modal-title">Loading Laundry Ticket Details...</h5>
               <button
                 type="button"
                 className="btn-close"
@@ -224,7 +224,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
         <div className="modal-dialog">
           <div className="modal-content">
             <div className="modal-header">
-              <h5 className="modal-title">Invoice Not Found</h5>
+              <h5 className="modal-title">Laundry Ticket Not Found</h5>
               <button
                 type="button"
                 className="btn-close"
@@ -232,7 +232,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
               ></button>
             </div>
             <div className="modal-body">
-              <p>Sorry, the invoice details could not be found.</p>
+              <p>Sorry, the laundry ticket details could not be found.</p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={onClose}>
@@ -255,7 +255,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title">
-                Invoice{" "}
+                Laundry Ticket{" "}
                 {invoice.invoiceNumber
                   ? `#${invoice.invoiceNumber}`
                   : invoice.id.substring(0, 8)}
@@ -278,7 +278,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
                         <strong>Name:</strong> {invoice.clientName}
                       </p>
                       <p className="mb-2">
-                        <strong>Invoice Date:</strong>{" "}
+                        <strong>Laundry Ticket Date:</strong>{" "}
                         {formatDate(invoice.date)}
                       </p>
                       <p className="mb-2">
@@ -286,7 +286,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
                         {formatDate(invoice.deliveryDate)}
                       </p>
                       <p className="mb-2">
-                        <strong>Invoice #:</strong>{" "}
+                        <strong>Laundry Ticket #:</strong>{" "}
                         {invoice.invoiceNumber || invoice.id.substring(0, 8)}
                       </p>
                     </div>
@@ -518,14 +518,14 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
               <button
                 className="btn btn-primary me-2"
                 onClick={() => setShowEmailModal(true)}
-                title="Email invoice details"
+                title="Email laundry ticket details"
               >
                 <i className="bi bi-envelope me-1"></i> Email
               </button>
               <button
                 className="btn btn-primary me-2"
                 onClick={handlePrint}
-                title="Print invoice details"
+                title="Print laundry ticket details"
               >
                 <i className="bi bi-printer-fill me-1"></i> Print
               </button>
@@ -584,7 +584,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">
-                  Email Invoice{" "}
+                  Email Laundry Ticket{" "}
                   {invoice?.invoiceNumber
                     ? `#${invoice.invoiceNumber}`
                     : invoice?.id.substring(0, 8)}
@@ -611,7 +611,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
 
                 <div className="alert alert-info">
                   <i className="bi bi-info-circle-fill me-2"></i>
-                  Send a delivery confirmation email with all invoice details.
+                  Send a delivery confirmation email with all laundry ticket details.
                 </div>
 
                 <div className="mb-3">

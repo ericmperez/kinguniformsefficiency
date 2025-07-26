@@ -101,7 +101,7 @@ const SendInvoicePage: React.FC = () => {
 
   return (
     <div className="container py-4">
-      <h2>Send Custom Invoice Email</h2>
+      <h2>Send Custom Laundry Ticket Email</h2>
       <div className="mb-3" style={{ maxWidth: 350 }}>
         <label className="form-label">Select Client</label>
         <select
@@ -174,7 +174,7 @@ const SendInvoicePage: React.FC = () => {
                     onChange={() => handleInvoiceCheck(inv.id)}
                   />
                   <label className="form-check-label" htmlFor={inv.id}>
-                    <b>Invoice #:</b> {inv.invoiceNumber || inv.id} |{" "}
+                    <b>Laundry Ticket #:</b> {inv.invoiceNumber || inv.id} |{" "}
                     <b>Name:</b> {inv.name || "-"} | <b>Date:</b>{" "}
                     {inv.date ? formatDateOnlySpanish(inv.date) : "-"} |{" "}
                     <b>Status:</b> {inv.status || "-"}
@@ -194,7 +194,7 @@ const SendInvoicePage: React.FC = () => {
                 minHeight: 100,
               }}
             >
-              <h3 style={{ color: "#0E62A0" }}>{subject || "Invoice(s)"}</h3>
+              <h3 style={{ color: "#0E62A0" }}>{subject || "Laundry Ticket(s)"}</h3>
               <div style={{ marginBottom: 12 }}>{message}</div>
               {invoices
                 .filter((inv) => selectedInvoices.includes(inv.id))
@@ -208,7 +208,7 @@ const SendInvoicePage: React.FC = () => {
                     }}
                   >
                     <div>
-                      <b>Invoice #:</b> {inv.invoiceNumber || inv.id}
+                      <b>Laundry Ticket #:</b> {inv.invoiceNumber || inv.id}
                     </div>
                     <div>
                       <b>Date:</b>{" "}

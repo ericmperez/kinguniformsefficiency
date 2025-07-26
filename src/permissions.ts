@@ -5,55 +5,55 @@ export type Role = 'Employee' | 'Supervisor' | 'Admin' | 'Owner' | 'Driver';
 // List the keys for each component you want to control
 export type AppComponentKey =
   | 'PickupWashing'
-  | 'ActiveInvoices'
+  | 'ActiveLaundryTickets'
   | 'UserManagement'
   | 'Report'
   | 'Segregation'
   | 'Washing'
   | 'GlobalActivityLog'
-  | 'InvoiceDetailsModal'
+  | 'LaundryTicketDetailsModal'
   | 'LaundryCartModal'
   | 'DriverManagement'
   | 'BillingPage'
   | 'RutasPorCamion'
-  | 'SendInvoicePage'
+  | 'SendLaundryTicketPage'
   | 'ShippingPage';
 
 // Map roles to allowed components
 export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
-  Employee: ['PickupWashing', 'ActiveInvoices'],
-  Supervisor: ['PickupWashing', 'ActiveInvoices', 'Report', 'Segregation', 'Washing', 'ShippingPage'],
+  Employee: ['PickupWashing', 'ActiveLaundryTickets'],
+  Supervisor: ['PickupWashing', 'ActiveLaundryTickets', 'Report', 'Segregation', 'Washing', 'ShippingPage'],
   Driver: ['ShippingPage'], // Drivers can only see ShippingPage
   Admin: [
     'PickupWashing',
-    'ActiveInvoices',
+    'ActiveLaundryTickets',
     'UserManagement',
     'Report',
     'Segregation',
     'Washing',
     'GlobalActivityLog',
-    'InvoiceDetailsModal',
+    'LaundryTicketDetailsModal',
     'LaundryCartModal',
     'DriverManagement',
     'BillingPage',
     'RutasPorCamion',
-    'SendInvoicePage',
+    'SendLaundryTicketPage',
     'ShippingPage',
   ],
   Owner: [
     'PickupWashing',
-    'ActiveInvoices',
+    'ActiveLaundryTickets',
     'UserManagement',
     'Report',
     'Segregation',
     'Washing',
     'GlobalActivityLog',
-    'InvoiceDetailsModal',
+    'LaundryTicketDetailsModal',
     'LaundryCartModal',
     'DriverManagement',
     'BillingPage',
     'RutasPorCamion',
-    'SendInvoicePage',
+    'SendLaundryTicketPage',
     'ShippingPage',
   ],
 };

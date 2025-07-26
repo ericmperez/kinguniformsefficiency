@@ -673,10 +673,10 @@ King Uniforms Team`;
                               )}
                             </div>
                             {emailSettings?.ccEmails &&
-                              emailSettings.ccEmails.length > 0 && (
+                              emailSettings.ccEmails.filter(email => email && email.trim() !== "").length > 0 && (
                                 <div className="mb-2">
                                   <strong>CC:</strong>{" "}
-                                  {emailSettings.ccEmails.join(", ")}
+                                  {emailSettings.ccEmails.filter(email => email && email.trim() !== "").join(", ")}
                                 </div>
                               )}
                             <div className="mb-2">
@@ -811,8 +811,8 @@ King Uniforms Team`;
                           <small className="text-muted">
                             <ul>
                               <li>{"{clientName}"} - Client name</li>
-                              <li>{"{invoiceNumber}"} - Invoice number</li>
-                              <li>{"{invoiceDate}"} - Invoice date</li>
+                              <li>{"{invoiceNumber}"} - Laundry Ticket number</li>
+                              <li>{"{invoiceDate}"} - Laundry Ticket date</li>
                               <li>{"{totalAmount}"} - Total amount</li>
                               <li>{"{cartCount}"} - Number of carts</li>
                               <li>{"{clientEmail}"} - Client email</li>

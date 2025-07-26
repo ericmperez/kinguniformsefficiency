@@ -170,7 +170,7 @@ function App() {
                     style={{ fontSize: 18, color: "#0ea5e9" }}
                   ></i>
                 </span>
-                <span className="d-none d-lg-inline">Send Invoice</span>
+                <span className="d-none d-lg-inline">Send Laundry Ticket</span>
               </Link>
             </li>
           </ul>

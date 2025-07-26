@@ -1372,13 +1372,13 @@ const ShippingPage: React.FC = () => {
                       <span className="badge bg-success me-1">
                         <i className="bi bi-truck"></i> Shipped
                       </span>
-                      <small className="text-muted">- Invoice has been shipped</small>
+                      <small className="text-muted">- Laundry Ticket has been shipped</small>
                     </span>
                     <span className="d-flex align-items-center">
                       <span className="badge bg-warning text-dark me-1">
                         <i className="bi bi-calendar-event"></i> Scheduled
                       </span>
-                      <small className="text-muted">- Invoice scheduled for delivery (highlighted rows)</small>
+                      <small className="text-muted">- Laundry Ticket scheduled for delivery (highlighted rows)</small>
                     </span>
                   </div>
                 </div>
@@ -1414,7 +1414,7 @@ const ShippingPage: React.FC = () => {
                       <i className="bi bi-info-circle me-2"></i>
                       <strong>This page shows:</strong>
                       <ul className="mt-2 mb-0">
-                        <li>Invoices that have been shipped (status "done")</li>
+                        <li>Laundry Tickets that have been shipped (status "done")</li>
                         <li>With truck numbers 30-39</li>
                         <li>Filtered by delivery date</li>
                       </ul>
@@ -1597,7 +1597,7 @@ const ShippingPage: React.FC = () => {
                                           e.stopPropagation();
                                           handleInvoiceClick(invoice.id);
                                         }}
-                                        title="View invoice details"
+                                        title="View laundry ticket details"
                                       >
                                         <i className="bi bi-file-text"></i> Details
                                       </button>
@@ -1778,7 +1778,7 @@ const ShippingPage: React.FC = () => {
                           </div>
                           <div className="col-md-6">
                             <div className="small">
-                              <strong>Accept New Invoices:</strong><br />
+                              <strong>Accept New Laundry Tickets:</strong><br />
                               <span className={`fw-bold ${canAcceptNewInvoices ? 'text-success' : 'text-danger'}`}>
                                 <i className={`bi ${canAcceptNewInvoices ? 'bi-check-circle' : 'bi-x-circle'} me-1`}></i>
                                 {canAcceptNewInvoices ? 'Yes' : 'No'}
@@ -1910,7 +1910,7 @@ const ShippingPage: React.FC = () => {
                             <div className="card-body text-center">
                               <h6 className="card-title text-muted">Expected Carts</h6>
                               <h2 className="text-primary">{expectedCount}</h2>
-                              <small className="text-muted">From all invoices</small>
+                              <small className="text-muted">From all laundry tickets</small>
                             </div>
                           </div>
                         </div>

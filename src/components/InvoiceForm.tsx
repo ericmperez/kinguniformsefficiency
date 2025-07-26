@@ -61,7 +61,7 @@ export default function InvoiceForm({
       <div className="modal-dialog">
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">New Invoice</h5>
+            <h5 className="modal-title">New Laundry Ticket</h5>
             <button
               type="button"
               className="btn-close"
@@ -135,7 +135,7 @@ export default function InvoiceForm({
                 </div>
               </div>
               <div className="mb-3">
-                <label className="form-label">Invoice Date</label>
+                <label className="form-label">Laundry Ticket Date</label>
                 <input
                   type="date"
                   className="form-control"
@@ -158,7 +158,7 @@ export default function InvoiceForm({
                 </small>
               </div>
               <div className="mb-3">
-                <label className="form-label">Invoice Status</label>
+                <label className="form-label">Laundry Ticket Status</label>
                 <select
                   className="form-select"
                   value={invoiceStatus}
@@ -186,7 +186,7 @@ export default function InvoiceForm({
               </div>
               <div className="modal-body">
                 <p>
-                  Are you sure you want to create an invoice for{" "}
+                  Are you sure you want to create a laundry ticket for{" "}
                   <b>{clients.find((c) => c.id === selectedClient)?.name}</b>?
                 </p>
               </div>
@@ -198,7 +198,7 @@ export default function InvoiceForm({
                   Cancel
                 </button>
                 <button className="btn btn-primary" onClick={handleConfirm}>
-                  Yes, Create Invoice
+                  Yes, Create Laundry Ticket
                 </button>
               </div>
             </div>

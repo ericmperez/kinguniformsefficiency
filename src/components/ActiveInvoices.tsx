@@ -384,7 +384,7 @@ export default function ActiveInvoices({
       if (user?.username) {
         await        logActivity({
           type: "Invoice",
-          message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} invoice #${invoice.invoiceNumber || invoice.id}`,
+          message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} laundry ticket #${invoice.invoiceNumber || invoice.id}`,
           user: user.username,
         });
       }
@@ -435,7 +435,7 @@ export default function ActiveInvoices({
               console.log(`Auto-sent invoice email to ${client.email}`);
               await logActivity({
                 type: "Invoice",
-                message: `Invoice #${invoice.invoiceNumber || invoice.id} auto-sent to ${client.name} (${client.email}) on approval`,
+                message: `Laundry Ticket #${invoice.invoiceNumber || invoice.id} auto-sent to ${client.name} (${client.email}) on approval`,
               });
             }
           } catch (error) {
@@ -622,7 +622,7 @@ export default function ActiveInvoices({
     if (user?.username) {
       await logActivity({
         type: "Invoice",
-        message: `User ${user.username} opened Create New Invoice modal`,
+        message: `User ${user.username} opened Create New Laundry Ticket modal`,
         user: user.username,
       });
     }
@@ -650,7 +650,7 @@ export default function ActiveInvoices({
     setShowUnshipModal(false);
     setUnshipSelectedIds([]);
     await refreshInvoices();
-    alert(`Unshipped invoices: ${unshipSelectedIds.join(", ")}`);
+    alert(`Unshipped laundry tickets: ${unshipSelectedIds.join(", ")}`);
   };
 
   // --- Delivery Schedule Handler ---
@@ -682,7 +682,7 @@ export default function ActiveInvoices({
       if (user?.username) {
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} scheduled invoice #${invoice.invoiceNumber || invoice.id} for delivery on ${scheduleDeliveryDate} via Truck #${scheduleTruckNumber}`,
+          message: `User ${user.username} scheduled laundry ticket #${invoice.invoiceNumber || invoice.id} for delivery on ${scheduleDeliveryDate} via Truck #${scheduleTruckNumber}`,
           user: user.username,
         });
       }
@@ -699,7 +699,7 @@ export default function ActiveInvoices({
       // Show print options modal after delivery is scheduled
       setShowPrintOptionsModal(invoiceId);
       
-      alert(`Invoice scheduled for delivery on ${new Date(scheduleDeliveryDate).toLocaleDateString()} via Truck #${scheduleTruckNumber}`);
+      alert(`Laundry Ticket scheduled for delivery on ${new Date(scheduleDeliveryDate).toLocaleDateString()} via Truck #${scheduleTruckNumber}`);
     } catch (error) {
       console.error("Error scheduling delivery:", error);
       alert("Error scheduling delivery. Please try again.");
@@ -716,7 +716,7 @@ export default function ActiveInvoices({
       if (user?.username) {
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} deleted invoice #${
+          message: `User ${user.username} deleted laundry ticket #${
             invoiceToDelete.invoiceNumber || invoiceToDelete.id
           }`,
           user: user.username,
@@ -783,7 +783,7 @@ export default function ActiveInvoices({
       if (user?.username) {
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to invoice #${invoice.invoiceNumber || invoice.id}`,
+          message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to laundry ticket #${invoice.invoiceNumber || invoice.id}`,
           user: user.username,
         });
       }
@@ -1310,11 +1310,11 @@ export default function ActiveInvoices({
 
       <div className="row">
         <div className="col-md-6">
-          <h3 className="mb-4">Active Invoices</h3>
+          <h3 className="mb-4">Active Laundry Tickets</h3>
         </div>
         <div className="col-md-6 text-md-end">
           <button className="btn btn-primary me-2" onClick={handleAddInvoice}>
-            Create New Invoice
+            Create New Laundry Ticket
           </button>
           {/* Only show Unship button for Supervisor, Admin, Owner */}
           {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
@@ -1322,7 +1322,7 @@ export default function ActiveInvoices({
               className="btn btn-warning"
               onClick={handleUnshipRecentInvoices}
             >
-              Unship Recent Invoices
+              Unship Recent Laundry Tickets
             </button>
           )}
         </div>
@@ -1331,7 +1331,7 @@ export default function ActiveInvoices({
       <div className="row">
         {invoicesState.filter((inv) => inv.status !== "done").length === 0 ? (
           <div className="text-center text-muted py-5">
-            No active invoices found. Create a new invoice to get started.
+            No active laundry tickets found. Create a new laundry ticket to get started.
           </div>
         ) : (
           sortedInvoices
@@ -1733,7 +1733,7 @@ export default function ActiveInvoices({
                             e.stopPropagation();
                             if (hasUnnamedCart(invoice)) {
                               alert(
-                                'Cannot modify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                               );
                               return;
                             }
@@ -1747,7 +1747,7 @@ export default function ActiveInvoices({
                             if (isCurrentlyCompleted) {
                               // If shipping is done, cannot revert
                               if (invoice.status === "done") {
-                                alert("Cannot uncomplete a shipped invoice.");
+                                alert("Cannot uncomplete a shipped laundry ticket.");
                                 return;
                               }
                               // If approved, ask for confirmation to revert
@@ -1775,7 +1775,7 @@ export default function ActiveInvoices({
                               if (user?.username) {
                                 await                                logActivity({
                                   type: "Invoice",
-                                  message: `User ${user.username} marked invoice #${invoice.invoiceNumber || invoice.id} as active (uncompleted)`,
+                                  message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as active (uncompleted)`,
                                   user: user.username,
                                 });
                               }
@@ -1791,7 +1791,7 @@ export default function ActiveInvoices({
                               if (user?.username) {
                                 await                                logActivity({
                                   type: "Invoice",
-                                  message: `User ${user.username} marked invoice #${invoice.invoiceNumber || invoice.id} as completed`,
+                                  message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as completed`,
                                   user: user.username,
                                 });
                               }
@@ -1847,13 +1847,13 @@ export default function ActiveInvoices({
                             e.stopPropagation();
                             if (hasUnnamedCart(invoice)) {
                               alert(
-                                'Cannot modify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                               );
                               return;
                             }
                             if (invoice.status !== "completed") {
                               alert(
-                                "Invoice must be completed before it can be approved."
+                                "Laundry Ticket must be completed before it can be approved."
                               );
                               return;
                             }
@@ -1862,7 +1862,7 @@ export default function ActiveInvoices({
                             if (invoice.verified) {
                               // If shipped, cannot revert approval
                               if ((invoice as any).status === "done") {
-                                alert("Cannot unapprove a shipped invoice.");
+                                alert("Cannot unapprove a shipped laundry ticket.");
                                 return;
                               }
                               // Remove approval
@@ -1874,7 +1874,7 @@ export default function ActiveInvoices({
                               if (user?.username) {
                                 await                                logActivity({
                                   type: "Invoice",
-                                  message: `User ${user.username} removed approval from invoice #${invoice.invoiceNumber || invoice.id}`,
+                                  message: `User ${user.username} removed approval from laundry ticket #${invoice.invoiceNumber || invoice.id}`,
                                   user: user.username,
                                 });
                               }
@@ -1894,7 +1894,7 @@ export default function ActiveInvoices({
                               ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
                               : (invoice as any).status === "done" &&
                                 invoice.verified
-                              ? "Approved (cannot unapprove shipped invoice)"
+                              ? "Approved (cannot unapprove shipped laundry ticket)"
                               : invoice.verified
                               ? "Click to remove approval"
                               : "Approve"
@@ -1934,13 +1934,13 @@ export default function ActiveInvoices({
                             e.stopPropagation();
                             if (hasUnnamedCart(invoice)) {
                               alert(
-                                'Cannot modify invoice: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                               );
                               return;
                             }
                             if (!invoice.verified) {
                               alert(
-                                "Invoice must be approved before it can be shipped."
+                                "Laundry Ticket must be approved before it can be shipped."
                               );
                               return;
                             }
@@ -1960,7 +1960,7 @@ export default function ActiveInvoices({
                                 if (user?.username) {
                                   await                                  logActivity({
                                     type: "Invoice",
-                                    message: `User ${user.username} unshipped invoice #${invoice.invoiceNumber || invoice.id}`,
+                                    message: `User ${user.username} unshipped laundry ticket #${invoice.invoiceNumber || invoice.id}`,
                                     user: user.username,
                                   });
                                 }
@@ -2097,7 +2097,7 @@ export default function ActiveInvoices({
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Invoice Cart</h5>
+                <h5 className="modal-title">Laundry Ticket Cart</h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -3333,7 +3333,7 @@ export default function ActiveInvoices({
                     if (user?.username) {
                       await                      logActivity({
                         type: "Invoice",
-                        message: `User ${user.username} marked invoice #${invoice.invoiceNumber || invoice.id} as shipped (Truck #${shippedTruckNumber}, Delivery Date: ${shippedDeliveryDate})`,
+                        message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as shipped (Truck #${shippedTruckNumber}, Delivery Date: ${shippedDeliveryDate})`,
                         user: user.username,
                       });
                     }
@@ -3490,7 +3490,7 @@ export default function ActiveInvoices({
               <div className="modal-body">
                 <div className="alert alert-info">
                   <i className="bi bi-info-circle-fill me-2"></i>
-                  <strong>Invoice Approved!</strong> Now schedule the delivery date and truck assignment. You can skip this step if you want to schedule later.
+                  <strong>Laundry Ticket Approved!</strong> Now schedule the delivery date and truck assignment. You can skip this step if you want to schedule later.
                 </div>
                 
                 <div className="mb-3">
@@ -3627,7 +3627,7 @@ export default function ActiveInvoices({
                     if (eligible.length === 0)
                       return (
                         <div className="text-muted">
-                          No recently shipped invoices found.
+                          No recently shipped laundry tickets found.
                         </div>
                       );
                     return (
@@ -3707,13 +3707,33 @@ export default function ActiveInvoices({
             }
             // Handle edit cart name
             if (cartName.startsWith("__edit__")) {
-              const [_, cartId, ...nameParts] = cartName.split("__");
-              const newName = nameParts.join("__");
-              const updatedCarts = invoice.carts.map((c) =>
-                c.id === cartId ? { ...c, name: newName } : c
-              );
-              await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-              return { id: cartId, name: newName, isActive: true };
+              try {
+                const [_, cartId, ...nameParts] = cartName.split("__");
+                const newName = nameParts.join("__");
+                
+                console.log("🔄 Processing cart name edit:", { 
+                  invoiceId: invoice.id, 
+                  cartId, 
+                  newName,
+                  timestamp: new Date().toISOString()
+                });
+                
+                const updatedCarts = invoice.carts.map((c) =>
+                  c.id === cartId ? { ...c, name: newName } : c
+                );
+                
+                await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+                
+                // Small delay to ensure Firestore write propagation
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
+                console.log("✅ Cart name edit completed successfully:", { cartId, newName });
+                
+                return { id: cartId, name: newName, isActive: true };
+              } catch (error: any) {
+                console.error("❌ Error updating cart name:", error);
+                throw new Error(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
+              }
             }
             // --- Invoice Name Edit Logic ---
             if (cartName.startsWith("__invoice_name__")) {
@@ -3950,7 +3970,7 @@ export default function ActiveInvoices({
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Verify Invoice Items</h5>
+                <h5 className="modal-title">Verify Laundry Ticket Items</h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -4039,7 +4059,7 @@ export default function ActiveInvoices({
                   </div>
                   <div className="modal-body">
                     <p>
-                      Invoice has been approved! Choose what you'd like to
+                      Laundry Ticket has been approved! Choose what you'd like to
                       print:
                     </p>
 
@@ -4066,7 +4086,7 @@ export default function ActiveInvoices({
 
                       {/* Print Full Invoice */}
                       <div className="border rounded p-3">
-                        <h6 className="mb-3">Print/Email Complete Invoice</h6>
+                        <h6 className="mb-3">Print/Email Complete Laundry Ticket</h6>
                         <button
                           className="btn btn-primary me-2"
                           onClick={() => {
@@ -4074,7 +4094,7 @@ export default function ActiveInvoices({
                             setShowPrintOptionsModal(null);
                           }}
                         >
-                          Print Complete Invoice
+                          Print Complete Laundry Ticket
                         </button>
                         {client?.printConfig?.emailSettings?.enabled && (
                           <button
@@ -4096,7 +4116,7 @@ export default function ActiveInvoices({
                               setShowPrintOptionsModal(null);
                             }}
                           >
-                            Email Invoice
+                            Email Laundry Ticket
                           </button>
                         )}
                       </div>
@@ -4192,7 +4212,7 @@ export default function ActiveInvoices({
                                 {printConfig.headerText || "Cart Contents"}
                               </h2>
                               <div style={{ fontSize: 14, color: "#666" }}>
-                                <strong>Invoice:</strong> #
+                                <strong>Laundry Ticket:</strong> #
                                 {invoice.invoiceNumber || invoice.id} |
                                 <strong> Client:</strong> {invoice.clientName} |
                                 <strong> Cart:</strong> {cart.name}
@@ -4655,7 +4675,7 @@ export default function ActiveInvoices({
               <div className="modal-dialog modal-xl">
                 <div className="modal-content">
                   <div className="modal-header d-print-none">
-                    <h5 className="modal-title">Print Invoice</h5>
+                    <h5 className="modal-title">Print Laundry Ticket</h5>
                     <button
                       type="button"
                       className="btn-close"
