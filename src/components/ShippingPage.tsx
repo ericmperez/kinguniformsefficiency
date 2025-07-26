@@ -1661,8 +1661,12 @@ const ShippingPage: React.FC = () => {
                         <div className="d-flex flex-column">
                           <small className="text-muted">
                             Delivery Date:{" "}
-                            {selectedDate &&
-                              new Date(selectedDate).toLocaleDateString("en-US")}
+                            {selectedDate ? (() => {
+                              // Parse date as local date to match dropdown formatting
+                              const [year, month, day] = selectedDate.split("-").map(Number);
+                              const localDate = new Date(year, month - 1, day);
+                              return localDate.toLocaleDateString("en-US");
+                            })() : "Not set"}
                           </small>
                         </div>
                         
