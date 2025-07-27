@@ -546,116 +546,253 @@ King Uniforms Team`;
         </div>
       )}
 
-      <div className="row">
-        <div className="col-md-6">
-          <div className="card mb-4">
-            <div className="card-header bg-primary text-white">
-              <h5 className="mb-0">Email Configuration</h5>
+      {/* Client Email Configuration - Full Width */}
+      <div className="container-fluid px-0 mb-5">
+        <div className="card shadow-sm">
+          <div className="card-header" style={{ background: '#0E62A0', color: 'white' }}>
+            <div className="d-flex align-items-center justify-content-between">
+              <div className="d-flex align-items-center">
+                <i className="bi bi-envelope-gear me-3" style={{ fontSize: '1.5rem' }}></i>
+                <div>
+                  <h4 className="mb-0 fw-bold">Client Email Configuration</h4>
+                  <small className="text-light opacity-75">
+                    Configure email settings and templates for client notifications
+                  </small>
+                </div>
+              </div>
+              <div className="text-end">
+                <img 
+                  src="/api/placeholder/120/40" 
+                  alt="King Uniforms" 
+                  style={{ height: '32px', filter: 'brightness(0) invert(1)' }}
+                />
+              </div>
             </div>
-            <div className="card-body">
-              <input
-                type="text"
-                className="form-control mb-3"
-                placeholder="Search clients..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <table className="table table-bordered table-hover">
-                <thead>
+          </div>
+          <div className="card-body p-4">
+            {/* Enhanced Search Bar */}
+            <div className="row mb-4">
+              <div className="col-md-6">
+                <div className="position-relative">
+                  <i className="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                  <input
+                    type="text"
+                    className="form-control ps-5 py-2"
+                    placeholder="Search clients by name, email, or billing type..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{ borderColor: '#dee2e6', borderRadius: '8px' }}
+                  />
+                </div>
+              </div>
+              <div className="col-md-6 text-end">
+                <span className="text-muted">
+                  <i className="bi bi-people-fill me-1"></i>
+                  {filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''} found
+                </span>
+              </div>
+            </div>
+
+            {/* Enhanced Table */}
+            <div className="table-responsive">
+              <table className="table table-hover align-middle" style={{ borderRadius: '8px', overflow: 'hidden' }}>
+                <thead style={{ background: '#f8f9fa', borderTop: '2px solid #0E62A0' }}>
                   <tr>
-                    <th>Client</th>
-                    <th>Email</th>
-                    <th>Billing Type</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th className="fw-semibold text-dark py-3" style={{ borderBottom: '2px solid #dee2e6' }}>
+                      <i className="bi bi-person-fill me-2 text-primary"></i>Client
+                    </th>
+                    <th className="fw-semibold text-dark py-3" style={{ borderBottom: '2px solid #dee2e6' }}>
+                      <i className="bi bi-envelope-fill me-2 text-primary"></i>Email Address
+                    </th>
+                    <th className="fw-semibold text-dark py-3" style={{ borderBottom: '2px solid #dee2e6' }}>
+                      <i className="bi bi-calculator-fill me-2 text-primary"></i>Billing Type
+                    </th>
+                    <th className="fw-semibold text-dark py-3" style={{ borderBottom: '2px solid #dee2e6' }}>
+                      <i className="bi bi-toggle-on me-2 text-primary"></i>Status
+                    </th>
+                    <th className="fw-semibold text-dark py-3 text-center" style={{ borderBottom: '2px solid #dee2e6' }}>
+                      <i className="bi bi-gear-fill me-2 text-primary"></i>Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredClients.map((client) => (
-                    <tr key={client.id}>
-                      <td>{client.name}</td>
-                      <td>
+                  {filteredClients.map((client, index) => (
+                    <tr key={client.id} className="border-bottom" style={{ backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafbfc' }}>
+                      <td className="py-3">
+                        <div className="d-flex align-items-center">
+                          <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3" 
+                               style={{ width: '40px', height: '40px', fontSize: '14px', fontWeight: 'bold' }}>
+                            {client.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="fw-semibold text-dark">{client.name}</div>
+                            <small className="text-muted">ID: {client.id}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3">
                         {client.email ? (
-                          <span className="text-success">
-                            <i className="bi bi-envelope-fill me-1"></i>
-                            {client.email}
-                          </span>
+                          <div className="d-flex align-items-center">
+                            <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center me-2" 
+                                 style={{ width: '24px', height: '24px', fontSize: '12px' }}>
+                              <i className="bi bi-check"></i>
+                            </div>
+                            <div>
+                              <div className="text-dark">{client.email}</div>
+                              <span className="badge bg-success-subtle text-success">
+                                <i className="bi bi-envelope-check-fill me-1"></i>Configured
+                              </span>
+                            </div>
+                          </div>
                         ) : (
-                          <span className="text-danger">
-                            <i className="bi bi-exclamation-triangle-fill me-1"></i>
-                            No email configured
-                          </span>
+                          <div className="d-flex align-items-center">
+                            <div className="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center me-2" 
+                                 style={{ width: '24px', height: '24px', fontSize: '12px' }}>
+                              <i className="bi bi-x"></i>
+                            </div>
+                            <div>
+                              <div className="text-muted">No email address</div>
+                              <span className="badge bg-danger-subtle text-danger">
+                                <i className="bi bi-exclamation-triangle-fill me-1"></i>Not Configured
+                              </span>
+                            </div>
+                          </div>
                         )}
                       </td>
-                      <td>
+                      <td className="py-3">
                         {client.billingCalculation === "byWeight" ? (
-                          <span className="badge bg-info">By Weight</span>
+                          <span className="badge bg-info-subtle text-info px-3 py-2" style={{ fontSize: '0.85rem' }}>
+                            <i className="bi bi-speedometer2 me-1"></i>By Weight
+                          </span>
                         ) : (
-                          <span className="badge bg-secondary">By Piece</span>
+                          <span className="badge bg-secondary-subtle text-secondary px-3 py-2" style={{ fontSize: '0.85rem' }}>
+                            <i className="bi bi-list-ol me-1"></i>By Item
+                          </span>
                         )}
                       </td>
-                      <td>
+                      <td className="py-3">
                         {client.printConfig?.emailSettings?.enabled ? (
-                          <span className="badge bg-success">Enabled</span>
+                          <span className="badge bg-success px-3 py-2" style={{ fontSize: '0.85rem' }}>
+                            <i className="bi bi-toggle-on me-1"></i>Enabled
+                          </span>
                         ) : (
-                          <span className="badge bg-secondary">Disabled</span>
+                          <span className="badge bg-secondary px-3 py-2" style={{ fontSize: '0.85rem' }}>
+                            <i className="bi bi-toggle-off me-1"></i>Disabled
+                          </span>
                         )}
                       </td>
-                      <td>
-                        <button
-                          className="btn btn-outline-primary btn-sm me-2"
-                          onClick={() => openClientEmailConfiguration(client)}
-                        >
-                          Configure
-                        </button>
-                        <button
-                          className="btn btn-outline-info btn-sm me-2"
-                          onClick={() => openEmailPreview(client)}
-                        >
-                          Preview
-                        </button>
-                        <button
-                          className="btn btn-outline-success btn-sm"
-                          disabled={testingEmail === client.id}
-                          onClick={() => sendTestEmail(client)}
-                        >
-                          {testingEmail === client.id ? (
-                            <span className="spinner-border spinner-border-sm me-2" />
-                          ) : null}
-                          Send Test Email
-                        </button>
+                      <td className="py-3 text-center">
+                        <div className="btn-group" role="group">
+                          <button
+                            className="btn btn-outline-primary btn-sm px-3"
+                            onClick={() => openClientEmailConfiguration(client)}
+                            title="Configure email settings"
+                          >
+                            <i className="bi bi-gear-fill me-1"></i>Configure
+                          </button>
+                          <button
+                            className="btn btn-outline-info btn-sm px-3"
+                            onClick={() => openEmailPreview(client)}
+                            title="Preview email template"
+                          >
+                            <i className="bi bi-eye-fill me-1"></i>Preview
+                          </button>
+                          <button
+                            className="btn btn-outline-success btn-sm px-3"
+                            disabled={testingEmail === client.id || !client.email}
+                            onClick={() => sendTestEmail(client)}
+                            title="Send test email"
+                          >
+                            {testingEmail === client.id ? (
+                              <span className="spinner-border spinner-border-sm me-1" />
+                            ) : (
+                              <i className="bi bi-send-fill me-1"></i>
+                            )}
+                            Test
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {/* Summary Statistics */}
+            <div className="row mt-4">
+              <div className="col-md-3">
+                <div className="card border-0 bg-light text-center">
+                  <div className="card-body py-3">
+                    <div className="text-primary fw-bold h4">{clients.length}</div>
+                    <small className="text-muted">Total Clients</small>
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-3">
+                <div className="card border-0 bg-light text-center">
+                  <div className="card-body py-3">
+                    <div className="text-success fw-bold h4">
+                      {clients.filter(c => c.email && c.printConfig?.emailSettings?.enabled).length}
+                    </div>
+                    <small className="text-muted">Email Enabled</small>
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-3">
+                <div className="card border-0 bg-light text-center">
+                  <div className="card-body py-3">
+                    <div className="text-info fw-bold h4">
+                      {clients.filter(c => c.billingCalculation === "byWeight").length}
+                    </div>
+                    <small className="text-muted">By Weight</small>
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-3">
+                <div className="card border-0 bg-light text-center">
+                  <div className="card-body py-3">
+                    <div className="text-secondary fw-bold h4">
+                      {clients.filter(c => c.billingCalculation === "byItem").length}
+                    </div>
+                    <small className="text-muted">By Item</small>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="col-md-6">
-          {/* Email Preview Modal (side-by-side) */}
-          {showEmailPreview &&
-            emailPreviewClient &&
-            (() => {
-              const emailSettings =
-                emailPreviewClient.printConfig?.emailSettings;
-              const preview = generateEmailPreview(emailPreviewClient);
-              return (
-                <div className="card">
-                  <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 className="mb-0">
-                      📧 Email Preview - {emailPreviewClient.name}
-                    </h5>
-                    <button
-                      type="button"
-                      className="btn-close btn-close-white"
-                      onClick={() => {
-                        setShowEmailPreview(false);
-                        setEmailPreviewClient(null);
-                      }}
-                    ></button>
+      </div>
+      {/* Email Preview Section - Full Width Conditional Display */}
+      {showEmailPreview && emailPreviewClient && (
+        <div className="container-fluid px-0 mb-4">
+          <div className="card shadow-sm">
+            <div className="card-header" style={{ background: '#0E62A0', color: 'white' }}>
+              <div className="d-flex align-items-center justify-content-between">
+                <div className="d-flex align-items-center">
+                  <i className="bi bi-envelope-paper me-3" style={{ fontSize: '1.5rem' }}></i>
+                  <div>
+                    <h4 className="mb-0 fw-bold">Email Preview - {emailPreviewClient.name}</h4>
+                    <small className="text-light opacity-75">
+                      Preview how the email will appear to the recipient
+                    </small>
                   </div>
-                  <div className="card-body">
+                </div>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => {
+                    setShowEmailPreview(false);
+                    setEmailPreviewClient(null);
+                  }}
+                ></button>
+              </div>
+            </div>
+            <div className="card-body p-4">
+              {(() => {
+                const emailSettings = emailPreviewClient.printConfig?.emailSettings;
+                const preview = generateEmailPreview(emailPreviewClient);
+                return (
+                  <div>
                     {/* Email Details */}
                     <div className="row mb-4">
                       <div className="col-md-6">
@@ -667,9 +804,7 @@ King Uniforms Team`;
                             <div className="mb-2">
                               <strong>To:</strong>{" "}
                               {emailPreviewClient.email || (
-                                <span className="text-warning">
-                                  No email address
-                                </span>
+                                <span className="text-warning">No email address</span>
                               )}
                             </div>
                             {emailSettings?.ccEmails &&
@@ -684,39 +819,28 @@ King Uniforms Team`;
                             </div>
                             <div className="mb-2">
                               <strong>Billing Type:</strong>{" "}
-                              {emailPreviewClient.billingCalculation ===
-                              "byWeight" ? (
+                              {emailPreviewClient.billingCalculation === "byWeight" ? (
                                 <span className="badge bg-info">By Weight</span>
                               ) : (
-                                <span className="badge bg-secondary">
-                                  By Piece
-                                </span>
+                                <span className="badge bg-secondary">By Item</span>
                               )}
                             </div>
                             <div className="mb-2">
                               <strong>Auto-send:</strong>
                               <div className="mt-1">
                                 {emailSettings?.autoSendOnApproval && (
-                                  <span className="badge bg-primary me-1">
-                                    On Approval
-                                  </span>
+                                  <span className="badge bg-primary me-1">On Approval</span>
                                 )}
                                 {emailSettings?.autoSendOnShipping && (
-                                  <span className="badge bg-success me-1">
-                                    On Shipping
-                                  </span>
+                                  <span className="badge bg-success me-1">On Shipping</span>
                                 )}
                                 {emailSettings?.autoSendOnSignature && (
-                                  <span className="badge bg-warning me-1">
-                                    On Signature
-                                  </span>
+                                  <span className="badge bg-warning me-1">On Signature</span>
                                 )}
                                 {!emailSettings?.autoSendOnApproval &&
                                   !emailSettings?.autoSendOnShipping &&
                                   !emailSettings?.autoSendOnSignature && (
-                                    <span className="badge bg-info">
-                                      Manual Only
-                                    </span>
+                                    <span className="badge bg-info">Manual Only</span>
                                   )}
                               </div>
                             </div>
@@ -726,45 +850,25 @@ King Uniforms Team`;
                       <div className="col-md-6">
                         <div className="card">
                           <div className="card-header bg-light">
-                            <h6 className="mb-0">🔧 Configuration Status</h6>
+                            <h6 className="mb-0">⚙️ Configuration Status</h6>
                           </div>
                           <div className="card-body">
                             <div className="mb-2">
                               <strong>Email Enabled:</strong>
-                              <span
-                                className={`badge ms-1 ${
-                                  emailSettings?.enabled
-                                    ? "bg-success"
-                                    : "bg-danger"
-                                }`}
-                              >
+                              <span className={`badge ms-1 ${emailSettings?.enabled ? "bg-success" : "bg-danger"}`}>
                                 {emailSettings?.enabled ? "Yes" : "No"}
                               </span>
                             </div>
                             <div className="mb-2">
                               <strong>Custom Subject:</strong>
-                              <span
-                                className={`badge ms-1 ${
-                                  emailSettings?.subject
-                                    ? "bg-info"
-                                    : "bg-secondary"
-                                }`}
-                              >
+                              <span className={`badge ms-1 ${emailSettings?.subject ? "bg-info" : "bg-secondary"}`}>
                                 {emailSettings?.subject ? "Yes" : "Default"}
                               </span>
                             </div>
                             <div className="mb-2">
                               <strong>Custom Template:</strong>
-                              <span
-                                className={`badge ms-1 ${
-                                  emailSettings?.bodyTemplate
-                                    ? "bg-info"
-                                    : "bg-secondary"
-                                }`}
-                              >
-                                {emailSettings?.bodyTemplate
-                                  ? "Yes"
-                                  : "Default"}
+                              <span className={`badge ms-1 ${emailSettings?.bodyTemplate ? "bg-info" : "bg-secondary"}`}>
+                                {emailSettings?.bodyTemplate ? "Yes" : "Default"}
                               </span>
                             </div>
                           </div>
@@ -816,10 +920,7 @@ King Uniforms Team`;
                               <li>{"{totalAmount}"} - Total amount</li>
                               <li>{"{cartCount}"} - Number of carts</li>
                               <li>{"{clientEmail}"} - Client email</li>
-                              <li>
-                                {"{processingSummary}"} - Processing summary
-                                (weight or items)
-                              </li>
+                              <li>{"{processingSummary}"} - Processing summary (weight or items)</li>
                             </ul>
                           </small>
                         </div>
@@ -871,55 +972,154 @@ King Uniforms Team`;
                       )}
                     </div>
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
-          {/* Instructions if no preview is shown */}
-          {!showEmailPreview && (
-            <div className="card">
-              <div className="card-header bg-info text-white">
-                <h5 className="mb-0">💡 How Email Content Works</h5>
-              </div>
-              <div className="card-body">
-                <h6 className="mb-3">Based on Client Billing Type:</h6>
-
-                <div className="alert alert-primary">
-                  <strong>For clients billed by weight:</strong>
-                  <p>Emails will include the total pounds processed</p>
-                  <div className="bg-light p-2 rounded">
-                    <small>
-                      <strong>Example:</strong> Total Pounds Processed: 125.50
-                      lbs
+      {/* Email Content Guide - Full Width */}
+      {!showEmailPreview && (
+        <div className="container-fluid px-0 mb-4">
+          <div className="card shadow-sm">
+            <div className="card-header" style={{ background: '#0E62A0', color: 'white' }}>
+              <div className="d-flex align-items-center justify-content-between">
+                <div className="d-flex align-items-center">
+                  <i className="bi bi-lightbulb me-3" style={{ fontSize: '1.5rem' }}></i>
+                  <div>
+                    <h4 className="mb-0 fw-bold">Email Content Guide</h4>
+                    <small className="text-light opacity-75">
+                      Understanding how email content is generated based on billing types
                     </small>
                   </div>
                 </div>
-
-                <div className="alert alert-secondary">
-                  <strong>For clients billed by piece:</strong>
-                  <p>Emails will include an itemized list of processed items</p>
-                  <div className="bg-light p-2 rounded">
-                    <small>
-                      <strong>Example:</strong>
-                      <br />
-                      Items Processed:
-                      <br />
-                      - Scrub Shirts: 10 pieces
-                      <br />- Scrub Pants: 8 pieces
-                    </small>
-                  </div>
+                <div className="text-end">
+                  <img 
+                    src="/api/placeholder/120/40" 
+                    alt="King Uniforms" 
+                    style={{ height: '32px', filter: 'brightness(0) invert(1)' }}
+                  />
                 </div>
-
-                <p className="mt-3">
-                  Click "Preview" next to any client to see how their email will
-                  look. You can customize templates for each client by clicking
-                  "Configure".
-                </p>
               </div>
             </div>
-          )}
+            <div className="card-body p-4">
+              <div className="row">
+                {/* Billing Types Column */}
+                <div className="col-md-6">
+                  <h5 className="text-primary mb-4">
+                    <i className="bi bi-calculator me-2"></i>Billing Types & Email Content
+                  </h5>
+
+                  <div className="alert alert-primary border-0 mb-4" style={{ backgroundColor: '#e3f2fd' }}>
+                    <div className="d-flex align-items-start">
+                      <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3" 
+                           style={{ width: '40px', height: '40px', fontSize: '16px' }}>
+                        <i className="bi bi-speedometer2"></i>
+                      </div>
+                      <div className="flex-grow-1">
+                        <h6 className="fw-bold text-primary mb-2">Clients Billed by Weight</h6>
+                        <p className="mb-3">Emails include the total pounds processed for the laundry ticket</p>
+                        <div className="bg-white p-3 rounded border" style={{ fontFamily: 'Monaco, monospace', fontSize: '0.9rem' }}>
+                          <strong>Example Output:</strong><br/>
+                          <span className="text-success">Total Pounds Processed: 125.50 lbs</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="alert alert-secondary border-0" style={{ backgroundColor: '#f5f5f5' }}>
+                    <div className="d-flex align-items-start">
+                      <div className="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" 
+                           style={{ width: '40px', height: '40px', fontSize: '16px' }}>
+                        <i className="bi bi-list-ol"></i>
+                      </div>
+                      <div className="flex-grow-1">
+                        <h6 className="fw-bold text-secondary mb-2">Clients Billed by Item</h6>
+                        <p className="mb-3">Emails include an itemized breakdown of all processed items</p>
+                        <div className="bg-white p-3 rounded border" style={{ fontFamily: 'Monaco, monospace', fontSize: '0.9rem' }}>
+                          <strong>Example Output:</strong><br/>
+                          <span className="text-info">Items Processed:</span><br/>
+                          <span className="text-success">• Scrub Shirts: 10 pieces</span><br/>
+                          <span className="text-success">• Scrub Pants: 8 pieces</span><br/>
+                          <span className="text-success">• Lab Coats: 3 pieces</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Template Variables Column */}
+                <div className="col-md-6">
+                  <h5 className="text-primary mb-4">
+                    <i className="bi bi-code-square me-2"></i>Template Variables
+                  </h5>
+
+                  <div className="card border-0" style={{ backgroundColor: '#f8f9fa' }}>
+                    <div className="card-body">
+                      <h6 className="fw-bold mb-3">
+                        <i className="bi bi-person-fill me-2"></i>Client Information
+                      </h6>
+                      <div className="row g-2 mb-4">
+                        <div className="col-6">
+                          <code className="d-block p-2 bg-white rounded small">{"{clientName}"}</code>
+                          <small className="text-muted">Client name</small>
+                        </div>
+                        <div className="col-6">
+                          <code className="d-block p-2 bg-white rounded small">{"{clientEmail}"}</code>
+                          <small className="text-muted">Client email</small>
+                        </div>
+                      </div>
+
+                      <h6 className="fw-bold mb-3">
+                        <i className="bi bi-receipt me-2"></i>Invoice Details
+                      </h6>
+                      <div className="row g-2 mb-4">
+                        <div className="col-6">
+                          <code className="d-block p-2 bg-white rounded small">{"{invoiceNumber}"}</code>
+                          <small className="text-muted">Laundry Ticket #</small>
+                        </div>
+                        <div className="col-6">
+                          <code className="d-block p-2 bg-white rounded small">{"{invoiceDate}"}</code>
+                          <small className="text-muted">Ticket date</small>
+                        </div>
+                        <div className="col-6">
+                          <code className="d-block p-2 bg-white rounded small">{"{totalAmount}"}</code>
+                          <small className="text-muted">Total amount</small>
+                        </div>
+                        <div className="col-6">
+                          <code className="d-block p-2 bg-white rounded small">{"{cartCount}"}</code>
+                          <small className="text-muted">Number of carts</small>
+                        </div>
+                      </div>
+
+                      <h6 className="fw-bold mb-3">
+                        <i className="bi bi-gear-fill me-2"></i>Processing Data
+                      </h6>
+                      <div className="row g-2">
+                        <div className="col-12">
+                          <code className="d-block p-2 bg-white rounded small">{"{processingSummary}"}</code>
+                          <small className="text-muted">Automatically includes weight totals or itemized breakdown based on client billing type</small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="alert alert-info border-0 mt-3" style={{ backgroundColor: '#e1f5fe' }}>
+                    <div className="d-flex align-items-center">
+                      <i className="bi bi-info-circle-fill text-info me-3" style={{ fontSize: '1.2rem' }}></i>
+                      <div>
+                        <strong>Quick Actions:</strong>
+                        <p className="mb-0 mt-1">Click <strong>"Preview"</strong> next to any client to see their email template, or <strong>"Configure"</strong> to customize it.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Email Configuration Modal */}
       {showEmailConfigModal && selectedClient && (

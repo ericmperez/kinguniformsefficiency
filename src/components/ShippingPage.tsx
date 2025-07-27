@@ -383,7 +383,7 @@ const ShippingPage: React.FC = () => {
         const truckNumber = verification.truckNumber;
         
         // Keep the most recent trip verification for each truck
-        if (!verifications[truckNumber] || verification.tripNumber > verifications[truckNumber].tripNumber) {
+        if (!verifications[truckNumber] || (verification.tripNumber || 0) > (verifications[truckNumber].tripNumber || 0)) {
           verifications[truckNumber] = verification;
         }
       });
@@ -830,6 +830,8 @@ const ShippingPage: React.FC = () => {
 
       // Update local state - cast to proper type for local state
       const typedVerification: TruckLoadingVerification = {
+        id: docId,
+        invoiceId: "", // Empty for truck-level verification
         truckNumber: cleanVerification.truckNumber,
         verifiedDate: cleanVerification.verifiedDate,
         verifiedBy: cleanVerification.verifiedBy,
@@ -840,7 +842,8 @@ const ShippingPage: React.FC = () => {
         isVerified: cleanVerification.isVerified,
         truckDiagram: cleanVerification.truckDiagram,
         tripNumber: 1, // Default to Trip 1 for now, will be enhanced with automatic detection
-        tripType: "Trip 1"
+        tripType: "Trip 1",
+        items: [] // Empty for truck-level verification
       };
 
       setTruckLoadingVerifications(prev => ({
@@ -1661,12 +1664,8 @@ const ShippingPage: React.FC = () => {
                         <div className="d-flex flex-column">
                           <small className="text-muted">
                             Delivery Date:{" "}
-                            {selectedDate ? (() => {
-                              // Parse date as local date to match dropdown formatting
-                              const [year, month, day] = selectedDate.split("-").map(Number);
-                              const localDate = new Date(year, month - 1, day);
-                              return localDate.toLocaleDateString("en-US");
-                            })() : "Not set"}
+                            {selectedDate &&
+                              new Date(selectedDate).toLocaleDateString("en-US")}
                           </small>
                         </div>
                         
@@ -2514,7 +2513,7 @@ const ShippingPage: React.FC = () => {
                           {[0, 1, 2, 3].map(row => (
                             <div key={row} className="d-flex justify-content-center gap-2 mb-2">
                               {[0, 1, 2].map(col => {
-                                const position = savedDiagram.find(p => p.row === row && p.col === col);
+                                const position = savedDiagram.find((p: any) => p.row === row && p.col === col);
                                 const client = position?.clientId ? getUniqueClientsFromTruck(truck).find(c => c.id === position.clientId) : null;
                                 const colorIndex = client ? getUniqueClientsFromTruck(truck).findIndex(c => c.id === client.id) : -1;
                                 

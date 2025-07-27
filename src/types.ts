@@ -55,11 +55,10 @@ export interface PrintConfiguration {
     enabled: boolean;
     autoSendOnApproval: boolean;
     autoSendOnShipping: boolean;
-    autoSendOnSignature: boolean; // New option for signature emails
+    autoSendOnSignature?: boolean;
     ccEmails?: string[];
     subject?: string;
     bodyTemplate?: string;
-    // Signature-specific email settings
     signatureEmailSubject?: string;
     signatureEmailTemplate?: string;
   };
@@ -82,7 +81,7 @@ export interface Cart {
   items: CartItem[];
   total: number;
   createdAt: string;
-  createdBy?: string; // Username of who created this cart
+  createdBy?: string; // Name or ID of the user who created the cart
 }
 
 export interface Invoice {
@@ -107,20 +106,18 @@ export interface Invoice {
   lockedAt?: string; // Timestamp when invoice was closed
   note?: string; // Public note for all users to see
   truckNumber?: string; // Add truck number for shipped invoices
-  tripNumber?: number; // Trip number (1 or 2) for this truck
-  tripType?: "Trip 1" | "Trip 2"; // Descriptive trip label
   deliveryDate?: string; // Add delivery date for shipped invoices
-  deliveryMethod?: "truck" | "client_pickup"; // Delivery method: truck delivery or client pickup
+  deliveryMethod?: "truck" | "client_pickup"; // Delivery method for the invoice
   pickupGroupId?: string; // Link to pickup group if present
   name?: string; // Optional invoice-level name
   highlight?: "yellow" | "blue"; // Real-time highlight sync
   specialServiceRequested?: boolean; // Flag for special service delivery
   specialServiceCost?: number; // Cost for special service delivery
   signature?: { // Digital signature
-    image: string | null; // Data URL of the signature or null if no personnel available
+    image: string; // Data URL of the signature
     name: string; // Name of person who signed
     timestamp: any; // Firebase Timestamp when signature was captured
-    noPersonnelAvailable?: boolean; // Flag for when no authorized personnel is available
+    noPersonnelAvailable?: boolean; // Flag if no personnel was available to sign
   };
   receivedBy?: string; // Name of the person who received the delivery
   shippingComplete?: boolean; // Whether truck loading/shipping is complete
@@ -141,6 +138,28 @@ export interface LaundryCart {
   isActive: boolean;
 }
 
+export interface TruckLoadingVerification {
+  id: string;
+  invoiceId: string;
+  truckNumber: string;
+  verifiedBy: string;
+  verifiedAt: string;
+  verifiedDate?: string;
+  isVerified?: boolean;
+  actualCartCount?: number;
+  expectedCartCount?: number;
+  tripNumber?: number;
+  tripType?: string;
+  truckDiagram?: any[];
+  notes?: string;
+  items: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    verified: boolean;
+  }[];
+}
+
 export interface TruckPosition {
   row: number;
   col: number;
@@ -148,18 +167,9 @@ export interface TruckPosition {
   clientName?: string | null;
   color?: string | null;
   cartCount?: number;
-}
-
-export interface TruckLoadingVerification {
-  truckNumber: string;
-  verifiedDate: string;
-  verifiedBy: string;
-  verifiedAt: string;
-  actualCartCount: number;
-  expectedCartCount: number;
-  notes?: string;
-  isVerified: boolean;
-  truckDiagram?: TruckPosition[]; // 3x4 grid positions
-  tripNumber: number; // 1 for first trip, 2 for second trip
-  tripType: "Trip 1" | "Trip 2";
+  invoiceData?: {
+    id: string;
+    clientName: string;
+    total: number;
+  };
 }
