@@ -1370,19 +1370,34 @@ export default function ActiveInvoices({
       // Combine carts from both invoices
       const mergedCarts = [...targetInvoice.carts, ...resolvedSourceCarts];
       
-      // Update target invoice with merged carts
-      await onUpdateInvoice(targetInvoice.id, {
+      // Combine weights if both invoices have totalWeight
+      const combinedWeight = (sourceInvoice.totalWeight || 0) + (targetInvoice.totalWeight || 0);
+      
+      // Prepare update data
+      const updateData: Partial<Invoice> = {
         carts: mergedCarts
-      });
+      };
+      
+      // Only include totalWeight if there's actually weight to combine
+      if (combinedWeight > 0) {
+        updateData.totalWeight = combinedWeight;
+      }
+      
+      // Update target invoice with merged carts and combined weight
+      await onUpdateInvoice(targetInvoice.id, updateData);
       
       // Delete source invoice
       await onDeleteInvoice(sourceInvoice.id);
       
       // Log merge activity
       if (user?.username) {
+        const weightInfo = combinedWeight > 0 
+          ? ` (Weight: ${sourceInvoice.totalWeight || 0} + ${targetInvoice.totalWeight || 0} = ${combinedWeight} lbs)`
+          : '';
+          
         await logActivity({
           type: "invoice_merge",
-          message: `User ${user.username} merged invoice #${sourceInvoice.id} into invoice #${targetInvoice.id}`,
+          message: `User ${user.username} merged invoice #${sourceInvoice.invoiceNumber || sourceInvoice.id} into invoice #${targetInvoice.invoiceNumber || targetInvoice.id}${weightInfo}`,
           user: user.username
         });
       }
