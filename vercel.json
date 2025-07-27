@@ -13,6 +13,7 @@
     }
   },
   "env": {
-    "EMAIL_USER": "emperez@kinguniforms.net"
+    "EMAIL_USER": "emperez@kinguniforms.net",
+    "EMAIL_PASSWORD": "jbqp sxah ctff glku"
   }
 }
