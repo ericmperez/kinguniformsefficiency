@@ -161,6 +161,9 @@ export default function SuggestionsPanel({ isVisible, onClose }: SuggestionsPane
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
         }}
       >
         <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
@@ -173,11 +176,18 @@ export default function SuggestionsPanel({ isVisible, onClose }: SuggestionsPane
               background: 'none',
               border: 'none',
               color: 'white',
-              fontSize: '18px',
+              fontSize: '28px',
+              fontWeight: 700,
               cursor: 'pointer',
+              marginLeft: 12,
+              lineHeight: 1,
+              padding: 0,
+              transition: 'color 0.15s',
             }}
+            aria-label="Close suggestions panel"
+            title="Close"
           >
-            ✕
+            ×
           </button>
         )}
       </div>

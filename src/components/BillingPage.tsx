@@ -662,13 +662,13 @@ const BillingPage: React.FC = () => {
       
       // Display subtotal (with minimum billing applied if needed, plus delivery charge)
       let displaySubtotal = baseSubtotal + deliveryChargeValue;
-      if (minValue > 0 && subtotal < minValue) {
+      if (minValue > 0 && baseSubtotal < minValue) {
         displaySubtotal = minValue + deliveryChargeValue;
       }
       
       // Calculate the higher subtotal value for service charge calculation (without delivery charge)
       let subtotalForServiceCharge = baseSubtotal;
-      if (minValue > 0 && subtotal < minValue) {
+      if (minValue > 0 && baseSubtotal < minValue) {
         subtotalForServiceCharge = minValue;
       }
       
@@ -775,7 +775,7 @@ const BillingPage: React.FC = () => {
       
       // Add charge and total columns
       csvRow["Subtotal (Base)"] = `$${baseSubtotalOnly.toFixed(2)}`;
-      csvRow["Subtotal (w/ Min)"] = `$${displaySubtotal.toFixed(2)}`;
+      csvRow["Minimum Billing"] = `$${minValue > 0 && baseSubtotal < minValue ? minValue.toFixed(2) : "0.00"}`;
       if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
       if (serviceCharge > 0) csvRow["Service Charge"] = `$${serviceCharge.toFixed(2)}`;
       if (surchargeValue > 0) csvRow["Surcharge"] = `$${surchargeValue.toFixed(2)}`;
@@ -1670,7 +1670,7 @@ const BillingPage: React.FC = () => {
                           <th key={prod.id} style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>{prod.name}</th>
                         ))}
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Subtotal (Base)</th>
-                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Subtotal (w/ Min)</th>
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Minimum Billing</th>
                         {serviceChargeEnabled && <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Service Charge</th>}
                         {surchargeEnabled && <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Surcharge</th>}
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Total</th>
@@ -1836,13 +1836,13 @@ const BillingPage: React.FC = () => {
                           
                           // Display subtotal (with minimum billing applied if needed, plus delivery charge)
                           let displaySubtotal = baseSubtotal + deliveryChargeValue;
-                          if (minValue > 0 && subtotal < minValue) {
+                          if (minValue > 0 && baseSubtotal < minValue) {
                             displaySubtotal = minValue + deliveryChargeValue;
                           }
                           
                           // Calculate the higher subtotal value for service charge calculation (without delivery charge)
                           let subtotalForServiceCharge = baseSubtotal;
-                          if (minValue > 0 && subtotal < minValue) {
+                          if (minValue > 0 && baseSubtotal < minValue) {
                             subtotalForServiceCharge = minValue;
                           }
                           
@@ -2053,16 +2053,16 @@ const BillingPage: React.FC = () => {
                                     : ""}
                                 </b>
                               </td>
-                              {/* Display Subtotal (with minimum billing if applied) */}
+                              {/* Minimum Billing column - shows only the minimum billing amount */}
                               <td style={{
                                 ...nowrapCellStyle,
-                                backgroundColor: displaySubtotal > baseSubtotal ? '#28a745' : 'transparent',
-                                color: displaySubtotal > baseSubtotal ? 'white' : 'inherit',
+                                backgroundColor: minValue > 0 && baseSubtotal < minValue ? '#28a745' : 'transparent',
+                                color: minValue > 0 && baseSubtotal < minValue ? 'white' : 'inherit',
                                 fontWeight: 'bold'
                               }}>
                                 <b>
-                                  {displaySubtotal > 0
-                                    ? `$${displaySubtotal.toFixed(2)}`
+                                  {minValue > 0 && baseSubtotal < minValue
+                                    ? `$${minValue.toFixed(2)}`
                                     : ""}
                                 </b>
                               </td>
@@ -2320,7 +2320,7 @@ const BillingPage: React.FC = () => {
                                 // Calculate with minimum billing
                                 let minValue = minBilling ? Number(minBilling) : 0;
                                 let displaySubtotal = subtotal + pesoSubtotal + deliveryChargeValue;
-                                if (minValue > 0 && subtotal < minValue) {
+                                if (minValue > 0 && baseSubtotal < minValue) {
                                   displaySubtotal = minValue + deliveryChargeValue;
                                 }
                                 minTotal += displaySubtotal;
@@ -2339,13 +2339,12 @@ const BillingPage: React.FC = () => {
                             );
                           })()}
                         </td>
-                        {/* Display Subtotal total (with minimum billing applied) */}
+                        {/* Minimum Billing total */}
                         <td style={nowrapCellStyle}>
                           {(() => {
-                            let baseTotal = 0;
-                            let minTotal = 0;
+                            let minimumBillingTotal = 0;
                             
-                            // Calculate both totals
+                            // Calculate minimum billing total
                             clientInvoices
                               .filter((inv) =>
                                 selectedInvoiceIds.includes(inv.id)
@@ -2390,34 +2389,24 @@ const BillingPage: React.FC = () => {
                                       subtotal += qty * price;
                                   }
                                 });
-                                let deliveryChargeValue = calculateCharge(
-                                  deliveryChargeFormula,
-                                  Number(deliveryCharge) || 0,
-                                  subtotal + pesoSubtotal,
-                                  1,
-                                  0
-                                );
                                 let baseSubtotal = subtotal + pesoSubtotal;
-                                baseTotal += baseSubtotal;
                                 
-                                // Calculate with minimum billing
+                                // Add minimum billing amount if applicable
                                 let minValue = minBilling ? Number(minBilling) : 0;
-                                let displaySubtotal = subtotal + pesoSubtotal + deliveryChargeValue;
-                                if (minValue > 0 && subtotal < minValue) {
-                                  displaySubtotal = minValue + deliveryChargeValue;
+                                if (minValue > 0 && baseSubtotal < minValue) {
+                                  minimumBillingTotal += minValue;
                                 }
-                                minTotal += displaySubtotal;
                               });
                               
                             return (
                               <span style={{
-                                backgroundColor: minTotal > baseTotal ? '#28a745' : 'transparent',
-                                color: minTotal > baseTotal ? 'white' : 'inherit',
+                                backgroundColor: minimumBillingTotal > 0 ? '#28a745' : 'transparent',
+                                color: minimumBillingTotal > 0 ? 'white' : 'inherit',
                                 fontWeight: 'bold',
                                 padding: '2px 4px',
                                 borderRadius: '3px'
                               }}>
-                                {minTotal > 0 ? `$${minTotal.toFixed(2)}` : ""}
+                                {minimumBillingTotal > 0 ? `$${minimumBillingTotal.toFixed(2)}` : ""}
                               </span>
                             );
                           })()}
@@ -2472,9 +2461,10 @@ const BillingPage: React.FC = () => {
                                     }
                                   });
                                   // Calculate the higher subtotal value for service charge calculation (without delivery charge)
-                                  let subtotalForServiceCharge = subtotal + pesoSubtotal;
+                                  let baseSubtotal = subtotal + pesoSubtotal;
+                                  let subtotalForServiceCharge = baseSubtotal;
                                   let minValue = minBilling ? Number(minBilling) : 0;
-                                  if (minValue > 0 && subtotal < minValue) {
+                                  if (minValue > 0 && baseSubtotal < minValue) {
                                     subtotalForServiceCharge = minValue;
                                   }
                                   if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
@@ -2541,9 +2531,10 @@ const BillingPage: React.FC = () => {
                                     }
                                   });
                                   // Calculate the higher subtotal value for fuel charge calculation (without delivery charge)
-                                  let subtotalForServiceCharge = subtotal + pesoSubtotal;
+                                  let baseSubtotal = subtotal + pesoSubtotal;
+                                  let subtotalForServiceCharge = baseSubtotal;
                                   let minValue = minBilling ? Number(minBilling) : 0;
-                                  if (minValue > 0 && subtotal < minValue) {
+                                  if (minValue > 0 && baseSubtotal < minValue) {
                                     subtotalForServiceCharge = minValue;
                                   }
                                   if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
@@ -2611,9 +2602,10 @@ const BillingPage: React.FC = () => {
                                   });
                                   if (surchargeEnabled && Number(surchargePercent) > 0) {
                                     // Calculate the higher subtotal value for surcharge calculation (without delivery charge)
-                                    let subtotalForSurcharge = subtotal + pesoSubtotal;
+                                    let baseSubtotal = subtotal + pesoSubtotal;
+                                    let subtotalForSurcharge = baseSubtotal;
                                     let minValue = minBilling ? Number(minBilling) : 0;
-                                    if (minValue > 0 && subtotal < minValue) {
+                                    if (minValue > 0 && baseSubtotal < minValue) {
                                       subtotalForSurcharge = minValue;
                                     }
                                     total += calculateCharge(
@@ -2800,16 +2792,15 @@ const BillingPage: React.FC = () => {
                                   1,
                                   0
                                 );
-                                let displaySubtotal =
-                                  subtotal + pesoSubtotal + deliveryChargeValue;
-                                if (minValue > 0 && subtotal < minValue) {
-                                  displaySubtotal =
-                                    minValue + deliveryChargeValue;
+                                let baseSubtotal = subtotal + pesoSubtotal;
+                                let displaySubtotal = baseSubtotal + deliveryChargeValue;
+                                if (minValue > 0 && baseSubtotal < minValue) {
+                                  displaySubtotal = minValue + deliveryChargeValue;
                                 }
                                 
                                 // Calculate the higher subtotal value for service charge calculation (without delivery charge)
-                                let subtotalForServiceCharge = subtotal + pesoSubtotal;
-                                if (minValue > 0 && subtotal < minValue) {
+                                let subtotalForServiceCharge = baseSubtotal;
+                                if (minValue > 0 && baseSubtotal < minValue) {
                                   subtotalForServiceCharge = minValue;
                                 }
                                 
@@ -2939,9 +2930,10 @@ const BillingPage: React.FC = () => {
                                     }
                                   });
                                   // Calculate the higher subtotal value for fuel charge calculation (without delivery charge)
-                                  let subtotalForServiceCharge = subtotal + pesoSubtotal;
+                                  let baseSubtotal = subtotal + pesoSubtotal;
+                                  let subtotalForServiceCharge = baseSubtotal;
                                   let minValue = minBilling ? Number(minBilling) : 0;
-                                  if (minValue > 0 && subtotal < minValue) {
+                                  if (minValue > 0 && baseSubtotal < minValue) {
                                     subtotalForServiceCharge = minValue;
                                   }
                                   if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {

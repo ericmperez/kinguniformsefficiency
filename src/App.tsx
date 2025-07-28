@@ -932,8 +932,9 @@ function App() {
 
   return (
     <Router>
+      {/* Navigation Bar - always on top */}
       <AppBar
-        position="sticky"
+        position="fixed"
         color="default"
         elevation={2}
         sx={{
@@ -946,7 +947,11 @@ function App() {
           boxShadow: "0 4px 24px rgba(215,35,40,0.10)",
           px: { xs: 1, md: 4 },
           backdropFilter: "blur(8px)",
-          position: "relative",
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          zIndex: 1200,
         }}
       >
         <Toolbar
@@ -1241,6 +1246,8 @@ function App() {
           </Box>
         </Toolbar>
       </AppBar>
+      {/* Add top margin to main content to prevent it from being hidden behind the fixed navbar */}
+      <div style={{ marginTop: 64 }} />
       <Drawer
         anchor="left"
         open={drawerOpen}
