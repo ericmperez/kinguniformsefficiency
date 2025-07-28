@@ -17,6 +17,9 @@ import {
   validateEmailSettings,
   sendTestEmail as sendTestEmailService,
 } from "../services/emailService";
+import LaundryTicketPreview from "./LaundryTicketPreview";
+import LaundryTicketFieldsModal from "./LaundryTicketFieldsModal";
+import "./LaundryTicketPreview.css";
 
 interface PrintingSettingsProps {}
 
@@ -27,6 +30,11 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showEmailConfigModal, setShowEmailConfigModal] = useState(false);
+  const [showLaundryTicketPreview, setShowLaundryTicketPreview] =
+    useState(false);
+  const [showFieldsModal, setShowFieldsModal] = useState(false);
+  const [fieldsModalClient, setFieldsModalClient] = useState<Client | null>(null);
+  const [fieldsModalConfig, setFieldsModalConfig] = useState<PrintConfiguration["invoicePrintSettings"] | null>(null);
 
   // Email testing and preview states
   const [showEmailPreview, setShowEmailPreview] = useState(false);
@@ -68,6 +76,7 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = () => {
         showClientInfo: false,
         showInvoiceNumber: false,
         showDate: false,
+        showPickupDate: false,
         showCartBreakdown: false,
         showProductSummary: false,
         showTotalWeight: false,
@@ -498,15 +507,7 @@ King Uniforms Team`;
   }
 
   return (
-    <div className="card p-4 mb-4">
-      <h3 className="mb-3">📧 Email Configuration</h3>
-      <p className="text-muted mb-4">
-        Configure email content for your invoices. Emails will show either the
-        total weight processed (pounds) or a breakdown of items with quantities
-        depending on how each client is billed.
-      </p>
-
-      {/* Notification toast */}
+    <div className="printing-settings-container">
       {notification.show && (
         <div
           className={`alert alert-${
@@ -545,6 +546,61 @@ King Uniforms Team`;
           ></button>
         </div>
       )}
+
+      <div className="settings-header">
+        <h1>Printing and Email Configuration</h1>
+        <p>
+          Manage how invoices and reports are generated, printed, and emailed to
+          clients.
+        </p>
+        <button
+          onClick={() => setShowLaundryTicketPreview(true)}
+          className="button"
+        >
+          Preview Laundry Ticket
+        </button>
+      </div>
+
+      {showLaundryTicketPreview && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: "800px" }}>
+            <div className="modal-header">
+              <h2>Laundry Ticket Preview</h2>
+              <button
+                onClick={() => setShowLaundryTicketPreview(false)}
+                className="modal-close-button"
+              >
+                &times;
+              </button>
+            </div>
+            <LaundryTicketPreview
+              ticketNumber="80167"
+              clientName="Buen Samaritano"
+              truck="34"
+              pickupDate="6/19/2025"
+              items={[
+                { productName: "Flat Sheets", quantity: 500 },
+                { productName: "Fitted Sheets", quantity: 100 },
+                { productName: "Laundry Bags", quantity: 14 },
+                { productName: "Patient Gowns", quantity: 7 },
+                { productName: "Scrub Shirts", quantity: 45 },
+                { productName: "Scrub Pants", quantity: 50 },
+              ]}
+              pounds={700}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="search-and-filter-controls">
+        <input
+          type="text"
+          className="form-control"
+          placeholder="Search clients by name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
 
       {/* Client Email Configuration - Full Width */}
       <div className="container-fluid px-0 mb-5">
@@ -700,7 +756,8 @@ King Uniforms Team`;
                           <button
                             className="btn btn-outline-success btn-sm px-3"
                             disabled={testingEmail === client.id || !client.email}
-                            onClick={() => sendTestEmail(client)}
+                            onClick={() => sendTestEmail(client)
+                            }
                             title="Send test email"
                           >
                             {testingEmail === client.id ? (
@@ -709,6 +766,17 @@ King Uniforms Team`;
                               <i className="bi bi-send-fill me-1"></i>
                             )}
                             Test
+                          </button>
+                          <button
+                            className="btn btn-outline-secondary btn-sm px-3"
+                            onClick={() => {
+                              setFieldsModalClient(client);
+                              setFieldsModalConfig(client.printConfig?.invoicePrintSettings || defaultPrintConfig.invoicePrintSettings);
+                              setShowFieldsModal(true);
+                            }}
+                            title="Customize Laundry Ticket Fields"
+                          >
+                            <i className="bi bi-ui-checks-grid me-1"></i>Customize Ticket Fields
                           </button>
                         </div>
                       </td>
@@ -1695,6 +1763,26 @@ King Uniforms Team`}
             </div>
           </div>
         </div>
+      )}
+
+      {/* Laundry Ticket Fields Modal */}
+      {showFieldsModal && fieldsModalClient && fieldsModalConfig && (
+        <LaundryTicketFieldsModal
+          show={showFieldsModal}
+          onClose={() => setShowFieldsModal(false)}
+          initialConfig={fieldsModalConfig}
+          onSave={async (newConfig: PrintConfiguration["invoicePrintSettings"]) => {
+            setShowFieldsModal(false);
+            // Save to Firestore
+            const updatedConfig: PrintConfiguration = {
+              ...(fieldsModalClient.printConfig || defaultPrintConfig),
+              invoicePrintSettings: newConfig,
+            };
+            await updateClient(fieldsModalClient.id, { printConfig: updatedConfig });
+            setClients((prev) => prev.map((c) => c.id === fieldsModalClient.id ? { ...c, printConfig: updatedConfig } : c));
+            showNotification("success", "Laundry Ticket print fields updated.");
+          }}
+        />
       )}
     </div>
   );

@@ -1,0 +1,74 @@
+.laundry-ticket-preview {
+  border: 1.5px solid #0E62A0;
+  padding: 24px 24px 32px 24px;
+  max-width: 1100px;
+  width: 70vw;
+  min-width: 320px;
+  margin: 32px auto;
+  font-family: Arial, sans-serif;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(14,98,160,0.08);
+}
+
+.ticket-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #000;
+  padding-bottom: 10px;
+}
+
+.logo {
+  max-width: 150px;
+}
+
+.ticket-info p {
+  margin: 0;
+  font-weight: bold;
+}
+
+.laundry-service-info {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.laundry-service-info h1, .laundry-service-info h2, .laundry-service-info p {
+  margin: 5px 0;
+}
+
+.merchandise-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.merchandise-table th, .merchandise-table td {
+  border-bottom: 1px solid #ccc;
+  padding: 8px;
+  text-align: left;
+}
+
+.merchandise-table th {
+    border-bottom: 2px solid #000;
+}
+
+
+.merchandise-table tfoot td {
+  font-weight: bold;
+  border-top: 2px solid #000;
+}
+
+.signature-section {
+  margin-top: 40px;
+}
+
+.signature-line {
+  border-top: 1px solid #000;
+  margin-top: 40px;
+  padding-top: 5px;
+}
+
+.signature-line p {
+  margin: 0;
+  text-align: left;
+}

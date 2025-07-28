@@ -227,6 +227,50 @@ input:focus, select:focus, textarea:focus {
   color: #111 !important;
 }
 
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
+.modal-close-button {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   background: var(--ku-light);
@@ -318,4 +362,39 @@ input:focus, select:focus, textarea:focus {
 
 .invoice-card-partial {
   animation: partial-approval-pulse 2s ease-in-out;
+}
+
+/* --- Add Product Modal Overrides --- */
+.add-product-modal .modal-dialog {
+  max-width: 70vw !important;
+  width: 70vw !important;
+  min-width: 320px;
+}
+.add-product-modal .modal-content {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* Invoice Details Modal Override */
+.invoice-details-modal {
+  max-width: 70vw !important;
+  width: 70vw !important;
+  min-width: 320px;
+  margin: auto !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.invoice-details-modal .modal-content {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Force 3 columns for product grid on md+ screens */
+@media (min-width: 768px) {
+  .add-product-modal .product-grid > .col-12 {
+    flex: 0 0 33.3333%;
+    max-width: 33.3333%;
+  }
 }

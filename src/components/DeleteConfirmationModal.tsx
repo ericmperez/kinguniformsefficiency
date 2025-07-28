@@ -8,6 +8,8 @@ interface DeleteConfirmationModalProps {
   message?: string;
   invoice?: any; // Optional, for compatibility with invoice deletion
   onCancel?: () => void; // For compatibility with onCancel usage
+  confirmButtonText?: string;
+  confirmButtonClass?: string;
 }
 
 export const DeleteConfirmationModal: React.FC<
@@ -20,6 +22,8 @@ export const DeleteConfirmationModal: React.FC<
   message = "Are you sure you want to delete this item? This action cannot be undone.",
   invoice,
   onCancel,
+  confirmButtonText = "Delete",
+  confirmButtonClass = "btn-danger",
 }) => {
   if (show === false) return null;
   return (
@@ -53,10 +57,10 @@ export const DeleteConfirmationModal: React.FC<
             </button>
             <button
               type="button"
-              className="btn btn-danger"
+              className={`btn ${confirmButtonClass}`}
               onClick={onConfirm}
             >
-              Delete
+              {confirmButtonText}
             </button>
           </div>
         </div>

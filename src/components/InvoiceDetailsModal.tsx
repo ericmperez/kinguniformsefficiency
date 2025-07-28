@@ -4,6 +4,7 @@ import { getUsers, UserRecord, logActivity } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
 import { formatDateSpanish } from "../utils/dateFormatter";
 import { useCartEditor } from "./CartEditHandler";
+import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice;
@@ -303,6 +304,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     console.log("🔄 Cart names changed, version:", cartNamesVersion + 1, "snapshot:", cartNamesSnapshot);
   }, [cartNamesSnapshot]);
 
+  const [showCreateCartConfirm, setShowCreateCartConfirm] = React.useState(false);
+  const [pendingCartName, setPendingCartName] = React.useState("");
+
   return (
     <div
       className="modal show"
@@ -327,11 +331,12 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       }}
     >
       <div
-        className="modal-dialog modal-lg"
+        className="modal-dialog invoice-details-modal"
         style={{
           margin: "auto",
-          maxWidth: 800,
-          width: "100%",
+          maxWidth: "70vw",
+          width: "70vw",
+          minWidth: 320,
           pointerEvents: "auto",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -565,33 +570,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   />
                   <button
                     className="btn btn-success"
-                    onClick={async () => {
+                    onClick={() => {
                       if (newCartName.trim()) {
-                        try {
-                          // Use the new direct cart editor
-                          const newCart = await cartEditor.addCart(newCartName.trim());
-                          
-                          // Log activity
-                          if (typeof logActivity === "function") {
-                            await logActivity({
-                              type: "Cart",
-                              message: `Cart '${newCartName.trim()}' created in invoice #${
-                                localInvoice.invoiceNumber || localInvoice.id
-                              }`,
-                              user: user?.username,
-                            });
-                          }
-                          
-                          setNewCartName("");
-                          setShowNewCartInput(false);
-                          setShowCartKeypad(false);
-                          
-                          console.log("🎉 Cart creation completed successfully with direct approach");
-                          
-                        } catch (error: any) {
-                          console.error("❌ Error creating cart:", error);
-                          alert(`Failed to create cart: ${error?.message || 'Network error. Please try again.'}`);
-                        }
+                        setPendingCartName(newCartName.trim());
+                        setShowCreateCartConfirm(true);
                       }
                     }}
                     disabled={!newCartName.trim() || cartEditor.isUpdating}
@@ -659,43 +641,21 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                 height: 48,
                                 fontSize: 22,
                                 fontWeight: 600,
-                              }}                                onClick={async () => {
-                                  if (btn === "OK") {
-                                    if (newCartName.trim()) {
-                                      try {
-                                        // Use the new direct cart editor
-                                        const newCart = await cartEditor.addCart(newCartName.trim());
-                                        
-                                        // Log activity
-                                        if (typeof logActivity === "function") {
-                                          await logActivity({
-                                            type: "Cart",
-                                            message: `Cart '${newCartName.trim()}' created in invoice #${
-                                              localInvoice.invoiceNumber || localInvoice.id
-                                            }`,
-                                            user: user?.username,
-                                          });
-                                        }
-                                        
-                                        setNewCartName("");
-                                        setShowNewCartInput(false);
-                                        setShowCartKeypad(false);
-                                        
-                                        console.log("🎉 Cart creation via keypad completed successfully");
-                                        
-                                      } catch (error: any) {
-                                        console.error("❌ Error creating cart via keypad:", error);
-                                        alert(`Failed to create cart: ${error?.message || 'Network error. Please try again.'}`);
-                                      }
-                                    } else {
-                                      setShowCartKeypad(false);
-                                    }
-                                  } else if (btn === "←") {
-                                    setNewCartName((prev) => prev.slice(0, -1));
+                              }}                              onClick={async () => {
+                                if (btn === "OK") {
+                                  if (newCartName.trim()) {
+                                    setPendingCartName(newCartName.trim());
+                                    setShowCartKeypad(false); // Hide keypad modal
+                                    setShowCreateCartConfirm(true);
                                   } else {
-                                    setNewCartName((prev) => prev + btn);
+                                    setShowCartKeypad(false);
                                   }
-                                }}
+                                } else if (btn === "←") {
+                                  setNewCartName((prev) => prev.slice(0, -1));
+                                } else {
+                                  setNewCartName((prev) => prev + btn);
+                                }
+                              }}
                               tabIndex={-1}
                               type="button"
                             >
@@ -849,10 +809,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 {/* Product Cards Modal for Adding Product */}
                 {addProductCartId === cart.id && (
                   <div
-                    className="modal show d-block"
+                    className="modal show d-block add-product-modal"
                     style={{ background: "rgba(0,0,0,0.15)" }}
                   >
-                    <div className="modal-dialog" style={{ maxWidth: 600 }}>
+                    <div
+                      className="modal-dialog"
+                      // style removed, handled by CSS
+                    >
                       <div className="modal-content">
                         <div className="modal-header">
                           <h5 className="modal-title">Add Product</h5>
@@ -867,19 +830,26 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           ></button>
                         </div>
                         <div className="modal-body">
-                          <div className="row g-3">
+                          <div className="row g-3 product-grid">
                             {clientProducts.map((product) => (
-                              <div key={product.id} className="col-12 col-md-4">
+                              <div key={product.id} className="col-12 col-md-4 col-lg-4">
                                 <div
                                   className={`card mb-2 shadow-sm h-100${
-                                    selectedProductId === product.id
-                                      ? " border-primary"
-                                      : " border-light"
-                                  }`}
+                                    selectedProductId === product.id ? " border-primary" : " border-light"
+                                  } product-card-selectable`}
                                   style={{
                                     cursor: "pointer",
                                     minHeight: 120,
-                                    borderWidth: 2,
+                                    borderWidth: selectedProductId === product.id ? 4 : 3,
+                                    border: selectedProductId === product.id
+                                      ? "4px solid #0E62A0"
+                                      : "3px solid #1976d2",
+                                    borderRadius: 16,
+                                    background: selectedProductId === product.id ? "#eaf4ff" : "#f8fafc",
+                                    boxShadow: selectedProductId === product.id
+                                      ? "0 0 0 4px #b3d8ff, 0 2px 12px rgba(14,98,160,0.10)"
+                                      : "0 2px 10px rgba(25,118,210,0.07)",
+                                    transition: "border 0.15s, box-shadow 0.15s"
                                   }}
                                   onClick={() => {
                                     setSelectedProductId(product.id);
@@ -893,7 +863,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                   <div className="card-body py-2 px-3 text-center">
                                     <div
                                       className="fw-bold"
-                                      style={{ fontSize: 18 }}
+                                      style={{ fontSize: 22 }}
                                     >
                                       {product.name}
                                     </div>
@@ -1246,6 +1216,38 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Confirmation modal for cart creation */}
+      {showCreateCartConfirm && (
+        <DeleteConfirmationModal
+          show={showCreateCartConfirm}
+          onClose={() => setShowCreateCartConfirm(false)}
+          onCancel={() => setShowCreateCartConfirm(false)}
+          onConfirm={async () => {
+            setShowCreateCartConfirm(false);
+            try {
+              const newCart = await cartEditor.addCart(pendingCartName);
+              if (typeof logActivity === "function") {
+                await logActivity({
+                  type: "Cart",
+                  message: `Cart '${pendingCartName}' created in invoice #${localInvoice.invoiceNumber || localInvoice.id}`,
+                  user: user?.username,
+                });
+              }
+              setNewCartName("");
+              setShowNewCartInput(false);
+              setShowCartKeypad(false);
+            } catch (error: any) {
+              console.error("❌ Error creating cart:", error);
+              alert(`Failed to create cart: ${error?.message || 'Network error. Please try again.'}`);
+            }
+          }}
+          title="Create New Cart?"
+          message={`Are you sure you want to create a new cart named \"${pendingCartName}\"?`}
+          confirmButtonText="Add New Cart"
+          confirmButtonClass="btn-success"
+        />
       )}
     </div>
   );

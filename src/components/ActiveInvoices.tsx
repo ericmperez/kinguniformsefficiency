@@ -5170,6 +5170,7 @@ export default function ActiveInvoices({
             showClientInfo: true,
             showInvoiceNumber: true,
             showDate: true,
+            showPickupDate: false,
             showCartBreakdown: true,
             showProductSummary: true,
             showTotalWeight: false,

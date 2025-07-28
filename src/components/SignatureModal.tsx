@@ -4,6 +4,7 @@ import { doc, updateDoc, Timestamp, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { logActivity } from "../services/firebaseService";
 import { sendSignatureEmail } from "../services/emailService";
+import { generateLaundryTicketPDF } from "../services/pdfService";
 import { Client, Invoice } from "../types";
 
 interface SignatureModalProps {
@@ -72,12 +73,21 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         signatureTime: now.toLocaleTimeString(),
       };
 
+      // Generate PDF for attachment
+      let pdfContent: string | undefined;
+      try {
+        pdfContent = await generateLaundryTicketPDF(invoice, client);
+      } catch (err) {
+        console.error("Failed to generate PDF for signature email:", err);
+      }
+
       // Send signature email
       const success = await sendSignatureEmail(
         client,
         invoice,
         emailSettings,
-        signatureData
+        signatureData,
+        pdfContent
       );
 
       if (success) {

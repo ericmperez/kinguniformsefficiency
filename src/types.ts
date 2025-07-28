@@ -39,6 +39,7 @@ export interface PrintConfiguration {
     showClientInfo: boolean;
     showInvoiceNumber: boolean;
     showDate: boolean;
+    showPickupDate: boolean;
     showCartBreakdown: boolean;
     showProductSummary: boolean;
     showTotalWeight: boolean;
