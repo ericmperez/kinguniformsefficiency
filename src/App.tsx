@@ -89,6 +89,7 @@ import BillingPage from "./components/BillingPage";
 import SendInvoicePage from "./components/SendInvoicePage";
 import AnalyticsPage from "./components/AnalyticsPage";
 import ShippingPage from "./components/ShippingPage";
+import SuggestionsPanel from "./components/SuggestionsPanel";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
 interface ActiveInvoicesProps {
@@ -186,6 +187,7 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [todayTotalLbs, setTodayTotalLbs] = useState<number>(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showSuggestionsPanel, setShowSuggestionsPanel] = useState(false);
   const [announcements, setAnnouncements] = useState<string>(
     localStorage.getItem("loginAnnouncements") || ""
   );
@@ -617,7 +619,13 @@ function App() {
   // Role-based tab visibility (now using permissions map)
   const canManageUsers = canSee("UserManagement");
   const canManageProducts = canSee("Report"); // adjust if you have a separate key for products
+  const canSeeSuggestions = canSee("SuggestionsPanel");
   const canManageClients = true; // All roles, or use canSee('ClientForm') if you want to restrict
+
+  // Helper: who can see the floating suggestions button and panel
+  const canSeeSuggestionsFloating = user && (
+    user.id === '1991' || ['Supervisor', 'Admin', 'Owner'].includes(user.role)
+  );
 
   // Refactored navLinks: Combine Entradas, Segregation, Washing under Process
   const navLinks = [
@@ -1202,6 +1210,21 @@ function App() {
             >
               Hello, {user.username} ({user.role})
             </Typography>
+            {canSeeSuggestions && (
+              <IconButton
+                color="inherit"
+                onClick={() => setShowSuggestionsPanel(!showSuggestionsPanel)}
+                sx={{
+                  bgcolor: showSuggestionsPanel ? "rgba(255,224,102,0.20)" : "rgba(255,255,255,0.10)",
+                  borderRadius: 2,
+                  width: 32,
+                  height: 32,
+                }}
+                title="Suggestions Center"
+              >
+                <span style={{ fontSize: 16 }}>💡</span>
+              </IconButton>
+            )}
             <IconButton
               color="inherit"
               onClick={logout}
@@ -1272,6 +1295,19 @@ function App() {
                   </ListItem>
                 )
               )}
+            {canSeeSuggestions && (
+              <ListItem disablePadding>
+                <ListItemButton 
+                  selected={showSuggestionsPanel}
+                  onClick={() => setShowSuggestionsPanel(!showSuggestionsPanel)}
+                >
+                  <ListItemIcon>
+                    <span style={{ fontSize: 20 }}>💡</span>
+                  </ListItemIcon>
+                  <ListItemText primary="Suggestions" />
+                </ListItemButton>
+              </ListItem>
+            )}
             <ListItem disablePadding>
               <ListItemButton onClick={logout}>
                 <ListItemIcon>
@@ -1723,6 +1759,42 @@ function App() {
       <Routes>
         <Route path="/send-invoice" element={<SendInvoicePage />} />
       </Routes>
+      
+      {/* Floating Suggestions Button (for supervisors and up, and Eric 1991) */}
+      {canSeeSuggestionsFloating && (
+        <button
+          onClick={() => setShowSuggestionsPanel(true)}
+          style={{
+            position: 'fixed',
+            bottom: 32,
+            right: 32,
+            zIndex: 2000,
+            background: '#FAC61B',
+            color: '#222',
+            border: 'none',
+            borderRadius: '50%',
+            width: 64,
+            height: 64,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+            fontSize: 32,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          title="Suggestions Center"
+        >
+          💡
+        </button>
+      )}
+      {/* Suggestions Panel (for supervisors and up, and Eric 1991) */}
+      {canSeeSuggestionsFloating && (
+        <SuggestionsPanel
+          isVisible={showSuggestionsPanel}
+          onClose={() => setShowSuggestionsPanel(false)}
+        />
+      )}
     </Router>
   );
 }

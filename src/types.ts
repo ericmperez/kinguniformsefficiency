@@ -174,3 +174,19 @@ export interface TruckPosition {
     total: number;
   };
 }
+
+export interface Suggestion {
+  id: string;
+  title: string;
+  description: string;
+  submittedBy: string; // User ID who submitted
+  submittedByName: string; // User name for display
+  status: 'pending' | 'reviewed' | 'approved' | 'rejected' | 'implemented';
+  priority: 'low' | 'medium' | 'high';
+  category: 'feature' | 'improvement' | 'bug' | 'other';
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  reviewedBy?: string; // User ID who reviewed
+  reviewedByName?: string; // User name for display
+  reviewNotes?: string;
+}

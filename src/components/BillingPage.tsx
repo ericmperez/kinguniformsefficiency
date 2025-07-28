@@ -2471,29 +2471,17 @@ const BillingPage: React.FC = () => {
                                         subtotal += qty * price;
                                     }
                                   });
-                                  let minValue = minBilling
-                                    ? Number(minBilling)
-                                    : 0;
-                                  let deliveryChargeValue = calculateCharge(
-                                    deliveryChargeFormula,
-                                    Number(deliveryCharge) || 0,
-                                    subtotal + pesoSubtotal,
-                                    1,
-                                    0
-                                  );
-                                  let displaySubtotal =
-                                    subtotal +
-                                    pesoSubtotal +
-                                    deliveryChargeValue;
+                                  // Calculate the higher subtotal value for service charge calculation (without delivery charge)
+                                  let subtotalForServiceCharge = subtotal + pesoSubtotal;
+                                  let minValue = minBilling ? Number(minBilling) : 0;
                                   if (minValue > 0 && subtotal < minValue) {
-                                    displaySubtotal =
-                                      minValue + deliveryChargeValue;
+                                    subtotalForServiceCharge = minValue;
                                   }
                                   if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
                                     total += calculateCharge(
                                       serviceChargeFormula,
                                       Number(serviceChargePercent),
-                                      displaySubtotal,
+                                      subtotalForServiceCharge,
                                       1,
                                       0
                                     );
@@ -2552,29 +2540,17 @@ const BillingPage: React.FC = () => {
                                         subtotal += qty * price;
                                     }
                                   });
-                                  let minValue = minBilling
-                                    ? Number(minBilling)
-                                    : 0;
-                                  let deliveryChargeValue = calculateCharge(
-                                    deliveryChargeFormula,
-                                    Number(deliveryCharge) || 0,
-                                    subtotal + pesoSubtotal,
-                                    1,
-                                    0
-                                  );
-                                  let displaySubtotal =
-                                    subtotal +
-                                    pesoSubtotal +
-                                    deliveryChargeValue;
+                                  // Calculate the higher subtotal value for fuel charge calculation (without delivery charge)
+                                  let subtotalForServiceCharge = subtotal + pesoSubtotal;
+                                  let minValue = minBilling ? Number(minBilling) : 0;
                                   if (minValue > 0 && subtotal < minValue) {
-                                    displaySubtotal =
-                                      minValue + deliveryChargeValue;
+                                    subtotalForServiceCharge = minValue;
                                   }
                                   if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
                                     total += calculateCharge(
                                       fuelChargeFormula,
                                       Number(fuelChargePercent),
-                                      displaySubtotal,
+                                      subtotalForServiceCharge,
                                       1,
                                       0
                                     );
@@ -2633,27 +2609,13 @@ const BillingPage: React.FC = () => {
                                         subtotal += qty * price;
                                     }
                                   });
-                                  let minValue = minBilling
-                                    ? Number(minBilling)
-                                    : 0;
-                                  let deliveryChargeValue = calculateCharge(
-                                    deliveryChargeFormula,
-                                    Number(deliveryCharge) || 0,
-                                    subtotal + pesoSubtotal,
-                                    1,
-                                    0
-                                  );
-                                  let displaySubtotal =
-                                    subtotal +
-                                    pesoSubtotal +
-                                    deliveryChargeValue;
-                                  if (minValue > 0 && subtotal < minValue) {
-                                    displaySubtotal =
-                                      minValue + deliveryChargeValue;
-                                  }
                                   if (surchargeEnabled && Number(surchargePercent) > 0) {
-                                    // Surcharge is only on subtotal (not including delivery charge)
-                                    const subtotalForSurcharge = subtotal + pesoSubtotal;
+                                    // Calculate the higher subtotal value for surcharge calculation (without delivery charge)
+                                    let subtotalForSurcharge = subtotal + pesoSubtotal;
+                                    let minValue = minBilling ? Number(minBilling) : 0;
+                                    if (minValue > 0 && subtotal < minValue) {
+                                      subtotalForSurcharge = minValue;
+                                    }
                                     total += calculateCharge(
                                       surchargeFormula,
                                       Number(surchargePercent),
@@ -2976,29 +2938,17 @@ const BillingPage: React.FC = () => {
                                         subtotal += qty * price;
                                     }
                                   });
-                                  let minValue = minBilling
-                                    ? Number(minBilling)
-                                    : 0;
-                                  let deliveryChargeValue = calculateCharge(
-                                    deliveryChargeFormula,
-                                    Number(deliveryCharge) || 0,
-                                    subtotal + pesoSubtotal,
-                                    1,
-                                    0
-                                  );
-                                  let displaySubtotal =
-                                    subtotal +
-                                    pesoSubtotal +
-                                    deliveryChargeValue;
+                                  // Calculate the higher subtotal value for fuel charge calculation (without delivery charge)
+                                  let subtotalForServiceCharge = subtotal + pesoSubtotal;
+                                  let minValue = minBilling ? Number(minBilling) : 0;
                                   if (minValue > 0 && subtotal < minValue) {
-                                    displaySubtotal =
-                                      minValue + deliveryChargeValue;
+                                    subtotalForServiceCharge = minValue;
                                   }
                                   if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
                                     total += calculateCharge(
                                       fuelChargeFormula,
                                       Number(fuelChargePercent),
-                                      displaySubtotal,
+                                      subtotalForServiceCharge,
                                       1,
                                       0
                                     );

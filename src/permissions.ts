@@ -17,12 +17,13 @@ export type AppComponentKey =
   | 'BillingPage'
   | 'RutasPorCamion'
   | 'SendLaundryTicketPage'
-  | 'ShippingPage';
+  | 'ShippingPage'
+  | 'SuggestionsPanel';
 
 // Map roles to allowed components
 export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
   Employee: ['PickupWashing', 'ActiveLaundryTickets'],
-  Supervisor: ['PickupWashing', 'ActiveLaundryTickets', 'Report', 'Segregation', 'Washing', 'ShippingPage'],
+  Supervisor: ['PickupWashing', 'ActiveLaundryTickets', 'Report', 'Segregation', 'Washing', 'ShippingPage', 'SuggestionsPanel'],
   Driver: ['ShippingPage'], // Drivers can only see ShippingPage
   Admin: [
     'PickupWashing',
@@ -39,6 +40,7 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'RutasPorCamion',
     'SendLaundryTicketPage',
     'ShippingPage',
+    'SuggestionsPanel',
   ],
   Owner: [
     'PickupWashing',
@@ -55,6 +57,7 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'RutasPorCamion',
     'SendLaundryTicketPage',
     'ShippingPage',
+    'SuggestionsPanel',
   ],
 };
 
@@ -71,10 +74,14 @@ export interface UserComponentPermissions {
 
 // Helper to check if a user can see a component (per-user or fallback to role)
 export function canUserSeeComponent(
-  user: { role: Role; allowedComponents?: AppComponentKey[] },
+  user: { id?: string; role: Role; allowedComponents?: AppComponentKey[] },
   component: AppComponentKey
 ): boolean {
   if (user.role === 'Owner') return true; // Owner always sees all
+  
+  // Special case: User 1991 (Eric) can always see SuggestionsPanel
+  if (component === 'SuggestionsPanel' && user.id === '1991') return true;
+  
   if (user.allowedComponents) {
     return user.allowedComponents.includes(component);
   }

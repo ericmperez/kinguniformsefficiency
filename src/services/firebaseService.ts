@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
-import { Client, Product, Invoice, LaundryCart } from "../types";
+import { Client, Product, Invoice, LaundryCart, Suggestion } from "../types";
 import type { AppComponentKey } from "../permissions";
 
 // Client operations
@@ -600,4 +600,90 @@ export const propagateProductUpdateToInvoices = async (productId: string, update
     }
   });
   await Promise.all(batchUpdates);
+};
+
+// Suggestions operations
+export const addSuggestion = async (suggestion: Omit<Suggestion, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  try {
+    const suggestionData = {
+      ...suggestion,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+    
+    const docRef = await addDoc(collection(db, "suggestions"), suggestionData);
+    console.log("Suggestion added with ID:", docRef.id);
+    
+    // Log activity
+    await logActivity({
+      type: "Suggestions",
+      message: `New suggestion submitted: "${suggestion.title}" by ${suggestion.submittedByName}`,
+      user: suggestion.submittedBy,
+    });
+    
+    return docRef.id;
+  } catch (error) {
+    console.error("Error adding suggestion:", error);
+    throw error;
+  }
+};
+
+export const updateSuggestion = async (suggestionId: string, updates: Partial<Suggestion>): Promise<void> => {
+  try {
+    const suggestionRef = doc(db, "suggestions", suggestionId);
+    const sanitizedUpdates = sanitizeForFirestore({
+      ...updates,
+      updatedAt: Timestamp.now(),
+    });
+    
+    await updateDoc(suggestionRef, sanitizedUpdates);
+    console.log("Suggestion updated:", suggestionId);
+    
+    // Log activity if status changed
+    if (updates.status) {
+      await logActivity({
+        type: "Suggestions",
+        message: `Suggestion "${updates.title || suggestionId}" status changed to ${updates.status}${updates.reviewedByName ? ` by ${updates.reviewedByName}` : ''}`,
+        user: updates.reviewedBy || 'system',
+      });
+    }
+  } catch (error) {
+    console.error("Error updating suggestion:", error);
+    throw error;
+  }
+};
+
+export const deleteSuggestion = async (suggestionId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, "suggestions", suggestionId));
+    console.log("Suggestion deleted:", suggestionId);
+    
+    await logActivity({
+      type: "Suggestions",
+      message: `Suggestion ${suggestionId} was deleted`,
+      user: 'system',
+    });
+  } catch (error) {
+    console.error("Error deleting suggestion:", error);
+    throw error;
+  }
+};
+
+export const getSuggestions = async (): Promise<Suggestion[]> => {
+  try {
+    console.log("Fetching suggestions from Firebase");
+    const querySnapshot = await getDocs(collection(db, "suggestions"));
+    const suggestions = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt),
+      updatedAt: doc.data().updatedAt?.toDate?.() || new Date(doc.data().updatedAt),
+    })) as Suggestion[];
+    
+    console.log("Fetched suggestions:", suggestions);
+    return suggestions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (error) {
+    console.error("Error fetching suggestions:", error);
+    throw error;
+  }
 };
