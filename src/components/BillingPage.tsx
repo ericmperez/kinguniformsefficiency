@@ -52,6 +52,21 @@ const BillingPage: React.FC = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
 
+  // Helper function to get month-to-date range
+  const getMonthToDateRange = () => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    return {
+      start: startOfMonth.toISOString().slice(0, 10), // YYYY-MM-DD format
+      end: now.toISOString().slice(0, 10) // YYYY-MM-DD format
+    };
+  };
+
+  // State for date filtering - default to month-to-date
+  const [startDate, setStartDate] = useState<string>(() => getMonthToDateRange().start);
+  const [endDate, setEndDate] = useState<string>(() => getMonthToDateRange().end);
+
   // State for per-client, per-product prices
   const [productPrices, setProductPrices] = useState<Record<string, number>>(
     {}
@@ -66,6 +81,7 @@ const BillingPage: React.FC = () => {
   const [serviceChargePercent, setServiceChargePercent] = useState("");
   const [fuelChargeEnabled, setFuelChargeEnabled] = useState(false);
   const [fuelChargePercent, setFuelChargePercent] = useState("");
+  const [fuelChargeLabel, setFuelChargeLabel] = useState<"Fuel Charge" | "Fuel Fee">("Fuel Charge");
 
   // State for surcharge
   const [surchargeEnabled, setSurchargeEnabled] = useState(false);
@@ -77,12 +93,19 @@ const BillingPage: React.FC = () => {
   // Add state for delivery charge
   const [deliveryCharge, setDeliveryCharge] = useState<string>("");
 
+  // State for disposable fee
+  const [disposableFee, setDisposableFee] = useState<string>("");
+
   // State for formula configurations
   const [serviceChargeFormula, setServiceChargeFormula] = useState<"percentage" | "fixed" | "perInvoice">("percentage");
   const [fuelChargeFormula, setFuelChargeFormula] = useState<"percentage" | "fixed" | "perInvoice">("percentage");
   const [surchargeFormula, setSurchargeFormula] = useState<"percentage" | "fixed" | "perInvoice">("percentage");
   const [deliveryChargeFormula, setDeliveryChargeFormula] = useState<"percentage" | "fixed" | "perInvoice">("perInvoice");
   const [nudosSabanasFormula, setNudosSabanasFormula] = useState<"percentage" | "fixed" | "perInvoice" | "perUnit">("perUnit");
+  const [disposableFeeFormula, setDisposableFeeFormula] = useState<"percentage" | "fixed" | "perInvoice">("fixed");
+
+  // State for toggling product pricing table visibility
+  const [showPricingTable, setShowPricingTable] = useState<boolean>(false);
 
   // Get selected client object
   const selectedClient = clients.find((c) => c.id === selectedClientId);
@@ -158,6 +181,7 @@ const BillingPage: React.FC = () => {
       setServiceChargePercent("");
       setFuelChargeEnabled(false);
       setFuelChargePercent("");
+      setFuelChargeLabel("Fuel Charge");
       setServiceChargeFormula("percentage");
       setFuelChargeFormula("percentage");
       return;
@@ -180,6 +204,7 @@ const BillingPage: React.FC = () => {
             ? String(snap.data().fuelChargePercent)
             : ""
         );
+        setFuelChargeLabel(snap.data().fuelChargeLabel || "Fuel Charge");
         setServiceChargeFormula(snap.data().serviceChargeFormula || "percentage");
         setFuelChargeFormula(snap.data().fuelChargeFormula || "percentage");
       } else {
@@ -187,6 +212,7 @@ const BillingPage: React.FC = () => {
         setServiceChargePercent("");
         setFuelChargeEnabled(false);
         setFuelChargePercent("");
+        setFuelChargeLabel("Fuel Charge");
         setServiceChargeFormula("percentage");
         setFuelChargeFormula("percentage");
       }
@@ -222,13 +248,15 @@ const BillingPage: React.FC = () => {
     })();
   }, [selectedClientId]);
 
-  // Load delivery charge and nudos sabanas for selected client
+  // Load delivery charge, nudos sabanas, and disposable fee for selected client
   useEffect(() => {
     if (!selectedClient) {
       setDeliveryCharge("");
       setNudosSabanasPrice("");
+      setDisposableFee("");
       setDeliveryChargeFormula("perInvoice");
       setNudosSabanasFormula("perUnit");
+      setDisposableFeeFormula("fixed");
       return;
     }
     (async () => {
@@ -247,13 +275,21 @@ const BillingPage: React.FC = () => {
             ? String(snap.data().nudosSabanasPrice)
             : ""
         );
+        setDisposableFee(
+          snap.data().disposableFee !== undefined
+            ? String(snap.data().disposableFee)
+            : ""
+        );
         setDeliveryChargeFormula(snap.data().deliveryChargeFormula || "perInvoice");
         setNudosSabanasFormula(snap.data().nudosSabanasFormula || "perUnit");
+        setDisposableFeeFormula(snap.data().disposableFeeFormula || "fixed");
       } else {
         setDeliveryCharge("");
         setNudosSabanasPrice("");
+        setDisposableFee("");
         setDeliveryChargeFormula("perInvoice");
         setNudosSabanasFormula("perUnit");
+        setDisposableFeeFormula("fixed");
       }
     })();
   }, [selectedClientId]);
@@ -299,15 +335,18 @@ const BillingPage: React.FC = () => {
             : 0,
           fuelChargeEnabled,
           fuelChargePercent: fuelChargePercent ? Number(fuelChargePercent) : 0,
+          fuelChargeLabel,
           surchargeEnabled,
           surchargePercent: surchargePercent ? Number(surchargePercent) : 0,
           deliveryCharge: deliveryCharge ? Number(deliveryCharge) : 0,
           nudosSabanasPrice: nudosSabanasPrice ? Number(nudosSabanasPrice) : 0,
+          disposableFee: disposableFee ? Number(disposableFee) : 0,
           serviceChargeFormula,
           fuelChargeFormula,
           surchargeFormula,
           deliveryChargeFormula,
           nudosSabanasFormula,
+          disposableFeeFormula,
           updatedAt: new Date().toISOString(),
         }
       );
@@ -611,6 +650,10 @@ const BillingPage: React.FC = () => {
         0
       );
       
+      // Base subtotal (products + peso only, without delivery charge and minimum billing)
+      let baseSubtotalOnly = baseSubtotal;
+      
+      // Display subtotal (with minimum billing applied if needed, plus delivery charge)
       let displaySubtotal = baseSubtotal + deliveryChargeValue;
       if (minValue > 0 && subtotal < minValue) {
         displaySubtotal = minValue + deliveryChargeValue;
@@ -620,6 +663,7 @@ const BillingPage: React.FC = () => {
       let fuelCharge = 0;
       let surchargeValue = 0;
       let nudosSabanasCharge = 0;
+      let disposableFeeValue = 0;
       
       if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
         serviceCharge = calculateCharge(
@@ -679,7 +723,18 @@ const BillingPage: React.FC = () => {
         }
       }
       
-      const grandTotal = displaySubtotal + serviceCharge + fuelCharge + surchargeValue + nudosSabanasCharge;
+      // Calculate Disposable Fee
+      if (disposableFee && Number(disposableFee) > 0) {
+        disposableFeeValue = calculateCharge(
+          disposableFeeFormula,
+          Number(disposableFee),
+          baseSubtotal,
+          1,
+          0
+        );
+      }
+      
+      const grandTotal = displaySubtotal + serviceCharge + fuelCharge + surchargeValue + nudosSabanasCharge + disposableFeeValue;
       
       // Build the CSV row with basic invoice info
       const csvRow: CSVRow = {
@@ -705,12 +760,14 @@ const BillingPage: React.FC = () => {
       }
       
       // Add charge and total columns
-      csvRow["Subtotal"] = `$${baseSubtotal.toFixed(2)}`;
+      csvRow["Subtotal (Base)"] = `$${baseSubtotalOnly.toFixed(2)}`;
+      csvRow["Subtotal (w/ Min)"] = `$${displaySubtotal.toFixed(2)}`;
       if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
       if (serviceCharge > 0) csvRow["Service Charge"] = `$${serviceCharge.toFixed(2)}`;
-      if (fuelCharge > 0) csvRow["Fuel Charge"] = `$${fuelCharge.toFixed(2)}`;
+      if (fuelCharge > 0) csvRow[fuelChargeLabel] = `$${fuelCharge.toFixed(2)}`;
       if (surchargeValue > 0) csvRow["Surcharge"] = `$${surchargeValue.toFixed(2)}`;
       if (nudosSabanasCharge > 0) csvRow["Nudos (Sabanas)"] = `$${nudosSabanasCharge.toFixed(2)}`;
+      if (disposableFeeValue > 0) csvRow["Disposable Fee"] = `$${disposableFeeValue.toFixed(2)}`;
       csvRow["Grand Total"] = `$${grandTotal.toFixed(2)}`;
       csvRow["Status"] = inv.status || "";
       csvRow["Locked"] = inv.locked ? "Yes" : "No";
@@ -771,39 +828,150 @@ const BillingPage: React.FC = () => {
 
   return (
     <div className="container py-4">
-      {/* Client Dropdown Filter - moved to top */}
-      <div className="mb-4" style={{ maxWidth: 350 }}>
-        <label className="form-label">Select Client</label>
-        <select
-          className="form-select"
-          value={selectedClientId}
-          onChange={(e) => setSelectedClientId(e.target.value)}
-        >
-          <option value="">All Clients</option>
-          {clients
-            .slice()
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
-        </select>
+      {/* Client Dropdown Filter and Date Range Filter */}
+      <div className="row mb-4">
+        <div className="col-md-4">
+          <label className="form-label">Select Client</label>
+          <select
+            className="form-select"
+            value={selectedClientId}
+            onChange={(e) => setSelectedClientId(e.target.value)}
+          >
+            <option value="">All Clients</option>
+            {clients
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="col-md-3">
+          <label className="form-label">Start Date</label>
+          <input
+            type="date"
+            className="form-control"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            placeholder="Start date"
+          />
+        </div>
+        <div className="col-md-3">
+          <label className="form-label">End Date</label>
+          <input
+            type="date"
+            className="form-control"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            placeholder="End date"
+            min={startDate} // Ensure end date is not before start date
+          />
+        </div>
+        <div className="col-md-2 d-flex align-items-end">
+          <button
+            className="btn btn-outline-secondary w-100"
+            onClick={() => {
+              const monthToDate = getMonthToDateRange();
+              setStartDate(monthToDate.start);
+              setEndDate(monthToDate.end);
+            }}
+            title="Reset to month-to-date"
+          >
+            Reset to MTD
+          </button>
+        </div>
+      </div>
+      
+      {/* Date Range Indicator and Quick Filters */}
+      <div className="mb-3 d-flex justify-content-between align-items-center">
+        <small className="text-muted">
+          <i className="bi bi-calendar-range me-1"></i>
+          Showing invoices from {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+          {(() => {
+            const monthToDate = getMonthToDateRange();
+            return startDate === monthToDate.start && endDate === monthToDate.end ? " (Month-to-Date)" : "";
+          })()}
+        </small>
+        <div className="btn-group btn-group-sm" role="group">
+          <button
+            type="button"
+            className="btn btn-outline-primary"
+            onClick={() => {
+              const today = new Date().toISOString().slice(0, 10);
+              setStartDate(today);
+              setEndDate(today);
+            }}
+            title="Today only"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-primary"
+            onClick={() => {
+              const now = new Date();
+              const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+              const weekEnd = new Date();
+              setStartDate(weekStart.toISOString().slice(0, 10));
+              setEndDate(weekEnd.toISOString().slice(0, 10));
+            }}
+            title="This week"
+          >
+            This Week
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-primary"
+            onClick={() => {
+              const now = new Date();
+              const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+              const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+              setStartDate(lastMonth.toISOString().slice(0, 10));
+              setEndDate(lastMonthEnd.toISOString().slice(0, 10));
+            }}
+            title="Last month"
+          >
+            Last Month
+          </button>
+        </div>
       </div>
       <h2>Billing Section</h2>
       {/* Per-Product Price Table for Selected Client */}
       {selectedClient && (
         <div className="mb-4">
-          <h5>Set Product Prices for {selectedClient.name}</h5>
-          <div className="table-responsive" style={{ maxWidth: 600 }}>
-            <table className="table table-bordered align-middle">
-              <thead>
-                <tr>
-                  <th>Product Name</th>
-                  <th style={{ width: 180 }}>Price</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5 className="mb-0">Set Product Prices for {selectedClient.name}</h5>
+            <button
+              className={`btn btn-sm ${showPricingTable ? 'btn-outline-secondary' : 'btn-outline-primary'}`}
+              onClick={() => setShowPricingTable(!showPricingTable)}
+            >
+              {showPricingTable ? (
+                <>
+                  <i className="bi bi-eye-slash me-1"></i>
+                  Hide Prices
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-eye me-1"></i>
+                  Show Prices
+                </>
+              )}
+            </button>
+          </div>
+          
+          {showPricingTable && (
+            <>
+              <div className="table-responsive" style={{ maxWidth: 600 }}>
+                <table className="table table-bordered align-middle">
+                  <thead>
+                    <tr>
+                      <th>Product Name</th>
+                      <th style={{ width: 180 }}>Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                 {allProducts
                   .filter((p) => selectedClient.selectedProducts.includes(p.id))
                   .map((product) => {
@@ -1057,7 +1225,7 @@ const BillingPage: React.FC = () => {
                     className="form-label fw-medium mb-0"
                     htmlFor="fuelCharge"
                   >
-                    Fuel Charge
+                    {fuelChargeLabel}
                   </label>
                 </div>
                 <div className="col-md-3">
@@ -1090,6 +1258,28 @@ const BillingPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Fuel Charge Label Selection */}
+              {fuelChargeEnabled && (
+                <div className="row align-items-center mb-3">
+                  <div className="col-md-2"></div>
+                  <div className="col-md-3">
+                    <label className="form-label fw-medium mb-0">
+                      Label Wording
+                    </label>
+                  </div>
+                  <div className="col-md-6">
+                    <select
+                      className="form-select"
+                      value={fuelChargeLabel}
+                      onChange={(e) => setFuelChargeLabel(e.target.value as "Fuel Charge" | "Fuel Fee")}
+                    >
+                      <option value="Fuel Charge">Fuel Charge</option>
+                      <option value="Fuel Fee">Fuel Fee</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* Nudos (Sabanas) Price */}
               <div className="row align-items-center mb-3">
@@ -1151,6 +1341,64 @@ const BillingPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Disposable Fee */}
+              <div className="row align-items-center mb-3">
+                <div className="col-md-2">
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="disposableFeeEnabled"
+                      checked={
+                        disposableFee !== "" && Number(disposableFee) > 0
+                      }
+                      onChange={(e) => {
+                        if (!e.target.checked) {
+                          setDisposableFee("");
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <label
+                    className="form-label fw-medium mb-0"
+                    htmlFor="disposableFeeEnabled"
+                  >
+                    Disposable Fee
+                  </label>
+                </div>
+                <div className="col-md-3">
+                  <select
+                    className="form-select"
+                    value={disposableFeeFormula}
+                    onChange={(e) => setDisposableFeeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
+                    disabled={!disposableFee || Number(disposableFee) <= 0}
+                  >
+                    <option value="percentage">% of Subtotal</option>
+                    <option value="fixed">Fixed Amount</option>
+                    <option value="perInvoice">Per Laundry Ticket</option>
+                  </select>
+                </div>
+                <div className="col-md-3">
+                  <div className="input-group">
+                    {disposableFeeFormula === "percentage" && <span className="input-group-text">%</span>}
+                    {(disposableFeeFormula === "fixed" || disposableFeeFormula === "perInvoice") && <span className="input-group-text">$</span>}
+                    <input
+                      type="number"
+                      className="form-control"
+                      min={0}
+                      max={disposableFeeFormula === "percentage" ? 100 : undefined}
+                      step="0.01"
+                      value={disposableFee}
+                      onChange={(e) => setDisposableFee(e.target.value)}
+                      placeholder={disposableFeeFormula === "percentage" ? "%" : "$"}
+                      id="disposableFee"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <button className="btn btn-success mt-2" onClick={handleSavePrices}>
@@ -1166,6 +1414,8 @@ const BillingPage: React.FC = () => {
             >
               {saveStatus}
             </div>
+          )}
+            </>
           )}
         </div>
       )}
@@ -1191,10 +1441,24 @@ const BillingPage: React.FC = () => {
 
       {/* Completed Invoices Table */}
       {(() => {
-        // Filter/group invoices by selected client
-        const filteredInvoices = selectedClientId
+        // Filter/group invoices by selected client and date range
+        let filteredInvoices = selectedClientId
           ? invoices.filter((inv) => inv.clientId === selectedClientId)
           : invoices;
+
+        // Apply date range filtering (always apply since we default to month-to-date)
+        filteredInvoices = filteredInvoices.filter((inv) => {
+          if (!inv.date) return false; // Exclude invoices without dates
+          
+          const invoiceDate = new Date(inv.date);
+          const startDateTime = new Date(startDate).getTime();
+          const endDateTime = new Date(endDate).getTime() + (24 * 60 * 60 * 1000 - 1); // End of day
+          
+          const invoiceDateTime = invoiceDate.getTime();
+          
+          return invoiceDateTime >= startDateTime && invoiceDateTime <= endDateTime;
+        });
+
         const grouped = filteredInvoices.reduce((acc, inv) => {
           if (!acc[inv.clientId]) acc[inv.clientId] = [];
           acc[inv.clientId].push(inv);
@@ -1276,17 +1540,21 @@ const BillingPage: React.FC = () => {
                         {productColumns.map((prod) => (
                           <th key={prod.id} style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>{prod.name}</th>
                         ))}
-                        {deliveryCharge && Number(deliveryCharge) > 0 && (
-                          <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Delivery Charge</th>
-                        )}
-                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Subtotal</th>
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Subtotal (Base)</th>
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Subtotal (w/ Min)</th>
                         {serviceChargeEnabled && <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Service Charge</th>}
-                        {fuelChargeEnabled && <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Fuel Charge</th>}
                         {surchargeEnabled && <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Surcharge</th>}
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Total</th>
+                        {fuelChargeEnabled && <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>{fuelChargeLabel}</th>}
                         {nudosSabanasPrice && Number(nudosSabanasPrice) > 0 && (
                           <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Nudos (Sabanas)</th>
                         )}
-                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Total</th>
+                        {disposableFee && Number(disposableFee) > 0 && (
+                          <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Disposable Fee</th>
+                        )}
+                        {deliveryCharge && Number(deliveryCharge) > 0 && (
+                          <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Special Delivery</th>
+                        )}
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Actions</th>
                       </tr>
                     </thead>
@@ -1430,8 +1698,12 @@ const BillingPage: React.FC = () => {
                             1,
                             0
                           );
-                          let displaySubtotal =
-                            subtotal + pesoSubtotal + deliveryChargeValue;
+                          
+                          // Base subtotal (products + peso, without delivery charge and minimum billing)
+                          let baseSubtotal = subtotal + pesoSubtotal;
+                          
+                          // Display subtotal (with minimum billing applied if needed, plus delivery charge)
+                          let displaySubtotal = baseSubtotal + deliveryChargeValue;
                           if (minValue > 0 && subtotal < minValue) {
                             displaySubtotal = minValue + deliveryChargeValue;
                           }
@@ -1439,6 +1711,9 @@ const BillingPage: React.FC = () => {
                           let serviceCharge = 0;
                           let fuelCharge = 0;
                           let surchargeValue = 0;
+                          let nudosSabanasCharge = 0;
+                          let disposableFeeValue = 0;
+      
                           if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
                             serviceCharge = calculateCharge(
                               serviceChargeFormula,
@@ -1470,7 +1745,7 @@ const BillingPage: React.FC = () => {
                           }
                           
                           // Calculate Nudos (Sabanas) charge using formula after subtotals are known
-                          const nudosSabanasCharge = calculateCharge(
+                          nudosSabanasCharge = calculateCharge(
                             nudosSabanasFormula,
                             Number(nudosSabanasPrice) || 0,
                             subtotal + pesoSubtotal,
@@ -1478,7 +1753,18 @@ const BillingPage: React.FC = () => {
                             sabanasQty
                           );
                           
-                          // Calculate grand total: subtotal + pesoSubtotal + surcharge + service + fuel + nudos + delivery charge
+                          // Calculate Disposable Fee
+                          if (disposableFee && Number(disposableFee) > 0) {
+                            disposableFeeValue = calculateCharge(
+                              disposableFeeFormula,
+                              Number(disposableFee),
+                              subtotal + pesoSubtotal,
+                              1,
+                              0
+                            );
+                          }
+                          
+                          // Calculate grand total: subtotal + pesoSubtotal + surcharge + service + fuel + nudos + delivery charge + disposable fee
                           const grandTotal =
                             subtotal +
                             pesoSubtotal +
@@ -1486,7 +1772,8 @@ const BillingPage: React.FC = () => {
                             serviceCharge +
                             fuelCharge +
                             nudosSabanasCharge +
-                            deliveryChargeValue;
+                            deliveryChargeValue +
+                            disposableFeeValue;
                           return (
                             <tr
                               key={inv.id}
@@ -1622,15 +1909,15 @@ const BillingPage: React.FC = () => {
                                 }
                                 return <td key={prod.id}>{cell}</td>;
                               })}
-                              {deliveryCharge && Number(deliveryCharge) > 0 && (
-                                <td style={nowrapCellStyle}>
-                                  <b>
-                                    {deliveryChargeValue > 0
-                                      ? `$${deliveryChargeValue.toFixed(2)}`
-                                      : ""}
-                                  </b>
-                                </td>
-                              )}
+                              {/* Base Subtotal (without minimum billing) */}
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {baseSubtotal > 0
+                                    ? `$${baseSubtotal.toFixed(2)}`
+                                    : ""}
+                                </b>
+                              </td>
+                              {/* Display Subtotal (with minimum billing if applied) */}
                               <td style={nowrapCellStyle}>
                                 <b>
                                   {displaySubtotal > 0
@@ -1647,20 +1934,27 @@ const BillingPage: React.FC = () => {
                                   </b>
                                 </td>
                               )}
-                              {fuelChargeEnabled && (
-                                <td style={nowrapCellStyle}>
-                                  <b>
-                                    {fuelCharge > 0
-                                      ? `$${fuelCharge.toFixed(2)}`
-                                      : ""}
-                                  </b>
-                                </td>
-                              )}
                               {surchargeEnabled && (
                                 <td style={nowrapCellStyle}>
                                   <b>
                                     {surchargeValue > 0
                                       ? `$${surchargeValue.toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {grandTotal > 0
+                                    ? `$${grandTotal.toFixed(2)}`
+                                    : ""}
+                                </b>
+                              </td>
+                              {fuelChargeEnabled && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {fuelCharge > 0
+                                      ? `$${fuelCharge.toFixed(2)}`
                                       : ""}
                                   </b>
                                 </td>
@@ -1675,13 +1969,24 @@ const BillingPage: React.FC = () => {
                                     </b>
                                   </td>
                                 )}
-                              <td style={nowrapCellStyle}>
-                                <b>
-                                  {grandTotal > 0
-                                    ? `$${grandTotal.toFixed(2)}`
-                                    : ""}
-                                </b>
-                              </td>
+                              {disposableFee && Number(disposableFee) > 0 && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {disposableFeeValue > 0
+                                      ? `$${disposableFeeValue.toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
+                              {deliveryCharge && Number(deliveryCharge) > 0 && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {deliveryChargeValue > 0
+                                      ? `$${deliveryChargeValue.toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
                               <td>
                                 <button
                                   className="btn btn-sm btn-outline-primary"
@@ -1728,7 +2033,7 @@ const BillingPage: React.FC = () => {
                     </tbody>
                     <tfoot style={{ position: "sticky", bottom: 0, zIndex: 10, backgroundColor: "#f1f5f9" }}>
                       <tr style={{ fontWeight: 700, background: "#f1f5f9", borderTop: "2px solid #dee2e6" }}>
-                        <td colSpan={4}>Total (Selected)</td>
+                        <td colSpan={5}>Total (Selected)</td>
                         {/* Only sum selected invoices */}
                         <td>
                           {clientInvoices
@@ -1802,7 +2107,7 @@ const BillingPage: React.FC = () => {
                               {totalQty > 0 ? `${totalQty} | ` : ""}
                               {totalValue > 0 ? (
                                 <span className="text-success">
-                                  ${`$${totalValue.toFixed(2)}`}
+                                  $${totalValue.toFixed(2)}
                                 </span>
                               ) : (
                                 ""
@@ -1810,25 +2115,68 @@ const BillingPage: React.FC = () => {
                             </td>
                           );
                         })}
-                        {/* Delivery Charge total */}
-                        {deliveryCharge && Number(deliveryCharge) > 0 && (
-                          <td style={nowrapCellStyle}>
-                            {(() => {
-                              const selectedInvoicesCount = clientInvoices.filter((inv) =>
+                        {/* Base Subtotal total (without minimum billing) */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let total = 0;
+                            clientInvoices
+                              .filter((inv) =>
                                 selectedInvoiceIds.includes(inv.id)
-                              ).length;
-                              const totalDeliveryCharge = calculateCharge(
-                                deliveryChargeFormula,
-                                Number(deliveryCharge) || 0,
-                                0, // Subtotal not needed for most delivery charge calculations
-                                selectedInvoicesCount,
-                                0
-                              );
-                              return totalDeliveryCharge > 0 ? `$${totalDeliveryCharge.toFixed(2)}` : "";
-                            })()}
-                          </td>
-                        )}
-                        {/* Subtotal total */}
+                              )
+                              .forEach((inv) => {
+                                let subtotal = 0;
+                                let pesoSubtotal = 0;
+                                productColumns.forEach((prod) => {
+                                  if (
+                                    prod.name.toLowerCase().includes("peso")
+                                  ) {
+                                    const pesoPrice = productPrices[prod.id];
+                                    if (
+                                      typeof inv.totalWeight === "number" &&
+                                      pesoPrice > 0
+                                    ) {
+                                      pesoSubtotal +=
+                                        inv.totalWeight * pesoPrice;
+                                    }
+                                  } else {
+                                    const qty = (inv.carts || []).reduce(
+                                      (sum, cart) => {
+                                        return (
+                                          sum +
+                                          (cart.items || [])
+                                            .filter(
+                                              (item) =>
+                                                item.productId === prod.id
+                                            )
+                                            .reduce(
+                                              (s, item) =>
+                                                s +
+                                                (Number(item.quantity) || 0),
+                                              0
+                                            )
+                                        );
+                                      },
+                                      0
+                                    );
+                                    const price = productPrices[prod.id];
+                                    if (qty > 0 && price > 0)
+                                      subtotal += qty * price;
+                                  }
+                                });
+                                let deliveryChargeValue = calculateCharge(
+                                  deliveryChargeFormula,
+                                  Number(deliveryCharge) || 0,
+                                  subtotal + pesoSubtotal,
+                                  1,
+                                  0
+                                );
+                                let baseSubtotal = subtotal + pesoSubtotal;
+                                total += baseSubtotal;
+                              });
+                            return total > 0 ? `$${total.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Display Subtotal total (with minimum billing applied) */}
                         <td style={nowrapCellStyle}>
                           {(() => {
                             let total = 0;
@@ -1879,14 +2227,16 @@ const BillingPage: React.FC = () => {
                                 let minValue = minBilling
                                   ? Number(minBilling)
                                   : 0;
-                                let deliveryChargeValue = deliveryCharge
-                                  ? Number(deliveryCharge)
-                                  : 0;
-                                let displaySubtotal =
-                                  subtotal + pesoSubtotal + deliveryChargeValue;
+                                let deliveryChargeValue = calculateCharge(
+                                  deliveryChargeFormula,
+                                  Number(deliveryCharge) || 0,
+                                  subtotal + pesoSubtotal,
+                                  1,
+                                  0
+                                );
+                                let displaySubtotal = subtotal + pesoSubtotal + deliveryChargeValue;
                                 if (minValue > 0 && subtotal < minValue) {
-                                  displaySubtotal =
-                                    minValue + deliveryChargeValue;
+                                  displaySubtotal = minValue + deliveryChargeValue;
                                 }
                                 total += displaySubtotal;
                               });
@@ -2210,6 +2560,47 @@ const BillingPage: React.FC = () => {
                             })()}
                           </td>
                         )}
+                        {/* Disposable Fee total */}
+                        {disposableFee && Number(disposableFee) > 0 && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let subtotal = 0;
+                                  let pesoSubtotal = 0;
+                                  productColumns.forEach((prod) => {
+                                    if (prod.name.toLowerCase().includes("peso")) {
+                                      const pesoPrice = productPrices[prod.id];
+                                      if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
+                                        pesoSubtotal += inv.totalWeight * pesoPrice;
+                                      }
+                                    } else {
+                                      const qty = (inv.carts || []).reduce((sum, cart) => {
+                                        return sum + (cart.items || [])
+                                          .filter((item) => item.productId === prod.id)
+                                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                      }, 0);
+                                      const price = productPrices[prod.id];
+                                      if (qty > 0 && price > 0) subtotal += qty * price;
+                                    }
+                                  });
+                                  
+                                  total += calculateCharge(
+                                    disposableFeeFormula,
+                                    Number(disposableFee),
+                                    subtotal + pesoSubtotal,
+                                    1,
+                                    0
+                                  );
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
                         {/* Grand Total */}
                         <td style={nowrapCellStyle}>
                           {(() => {
@@ -2305,15 +2696,268 @@ const BillingPage: React.FC = () => {
                                     0
                                   );
                                 }
+                                
+                                // Calculate nudos sabanas charge
+                                let nudosSabanasCharge = 0;
+                                if (nudosSabanasPrice && Number(nudosSabanasPrice) > 0) {
+                                  const sabanasProd = productColumns.find((p) =>
+                                    p.name.toLowerCase().includes("sabana") && 
+                                    !p.name.toLowerCase().includes("nudo")
+                                  );
+                                  let sabanasQty = 0;
+                                  if (sabanasProd) {
+                                    sabanasQty = (inv.carts || []).reduce((sum, cart) => {
+                                      return sum + (cart.items || [])
+                                        .filter((item) => item.productId === sabanasProd.id)
+                                        .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                    }, 0);
+                                  }
+                                  if (sabanasQty > 0) {
+                                    nudosSabanasCharge = calculateCharge(
+                                      nudosSabanasFormula,
+                                      Number(nudosSabanasPrice),
+                                      subtotal + pesoSubtotal,
+                                      1,
+                                      sabanasQty
+                                    );
+                                  }
+                                }
+                                
+                                // Calculate disposable fee
+                                let disposableFeeValue = 0;
+                                if (disposableFee && Number(disposableFee) > 0) {
+                                  disposableFeeValue = calculateCharge(
+                                    disposableFeeFormula,
+                                    Number(disposableFee),
+                                    subtotal + pesoSubtotal,
+                                    1,
+                                    0
+                                  );
+                                }
+                                
                                 total +=
                                   displaySubtotal +
                                   serviceCharge +
                                   fuelCharge +
-                                  surchargeValue;
+                                  surchargeValue +
+                                  nudosSabanasCharge +
+                                  disposableFeeValue;
                               });
                             return total > 0 ? `$${total.toFixed(2)}` : "";
                           })()}
                         </td>
+                        {/* Fuel Charge total */}
+                        {fuelChargeEnabled && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let subtotal = 0;
+                                  let pesoSubtotal = 0;
+                                  productColumns.forEach((prod) => {
+                                    if (
+                                      prod.name.toLowerCase().includes("peso")
+                                    ) {
+                                      const pesoPrice = productPrices[prod.id];
+                                      if (
+                                        typeof inv.totalWeight === "number" &&
+                                        pesoPrice > 0
+                                      ) {
+                                        pesoSubtotal +=
+                                          inv.totalWeight * pesoPrice;
+                                      }
+                                    } else {
+                                      const qty = (inv.carts || []).reduce(
+                                        (sum, cart) => {
+                                          return (
+                                            sum +
+                                            (cart.items || [])
+                                              .filter(
+                                                (item) =>
+                                                  item.productId === prod.id
+                                              )
+                                              .reduce(
+                                                (s, item) =>
+                                                  s +
+                                                  (Number(item.quantity) || 0),
+                                                0
+                                              )
+                                          );
+                                        },
+                                        0
+                                      );
+                                      const price = productPrices[prod.id];
+                                      if (qty > 0 && price > 0)
+                                        subtotal += qty * price;
+                                    }
+                                  });
+                                  let minValue = minBilling
+                                    ? Number(minBilling)
+                                    : 0;
+                                  let deliveryChargeValue = calculateCharge(
+                                    deliveryChargeFormula,
+                                    Number(deliveryCharge) || 0,
+                                    subtotal + pesoSubtotal,
+                                    1,
+                                    0
+                                  );
+                                  let displaySubtotal =
+                                    subtotal +
+                                    pesoSubtotal +
+                                    deliveryChargeValue;
+                                  if (minValue > 0 && subtotal < minValue) {
+                                    displaySubtotal =
+                                      minValue + deliveryChargeValue;
+                                  }
+                                  if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
+                                    total += calculateCharge(
+                                      fuelChargeFormula,
+                                      Number(fuelChargePercent),
+                                      displaySubtotal,
+                                      1,
+                                      0
+                                    );
+                                  }
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
+                        {/* Nudos (Sabanas) total */}
+                        {nudosSabanasPrice && Number(nudosSabanasPrice) > 0 && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              const sabanasProd = productColumns.find(
+                                (p) =>
+                                  p.name.toLowerCase().includes("sabana") &&
+                                  !p.name.toLowerCase().includes("nudo")
+                              );
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let sabanasQty = 0;
+                                  if (sabanasProd) {
+                                    sabanasQty = (inv.carts || []).reduce(
+                                      (sum, cart) => {
+                                        return (
+                                          sum +
+                                          (cart.items || [])
+                                            .filter(
+                                              (item) =>
+                                                item.productId ===
+                                                sabanasProd.id
+                                            )
+                                            .reduce(
+                                              (s, item) =>
+                                                s +
+                                                (Number(item.quantity) || 0),
+                                              0
+                                            )
+                                        );
+                                      },
+                                      0
+                                    );
+                                  }
+                                  if (sabanasQty > 0 && Number(nudosSabanasPrice) > 0) {
+                                    // Get subtotal for percentage-based calculations
+                                    let subtotal = 0;
+                                    let pesoSubtotal = 0;
+                                    productColumns.forEach((prod) => {
+                                      if (prod.name.toLowerCase().includes("peso")) {
+                                        const pesoPrice = productPrices[prod.id];
+                                        if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
+                                          pesoSubtotal += inv.totalWeight * pesoPrice;
+                                        }
+                                      } else {
+                                        const qty = (inv.carts || []).reduce((sum, cart) => {
+                                          return sum + (cart.items || [])
+                                            .filter((item) => item.productId === prod.id)
+                                            .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                        }, 0);
+                                        const price = productPrices[prod.id];
+                                        if (qty > 0 && price > 0) subtotal += qty * price;
+                                      }
+                                    });
+                                    
+                                    total += calculateCharge(
+                                      nudosSabanasFormula,
+                                      Number(nudosSabanasPrice),
+                                      subtotal + pesoSubtotal,
+                                      1,
+                                      sabanasQty
+                                    );
+                                  }
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
+                        {/* Disposable Fee total */}
+                        {disposableFee && Number(disposableFee) > 0 && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let subtotal = 0;
+                                  let pesoSubtotal = 0;
+                                  productColumns.forEach((prod) => {
+                                    if (prod.name.toLowerCase().includes("peso")) {
+                                      const pesoPrice = productPrices[prod.id];
+                                      if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
+                                        pesoSubtotal += inv.totalWeight * pesoPrice;
+                                      }
+                                    } else {
+                                      const qty = (inv.carts || []).reduce((sum, cart) => {
+                                        return sum + (cart.items || [])
+                                          .filter((item) => item.productId === prod.id)
+                                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                      }, 0);
+                                      const price = productPrices[prod.id];
+                                      if (qty > 0 && price > 0) subtotal += qty * price;
+                                    }
+                                  });
+                                  
+                                  total += calculateCharge(
+                                    disposableFeeFormula,
+                                    Number(disposableFee),
+                                    subtotal + pesoSubtotal,
+                                    1,
+                                    0
+                                  );
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
+                        {/* Special Delivery total */}
+                        {deliveryCharge && Number(deliveryCharge) > 0 && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              const selectedInvoicesCount = clientInvoices.filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              ).length;
+                              const totalDeliveryCharge = calculateCharge(
+                                deliveryChargeFormula,
+                                Number(deliveryCharge) || 0,
+                                0, // Subtotal not needed for most delivery charge calculations
+                                selectedInvoicesCount,
+                                0
+                              );
+                              return totalDeliveryCharge > 0 ? `$${totalDeliveryCharge.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
                         {/* Actions column: empty */}
                         <td></td>
                       </tr>
