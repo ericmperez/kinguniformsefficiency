@@ -110,6 +110,7 @@ const BillingPage: React.FC = () => {
   // State for required pricing configuration
   const [requiredPricingProducts, setRequiredPricingProducts] = useState<Record<string, boolean>>({});
 
+  // Test comment for pre-commit hook validation
   // Get selected client object
   const selectedClient = clients.find((c) => c.id === selectedClientId);
   // Get products for selected client
