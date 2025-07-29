@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   getTodayPickupGroups,
   updatePickupGroupStatus,
@@ -58,17 +58,35 @@ const Segregation: React.FC<SegregationProps> = ({
     fetchClients();
   }, []);
 
-  // Real-time listener for all pickup_groups (no date filter)
+  // Real-time listener for all pickup_groups with debouncing for stability
   useEffect(() => {
     const q = collection(db, "pickup_groups");
+    let debounceTimeout: NodeJS.Timeout;
+    
     const unsub = onSnapshot(q, (snap) => {
-      const fetchedGroups = snap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setGroups(fetchedGroups);
+      // Clear any existing timeout
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+      
+      // Debounce the update to prevent rapid fire updates during weight entry
+      debounceTimeout = setTimeout(() => {
+        const fetchedGroups = snap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        
+        console.log("📡 [GROUPS SYNC] Groups updated from Firestore - maintaining order stability");
+        setGroups(fetchedGroups);
+      }, 50); // 50ms debounce to smooth out rapid updates
     });
-    return () => unsub();
+    
+    return () => {
+      unsub();
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+    };
   }, []);
 
   // Show all groups with status 'Segregacion' or 'Segregation' (case-insensitive)
@@ -169,14 +187,22 @@ const Segregation: React.FC<SegregationProps> = ({
   const todayStr = new Date().toISOString().slice(0, 10);
   const orderDocRef = doc(db, "segregation_orders", todayStr);
 
-  // Load order from Firestore and listen for changes
+  // Load order from Firestore and listen for changes with stability improvements
   useEffect(() => {
     setOrderLoading(true);
     const unsub = onSnapshot(orderDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (Array.isArray(data.order)) {
-          setGroupOrder(data.order);
+          // Only update if the order actually changed to prevent unnecessary re-renders
+          setGroupOrder(prev => {
+            const newOrder = data.order;
+            if (prev.length !== newOrder.length || !prev.every((id, idx) => id === newOrder[idx])) {
+              console.log("📡 [ORDER SYNC] Order updated from Firestore - preserving stability");
+              return newOrder;
+            }
+            return prev;
+          });
         } else {
           setGroupOrder([]);
         }
@@ -219,49 +245,66 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   }, [segregationGroups.length, orderLoading, groupOrder.length]);
 
-  // Handle new groups being added - separate effect to avoid conflicts
+  // Handle new groups being added with debouncing to prevent rapid updates
   useEffect(() => {
     if (!orderLoading && groupOrder.length > 0) {
       const currentGroupIds = segregationGroups.map(g => g.id);
       const newGroups = segregationGroups.filter((g) => !groupOrder.includes(g.id));
       
       if (newGroups.length > 0) {
-        const updatedOrder = [...groupOrder, ...newGroups.map(g => g.id)];
-        
-        // Log new groups being added to bottom
-        console.log("🆕 [ADDING NEW GROUPS] New clients being added to bottom of segregation queue");
-        newGroups.forEach((group, idx) => {
-          const position = groupOrder.length + idx + 1;
-          console.log(`   📍 ${group.clientName} added at position ${position} (bottom of queue)`);
-          console.log(`   📊 Group details: ID=${group.id}, Weight=${group.totalWeight || 0}lbs`);
-        });
-        console.log("✅ New groups successfully positioned at bottom");
-        
-        // Update Firestore with new order
-        setDoc(orderDocRef, { order: updatedOrder }, { merge: true });
-        
-        // Log to Firestore activity log
-        const currentUser = getCurrentUser();
-        newGroups.forEach(async (group) => {
-          await logActivity({
-            type: "Segregation", 
-            message: `New client "${group.clientName}" automatically added to bottom of segregation queue by system (user context: ${currentUser})`,
-            user: currentUser,
+        // Debounce the order update to prevent rapid fire updates during weight entry
+        const timeoutId = setTimeout(() => {
+          const updatedOrder = [...groupOrder, ...newGroups.map(g => g.id)];
+          
+          // Log new groups being added to bottom
+          console.log("🆕 [ADDING NEW GROUPS] New clients being added to bottom of segregation queue");
+          newGroups.forEach((group, idx) => {
+            const position = groupOrder.length + idx + 1;
+            console.log(`   📍 ${group.clientName} added at position ${position} (bottom of queue)`);
+            console.log(`   📊 Group details: ID=${group.id}, Weight=${group.totalWeight || 0}lbs`);
           });
-        });
+          console.log("✅ New groups successfully positioned at bottom - order preserved during weight updates");
+          
+          // Optimistically update local state first for immediate UI feedback
+          setGroupOrder(updatedOrder);
+          
+          // Then update Firestore
+          setDoc(orderDocRef, { order: updatedOrder }, { merge: true }).catch(error => {
+            console.error("❌ Error updating group order in Firestore:", error);
+            // Revert local state on error
+            setGroupOrder(groupOrder);
+          });
+          
+          // Log to Firestore activity log
+          const currentUser = getCurrentUser();
+          newGroups.forEach(async (group) => {
+            await logActivity({
+              type: "Segregation", 
+              message: `New client "${group.clientName}" automatically added to bottom of segregation queue by system (user context: ${currentUser})`,
+              user: currentUser,
+            });
+          });
+        }, 200); // 200ms debounce to handle rapid weight updates
+        
+        return () => clearTimeout(timeoutId);
       }
       
-      // Clean up removed groups from order
+      // Clean up removed groups from order with debouncing
       const cleanedOrder = groupOrder.filter((id) =>
         segregationGroups.some((g) => g.id === id)
       );
       
       if (cleanedOrder.length !== groupOrder.length) {
-        console.log("🧹 [CLEANUP] Removing deleted groups from order");
-        setDoc(orderDocRef, { order: cleanedOrder }, { merge: true });
+        const timeoutId = setTimeout(() => {
+          console.log("🧹 [CLEANUP] Removing deleted groups from order - maintaining position stability");
+          setGroupOrder(cleanedOrder);
+          setDoc(orderDocRef, { order: cleanedOrder }, { merge: true });
+        }, 100);
+        
+        return () => clearTimeout(timeoutId);
       }
     }
-  }, [segregationGroups.map(g => g.id).join(','), orderLoading]);
+  }, [segregationGroups.map(g => g.id).join(','), orderLoading, groupOrder.join(',')]);
 
   // Move group up/down in the order and persist to Firestore, then update all screens immediately
   const [movingGroupId, setMovingGroupId] = useState<string | null>(null);
@@ -420,12 +463,30 @@ const Segregation: React.FC<SegregationProps> = ({
   };
 
   // Always use groupOrder to render, but append any new segregationGroups not in groupOrder
-  const displayGroups = [
-    ...groupOrder
+  // Use a stable sort to prevent position jumping during real-time updates
+  const displayGroups = useMemo(() => {
+    const orderedGroups = groupOrder
       .map((id) => segregationGroups.find((g) => g.id === id))
-      .filter(Boolean),
-    ...segregationGroups.filter((g) => !groupOrder.includes(g.id)),
-  ];
+      .filter(Boolean);
+    
+    const newGroups = segregationGroups.filter((g) => !groupOrder.includes(g.id));
+    
+    // Sort new groups by creation time or ID to ensure consistent ordering
+    const sortedNewGroups = newGroups.sort((a, b) => {
+      // Sort by startTime if available, otherwise by ID
+      const timeA = (a.startTime instanceof Date ? a.startTime.getTime() : a.startTime?.toDate?.()?.getTime()) || 0;
+      const timeB = (b.startTime instanceof Date ? b.startTime.getTime() : b.startTime?.toDate?.()?.getTime()) || 0;
+      
+      if (timeA !== timeB) {
+        return timeA - timeB; // Older groups first in the new groups section
+      }
+      
+      // Fallback to ID comparison for consistent ordering
+      return a.id.localeCompare(b.id);
+    });
+    
+    return [...orderedGroups, ...sortedNewGroups];
+  }, [groupOrder, segregationGroups]);
 
   // Console logging for segregation order (runs whenever the order changes)
   useEffect(() => {
