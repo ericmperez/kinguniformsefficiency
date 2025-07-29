@@ -649,13 +649,18 @@ const BillingPage: React.FC = () => {
       // Calculate charges
       const baseSubtotal = subtotal + pesoSubtotal;
       let minValue = minBilling ? Number(minBilling) : 0;
-      let deliveryChargeValue = calculateCharge(
-        deliveryChargeFormula,
-        Number(deliveryCharge) || 0,
-        baseSubtotal,
-        1,
-        0
-      );
+      let deliveryChargeValue = 0;
+      
+      // Only apply delivery charge if special service is requested
+      if (inv.specialServiceRequested) {
+        deliveryChargeValue = calculateCharge(
+          deliveryChargeFormula,
+          Number(deliveryCharge) || 0,
+          baseSubtotal,
+          1,
+          0
+        );
+      }
       
       // Base subtotal (products + peso only, without delivery charge and minimum billing)
       let baseSubtotalOnly = baseSubtotal;
@@ -1084,7 +1089,7 @@ const BillingPage: React.FC = () => {
                     className="form-label fw-medium mb-0"
                     htmlFor="deliveryChargeEnabled"
                   >
-                    Delivery Charge
+                    Special Service Delivery Charge
                   </label>
                 </div>
                 <div className="col-md-3">
@@ -1823,13 +1828,18 @@ const BillingPage: React.FC = () => {
                           });
                           // Use minimum billing value if subtotal is less
                           let minValue = minBilling ? Number(minBilling) : 0;
-                          let deliveryChargeValue = calculateCharge(
-                            deliveryChargeFormula,
-                            Number(deliveryCharge) || 0,
-                            subtotal + pesoSubtotal,
-                            1,
-                            0
-                          );
+                          let deliveryChargeValue = 0;
+                          
+                          // Only apply delivery charge if special service is requested
+                          if (inv.specialServiceRequested) {
+                            deliveryChargeValue = calculateCharge(
+                              deliveryChargeFormula,
+                              Number(deliveryCharge) || 0,
+                              subtotal + pesoSubtotal,
+                              1,
+                              0
+                            );
+                          }
                           
                           // Base subtotal (products + peso, without delivery charge and minimum billing)
                           let baseSubtotal = subtotal + pesoSubtotal;
@@ -2307,13 +2317,18 @@ const BillingPage: React.FC = () => {
                                       subtotal += qty * price;
                                   }
                                 });
-                                let deliveryChargeValue = calculateCharge(
-                                  deliveryChargeFormula,
-                                  Number(deliveryCharge) || 0,
-                                  subtotal + pesoSubtotal,
-                                  1,
-                                  0
-                                );
+                                let deliveryChargeValue = 0;
+                                
+                                // Only apply delivery charge if special service is requested
+                                if (inv.specialServiceRequested) {
+                                  deliveryChargeValue = calculateCharge(
+                                    deliveryChargeFormula,
+                                    Number(deliveryCharge) || 0,
+                                    subtotal + pesoSubtotal,
+                                    1,
+                                    0
+                                  );
+                                }
                                 let baseSubtotal = subtotal + pesoSubtotal;
                                 baseTotal += baseSubtotal;
                                 
@@ -2785,13 +2800,18 @@ const BillingPage: React.FC = () => {
                                 let minValue = minBilling
                                   ? Number(minBilling)
                                   : 0;
-                                let deliveryChargeValue = calculateCharge(
-                                  deliveryChargeFormula,
-                                  Number(deliveryCharge) || 0,
-                                  subtotal + pesoSubtotal,
-                                  1,
-                                  0
-                                );
+                                let deliveryChargeValue = 0;
+                                
+                                // Only apply delivery charge if special service is requested
+                                if (inv.specialServiceRequested) {
+                                  deliveryChargeValue = calculateCharge(
+                                    deliveryChargeFormula,
+                                    Number(deliveryCharge) || 0,
+                                    subtotal + pesoSubtotal,
+                                    1,
+                                    0
+                                  );
+                                }
                                 let baseSubtotal = subtotal + pesoSubtotal;
                                 let displaySubtotal = baseSubtotal + deliveryChargeValue;
                                 if (minValue > 0 && baseSubtotal < minValue) {
@@ -3067,14 +3087,15 @@ const BillingPage: React.FC = () => {
                         {deliveryCharge && Number(deliveryCharge) > 0 && (
                           <td style={nowrapCellStyle}>
                             {(() => {
-                              const selectedInvoicesCount = clientInvoices.filter((inv) =>
-                                selectedInvoiceIds.includes(inv.id)
+                              // Only count invoices with special service requested
+                              const specialServiceInvoicesCount = clientInvoices.filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id) && inv.specialServiceRequested
                               ).length;
                               const totalDeliveryCharge = calculateCharge(
                                 deliveryChargeFormula,
                                 Number(deliveryCharge) || 0,
                                 0, // Subtotal not needed for most delivery charge calculations
-                                selectedInvoicesCount,
+                                specialServiceInvoicesCount,
                                 0
                               );
                               return totalDeliveryCharge > 0 ? `$${totalDeliveryCharge.toFixed(2)}` : "";
