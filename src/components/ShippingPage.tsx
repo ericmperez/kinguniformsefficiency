@@ -2821,7 +2821,13 @@ const ShippingPage: React.FC = () => {
                       }}
                       width={500}
                       height={200}
-                      style={{ width: "100%", height: "100%", cursor: "crosshair" }}
+                      style={{ 
+                        width: "100%", 
+                        height: "100%", 
+                        cursor: "crosshair",
+                        touchAction: "none", // Prevent scrolling on touch
+                      }}
+                      // Mouse events for desktop
                       onMouseDown={(e) => {
                         if (emergencySignature.noPersonnelAvailable) return;
                         const canvas = e.currentTarget;
@@ -2832,7 +2838,7 @@ const ShippingPage: React.FC = () => {
                         if (ctx) {
                           ctx.beginPath();
                           ctx.moveTo(x, y);
-                          setEmergencySignature({...emergencySignature, isDrawing: true});
+                          setEmergencySignature({...emergencySignature, isDrawing: true, hasSignature: true});
                         }
                       }}
                       onMouseMove={(e) => {
@@ -2848,6 +2854,39 @@ const ShippingPage: React.FC = () => {
                         }
                       }}
                       onMouseUp={() => {
+                        setEmergencySignature({...emergencySignature, isDrawing: false});
+                      }}
+                      // Touch events for mobile
+                      onTouchStart={(e) => {
+                        if (emergencySignature.noPersonnelAvailable) return;
+                        e.preventDefault(); // Prevent scrolling
+                        const canvas = e.currentTarget;
+                        const rect = canvas.getBoundingClientRect();
+                        const touch = e.touches[0];
+                        const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+                        const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                          ctx.beginPath();
+                          ctx.moveTo(x, y);
+                          setEmergencySignature({...emergencySignature, isDrawing: true, hasSignature: true});
+                        }
+                      }}
+                      onTouchMove={(e) => {
+                        if (!emergencySignature.isDrawing || emergencySignature.noPersonnelAvailable) return;
+                        e.preventDefault(); // Prevent scrolling
+                        const canvas = e.currentTarget;
+                        const rect = canvas.getBoundingClientRect();
+                        const touch = e.touches[0];
+                        const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+                        const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                          ctx.lineTo(x, y);
+                          ctx.stroke();
+                        }
+                      }}
+                      onTouchEnd={() => {
                         setEmergencySignature({...emergencySignature, isDrawing: false});
                       }}
                     />

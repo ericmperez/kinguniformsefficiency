@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { doc, updateDoc, Timestamp, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -33,6 +33,23 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [noPersonnelAvailable, setNoPersonnelAvailable] = useState(false);
+
+  // Mobile-specific configuration
+  useEffect(() => {
+    // Disable viewport zooming during signature capture on mobile
+    const viewport = document.querySelector('meta[name="viewport"]');
+    if (viewport && show) {
+      const originalContent = viewport.getAttribute('content');
+      viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+      
+      return () => {
+        // Restore original viewport settings when modal closes
+        if (originalContent) {
+          viewport.setAttribute('content', originalContent);
+        }
+      };
+    }
+  }, [show]);
 
   // Helper function to send signature email if configured
   const sendSignatureEmailIfEnabled = async (receivedByName: string) => {
@@ -209,9 +226,73 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 1050
+        zIndex: 1050,
+        touchAction: "manipulation", // Improve touch responsiveness
       }}
     >
+      <style>
+        {`
+          .signature-canvas {
+            touch-action: none !important;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+          }
+          
+          /* Prevent zoom on mobile when touching signature area */
+          .signature-canvas canvas {
+            touch-action: none !important;
+          }
+          
+          /* Improve button touch targets for mobile */
+          @media (max-width: 768px) {
+            .btn-lg {
+              min-height: 48px;
+              font-size: 1.1rem;
+            }
+            
+            .form-control-lg {
+              min-height: 48px;
+              font-size: 1.1rem;
+            }
+            
+            /* Make signature area more prominent on mobile */
+            .signature-canvas {
+              min-height: 300px !important;
+            }
+          }
+          
+          /* Prevent mobile browser zoom when double-tapping */
+          @media (max-width: 768px) {
+            .signature-canvas, .signature-canvas canvas {
+              touch-action: none !important;
+              user-select: none !important;
+              -webkit-user-select: none !important;
+              -webkit-touch-callout: none !important;
+            }
+            
+            /* Ensure footer stays visible above mobile keyboards */
+            .modal-content {
+              min-height: 100vh;
+              display: flex;
+              flex-direction: column;
+            }
+            
+            /* Make sure action buttons are always reachable */
+            .modal-footer-mobile {
+              position: fixed !important;
+              bottom: 0 !important;
+              left: 0 !important;
+              right: 0 !important;
+              z-index: 9999 !important;
+              background: white !important;
+              border-top: 1px solid #dee2e6 !important;
+              box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
+            }
+          }
+        `}
+      </style>
       <div 
         className="h-100 w-100 d-flex flex-column"
         style={{ 
@@ -231,13 +312,37 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                 <small className="text-muted">Laundry Ticket #{invoiceNumber}</small>
               )}
             </div>
-            <button
-              type="button"
-              className="btn-close btn-close-dark"
-              onClick={onClose}
-              disabled={isSaving}
-              style={{ fontSize: "1.2rem" }}
-            ></button>
+            <div className="d-flex gap-2">
+              {/* Mobile-friendly Save button in header */}
+              <button
+                className="btn btn-success btn-lg d-md-none"
+                onClick={saveSignature}
+                disabled={isSaving || (!noPersonnelAvailable && (!sigName.trim() || !sigCanvas.current || sigCanvas.current.isEmpty()))}
+                style={{ minWidth: "120px" }}
+              >
+                {isSaving ? (
+                  <>
+                    <span
+                      className="spinner-border spinner-border-sm me-1"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                    Saving...
+                  </>
+                ) : noPersonnelAvailable ? (
+                  "Confirm"
+                ) : (
+                  "Save"
+                )}
+              </button>
+              <button
+                type="button"
+                className="btn-close btn-close-dark"
+                onClick={onClose}
+                disabled={isSaving}
+                style={{ fontSize: "1.2rem" }}
+              ></button>
+            </div>
           </div>
 
           {/* Error Message */}
@@ -249,12 +354,16 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
           <div className="alert alert-info m-3 mb-0">
             <i className="bi bi-info-circle-fill me-2"></i>
             Please have the person who received the delivery sign below to confirm receipt.
+            <div className="small mt-1 text-muted">
+              <strong>Mobile users:</strong> Use your finger to sign directly on the signature area below.
+            </div>
           </div>
 
           {/* Form Fields */}
           <div className="p-3">
-            <div className="row">
-              <div className="col-md-6 mb-3">
+            {/* Mobile-first layout for better accessibility */}
+            <div className="row g-3">
+              <div className="col-12">
                 <label className="form-label fw-bold">Receiver's Name</label>
                 <input
                   type="text"
@@ -263,10 +372,13 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                   onChange={(e) => setSigName(e.target.value)}
                   placeholder="Enter the name of person receiving"
                   disabled={isSaving || noPersonnelAvailable}
-                  style={{ fontSize: "1.1rem" }}
+                  style={{ 
+                    fontSize: "1.1rem",
+                    minHeight: "50px", // Better touch target for mobile
+                  }}
                 />
               </div>
-              <div className="col-md-6 mb-3">
+              <div className="col-12">
                 <div className="form-check h-100 d-flex align-items-center" style={{ 
                   padding: "15px", 
                   backgroundColor: "#f8f9fa", 
@@ -323,18 +435,35 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
               style={{
                 backgroundColor: noPersonnelAvailable ? "#f1f3f5" : "#ffffff",
                 opacity: noPersonnelAvailable ? 0.5 : 1,
+                minHeight: "250px", // Ensure minimum height for mobile
+              }}
+              onTouchStart={(e) => {
+                // Prevent default touch behavior that might interfere with signature
+                if (!noPersonnelAvailable) {
+                  e.preventDefault();
+                }
               }}
             >
               <SignatureCanvas
                 ref={sigCanvas}
                 penColor="black"
                 canvasProps={{
+                  width: 800,
+                  height: 400,
                   style: {
                     width: "100%",
-                    height: "100%"
+                    height: "100%",
+                    touchAction: "none", // Prevent scrolling on touch
                   },
                   className: "signature-canvas",
                 }}
+                // Mobile touch support
+                dotSize={2}
+                minWidth={1}
+                maxWidth={3}
+                velocityFilterWeight={0.7}
+                // Ensure touch events work properly
+                backgroundColor="rgba(255,255,255,0)"
               />
 
               {(sigCanvas.current?.isEmpty() ?? true) && (
@@ -360,18 +489,23 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex-shrink-0 bg-white border-top">
+        {/* Footer - Fixed positioning on mobile */}
+        <div className="flex-shrink-0 bg-white border-top" style={{
+          position: "sticky",
+          bottom: 0,
+          zIndex: 10
+        }}>
           <div className="p-3 d-flex justify-content-end gap-3">
+            {/* Desktop buttons (hidden on mobile since we have header button) */}
             <button
-              className="btn btn-secondary btn-lg"
+              className="btn btn-secondary btn-lg d-none d-md-inline-block"
               onClick={onClose}
               disabled={isSaving}
             >
               Cancel
             </button>
             <button
-              className="btn btn-primary btn-lg"
+              className="btn btn-primary btn-lg d-none d-md-inline-block"
               onClick={saveSignature}
               disabled={isSaving || (!noPersonnelAvailable && (!sigName.trim() || !sigCanvas.current || sigCanvas.current.isEmpty()))}
             >
@@ -390,7 +524,82 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                 "Save Signature"
               )}
             </button>
+            
+            {/* Mobile-only action bar */}
+            <div className="d-md-none w-100 d-flex gap-2">
+              <button
+                className="btn btn-outline-secondary flex-fill"
+                onClick={onClose}
+                disabled={isSaving}
+                style={{ minHeight: "50px" }}
+              >
+                <i className="bi bi-x-lg me-1"></i>
+                Cancel
+              </button>
+              <button
+                className="btn btn-success flex-fill"
+                onClick={saveSignature}
+                disabled={isSaving || (!noPersonnelAvailable && (!sigName.trim() || !sigCanvas.current || sigCanvas.current.isEmpty()))}
+                style={{ minHeight: "50px" }}
+              >
+                {isSaving ? (
+                  <>
+                    <span
+                      className="spinner-border spinner-border-sm me-1"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                    Saving...
+                  </>
+                ) : noPersonnelAvailable ? (
+                  <>
+                    <i className="bi bi-check-lg me-1"></i>
+                    Confirm
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-check-lg me-1"></i>
+                    Save Signature
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+        </div>
+
+        {/* Floating Action Button for Mobile - Always visible */}
+        <div 
+          className="d-md-none position-fixed"
+          style={{
+            bottom: "20px",
+            right: "20px",
+            zIndex: 9999,
+          }}
+        >
+          <button
+            className="btn btn-success btn-lg rounded-circle shadow-lg"
+            onClick={saveSignature}
+            disabled={isSaving || (!noPersonnelAvailable && (!sigName.trim() || !sigCanvas.current || sigCanvas.current.isEmpty()))}
+            style={{
+              width: "60px",
+              height: "60px",
+              fontSize: "1.5rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            title={noPersonnelAvailable ? "Confirm No Personnel Available" : "Save Signature"}
+          >
+            {isSaving ? (
+              <span
+                className="spinner-border spinner-border-sm"
+                role="status"
+                aria-hidden="true"
+              ></span>
+            ) : (
+              <i className="bi bi-check-lg"></i>
+            )}
+          </button>
         </div>
       </div>
     </div>
