@@ -1733,6 +1733,27 @@ export default function ActiveInvoices({
                           </button>
                         )}
                       
+                      {/* Invoice Number in top right corner */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 16,
+                          right: 16,
+                          background: "linear-gradient(135deg, #3b82f6, #1e40af)",
+                          borderRadius: "8px",
+                          padding: "8px 12px",
+                          boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
+                          border: "1px solid rgba(59, 130, 246, 0.2)",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: "#ffffff",
+                          letterSpacing: "0.5px",
+                          zIndex: 3,
+                        }}
+                      >
+                        #{invoice.invoiceNumber || invoice.id.substring(0, 8)}
+                      </div>
+                      
                       {/* Avatar */}
                       <div
                         style={{
@@ -1795,8 +1816,8 @@ export default function ActiveInvoices({
                         </div>
                         <div
                           style={{
-                            fontSize: 12, // Increased from 15 for subtitle
-                            color: "#555",
+                            fontSize: 11,
+                            color: "#777",
                             marginBottom: 0,
                           }}
                         >
