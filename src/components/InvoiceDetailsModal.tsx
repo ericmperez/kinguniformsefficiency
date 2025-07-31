@@ -92,6 +92,11 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [deliveryDate, setDeliveryDate] = React.useState(invoice.deliveryDate || "");
   const [savingDeliveryDate, setSavingDeliveryDate] = React.useState(false);
 
+  // --- Cart Print Modal State ---
+  const [showCartPrintModal, setShowCartPrintModal] = React.useState<{
+    cartId: string;
+  } | null>(null);
+
   // Sync local invoice with prop changes
   React.useEffect(() => {
     console.log("🔄 Syncing localInvoice with invoice prop:", {
@@ -697,6 +702,15 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   </div>
                   <div className="d-flex gap-2">
                     <button
+                      className="btn btn-outline-success btn-sm"
+                      title="Print Cart"
+                      onClick={() => {
+                        setShowCartPrintModal({ cartId: cart.id });
+                      }}
+                    >
+                      <i className="bi bi-printer" />
+                    </button>
+                    <button
                       className="btn btn-outline-danger btn-sm"
                       title="Delete Cart"
                       onClick={async () => {
@@ -1249,6 +1263,529 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           confirmButtonClass="btn-success"
         />
       )}
+
+      {/* Cart Print Modal */}
+      {showCartPrintModal &&
+        (() => {
+          const cart = localInvoice.carts.find((c) => c.id === showCartPrintModal.cartId);
+          if (!cart) return null;
+
+          // Get client print configuration with defaults
+          const printConfig = client?.printConfig?.cartPrintSettings || {
+            enabled: true,
+            showProductDetails: true,
+            showQuantities: true,
+            showPrices: false,
+            showCartTotal: true,
+            includeTimestamp: true,
+            headerText: "Cart Contents",
+            footerText: "",
+          };
+
+          return (
+            <div
+              className="modal show"
+              style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+            >
+              <div 
+                className="modal-dialog" 
+                style={{ 
+                  maxWidth: "70vw", 
+                  width: "70vw", 
+                  minWidth: "800px",
+                  margin: "2vh auto"
+                }}
+              >
+                <div className="modal-content" style={{ height: "90vh" }}>
+                  <div className="modal-header d-print-none">
+                    <h5 className="modal-title">Print Cart: {cart.name}</h5>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => setShowCartPrintModal(null)}
+                    ></button>
+                  </div>
+                  <div className="modal-body" style={{ height: "calc(90vh - 120px)", overflowY: "auto", padding: "20px" }}>
+                    <div className="row h-100">
+                      {/* Standard 8.5x5.5 Print Preview */}
+                      <div className="col-md-8 h-100">
+                        <h6 className="mb-3">📄 Standard Print Preview (8.5" x 5.5")</h6>
+                        <div
+                          id="cart-print-area"
+                          style={{
+                            border: "2px solid #ddd",
+                            borderRadius: "8px",
+                            padding: "15px",
+                            background: "#fff",
+                            height: "calc(100% - 40px)",
+                            overflowY: "auto",
+                            // Aspect ratio to match 8.5 x 5.5 (approximately 1.55:1)
+                            minHeight: "400px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              maxWidth: "8.5in",
+                              height: "auto",
+                              margin: "0 auto",
+                              background: "#fff",
+                              padding: 20,
+                              fontFamily: "Arial, sans-serif",
+                              fontSize: "14px",
+                              minHeight: "5.5in",
+                              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                              border: "1px solid #eee",
+                            }}
+                          >
+                            {/* Header */}
+                            <div
+                              style={{
+                                textAlign: "center",
+                                marginBottom: 20,
+                                borderBottom: "2px solid #333",
+                                paddingBottom: 15,
+                              }}
+                            >
+                              <h2 style={{ margin: "8px 0", fontSize: "22px" }}>
+                                {printConfig.headerText || "Cart Contents"}
+                              </h2>
+                              <p style={{ margin: "5px 0", fontSize: "16px" }}>
+                                Laundry Ticket #{localInvoice.invoiceNumber || localInvoice.id.substring(0, 8)}
+                              </p>
+                              <p style={{ margin: "5px 0", fontSize: "14px" }}>
+                                Date: {localInvoice.date ? formatDateSpanish(localInvoice.date) : "N/A"}
+                              </p>
+                            </div>
+
+                            {/* Client Info */}
+                            <div style={{ marginBottom: 20 }}>
+                              <h4 style={{ fontSize: "16px", marginBottom: "10px" }}>
+                                Client Information
+                              </h4>
+                              <p style={{ margin: "5px 0", fontSize: "14px" }}>
+                                <strong>Client:</strong> {localInvoice.clientName}
+                              </p>
+                              {localInvoice.deliveryDate && (
+                                <p style={{ margin: "5px 0", fontSize: "14px" }}>
+                                  <strong>Delivery Date:</strong> {formatDateSpanish(localInvoice.deliveryDate)}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Cart Contents */}
+                            <div style={{ marginBottom: 20 }}>
+                              <h4 style={{ fontSize: "16px", marginBottom: "12px" }}>
+                                Cart: {cart.name}
+                              </h4>
+                              
+                              {cart.items.length === 0 ? (
+                                <p style={{ fontStyle: "italic", color: "#666", fontSize: "13px" }}>
+                                  No items in this cart
+                                </p>
+                              ) : (
+                                <table
+                                  style={{
+                                    width: "100%",
+                                    borderCollapse: "collapse",
+                                    marginBottom: "20px",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  <thead>
+                                    <tr style={{ borderBottom: "2px solid #333" }}>
+                                      <th
+                                        style={{
+                                          textAlign: "left",
+                                          padding: "8px",
+                                          fontSize: "13px",
+                                        }}
+                                      >
+                                        Product
+                                      </th>
+                                      <th
+                                        style={{
+                                          textAlign: "center",
+                                          padding: "8px",
+                                          fontSize: "13px",
+                                        }}
+                                      >
+                                        Qty
+                                      </th>
+                                      <th
+                                        style={{
+                                          textAlign: "right",
+                                          padding: "8px",
+                                          fontSize: "13px",
+                                        }}
+                                      >
+                                        Added By
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {cart.items.map((item, index) => (
+                                      <tr
+                                        key={index}
+                                        style={{ borderBottom: "1px solid #ddd" }}
+                                      >
+                                        <td style={{ padding: "6px", fontSize: "12px" }}>
+                                          {item.productName}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "6px",
+                                            textAlign: "center",
+                                            fontSize: "12px",
+                                          }}
+                                        >
+                                          {item.quantity}
+                                        </td>
+                                        <td
+                                          style={{
+                                            padding: "6px",
+                                            textAlign: "right",
+                                            fontSize: "12px",
+                                          }}
+                                        >
+                                          {item.addedBy || "Unknown"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+
+                              {/* Product Summary */}
+                              {printConfig.showProductDetails && cart.items.length > 0 && (
+                                <div style={{ marginTop: 20 }}>
+                                  <h5 style={{ fontSize: "14px", marginBottom: "10px" }}>
+                                    Product Summary
+                                  </h5>
+                                  <table
+                                    style={{
+                                      width: "100%",
+                                      borderCollapse: "collapse",
+                                      fontSize: "12px",
+                                    }}
+                                  >
+                                    <thead>
+                                      <tr style={{ borderBottom: "1px solid #333" }}>
+                                        <th
+                                          style={{
+                                            textAlign: "left",
+                                            padding: "6px",
+                                            fontSize: "12px",
+                                          }}
+                                        >
+                                          Product
+                                        </th>
+                                        <th
+                                          style={{
+                                            textAlign: "center",
+                                            padding: "6px",
+                                            fontSize: "12px",
+                                          }}
+                                        >
+                                          Total Qty
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {products
+                                        .filter((prod) =>
+                                          cart.items.some((item) => item.productId === prod.id)
+                                        )
+                                        .map((product) => {
+                                          const totalQty = cart.items
+                                            .filter((item) => item.productId === product.id)
+                                            .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+                                          return (
+                                            <tr key={product.id} style={{ borderBottom: "1px solid #eee" }}>
+                                              <td style={{ padding: "5px", fontSize: "11px" }}>
+                                                {product.name}
+                                              </td>
+                                              <td
+                                                style={{
+                                                  padding: "5px",
+                                                  textAlign: "center",
+                                                  fontSize: "11px",
+                                                  fontWeight: "bold",
+                                                }}
+                                              >
+                                                {totalQty}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Footer */}
+                            {printConfig.footerText && (
+                              <div
+                                style={{
+                                  textAlign: "center",
+                                  marginTop: 20,
+                                  borderTop: "1px solid #ddd",
+                                  paddingTop: 10,
+                                  fontSize: "11px",
+                                  color: "#666",
+                                }}
+                              >
+                                {printConfig.footerText}
+                              </div>
+                            )}
+
+                            {/* Cart Creator Info */}
+                            <div
+                              style={{
+                                textAlign: "right",
+                                marginTop: 15,
+                                fontSize: "10px",
+                                color: "#888",
+                              }}
+                            >
+                              <p style={{ margin: "2px 0" }}>
+                                Cart created by: {cart.createdBy || "Unknown"}
+                              </p>
+                              {cart.createdAt && (
+                                <p style={{ margin: "2px 0" }}>
+                                  Created on: {formatDateSpanish(cart.createdAt)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Thermal Receipt Preview */}
+                      <div className="col-md-4 h-100">
+                        <h6 className="mb-3">🧾 Thermal Receipt Preview (3")</h6>
+                        <div
+                          id="cart-thermal-area"
+                          style={{
+                            border: "2px solid #ddd",
+                            borderRadius: "8px",
+                            padding: "15px",
+                            background: "#fff",
+                            height: "calc(100% - 40px)",
+                            overflowY: "auto",
+                            width: "80mm",
+                            margin: "0 auto",
+                            minHeight: "400px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontFamily: "monospace",
+                              fontSize: "11px",
+                              lineHeight: "1.2",
+                              textAlign: "center",
+                            }}
+                          >
+                            {/* Thermal Header */}
+                            <div style={{ marginBottom: "10px", textAlign: "center" }}>
+                              <div style={{ fontSize: "14px", fontWeight: "bold" }}>
+                                {printConfig.headerText || "CART CONTENTS"}
+                              </div>
+                              <div style={{ fontSize: "12px" }}>
+                                Ticket: #{localInvoice.invoiceNumber || localInvoice.id.substring(0, 8)}
+                              </div>
+                              <div style={{ fontSize: "10px" }}>
+                                {localInvoice.date ? formatDateSpanish(localInvoice.date) : "N/A"}
+                              </div>
+                              <div style={{ margin: "5px 0" }}>
+                                {"=".repeat(32)}
+                              </div>
+                            </div>
+
+                            {/* Client Info */}
+                            <div style={{ marginBottom: "10px", textAlign: "left" }}>
+                              <div>Client: {localInvoice.clientName}</div>
+                              {localInvoice.deliveryDate && (
+                                <div>Delivery: {formatDateSpanish(localInvoice.deliveryDate)}</div>
+                              )}
+                            </div>
+
+                            {/* Cart Name */}
+                            <div style={{ marginBottom: "10px", textAlign: "center" }}>
+                              <div style={{ fontSize: "12px", fontWeight: "bold" }}>
+                                CART: {cart.name.toUpperCase()}
+                              </div>
+                              <div>{"=".repeat(32)}</div>
+                            </div>
+
+                            {/* Items */}
+                            <div style={{ textAlign: "left", marginBottom: "10px" }}>
+                              {cart.items.length === 0 ? (
+                                <div style={{ textAlign: "center", fontStyle: "italic" }}>
+                                  No items in cart
+                                </div>
+                              ) : (
+                                cart.items.map((item, index) => (
+                                  <div key={index} style={{ marginBottom: "3px" }}>
+                                    <div>
+                                      {item.productName.substring(0, 20)}
+                                      {item.productName.length > 20 ? "..." : ""}
+                                    </div>
+                                    <div style={{ marginLeft: "10px" }}>
+                                      Qty: {item.quantity} | By: {(item.addedBy || "Unknown").substring(0, 10)}
+                                    </div>
+                                    {index < cart.items.length - 1 && (
+                                      <div>{"-".repeat(32)}</div>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+
+                            {/* Product Summary for thermal */}
+                            {printConfig.showProductDetails && cart.items.length > 0 && (
+                              <div style={{ marginTop: "10px" }}>
+                                <div>{"=".repeat(32)}</div>
+                                <div style={{ textAlign: "center", fontWeight: "bold" }}>
+                                  SUMMARY
+                                </div>
+                                <div>{"=".repeat(32)}</div>
+                                {products
+                                  .filter((prod) =>
+                                    cart.items.some((item) => item.productId === prod.id)
+                                  )
+                                  .map((product) => {
+                                    const totalQty = cart.items
+                                      .filter((item) => item.productId === product.id)
+                                      .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+                                    return (
+                                      <div key={product.id} style={{ display: "flex", justifyContent: "space-between" }}>
+                                        <span>{product.name.substring(0, 20)}</span>
+                                        <span>{totalQty}</span>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            )}
+
+                            {/* Footer */}
+                            {printConfig.footerText && (
+                              <div style={{ marginTop: "10px", textAlign: "center", fontSize: "9px" }}>
+                                <div>{"=".repeat(32)}</div>
+                                <div>{printConfig.footerText}</div>
+                              </div>
+                            )}
+
+                            {/* Creator info */}
+                            <div style={{ marginTop: "10px", textAlign: "center", fontSize: "9px" }}>
+                              <div>{"=".repeat(32)}</div>
+                              <div>Created by: {cart.createdBy || "Unknown"}</div>
+                              {cart.createdAt && (
+                                <div>{formatDateSpanish(cart.createdAt)}</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="modal-footer d-print-none">
+                    <button
+                      className="btn btn-outline-secondary"
+                      onClick={() => {
+                        const printContents =
+                          document.getElementById("cart-thermal-area")?.innerHTML;
+                        if (printContents) {
+                          const printWindow = window.open(
+                            "",
+                            "",
+                            "height=600,width=400"
+                          );
+                          if (!printWindow) return;
+                          setTimeout(() => {
+                            printWindow.document.write(`
+                            <html>
+                              <head>
+                                <title>Print Receipt: ${cart.name}</title>
+                                <style>
+                                  @media print {
+                                    @page { size: 80mm auto; margin: 2mm; }
+                                    body { 
+                                      margin: 0; 
+                                      font-family: monospace;
+                                      font-size: 11px;
+                                      line-height: 1.2;
+                                      width: 72mm;
+                                    }
+                                    .d-print-none { display: none !important; }
+                                  }
+                                  body { background: #fff; }
+                                </style>
+                              </head>
+                              <body>${printContents}</body>
+                            </html>
+                          `);
+                            printWindow.document.close();
+                            printWindow.focus();
+                            printWindow.print();
+                            printWindow.close();
+                          }, 100);
+                        }
+                      }}
+                    >
+                      🧾 Print Receipt (3")
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => {
+                        const printContents =
+                          document.getElementById("cart-print-area")?.innerHTML;
+                        if (printContents) {
+                          const printWindow = window.open(
+                            "",
+                            "",
+                            "height=800,width=600"
+                          );
+                          if (!printWindow) return;
+                          setTimeout(() => {
+                            printWindow.document.write(`
+                            <html>
+                              <head>
+                                <title>Print Cart: ${cart.name}</title>
+                                <style>
+                                  @media print {
+                                    @page { size: 8.5in 5.5in; margin: 0.25in; }
+                                    body { margin: 0; }
+                                    .d-print-none { display: none !important; }
+                                  }
+                                  body { background: #fff; }
+                                </style>
+                              </head>
+                              <body>${printContents}</body>
+                            </html>
+                          `);
+                            printWindow.document.close();
+                            printWindow.focus();
+                            printWindow.print();
+                            printWindow.close();
+                          }, 100);
+                        }
+                      }}
+                    >
+                      📄 Print Standard (8.5" x 5.5")
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setShowCartPrintModal(null)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 };

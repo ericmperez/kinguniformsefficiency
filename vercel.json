@@ -19,8 +19,8 @@
     }
   ],
   "env": {
-    "EMAIL_USER": "@email-user",
-    "EMAIL_PASSWORD": "@email-password",
-    "CRON_SECRET": "@cron-secret"
+    "EMAIL_USER": "$EMAIL_USER",
+    "EMAIL_PASSWORD": "$EMAIL_PASSWORD",
+    "CRON_SECRET": "$CRON_SECRET"
   }
 }
