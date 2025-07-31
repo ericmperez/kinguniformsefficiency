@@ -309,14 +309,14 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
         return `
           <div style="page-break-after: ${index < localCarts.length - 1 ? 'always' : 'auto'};">
             <div style="
-              max-width: 8.5in;
+              max-width: 6.46in;
               height: auto;
               margin: 0 auto;
               background: #fff;
               padding: 20px;
               font-family: Arial, sans-serif;
               font-size: 14px;
-              min-height: 5.5in;
+              min-height: 4.25in;
               box-shadow: 0 4px 8px rgba(0,0,0,0.1);
               border: 1px solid #eee;
             ">
@@ -553,7 +553,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             <title>Print All Carts - ${localInvoice.clientName}</title>
             <style>
               @media print {
-                @page { size: 8.5in 5.5in; margin: 0.25in; }
+                @page { size: 6.46in 4.25in; margin: 0.25in; }
                 body { margin: 0; }
                 .d-print-none { display: none !important; }
                 * { 
@@ -1628,7 +1628,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     <div className="h-100">
                       {/* Standard 8.5x5.5 Print Preview - Full Width */}
                       <div className="h-100">
-                        <h6 className="mb-3">📄 Print Preview (8.5" x 5.5")</h6>
+                        <h6 className="mb-3">📄 Print Preview (6.46" x 4.25")</h6>
                         <div
                           id="cart-print-area"
                           style={{
@@ -1638,20 +1638,20 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                             background: "#fff",
                             height: "calc(100% - 40px)",
                             overflowY: "auto",
-                            // Aspect ratio to match 8.5 x 5.5 (approximately 1.55:1)
+                            // Aspect ratio to match 6.46 x 4.25 (approximately 1.52:1)
                             minHeight: "400px",
                           }}
                         >
                           <div
                             style={{
-                              maxWidth: "8.5in",
+                              maxWidth: "6.46in",
                               height: "auto",
                               margin: "0 auto",
                               background: "#fff",
                               padding: 20,
                               fontFamily: "Arial, sans-serif",
                               fontSize: "14px",
-                              minHeight: "5.5in",
+                              minHeight: "4.25in",
                               boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
                               border: "1px solid #eee",
                             }}
@@ -1925,7 +1925,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                 <title>Print Cart: ${cart.name}</title>
                                 <style>
                                   @media print {
-                                    @page { size: 8.5in 5.5in; margin: 0.25in; }
+                                    @page { size: 6.46in 4.25in; margin: 0.25in; }
                                     body { margin: 0; }
                                     .d-print-none { display: none !important; }
                                     * { 
@@ -1947,7 +1947,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                         }
                       }}
                     >
-                      📄 Print Cart (8.5" x 5.5")
+                      📄 Print Cart (6.46" x 4.25")
                     </button>
                     <button
                       className="btn btn-secondary"
