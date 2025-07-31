@@ -7,6 +7,7 @@ import ActiveInvoices from "./components/ActiveInvoices";
 import PickupWashing from "./components/PickupWashing";
 import Washing from "./components/Washing";
 import Segregation from "./components/Segregation";
+import DriverNotificationSettings from "./components/DriverNotificationSettings";
 import {
   getClients,
   getProducts,
@@ -91,6 +92,8 @@ import AnalyticsPage from "./components/AnalyticsPage";
 import ShippingPage from "./components/ShippingPage";
 import SuggestionsPanel from "./components/SuggestionsPanel";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+// Import task scheduler to start automated notifications
+import "./services/taskScheduler";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -202,6 +205,7 @@ function App() {
     | "loginContent"
     | "rutas"
     | "printing"
+    | "notifications"
   >("clients");
 
   // State for which process menu is open (string or null)
@@ -1566,6 +1570,32 @@ function App() {
               >
                 Rutas de Camiones
               </button>
+              <button
+                className={`btn${
+                  activeSettingsTab === "notifications"
+                    ? " btn-primary"
+                    : " btn-outline-primary"
+                }`}
+                onClick={() => setActiveSettingsTab("notifications")}
+                style={{
+                  minWidth: 120,
+                  padding: "12px 20px",
+                  borderRadius: 12,
+                  fontWeight: 600,
+                  fontSize: 16,
+                  boxShadow:
+                    activeSettingsTab === "notifications"
+                      ? "0 2px 8px rgba(14,98,160,0.08)"
+                      : "none",
+                  background:
+                    activeSettingsTab === "notifications" ? "var(--ku-blue)" : "#fff",
+                  color: activeSettingsTab === "notifications" ? "#fff" : "#0E62A0",
+                  border: "2px solid var(--ku-blue)",
+                  transition: "all 0.2s",
+                }}
+              >
+                🔔 Notifications
+              </button>
             </div>
           </div>
           {/* Show only one form at a time */}
@@ -1663,6 +1693,11 @@ function App() {
               <div className="col-md-12">
                 {/* Rutas de Camiones UI */}
                 <RutasPorCamion />
+              </div>
+            )}
+            {activeSettingsTab === "notifications" && (
+              <div className="col-md-12">
+                <DriverNotificationSettings />
               </div>
             )}
           </div>

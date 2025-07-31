@@ -12,8 +12,15 @@
       "maxDuration": 30
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/truck-assignment-check",
+      "schedule": "0 20 * * *"
+    }
+  ],
   "env": {
     "EMAIL_USER": "emperez@kinguniforms.net",
-    "EMAIL_PASSWORD": "jbqp sxah ctff glku"
+    "EMAIL_PASSWORD": "jbqp sxah ctff glku",
+    "CRON_SECRET": "@cron-secret"
   }
 }

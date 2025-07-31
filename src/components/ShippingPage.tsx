@@ -1237,6 +1237,56 @@ const ShippingPage: React.FC = () => {
     return { totalCarts, clientCount };
   };
 
+  // Function to handle reverting invoice from shipped back to approved
+  const handleRevertInvoiceToApproved = async (invoice: ShippingInvoice) => {
+    if (!user) return;
+
+    // Check user permissions - only supervisors and above can revert shipped invoices
+    const isSupervisorOrAbove = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
+    if (!isSupervisorOrAbove) {
+      alert("Only supervisors and administrators can revert shipped invoices.");
+      return;
+    }
+
+    const confirmRevert = window.confirm(
+      `Are you sure you want to revert Invoice #${invoice.invoiceNumber || invoice.id} back to approved status?\n\nThis will:\n• Remove it from shipping\n• Clear truck assignment\n• Clear delivery date\n• Return it to approved status`
+    );
+
+    if (!confirmRevert) return;
+
+    try {
+      // Import updateDoc from firestore
+      const { updateDoc, doc } = await import("firebase/firestore");
+      
+      // Update the invoice status back to completed (approved)
+      await updateDoc(doc(db, "invoices", invoice.id), {
+        status: "completed",
+        truckNumber: "",
+        deliveryDate: "",
+        // Keep the verified status and other approval data
+      });
+
+      // Log the activity
+      if (user.username) {
+        const { logActivity } = await import("../services/firebaseService");
+        await logActivity({
+          type: "Invoice",
+          message: `User ${user.username} reverted laundry ticket #${invoice.invoiceNumber || invoice.id} from shipped back to approved status`,
+          user: user.username,
+        });
+      }
+
+      // Refresh the shipping data to reflect the changes
+      await fetchShippingData();
+      await fetchScheduledInvoices();
+
+      alert(`Invoice #${invoice.invoiceNumber || invoice.id} has been reverted to approved status.`);
+    } catch (error) {
+      console.error("Error reverting invoice:", error);
+      alert("Error reverting invoice. Please try again.");
+    }
+  };
+
   return (
     <div className="container shipping-dashboard">
       <div className="d-flex align-items-center justify-content-between mb-4">
@@ -1652,6 +1702,19 @@ const ShippingPage: React.FC = () => {
                                           ? "Locked"
                                           : invoice.hasSignature ? "Update" : "Sign"}
                                       </button>
+                                      {/* Revert to Approved button - Only for supervisors and above */}
+                                      {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
+                                        <button
+                                          className="btn btn-sm btn-outline-warning"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRevertInvoiceToApproved(invoice);
+                                          }}
+                                          title="Revert to approved status (Supervisor only)"
+                                        >
+                                          <i className="bi bi-arrow-left-circle"></i> Revert
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -1984,7 +2047,6 @@ const ShippingPage: React.FC = () => {
                         <div className="alert alert-warning">
                           <i className="bi bi-exclamation-triangle-fill me-2"></i>
                           <strong>Cart count mismatch!</strong> Expected {expectedCount} carts but {actualCartCount} were loaded.
-                          Please verify the count and add notes below explaining the discrepancy.
                         </div>
                       )}
 
@@ -2277,8 +2339,8 @@ const ShippingPage: React.FC = () => {
                               return (
                                 <>
                                   <div className="col-md-6">
-                                    <div className="card">
-                                      <div className="card-body text-center">
+                                    <div className="card text-center">
+                                      <div className="card-body">
                                         <h6 className="card-title text-muted">Total from Diagram</h6>
                                         <h4 className={`${diagramTotal === expectedCount ? 'text-success' : 'text-warning'}`}>
                                           {diagramTotal}
