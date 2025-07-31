@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
-import { getUsers } from "../services/firebaseService";
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from "react";
+import { getUsers, startUserSession, endUserSession, updateUserActivity } from "../services/firebaseService";
 
 export type UserRole = "Employee" | "Supervisor" | "Admin" | "Owner" | "Driver";
 
@@ -10,6 +10,7 @@ interface AuthUser {
   allowedComponents?: import("../permissions").AppComponentKey[];
   defaultPage?: import("../permissions").AppComponentKey;
   logoutTimeout?: number;
+  sessionId?: string; // Track current session ID
 }
 
 interface AuthContextType {
@@ -33,6 +34,7 @@ function getStoredUser(): AuthUser | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(getStoredUser());
   const [users, setUsers] = useState<any[]>([]); // Store all users in state
+  const activityIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Real-time Firestore listener for users (only if authenticated)
   React.useEffect(() => {
@@ -55,6 +57,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
+  // Track user activity periodically
+  useEffect(() => {
+    if (!user?.sessionId) return;
+
+    // Update activity every 30 seconds for active sessions
+    const interval = setInterval(() => {
+      updateUserActivity(user.sessionId!).catch(console.error);
+    }, 30000);
+
+    activityIntervalRef.current = interval;
+
+    return () => {
+      if (activityIntervalRef.current) {
+        clearInterval(activityIntervalRef.current);
+      }
+    };
+  }, [user?.sessionId]);
+
+  // Track user interactions on any user activity
+  useEffect(() => {
+    if (!user?.sessionId) return;
+
+    const handleUserInteraction = () => {
+      updateUserActivity(user.sessionId!).catch(console.error);
+    };
+
+    // Listen for various user interactions
+    const events = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'];
+    
+    // Throttle to avoid excessive calls
+    let lastUpdate = 0;
+    const throttledHandler = () => {
+      const now = Date.now();
+      if (now - lastUpdate > 10000) { // Update at most every 10 seconds
+        lastUpdate = now;
+        handleUserInteraction();
+      }
+    };
+
+    events.forEach(event => {
+      document.addEventListener(event, throttledHandler, { passive: true });
+    });
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, throttledHandler);
+      });
+    };
+  }, [user?.sessionId]);
+
   const login = async (id: string) => {
     if (!/^\d{4}$/.test(id)) return false;
     // Use real-time users state if available
@@ -63,20 +115,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!found) return false;
     // Owner must be 1991 (enforced by user creation UI, but double check)
     if (found.role === "Owner" && id !== "1991") return false;
-    const userObj: AuthUser = {
-      id,
-      role: found.role as UserRole,
-      username: found.username,
-      allowedComponents: found.allowedComponents,
-      defaultPage: found.defaultPage,
-      logoutTimeout: found.logoutTimeout || 20,
-    };
-    setUser(userObj);
-    localStorage.setItem("auth_user", JSON.stringify(userObj));
-    return true;
+    
+    try {
+      // Start a new user session
+      const sessionId = await startUserSession(id, found.username);
+      
+      const userObj: AuthUser = {
+        id,
+        role: found.role as UserRole,
+        username: found.username,
+        allowedComponents: found.allowedComponents,
+        defaultPage: found.defaultPage,
+        logoutTimeout: found.logoutTimeout || 20,
+        sessionId,
+      };
+      
+      setUser(userObj);
+      localStorage.setItem("auth_user", JSON.stringify(userObj));
+      return true;
+    } catch (error) {
+      console.error("Error starting user session:", error);
+      return false;
+    }
   };
 
   const logout = () => {
+    if (user?.sessionId) {
+      // End the current session
+      endUserSession(user.sessionId, user.username).catch(console.error);
+    }
+    
+    // Clear activity interval
+    if (activityIntervalRef.current) {
+      clearInterval(activityIntervalRef.current);
+      activityIntervalRef.current = null;
+    }
+    
     setUser(null);
     localStorage.removeItem("auth_user");
   };

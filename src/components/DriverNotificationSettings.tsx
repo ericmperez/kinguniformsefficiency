@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { triggerDriverAssignmentCheck, getSchedulerStatus } from '../services/taskScheduler';
-import { checkUnassignedDrivers, generateUnassignedDriversEmail } from '../services/driverAssignmentNotifier';
+import { checkUnassignedDrivers, generateUnassignedTrucksEmail } from '../services/driverAssignmentNotifier';
 
 interface TaskStatus {
   id: string;
@@ -65,7 +65,7 @@ const DriverNotificationSettings: React.FC = () => {
     try {
       // Get current unassigned drivers data
       const alert = await checkUnassignedDrivers();
-      const emailContent = generateUnassignedDriversEmail(alert);
+      const emailContent = generateUnassignedTrucksEmail(alert);
       setPreviewEmail(emailContent);
     } catch (error) {
       console.error('Error generating email preview:', error);

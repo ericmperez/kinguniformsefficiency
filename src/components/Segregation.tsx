@@ -245,51 +245,50 @@ const Segregation: React.FC<SegregationProps> = ({
     }
   }, [segregationGroups.length, orderLoading, groupOrder.length]);
 
-  // Handle new groups being added with debouncing to prevent rapid updates
+  // Handle new groups being added with improved debouncing to prevent rapid updates
   useEffect(() => {
     if (!orderLoading && groupOrder.length > 0) {
-      const currentGroupIds = segregationGroups.map(g => g.id);
       const newGroups = segregationGroups.filter((g) => !groupOrder.includes(g.id));
       
       if (newGroups.length > 0) {
-        // Debounce the order update to prevent rapid fire updates during weight entry
+        // Use a more stable timeout to prevent race conditions
         const timeoutId = setTimeout(() => {
-          const updatedOrder = [...groupOrder, ...newGroups.map(g => g.id)];
+          // Double-check that these groups are still new to prevent duplicates
+          const stillNewGroups = newGroups.filter((g) => !groupOrder.includes(g.id));
           
-          // Log new groups being added to bottom
-          console.log("🆕 [ADDING NEW GROUPS] New clients being added to bottom of segregation queue");
-          newGroups.forEach((group, idx) => {
-            const position = groupOrder.length + idx + 1;
-            console.log(`   📍 ${group.clientName} added at position ${position} (bottom of queue)`);
-            console.log(`   📊 Group details: ID=${group.id}, Weight=${group.totalWeight || 0}lbs`);
-          });
-          console.log("✅ New groups successfully positioned at bottom - order preserved during weight updates");
-          
-          // Optimistically update local state first for immediate UI feedback
-          setGroupOrder(updatedOrder);
-          
-          // Then update Firestore
-          setDoc(orderDocRef, { order: updatedOrder }, { merge: true }).catch(error => {
-            console.error("❌ Error updating group order in Firestore:", error);
-            // Revert local state on error
-            setGroupOrder(groupOrder);
-          });
-          
-          // Log to Firestore activity log
-          const currentUser = getCurrentUser();
-          newGroups.forEach(async (group) => {
-            await logActivity({
-              type: "Segregation", 
-              message: `New client "${group.clientName}" automatically added to bottom of segregation queue by system (user context: ${currentUser})`,
-              user: currentUser,
+          if (stillNewGroups.length > 0) {
+            const updatedOrder = [...groupOrder, ...stillNewGroups.map(g => g.id)];
+            
+            // Log new groups being added to bottom
+            console.log("🆕 [ADDING NEW GROUPS] New clients being added to bottom of segregation queue");
+            stillNewGroups.forEach((group, idx) => {
+              const position = groupOrder.length + idx + 1;
+              console.log(`   📍 ${group.clientName} added at position ${position} (bottom of queue)`);
+              console.log(`   📊 Group details: ID=${group.id}, Weight=${group.totalWeight || 0}lbs`);
             });
-          });
-        }, 200); // 200ms debounce to handle rapid weight updates
+            console.log("✅ New groups successfully positioned at bottom - order preserved during weight updates");
+            
+            // Update Firestore first, then let the listener update local state
+            setDoc(orderDocRef, { order: updatedOrder }, { merge: true }).catch(error => {
+              console.error("❌ Error updating group order in Firestore:", error);
+            });
+            
+            // Log to Firestore activity log
+            const currentUser = getCurrentUser();
+            stillNewGroups.forEach(async (group) => {
+              await logActivity({
+                type: "Segregation", 
+                message: `New client "${group.clientName}" automatically added to bottom of segregation queue by system (user context: ${currentUser})`,
+                user: currentUser,
+              });
+            });
+          }
+        }, 500); // Increased debounce time for more stability
         
         return () => clearTimeout(timeoutId);
       }
       
-      // Clean up removed groups from order with debouncing
+      // Clean up removed groups from order with improved stability
       const cleanedOrder = groupOrder.filter((id) =>
         segregationGroups.some((g) => g.id === id)
       );
@@ -297,9 +296,8 @@ const Segregation: React.FC<SegregationProps> = ({
       if (cleanedOrder.length !== groupOrder.length) {
         const timeoutId = setTimeout(() => {
           console.log("🧹 [CLEANUP] Removing deleted groups from order - maintaining position stability");
-          setGroupOrder(cleanedOrder);
           setDoc(orderDocRef, { order: cleanedOrder }, { merge: true });
-        }, 100);
+        }, 300); // Slightly increased cleanup delay
         
         return () => clearTimeout(timeoutId);
       }
@@ -311,55 +309,53 @@ const Segregation: React.FC<SegregationProps> = ({
 
   // Optimistically update local groupOrder before persisting to Firestore
   const moveGroup = async (groupId: string, direction: -1 | 1) => {
-    let idx = groupOrder.indexOf(groupId);
-    let newOrder = [...groupOrder];
-    // If group is not in order, append it
-    if (idx === -1) {
-      newOrder.push(groupId);
-      idx = newOrder.length - 1;
-    }
-    const swapIdx = idx + direction;
-    if (swapIdx < 0 || swapIdx >= newOrder.length) return;
+    if (movingGroupId) return; // Prevent multiple simultaneous moves
     
-    const group = segregationGroups.find(g => g.id === groupId);
-    const swapGroup = segregationGroups.find(g => g.id === newOrder[swapIdx]);
-    const currentUser = getCurrentUser();
+    setMovingGroupId(groupId);
     
-    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
-    setGroupOrder(newOrder); // Optimistic UI update
-    await setDoc(orderDocRef, { order: newOrder }, { merge: true });
-    
-    // Enhanced activity logging with user information
-    await logActivity({
-      type: "Segregation",
-      message: `Group "${getGroupDisplayName(groupId, group)}" moved ${
-        direction === -1 ? "up" : "down"
-      } by ${currentUser} from position ${idx + 1} to ${swapIdx + 1} (swapped with "${getGroupDisplayName(newOrder[swapIdx], swapGroup)}")`,
-      user: currentUser,
-    });
-    
-    // Additional console logging for detailed tracking
-    console.log("📝 [ACTIVITY LOGGED] Move operation saved to Firestore activity log");
-  };
-
-  // Listen for order changes in Firestore and update local state immediately
-  useEffect(() => {
-    setOrderLoading(true);
-    const unsub = onSnapshot(orderDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (Array.isArray(data.order)) {
-          setGroupOrder(data.order);
-        } else {
-          setGroupOrder([]);
-        }
-      } else {
-        setGroupOrder([]);
+    try {
+      let idx = groupOrder.indexOf(groupId);
+      let newOrder = [...groupOrder];
+      
+      // If group is not in order, append it
+      if (idx === -1) {
+        newOrder.push(groupId);
+        idx = newOrder.length - 1;
       }
-      setOrderLoading(false);
-    });
-    return () => unsub();
-  }, [todayStr]);
+      
+      const swapIdx = idx + direction;
+      if (swapIdx < 0 || swapIdx >= newOrder.length) {
+        setMovingGroupId(null);
+        return;
+      }
+      
+      const group = segregationGroups.find(g => g.id === groupId);
+      const swapGroup = segregationGroups.find(g => g.id === newOrder[swapIdx]);
+      const currentUser = getCurrentUser();
+      
+      // Perform the swap
+      [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+      
+      // Update Firestore first, let the listener update local state for consistency
+      await setDoc(orderDocRef, { order: newOrder }, { merge: true });
+      
+      // Enhanced activity logging with user information
+      await logActivity({
+        type: "Segregation",
+        message: `Group "${getGroupDisplayName(groupId, group)}" moved ${
+          direction === -1 ? "up" : "down"
+        } by ${currentUser} from position ${idx + 1} to ${swapIdx + 1} (swapped with "${getGroupDisplayName(newOrder[swapIdx], swapGroup)}")`,
+        user: currentUser,
+      });
+      
+      // Additional console logging for detailed tracking
+      console.log("📝 [ACTIVITY LOGGED] Move operation saved to Firestore activity log");
+    } catch (error) {
+      console.error("❌ Error moving group:", error);
+    } finally {
+      setMovingGroupId(null);
+    }
+  };
 
   // Handler to delete a segregation group
   const handleDeleteSegregationGroup = async (groupId: string) => {

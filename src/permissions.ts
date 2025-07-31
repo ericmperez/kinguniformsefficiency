@@ -11,6 +11,7 @@ export type AppComponentKey =
   | 'Segregation'
   | 'Washing'
   | 'GlobalActivityLog'
+  | 'RealTimeActivityDashboard'
   | 'LaundryTicketDetailsModal'
   | 'LaundryCartModal'
   | 'DriverManagement'
@@ -33,6 +34,7 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'Segregation',
     'Washing',
     'GlobalActivityLog',
+    'RealTimeActivityDashboard',
     'LaundryTicketDetailsModal',
     'LaundryCartModal',
     'DriverManagement',
@@ -50,6 +52,7 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'Segregation',
     'Washing',
     'GlobalActivityLog',
+    'RealTimeActivityDashboard',
     'LaundryTicketDetailsModal',
     'LaundryCartModal',
     'DriverManagement',
@@ -81,6 +84,11 @@ export function canUserSeeComponent(
   
   // Special case: User 1991 (Eric) can always see SuggestionsPanel
   if (component === 'SuggestionsPanel' && user.id === '1991') return true;
+  
+  // Special case: Only specific users can see RealTimeActivityDashboard
+  if (component === 'RealTimeActivityDashboard') {
+    return user.id === '1991' || user.id === '1995' || user.id === '1167';
+  }
   
   if (user.allowedComponents) {
     return user.allowedComponents.includes(component);

@@ -29,6 +29,7 @@ const componentOptions: { key: AppComponentKey; label: string }[] = [
   { key: "Segregation", label: "Segregation" },
   { key: "Washing", label: "Washing" },
   { key: "GlobalActivityLog", label: "Global Activity Log" },
+  { key: "RealTimeActivityDashboard", label: "Real-Time Activity Dashboard" },
   { key: "LaundryTicketDetailsModal", label: "Laundry Ticket Details Modal" },
   { key: "LaundryCartModal", label: "Laundry Cart Modal" },
   { key: "DriverManagement", label: "Driver Management" },

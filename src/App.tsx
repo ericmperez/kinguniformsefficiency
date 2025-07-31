@@ -86,6 +86,7 @@ import kingUniformsLogo from "./assets/King Uniforms Logo.jpeg";
 import SignInSide from "./components/SignInSide";
 import RutasPorCamion from "./components/RutasPorCamion";
 import GlobalActivityLog from "./components/GlobalActivityLog";
+import RealTimeActivityDashboard from "./components/RealTimeActivityDashboard";
 import BillingPage from "./components/BillingPage";
 import SendInvoicePage from "./components/SendInvoicePage";
 import AnalyticsPage from "./components/AnalyticsPage";
@@ -175,6 +176,7 @@ function App() {
     | "analytics"
     | "billing"
     | "activityLog"
+    | "realTimeActivity"
     | "shipping"
   >("home");
   const [products, setProducts] = useState<Product[]>([]);
@@ -297,6 +299,10 @@ function App() {
             ? "reports"
             : user.defaultPage === "UserManagement"
             ? "settings"
+            : user.defaultPage === "GlobalActivityLog"
+            ? "activityLog"
+            : user.defaultPage === "RealTimeActivityDashboard"
+            ? "realTimeActivity"
             : "home"
         );
         setShowWelcome(false);
@@ -699,6 +705,12 @@ function App() {
       visible: canSee("GlobalActivityLog"),
     },
     {
+      label: "Live Monitor",
+      page: "realTimeActivity" as const,
+      icon: <span style={{ fontSize: 38, color: "#0E62A0" }}>🔴</span>,
+      visible: canSee("RealTimeActivityDashboard"),
+    },
+    {
       label: "Shipping",
       page: "shipping" as const,
       icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
@@ -740,6 +752,12 @@ function App() {
       page: "shipping",
       color: "#0E62A0",
       icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
+    },
+    {
+      label: "Live Monitor",
+      page: "realTimeActivity",
+      color: "#dc3545",
+      icon: <span style={{ fontSize: 38, color: "#dc3545" }}>🔴</span>,
     },
     {
       label: "Settings",
@@ -1785,6 +1803,15 @@ function App() {
           <div className="row justify-content-center">
             <div className="col-12 col-md-10 col-lg-8">
               <GlobalActivityLog />
+            </div>
+          </div>
+        </div>
+      )}
+      {activePage === "realTimeActivity" && canSee("RealTimeActivityDashboard") && (
+        <div className="container py-5">
+          <div className="row justify-content-center">
+            <div className="col-12">
+              <RealTimeActivityDashboard />
             </div>
           </div>
         </div>
