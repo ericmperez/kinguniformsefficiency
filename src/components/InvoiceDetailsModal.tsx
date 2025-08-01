@@ -376,7 +376,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   margin-top: 35px;
                 ">
                   <div style="
-                    font-size: 55px;
+                    font-size: ${localInvoice.clientName.toLowerCase().includes('manati medical center') ? '40px' : '55px'};
                     font-weight: bold;
                     color: #0E62A0;
                     text-transform: uppercase;
@@ -1788,7 +1788,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                               }}>
                                 <h1 style={{ 
                                   margin: "0", 
-                                  fontSize: "64px",
+                                  fontSize: localInvoice.clientName.toLowerCase().includes('manati medical center') ? "44px" : "64px",
                                   fontWeight: "bold",
                                   color: "#0E62A0",
                                   textTransform: "uppercase",
