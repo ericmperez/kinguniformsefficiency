@@ -132,6 +132,18 @@ export interface Invoice {
     shippingEmailSentAt?: string; // Timestamp when shipping email was sent
     lastEmailError?: string; // Last email error if any
   };
+  printHistory?: { // Print operation tracking
+    printAllCartsHistory?: Array<{
+      printedBy: string; // Username of person who performed "Print All Carts"
+      printedAt: string; // Timestamp when print was executed
+      cartCount: number; // Number of carts that were printed
+    }>;
+    lastPrintAllCarts?: {
+      printedBy: string; // Most recent "Print All Carts" user
+      printedAt: string; // Most recent "Print All Carts" timestamp
+      cartCount: number; // Number of carts in most recent print
+    };
+  };
 }
 
 export interface LaundryCart {

@@ -281,7 +281,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   };
 
   // Print All Carts functionality
-  const printAllCarts = () => {
+  const printAllCarts = async () => {
     if (localCarts.length === 0) {
       alert("No carts to print");
       return;
@@ -292,6 +292,61 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       alert("A delivery date is required before printing all carts. Please set a delivery date first.");
       return;
     }
+
+    // Track who printed all carts
+    await trackPrintAllCarts();
+
+    // Proceed with printing
+    generatePrintContent();
+  };
+
+  // Track print all carts operation
+  const trackPrintAllCarts = async () => {
+    try {
+      const printTimestamp = new Date().toISOString();
+      const username = user?.username || 'Unknown User';
+      const cartCount = localCarts.length;
+
+      // Create print history record
+      const printRecord = {
+        printedBy: username,
+        printedAt: printTimestamp,
+        cartCount: cartCount
+      };
+
+      // Log the activity
+      if (typeof logActivity === "function") {
+        await logActivity({
+          type: "Print",
+          message: `User ${username} printed all carts (${cartCount} carts) for laundry ticket #${localInvoice.invoiceNumber || localInvoice.id.substring(0, 8)} - Client: ${localInvoice.clientName}`,
+          user: username,
+        });
+      }
+
+      // Update local invoice with print history
+      const updatedInvoice = {
+        ...localInvoice,
+        printHistory: {
+          ...localInvoice.printHistory,
+          lastPrintAllCarts: printRecord,
+          printAllCartsHistory: [
+            ...(localInvoice.printHistory?.printAllCartsHistory || []),
+            printRecord
+          ]
+        }
+      };
+      
+      setLocalInvoice(updatedInvoice);
+      
+      console.log('Print tracking recorded:', printRecord);
+    } catch (error) {
+      console.error('Error tracking print operation:', error);
+      // Don't block the print operation if tracking fails
+    }
+  };
+
+  // Generate print content function
+  const generatePrintContent = () => {
 
     // Get client print configuration with defaults
     const printConfig = client?.printConfig?.cartPrintSettings || {
@@ -418,111 +473,12 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     No items in this cart
                   </p>
                 ` : `
-                  <!-- Dynamic Product Layout: Single column for ≤5 items, Two columns for >5 items -->
-                  ${shouldUseTwoColumns ? `
-                    <div style="
-                      display: flex;
-                      gap: 15px;
-                      height: 100%;
-                    ">
-                      <!-- Column 1 -->
-                      <div style="
-                        flex: 1;
-                        overflow: hidden;
-                      ">
-                        <table style="
-                          width: 100%;
-                          border-collapse: collapse;
-                          font-size: 10px;
-                        ">
-                          <thead>
-                            <tr style="border-bottom: 1px solid #333;">
-                              <th style="
-                                text-align: left;
-                                padding: 4px 2px;
-                                font-size: 10px;
-                                font-weight: bold;
-                              ">Product</th>
-                              <th style="
-                                text-align: center;
-                                padding: 4px 2px;
-                                font-size: 10px;
-                                font-weight: bold;
-                                width: 30px;
-                              ">Qty</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            ${column1.map((item) => `
-                              <tr style="border-bottom: 1px solid #eee;">
-                                <td style="
-                                  padding: 3px 2px;
-                                  font-size: 9px;
-                                  line-height: 1.2;
-                                  word-break: break-word;
-                                ">${item.productName}</td>
-                                <td style="
-                                  padding: 3px 2px;
-                                  text-align: center;
-                                  font-size: 9px;
-                                  font-weight: bold;
-                                ">${item.quantity}</td>
-                              </tr>
-                            `).join('')}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <!-- Column 2 -->
-                      <div style="
-                        flex: 1;
-                        overflow: hidden;
-                      ">
-                        <table style="
-                          width: 100%;
-                          border-collapse: collapse;
-                          font-size: 10px;
-                        ">
-                          <thead>
-                            <tr style="border-bottom: 1px solid #333;">
-                              <th style="
-                                text-align: left;
-                                padding: 4px 2px;
-                                font-size: 10px;
-                                font-weight: bold;
-                              ">Product</th>
-                              <th style="
-                                text-align: center;
-                                padding: 4px 2px;
-                                font-size: 10px;
-                                font-weight: bold;
-                                width: 30px;
-                              ">Qty</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            ${column2.map((item) => `
-                              <tr style="border-bottom: 1px solid #eee;">
-                                <td style="
-                                  padding: 3px 2px;
-                                  font-size: 9px;
-                                  line-height: 1.2;
-                                  word-break: break-word;
-                                ">${item.productName}</td>
-                                <td style="
-                                  padding: 3px 2px;
-                                  text-align: center;
-                                  font-size: 9px;
-                                  font-weight: bold;
-                                ">${item.quantity}</td>
-                              </tr>
-                            `).join('')}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ` : `
-                    <!-- Single Column Layout for 5 or fewer items -->
+                  ${localInvoice.clientName.toLowerCase().includes('aloft') || 
+                    localInvoice.clientName.toLowerCase().includes('sheraton') || 
+                    localInvoice.clientName.toLowerCase().includes('costa bahia') || 
+                    localInvoice.clientName.toLowerCase().includes('dorado aquarius') || 
+                    localInvoice.clientName.toLowerCase().includes('hyatt') ? `
+                    <!-- Product list without quantities for specific clients -->
                     <div style="
                       height: 100%;
                       overflow: hidden;
@@ -530,45 +486,186 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       <table style="
                         width: 100%;
                         border-collapse: collapse;
-                        font-size: 11px;
+                        font-size: 12px;
                       ">
                         <thead>
                           <tr style="border-bottom: 1px solid #333;">
                             <th style="
                               text-align: left;
                               padding: 6px 4px;
-                              font-size: 11px;
+                              font-size: 12px;
                               font-weight: bold;
-                            ">Product</th>
-                            <th style="
-                              text-align: center;
-                              padding: 6px 4px;
-                              font-size: 11px;
-                              font-weight: bold;
-                              width: 60px;
-                            ">Qty</th>
+                            ">Products in Cart</th>
                           </tr>
                         </thead>
                         <tbody>
-                          ${column1.map((item) => `
+                          ${cart.items.map((item) => `
                             <tr style="border-bottom: 1px solid #eee;">
                               <td style="
-                                padding: 5px 4px;
-                                font-size: 10px;
+                                padding: 6px 4px;
+                                font-size: 11px;
                                 line-height: 1.3;
                                 word-break: break-word;
                               ">${item.productName}</td>
-                              <td style="
-                                padding: 5px 4px;
-                                text-align: center;
-                                font-size: 10px;
-                                font-weight: bold;
-                              ">${item.quantity}</td>
                             </tr>
                           `).join('')}
                         </tbody>
                       </table>
                     </div>
+                  ` : `
+                    <!-- Standard product layout for non-Aloft clients -->
+                    <!-- Dynamic Product Layout: Single column for ≤5 items, Two columns for >5 items -->
+                    ${shouldUseTwoColumns ? `
+                      <div style="
+                        display: flex;
+                        gap: 15px;
+                        height: 100%;
+                      ">
+                        <!-- Column 1 -->
+                        <div style="
+                          flex: 1;
+                          overflow: hidden;
+                        ">
+                          <table style="
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 10px;
+                          ">
+                            <thead>
+                              <tr style="border-bottom: 1px solid #333;">
+                                <th style="
+                                  text-align: left;
+                                  padding: 4px 2px;
+                                  font-size: 10px;
+                                  font-weight: bold;
+                                ">Product</th>
+                                <th style="
+                                  text-align: center;
+                                  padding: 4px 2px;
+                                  font-size: 10px;
+                                  font-weight: bold;
+                                  width: 30px;
+                                ">Qty</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              ${column1.map((item) => `
+                                <tr style="border-bottom: 1px solid #eee;">
+                                  <td style="
+                                    padding: 3px 2px;
+                                    font-size: 9px;
+                                    line-height: 1.2;
+                                    word-break: break-word;
+                                  ">${item.productName}</td>
+                                  <td style="
+                                    padding: 3px 2px;
+                                    text-align: center;
+                                    font-size: 9px;
+                                    font-weight: bold;
+                                  ">${item.quantity}</td>
+                                </tr>
+                              `).join('')}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <!-- Column 2 -->
+                        <div style="
+                          flex: 1;
+                          overflow: hidden;
+                        ">
+                          <table style="
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 10px;
+                          ">
+                            <thead>
+                              <tr style="border-bottom: 1px solid #333;">
+                                <th style="
+                                  text-align: left;
+                                  padding: 4px 2px;
+                                  font-size: 10px;
+                                  font-weight: bold;
+                                ">Product</th>
+                                <th style="
+                                  text-align: center;
+                                  padding: 4px 2px;
+                                  font-size: 10px;
+                                  font-weight: bold;
+                                  width: 30px;
+                                ">Qty</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              ${column2.map((item) => `
+                                <tr style="border-bottom: 1px solid #eee;">
+                                  <td style="
+                                    padding: 3px 2px;
+                                    font-size: 9px;
+                                    line-height: 1.2;
+                                    word-break: break-word;
+                                  ">${item.productName}</td>
+                                  <td style="
+                                    padding: 3px 2px;
+                                    text-align: center;
+                                    font-size: 9px;
+                                    font-weight: bold;
+                                  ">${item.quantity}</td>
+                                </tr>
+                              `).join('')}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ` : `
+                      <!-- Single Column Layout for 5 or fewer items -->
+                      <div style="
+                        height: 100%;
+                        overflow: hidden;
+                      ">
+                        <table style="
+                          width: 100%;
+                          border-collapse: collapse;
+                          font-size: 11px;
+                        ">
+                          <thead>
+                            <tr style="border-bottom: 1px solid #333;">
+                              <th style="
+                                text-align: left;
+                                padding: 6px 4px;
+                                font-size: 11px;
+                                font-weight: bold;
+                              ">Product</th>
+                              <th style="
+                                text-align: center;
+                                padding: 6px 4px;
+                                font-size: 11px;
+                                font-weight: bold;
+                                width: 60px;
+                              ">Qty</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${column1.map((item) => `
+                              <tr style="border-bottom: 1px solid #eee;">
+                                <td style="
+                                  padding: 5px 4px;
+                                  font-size: 10px;
+                                  line-height: 1.3;
+                                  word-break: break-word;
+                                ">${item.productName}</td>
+                                <td style="
+                                  padding: 5px 4px;
+                                  text-align: center;
+                                  font-size: 10px;
+                                  font-weight: bold;
+                                ">${item.quantity}</td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
+                      </div>
+                    `}
                   `}
                 `}
               </div>
@@ -886,6 +983,49 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               </div>
             )}
 
+            {/* Print History Section */}
+            {invoice.printHistory?.lastPrintAllCarts && (
+              <div className="mb-2">
+                <h6 className="text-info mb-1">
+                  <i className="bi bi-printer-fill me-2"></i>
+                  Print History
+                </h6>
+                <div className="ms-3">
+                  <div className="text-secondary small">
+                    <strong>Last Print All Carts:</strong> {invoice.printHistory.lastPrintAllCarts.printedBy}
+                    <span className="ms-2">
+                      ({formatDateSpanish(invoice.printHistory.lastPrintAllCarts.printedAt)})
+                    </span>
+                    <span className="ms-2 badge bg-light text-dark">
+                      {invoice.printHistory.lastPrintAllCarts.cartCount} carts
+                    </span>
+                  </div>
+                  {invoice.printHistory.printAllCartsHistory && invoice.printHistory.printAllCartsHistory.length > 1 && (
+                    <details className="mt-1">
+                      <summary className="text-primary small" style={{ cursor: "pointer" }}>
+                        View all print operations ({invoice.printHistory.printAllCartsHistory.length})
+                      </summary>
+                      <div className="mt-2">
+                        {invoice.printHistory.printAllCartsHistory
+                          .slice()
+                          .reverse()
+                          .map((printRecord, index) => (
+                          <div key={index} className="text-secondary small d-flex justify-content-between py-1">
+                            <span>
+                              <strong>{printRecord.printedBy}</strong> - {printRecord.cartCount} carts
+                            </span>
+                            <span className="text-muted">
+                              {formatDateSpanish(printRecord.printedAt)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Special Service Delivery Section */}
             <div
               className="mb-3 p-3 border rounded"
@@ -932,17 +1072,30 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     Create New Cart
                   </button>
                   {localCarts.length > 0 && (
-                    <button
-                      className="btn btn-success me-2"
-                      onClick={() => {
-                        // Print all carts functionality
-                        printAllCarts();
-                      }}
-                      title="Print all carts in this invoice"
-                    >
-                      <i className="bi bi-printer-fill me-1" />
-                      Print All Carts ({localCarts.length})
-                    </button>
+                    <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                      <button
+                        className="btn btn-success"
+                        onClick={async () => {
+                          // Print all carts functionality
+                          await printAllCarts();
+                        }}
+                        title="Print all carts in this invoice"
+                      >
+                        <i className="bi bi-printer-fill me-1" />
+                        Print All Carts ({localCarts.length})
+                      </button>
+                      {invoice.printHistory?.lastPrintAllCarts && (
+                        <div className="text-secondary small d-flex align-items-center">
+                          <i className="bi bi-person-fill me-1"></i>
+                          <span>
+                            Last printed by: <strong>{invoice.printHistory.lastPrintAllCarts.printedBy}</strong>
+                          </span>
+                          <span className="text-muted ms-1">
+                            ({formatDateSpanish(invoice.printHistory.lastPrintAllCarts.printedAt)})
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </>
               ) : (
