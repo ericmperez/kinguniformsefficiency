@@ -167,7 +167,7 @@ const LaundryTicketFieldsModal: React.FC<LaundryTicketFieldsModalProps> = ({
                   <img 
                     src={config.logoUrl} 
                     alt="Logo" 
-                    style={{ maxHeight: '60px', maxWidth: '200px' }}
+                    style={{ maxHeight: '120px', maxWidth: '400px' }}
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}

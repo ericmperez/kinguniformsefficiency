@@ -130,8 +130,8 @@ export default function LocalLoginForm() {
           src={kingUniformsLogo}
           alt="King Uniforms"
           style={{
-            width: "min(220px, 40vw)",
-            maxWidth: "80vw",
+            width: "min(300px, 50vw)",
+            maxWidth: "90vw",
             display: "block",
             margin: "0 auto 4px auto",
             background: "none",

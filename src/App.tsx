@@ -1021,7 +1021,7 @@ function App() {
               <img
                 src="/kulogo.png"
                 alt="KU Logo"
-                style={{ height: 32, width: "auto" }}
+                style={{ height: 48, width: "auto" }}
               />
             </IconButton>
             {navLinks

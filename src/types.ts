@@ -26,6 +26,7 @@ export interface PrintConfiguration {
   cartPrintSettings: {
     enabled: boolean;
     showProductDetails: boolean;
+    showProductSummary: boolean;
     showQuantities: boolean;
     showPrices: boolean;
     showCartTotal: boolean;

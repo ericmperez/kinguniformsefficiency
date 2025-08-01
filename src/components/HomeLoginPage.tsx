@@ -48,8 +48,8 @@ const Right = styled.div`
 `;
 
 const Logo = styled.img`
-  width: 120px;
-  height: 120px;
+  width: 180px;
+  height: 180px;
   object-fit: contain;
   border-radius: 16px;
   background: #fff;

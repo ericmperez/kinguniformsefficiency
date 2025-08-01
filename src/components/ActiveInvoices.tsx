@@ -5152,7 +5152,7 @@ export default function ActiveInvoices({
             includeTimestamp: true,
             headerText: "Cart Contents",
             footerText: "",
-            logoUrl: "", // Added missing logoUrl property
+            logoUrl: "/images/King Uniforms Logo.png", // Added missing logoUrl property
           };
 
           return (
@@ -5644,7 +5644,7 @@ export default function ActiveInvoices({
             includeSignature: false,
             headerText: "Invoice",
             footerText: "",
-            logoUrl: "",
+            logoUrl: "/images/King Uniforms Logo.png",
           };
 
           // Calculate totals

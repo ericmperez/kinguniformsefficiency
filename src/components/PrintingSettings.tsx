@@ -64,6 +64,7 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = () => {
       cartPrintSettings: {
         enabled: false,
         showProductDetails: false,
+        showProductSummary: false,
         showQuantities: false,
         showPrices: false,
         showCartTotal: false,
@@ -86,7 +87,7 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = () => {
         includeSignature: false,
         headerText: "",
         footerText: "",
-        logoUrl: "",
+        logoUrl: "/images/King Uniforms Logo.png",
       },
       emailSettings: {
         enabled: false,

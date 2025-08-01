@@ -22,6 +22,7 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
         cartPrintSettings: {
           enabled: true,
           showProductDetails: true,
+          showProductSummary: false,
           showQuantities: true,
           showPrices: false,
           showCartTotal: true,
@@ -44,7 +45,7 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
           includeSignature: false,
           headerText: "Invoice",
           footerText: "",
-          logoUrl: "",
+          logoUrl: "/images/King Uniforms Logo.png",
         },
         emailSettings: {
           enabled: false,
@@ -145,6 +146,54 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                         htmlFor="showProductDetails"
                       >
                         Show product details
+                      </label>
+                    </div>
+
+                    <div className="form-check mb-2">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="cartShowProductSummary"
+                        checked={config.cartPrintSettings.showProductSummary}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            cartPrintSettings: {
+                              ...config.cartPrintSettings,
+                              showProductSummary: e.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      <label
+                        className="form-check-label"
+                        htmlFor="cartShowProductSummary"
+                      >
+                        Show product summary
+                      </label>
+                    </div>
+
+                    <div className="form-check mb-2">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="cartShowProductSummary"
+                        checked={config.cartPrintSettings.showProductSummary}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            cartPrintSettings: {
+                              ...config.cartPrintSettings,
+                              showProductSummary: e.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      <label
+                        className="form-check-label"
+                        htmlFor="cartShowProductSummary"
+                      >
+                        Show product summary
                       </label>
                     </div>
 

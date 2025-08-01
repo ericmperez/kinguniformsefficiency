@@ -3288,7 +3288,7 @@ const BillingPage: React.FC = () => {
                     <img
                       src={"/images/King Uniforms Logo.png"}
                       alt="King Uniforms Logo"
-                      style={{ width: 120, height: "auto", marginBottom: 8 }}
+                      style={{ width: 200, height: "auto", marginBottom: 8 }}
                     />
                     <div style={{ textAlign: "right" }}>
                       <div

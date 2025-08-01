@@ -291,6 +291,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     const printConfig = client?.printConfig?.cartPrintSettings || {
       enabled: true,
       showProductDetails: true,
+      showProductSummary: false,
       showQuantities: true,
       showPrices: false,
       showCartTotal: true,
@@ -442,7 +443,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   </table>
                 `}
 
-                ${printConfig.showProductDetails && cart.items.length > 0 ? `
+                ${printConfig.showProductSummary && cart.items.length > 0 ? `
                   <div style="margin-top: 20px">
                     <h5 style="font-size: 14px; margin-bottom: 10px">
                       Product Summary
@@ -1581,6 +1582,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           const printConfig = client?.printConfig?.cartPrintSettings || {
             enabled: true,
             showProductDetails: true,
+            showProductSummary: false,
             showQuantities: true,
             showPrices: false,
             showCartTotal: true,
@@ -1804,7 +1806,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                               )}
 
                               {/* Product Summary */}
-                              {printConfig.showProductDetails && cart.items.length > 0 && (
+                              {printConfig.showProductSummary && cart.items.length > 0 && (
                                 <div style={{ marginTop: 20 }}>
                                   <h5 style={{ fontSize: "14px", marginBottom: "10px" }}>
                                     Product Summary
