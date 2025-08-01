@@ -554,7 +554,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             <title>Print All Carts - ${localInvoice.clientName}</title>
             <style>
               @media print {
-                @page { size: 6.46in 4.25in; margin: 0.25in; }
+                @page { size: 4.25in 6.46in landscape; margin: 0.25in; }
                 body { margin: 0; }
                 .d-print-none { display: none !important; }
                 * { 
