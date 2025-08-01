@@ -33,22 +33,72 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [noPersonnelAvailable, setNoPersonnelAvailable] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
-  // Mobile-specific configuration
+  // Enhanced close function with confirmation
+  const handleClose = () => {
+    if (!sigCanvas.current?.isEmpty() || sigName.trim() || noPersonnelAvailable) {
+      setShowConfirmation(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const confirmClose = () => {
+    setShowConfirmation(false);
+    onClose();
+  };
+
+  const cancelClose = () => {
+    setShowConfirmation(false);
+  };
+
+  // Mobile-specific configuration with landscape orientation lock
   useEffect(() => {
+    if (!show) return;
+
     // Disable viewport zooming during signature capture on mobile
     const viewport = document.querySelector('meta[name="viewport"]');
-    if (viewport && show) {
-      const originalContent = viewport.getAttribute('content');
-      viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
-      
-      return () => {
-        // Restore original viewport settings when modal closes
-        if (originalContent) {
-          viewport.setAttribute('content', originalContent);
+    const originalViewportContent = viewport?.getAttribute('content');
+    
+    // Lock to landscape orientation on mobile devices
+    const lockToLandscape = async () => {
+      try {
+        // Request landscape orientation if available (with proper type casting)
+        const orientation = (screen as any).orientation;
+        if (orientation && orientation.lock) {
+          await orientation.lock('landscape');
         }
-      };
+      } catch (error) {
+        console.log('Screen orientation lock not available or denied:', error);
+      }
+    };
+
+    // Apply mobile-optimized viewport settings
+    if (viewport) {
+      viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
     }
+
+    // Lock to landscape on mobile
+    lockToLandscape();
+
+    // Cleanup function
+    return () => {
+      // Restore original viewport settings when modal closes
+      if (viewport && originalViewportContent) {
+        viewport.setAttribute('content', originalViewportContent);
+      }
+
+      // Unlock orientation when modal closes
+      try {
+        const orientation = (screen as any).orientation;
+        if (orientation && orientation.unlock) {
+          orientation.unlock();
+        }
+      } catch (error) {
+        console.log('Screen orientation unlock not available:', error);
+      }
+    };
   }, [show]);
 
   // Helper function to send signature email if configured
@@ -245,6 +295,57 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
             touch-action: none !important;
           }
           
+          /* Landscape-optimized layout */
+          @media screen and (orientation: landscape) {
+            .signature-modal-landscape {
+              padding: 10px !important;
+            }
+            
+            .signature-modal-landscape .modal-header {
+              padding: 10px 15px !important;
+              min-height: 60px;
+            }
+            
+            .signature-modal-landscape .form-fields {
+              padding: 10px 15px !important;
+            }
+            
+            .signature-modal-landscape .signature-area {
+              min-height: calc(100vh - 200px) !important;
+            }
+            
+            .signature-modal-landscape .modal-footer {
+              padding: 10px 15px !important;
+              min-height: 60px;
+            }
+          }
+          
+          /* Portrait warning for mobile devices */
+          @media screen and (orientation: portrait) and (max-width: 768px) {
+            .orientation-warning {
+              display: flex !important;
+              flex-direction: column;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              background: rgba(0, 0, 0, 0.95);
+              color: white;
+              text-align: center;
+              padding: 20px;
+            }
+            
+            .orientation-warning .rotate-icon {
+              font-size: 4rem;
+              margin-bottom: 20px;
+              animation: rotate 2s linear infinite;
+            }
+            
+            @keyframes rotate {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(90deg); }
+            }
+          }
+          
           /* Improve button touch targets for mobile */
           @media (max-width: 768px) {
             .btn-lg {
@@ -293,8 +394,21 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
           }
         `}
       </style>
+      {/* Orientation Warning for Portrait Mode on Mobile */}
+      <div className="orientation-warning d-none">
+        <div className="rotate-icon">
+          <i className="bi bi-phone"></i>
+        </div>
+        <h3>Please Rotate Your Device</h3>
+        <p>For the best signature experience, please rotate your device to landscape mode.</p>
+        <div className="mt-3">
+          <i className="bi bi-arrow-repeat me-2"></i>
+          Rotate to continue
+        </div>
+      </div>
+
       <div 
-        className="h-100 w-100 d-flex flex-column"
+        className="h-100 w-100 d-flex flex-column signature-modal-landscape"
         style={{ 
           maxWidth: "100vw",
           maxHeight: "100vh",
@@ -338,7 +452,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
               <button
                 type="button"
                 className="btn-close btn-close-dark"
-                onClick={onClose}
+                onClick={handleClose}
                 disabled={isSaving}
                 style={{ fontSize: "1.2rem" }}
               ></button>
@@ -350,6 +464,31 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
             <div className="alert alert-danger m-3 mb-0">{errorMessage}</div>
           )}
 
+          {/* Delivery Summary */}
+          {invoice && invoice.carts && (
+            <div className="alert alert-success m-3 mb-0">
+              <i className="bi bi-truck me-2"></i>
+              <strong>🛒 Delivery Details:</strong>
+              <div className="mt-2">
+                <div className="row text-center">
+                  <div className="col-6">
+                    <h5 className="mb-0 text-success">{invoice.carts.length}</h5>
+                    <small>Cart{invoice.carts.length !== 1 ? 's' : ''}</small>
+                  </div>
+                  <div className="col-6">
+                    <h5 className="mb-0 text-success">{invoice.carts.reduce((total, cart) => total + cart.items.length, 0)}</h5>
+                    <small>Total Items</small>
+                  </div>
+                </div>
+                <div className="mt-2 small text-muted">
+                  <strong>Cart breakdown:</strong> {invoice.carts.map((cart, index) => 
+                    `${cart.name} (${cart.items.length} item${cart.items.length !== 1 ? 's' : ''})`
+                  ).join(', ')}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Instructions */}
           <div className="alert alert-info m-3 mb-0">
             <i className="bi bi-info-circle-fill me-2"></i>
@@ -359,11 +498,11 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
             </div>
           </div>
 
-          {/* Form Fields */}
-          <div className="p-3">
-            {/* Mobile-first layout for better accessibility */}
-            <div className="row g-3">
-              <div className="col-12">
+          {/* Form Fields - Compact for landscape */}
+          <div className="p-3 form-fields">
+            {/* Landscape-optimized layout */}
+            <div className="row g-2">
+              <div className="col-lg-6 col-12">
                 <label className="form-label fw-bold">Receiver's Name</label>
                 <input
                   type="text"
@@ -378,7 +517,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                   }}
                 />
               </div>
-              <div className="col-12">
+              <div className="col-lg-6 col-12">
                 <div className="form-check h-100 d-flex align-items-center" style={{ 
                   padding: "15px", 
                   backgroundColor: "#f8f9fa", 
@@ -414,19 +553,19 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
           </div>
         </div>
 
-        {/* Signature Area - Takes remaining space */}
-        <div className="flex-grow-1 bg-white mx-3 mb-3 border rounded" style={{ minHeight: "300px" }}>
+        {/* Signature Area - Optimized for landscape */}
+        <div className="flex-grow-1 bg-white mx-3 mb-3 border rounded signature-area" style={{ minHeight: "250px" }}>
           <div className="h-100 d-flex flex-column">
-            <div className="p-3 border-bottom">
+            <div className="p-2 border-bottom">
               <div className="d-flex justify-content-between align-items-center">
                 <label className="form-label fw-bold mb-0">Signature</label>
                 <button
-                  className="btn btn-outline-secondary"
+                  className="btn btn-outline-secondary btn-sm"
                   onClick={clear}
                   disabled={isSaving || noPersonnelAvailable}
                 >
                   <i className="bi bi-x-lg me-1"></i>
-                  Clear Signature
+                  Clear
                 </button>
               </div>
             </div>
@@ -435,7 +574,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
               style={{
                 backgroundColor: noPersonnelAvailable ? "#f1f3f5" : "#ffffff",
                 opacity: noPersonnelAvailable ? 0.5 : 1,
-                minHeight: "250px", // Ensure minimum height for mobile
+                minHeight: "200px", // Optimized for landscape
               }}
               onTouchStart={(e) => {
                 // Prevent default touch behavior that might interfere with signature
@@ -448,7 +587,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                 ref={sigCanvas}
                 penColor="black"
                 canvasProps={{
-                  width: 800,
+                  width: 1000, // Increased width for landscape
                   height: 400,
                   style: {
                     width: "100%",
@@ -457,10 +596,10 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                   },
                   className: "signature-canvas",
                 }}
-                // Mobile touch support
+                // Mobile touch support optimized for landscape
                 dotSize={2}
                 minWidth={1}
-                maxWidth={3}
+                maxWidth={4} // Slightly thicker for landscape
                 velocityFilterWeight={0.7}
                 // Ensure touch events work properly
                 backgroundColor="rgba(255,255,255,0)"
@@ -475,13 +614,16 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                     transform: "translate(-50%, -50%)",
                     color: "#adb5bd",
                     pointerEvents: "none",
-                    fontSize: "1.5rem",
+                    fontSize: "1.8rem", // Larger for landscape
                     textAlign: "center"
                   }}
                 >
                   <div>
-                    <i className="bi bi-pen" style={{ fontSize: "3rem", display: "block", marginBottom: "10px" }}></i>
-                    {noPersonnelAvailable ? "Signature not required" : "Sign here"}
+                    <i className="bi bi-pen" style={{ fontSize: "4rem", display: "block", marginBottom: "15px" }}></i>
+                    {noPersonnelAvailable ? "Signature not required" : "Sign here with your finger"}
+                  </div>
+                  <div style={{ fontSize: "1rem", marginTop: "10px", color: "#6c757d" }}>
+                    📱 Rotate to landscape for best experience
                   </div>
                 </div>
               )}
@@ -499,7 +641,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
             {/* Desktop buttons (hidden on mobile since we have header button) */}
             <button
               className="btn btn-secondary btn-lg d-none d-md-inline-block"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isSaving}
             >
               Cancel
@@ -529,7 +671,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
             <div className="d-md-none w-100 d-flex gap-2">
               <button
                 className="btn btn-outline-secondary flex-fill"
-                onClick={onClose}
+                onClick={handleClose}
                 disabled={isSaving}
                 style={{ minHeight: "50px" }}
               >
@@ -602,6 +744,53 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Confirmation Modal for Exit */}
+      {showConfirmation && (
+        <div 
+          className="modal show d-block"
+          style={{ 
+            backgroundColor: "rgba(0, 0, 0, 0.8)",
+            zIndex: 1060, // Higher than signature modal
+          }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-exclamation-triangle-fill me-2 text-warning"></i>
+                  Confirm Exit
+                </h5>
+              </div>
+              <div className="modal-body">
+                <p>You have unsaved changes to the signature. Are you sure you want to exit without saving?</p>
+                <div className="alert alert-warning">
+                  <small>
+                    <i className="bi bi-info-circle me-1"></i>
+                    Any signature or name entered will be lost if you continue.
+                  </small>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={cancelClose}
+                >
+                  <i className="bi bi-arrow-left me-1"></i>
+                  Continue Editing
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={confirmClose}
+                >
+                  <i className="bi bi-x-lg me-1"></i>
+                  Exit Without Saving
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

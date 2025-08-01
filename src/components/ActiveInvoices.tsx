@@ -196,6 +196,9 @@ export default function ActiveInvoices({
   const { user } = useAuth();
   const [users, setUsers] = React.useState<UserRecord[]>([]);
 
+  // View mode state - cards or list view
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+
   React.useEffect(() => {
     getUsers().then((userList) => setUsers(userList));
   }, []);
@@ -1279,6 +1282,41 @@ export default function ActiveInvoices({
     return (a.clientName || "").localeCompare(b.clientName || "");
   });
 
+  // Status filter options
+  const STATUS_FILTERS = [
+    { key: 'all', label: 'All', icon: 'bi-circle' },
+    { key: 'in_progress', label: 'In Progress', icon: 'bi-hourglass' },
+    { key: 'completed', label: 'Completed', icon: 'bi-check2-circle' },
+    { key: 'approved', label: 'Approved', icon: 'bi-check-circle-fill' },
+    { key: 'partial', label: 'Partial', icon: 'bi-exclamation-circle' },
+    { key: 'shipped', label: 'Shipped', icon: 'bi-truck' },
+  ];
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'completed' | 'approved' | 'partial' | 'shipped'>('all');
+
+  // Calculate counts for each status filter
+  const statusCounts = useMemo(() => {
+    const counts = {
+      all: sortedInvoices.filter(inv => inv.status !== 'done').length,
+      in_progress: sortedInvoices.filter(inv => !inv.verified && inv.status !== 'done' && inv.status !== 'completed').length,
+      completed: sortedInvoices.filter(inv => inv.status === 'completed' && !inv.verified).length,
+      approved: sortedInvoices.filter(inv => inv.verified && inv.status !== 'done').length,
+      partial: sortedInvoices.filter(inv => inv.partiallyVerified && !inv.verified && inv.status !== 'done').length,
+      shipped: sortedInvoices.filter(inv => inv.status === 'done').length,
+    };
+    return counts;
+  }, [sortedInvoices]);
+
+  // Filter invoices by status
+  const filteredInvoices = useMemo(() => {
+    if (statusFilter === 'all') return sortedInvoices.filter(inv => inv.status !== 'done');
+    if (statusFilter === 'in_progress') return sortedInvoices.filter(inv => !inv.verified && inv.status !== 'done' && inv.status !== 'completed');
+    if (statusFilter === 'completed') return sortedInvoices.filter(inv => inv.status === 'completed' && !inv.verified);
+    if (statusFilter === 'approved') return sortedInvoices.filter(inv => inv.verified && inv.status !== 'done');
+    if (statusFilter === 'partial') return sortedInvoices.filter(inv => inv.partiallyVerified && !inv.verified && inv.status !== 'done');
+    if (statusFilter === 'shipped') return sortedInvoices.filter(inv => inv.status === 'done');
+    return sortedInvoices.filter(inv => inv.status !== 'done');
+  }, [sortedInvoices, statusFilter]);
+
   // Handler to select an invoice (for card click)
   function handleInvoiceClick(invoiceId: string) {
     const invoice = invoicesState.find((inv) => inv.id === invoiceId);
@@ -1536,15 +1574,65 @@ export default function ActiveInvoices({
         </div>
       </div>
 
-      <div className="row">
-        {invoicesState.filter((inv) => inv.status !== "done").length === 0 ? (
-          <div className="text-center text-muted py-5">
-            No active laundry tickets found. Create a new laundry ticket to get started.
+      {/* Status Filters and View Toggle */}
+      <div className="row mb-3">
+        <div className="col-12">
+          <div className="d-flex justify-content-between align-items-center flex-wrap">
+            {/* Status Filter Cards */}
+            <div className="d-flex gap-2 mb-2 mb-md-0">
+              {STATUS_FILTERS.map((filter) => {
+                const count = statusCounts[filter.key as keyof typeof statusCounts] || 0;
+                return (
+                  <button
+                    key={filter.key}
+                    type="button"
+                    className={`btn btn-sm ${
+                      statusFilter === filter.key 
+                        ? 'btn-primary' 
+                        : 'btn-outline-secondary'
+                    }`}
+                    onClick={() => setStatusFilter(filter.key as any)}
+                    title={`${filter.label} (${count})`}
+                  >
+                    <i className={`${filter.icon} me-1`}></i>
+                    {filter.label} ({count})
+                  </button>
+                );
+              })}
+            </div>
+            
+            {/* View Toggle */}
+            <div className="btn-group" role="group" aria-label="View options">
+              <button
+                type="button"
+                className={`btn ${viewMode === 'cards' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setViewMode('cards')}
+              >
+                <i className="bi bi-grid-3x3-gap me-1"></i>
+                Cards
+              </button>
+              <button
+                type="button"
+                className={`btn ${viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setViewMode('list')}
+              >
+                <i className="bi bi-list-ul me-1"></i>
+                List
+              </button>
+            </div>
           </div>
-        ) : (
-          sortedInvoices
-            .filter((inv) => inv.status !== "done")
-            .map((invoice, idx) => {
+        </div>
+      </div>
+
+      {/* Content Area - Cards or List View */}
+      {invoicesState.filter((inv) => inv.status !== "done").length === 0 ? (
+        <div className="text-center text-muted py-5">
+          No active laundry tickets found. Create a new laundry ticket to get started.
+        </div>
+      ) : viewMode === 'cards' ? (
+        // Cards View (existing)
+        <div className="row">
+          {filteredInvoices.map((invoice, idx) => {
               const client = clients.find((c) => c.id === invoice.clientId);
               const avatarSrc = getClientAvatarUrl(client || {});
               const isReady =
@@ -2445,9 +2533,364 @@ export default function ActiveInvoices({
                   </div>
                 </React.Fragment>
               ); // <-- close map function
-            })
-        )}
-      </div>
+            })}
+        </div>
+      ) : (
+        // List View
+        <div className="table-responsive">
+          <table className="table table-hover">
+            <thead className="table-dark">
+              <tr>
+                <th>Client</th>
+                <th>Invoice #</th>
+                <th>Date</th>
+                <th>Carts</th>
+                <th>Total Items</th>
+                <th>Status</th>
+                <th>Delivery</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedInvoices
+                .filter((inv) => inv.status !== "done")
+                .map((invoice) => {
+                  const client = clients.find((c) => c.id === invoice.clientId);
+                  const isVerified = invoice.verified;
+                  const isPartiallyVerified = invoice.partiallyVerified || partialVerifiedInvoices[invoice.id];
+                  const isReady = invoice.status === "ready" || readyInvoices[invoice.id];
+                  
+                  // Calculate total items across all carts
+                  const totalItems = (invoice.carts || []).reduce((total, cart) => 
+                    total + cart.items.reduce((cartTotal, item) => cartTotal + item.quantity, 0), 0
+                  );
+
+                  // Get row background color based on status
+                  let rowClass = "";
+                  if (isVerified) {
+                    rowClass = invoice.deliveryMethod === "client_pickup" ? "table-warning" : "table-success";
+                  } else if (isPartiallyVerified || invoice.status === "completed") {
+                    rowClass = "table-warning";
+                  } else if (isReady) {
+                    rowClass = "table-info";
+                  }
+
+                  return (
+                    <tr 
+                      key={invoice.id} 
+                      className={`${rowClass} ${invoice.locked ? 'text-muted' : ''}`}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => handleInvoiceClick(invoice.id)}
+                    >
+                      <td>
+                        <div className="d-flex align-items-center">
+                          <img
+                            src={getClientAvatarUrl(client || {})}
+                            alt={client?.name || invoice.clientName}
+                            className="rounded-circle me-2"
+                            style={{ width: 32, height: 32, objectFit: 'cover' }}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                          <div>
+                            <div className="fw-bold">{client?.name || invoice.clientName}</div>
+                            {(invoice.carts || []).some((c) =>
+                              c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
+                            ) && (
+                              <small className="text-danger">⚠ Unnamed cart</small>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge bg-primary">
+                          #{invoice.invoiceNumber || invoice.id.substring(0, 8)}
+                        </span>
+                      </td>
+                      <td>
+                        {invoice.date ? formatDateSpanish(invoice.date) : "-"}
+                      </td>
+                      <td>
+                        <span className="badge bg-secondary">
+                          {invoice.carts?.length || 0} cart{(invoice.carts?.length || 0) !== 1 ? 's' : ''}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge bg-info">
+                          {totalItems} item{totalItems !== 1 ? 's' : ''}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="d-flex flex-column gap-1">
+                          {/* Status badge */}
+                          <span className={`badge ${
+                            invoice.status === "done" ? "bg-success" :
+                            isVerified ? "bg-success" :
+                            isPartiallyVerified ? "bg-warning" :
+                            invoice.status === "completed" ? "bg-warning" :
+                            isReady ? "bg-info" : "bg-secondary"
+                          }`}>
+                            {invoice.status === "done" ? "SHIPPED" :
+                             isVerified ? "APPROVED" :
+                             isPartiallyVerified ? "PARTIAL" :
+                             invoice.status === "completed" ? "COMPLETED" :
+                             isReady ? "READY" : "IN PROGRESS"}
+                          </span>
+                          
+                          {/* Verification info */}
+                          {(isVerified || isPartiallyVerified) && invoice.verifiedBy && (
+                            <small className="text-muted">
+                              by {invoice.verifiedBy}
+                            </small>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        {invoice.deliveryDate ? (
+                          <div>
+                            <div className="small">
+                              {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric"
+                              })}
+                            </div>
+                            <div className="small text-muted">
+                              {invoice.deliveryMethod === "client_pickup" ? 
+                                "👤 Pickup" : 
+                                `🚛 Truck #${invoice.truckNumber || "TBD"}`
+                              }
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted">Not scheduled</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="d-flex gap-1" onClick={(e) => e.stopPropagation()}>
+                          {/* Complete/Approve button */}
+                          <button
+                            className={`btn btn-sm ${
+                              invoice.status === "completed" || isVerified ? "btn-success" : "btn-warning"
+                            }`}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (invoice.status !== "completed") {
+                                // Mark as completed
+                                if (hasUnnamedCart(invoice)) {
+                                  alert(
+                                    'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                  );
+                                  return;
+                                }
+
+                                // Toggle completed status
+                                const isCurrentlyCompleted =
+                                  invoice.status === "completed" ||
+                                  invoice.verified ||
+                                  invoice.status === "done";
+
+                                if (isCurrentlyCompleted) {
+                                  // If shipping is done, cannot revert
+                                  if (invoice.status === "done") {
+                                    alert("Cannot uncomplete a shipped laundry ticket.");
+                                    return;
+                                  }
+                                  // If approved, ask for confirmation to revert
+                                  if (invoice.verified) {
+                                    if (
+                                      !window.confirm(
+                                        "This will also remove the approval. Continue?"
+                                      )
+                                    ) {
+                                      return;
+                                    }
+                                    // Remove approval and completion
+                                    await onUpdateInvoice(invoice.id, {
+                                      status: "active",
+                                      verified: false,
+                                      verifiedBy: "",
+                                      verifiedAt: "",
+                                    });
+                                  } else {
+                                    // Just remove completion
+                                    await onUpdateInvoice(invoice.id, {
+                                      status: "active",
+                                    });
+                                  }
+                                } else {
+                                  // Mark as completed
+                                  await onUpdateInvoice(invoice.id, {
+                                    status: "completed",
+                                  });
+                                }
+
+                                if (user?.username) {
+                                  await logActivity({
+                                    type: "Invoice",
+                                    message: `User ${user.username} ${
+                                      isCurrentlyCompleted ? "uncompleted" : "completed"
+                                    } laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+                                    user: user.username,
+                                  });
+                                }
+                              } else if (isVerified) {
+                                // Remove approval
+                                if (hasUnnamedCart(invoice)) {
+                                  alert(
+                                    'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                  );
+                                  return;
+                                }
+                                if (invoice.status !== "completed") {
+                                  alert(
+                                    "Laundry Ticket must be completed before it can be approved."
+                                  );
+                                  return;
+                                }
+
+                                // Toggle approval status
+                                if (invoice.verified) {
+                                  // If shipped, cannot revert approval
+                                  if ((invoice as any).status === "done") {
+                                    alert("Cannot unapprove a shipped laundry ticket.");
+                                    return;
+                                  }
+                                  // Remove approval
+                                  await onUpdateInvoice(invoice.id, {
+                                    verified: false,
+                                    verifiedBy: "",
+                                    verifiedAt: "",
+                                  });
+                                  if (user?.username) {
+                                    await logActivity({
+                                      type: "Invoice",
+                                      message: `User ${user.username} removed approval from laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+                                      user: user.username,
+                                    });
+                                  }
+                                } else {
+                                  // Open verification modal to approve the invoice
+                                  handleVerifyInvoice(invoice.id);
+                                }
+                              } else {
+                                // Approve
+                                handleVerifyInvoice(invoice.id);
+                              }
+                            }}
+                            disabled={hasUnnamedCart(invoice)}
+                            title={
+                              hasUnnamedCart(invoice) ? 'Cannot modify with "CARRO SIN NOMBRE" cart' :
+                              invoice.status !== "completed" ? "Mark as completed" :
+                              isVerified ? "Remove approval" : "Approve"
+                            }
+                          >
+                            <i className={`bi ${
+                              invoice.status === "completed" || isVerified ? "bi-check-circle" : "bi-hourglass"
+                            }`}></i>
+                          </button>
+
+                          {/* Ship button */}
+                          {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
+                            <button
+                              className={`btn btn-sm ${
+                                invoice.status === "done" ? "btn-success" : "btn-outline-primary"
+                              }`}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (invoice.status === "done") {
+                                  // Unship
+                                  const confirmUnship = window.confirm(
+                                    "Are you sure you want to unship this invoice?"
+                                  );
+                                  if (confirmUnship) {
+                                    if (hasUnnamedCart(invoice)) {
+                                      alert(
+                                        'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                      );
+                                      return;
+                                    }
+                                    if (!invoice.verified) {
+                                      alert(
+                                        "Laundry Ticket must be approved before it can be shipped."
+                                      );
+                                      return;
+                                    }
+
+                                    // Unship the invoice
+                                    await onUpdateInvoice(invoice.id, {
+                                      status: "completed",
+                                      truckNumber: "",
+                                      deliveryDate: "",
+                                    });
+                                    if (user?.username) {
+                                      await logActivity({
+                                        type: "Invoice",
+                                        message: `User ${user.username} unshipped laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+                                        user: user.username,
+                                      });
+                                    }
+                                  }
+                                } else {
+                                  // Ship
+                                  if (!invoice.verified) {
+                                    alert("Invoice must be approved before shipping.");
+                                    return;
+                                  }
+                                  if (hasUnnamedCart(invoice)) {
+                                    alert(
+                                      'Cannot ship laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                    );
+                                    return;
+                                  }
+                                  // Ship the invoice - show modal for truck number and delivery date
+                                  setShowShippedModal(invoice.id);
+                                  // Pre-fill with existing values if they exist
+                                  setShippedTruckNumber(invoice.truckNumber?.toString() || "");
+                                  const existingDeliveryDate = invoice.deliveryDate 
+                                    ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
+                                    : "";
+                                  setShippedDeliveryDate(existingDeliveryDate);
+                                }
+                              }}
+                              disabled={
+                                invoice.status !== "done" && (!invoice.verified || hasUnnamedCart(invoice))
+                              }
+                              title={
+                                invoice.status === "done" ? "Click to unship" :
+                                !invoice.verified ? "Must be approved first" :
+                                hasUnnamedCart(invoice) ? 'Cannot ship with "CARRO SIN NOMBRE" cart' :
+                                "Mark as shipped"
+                              }
+                            >
+                              <i className="bi bi-truck"></i>
+                            </button>
+                          )}
+
+                          {/* Delete button */}
+                          {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClick(invoice);
+                              }}
+                              disabled={!!invoice.locked}
+                              title="Delete invoice"
+                            >
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Invoice Form */}
       {showInvoiceForm && (

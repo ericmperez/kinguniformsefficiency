@@ -1636,9 +1636,11 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                             borderRadius: "8px",
                             padding: "15px",
                             background: "#fff",
-                            height: "calc(100% - 40px)",
+                            width: "6.46in",
+                            height: "4.25in",
+                            margin: "0 auto",
                             overflowY: "auto",
-                            // Aspect ratio to match 6.46 x 4.25 (approximately 1.52:1)
+                            // Exact dimensions to match print output: 6.46" x 4.25" (1.52:1 ratio)
                             minHeight: "400px",
                           }}
                         >

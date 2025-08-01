@@ -1,13 +1,6 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "./App.css";
-import { ProductForm } from "./components/ProductForm";
-import { ClientForm } from "./components/ClientForm";
-import ActiveInvoices from "./components/ActiveInvoices";
-import PickupWashing from "./components/PickupWashing";
-import Washing from "./components/Washing";
-import Segregation from "./components/Segregation";
-import DriverNotificationSettings from "./components/DriverNotificationSettings";
 import {
   getClients,
   getProducts,
@@ -38,9 +31,6 @@ import { Client, Product } from "./types";
 import { Cart, CartItem } from "./types";
 import { useAuth } from "./components/AuthContext";
 import LocalLoginForm from "./components/LocalLoginForm";
-import UserManagement from "./components/UserManagement";
-import DriverManagement from "./components/DriverManagement";
-import PrintingSettings from "./components/PrintingSettings";
 import { useState, useEffect } from "react";
 import type { UserRecord } from "./services/firebaseService";
 import {
@@ -52,10 +42,29 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { useAppState, useBusinessLogic } from './hooks';
 import Report from "./components/Report";
-import ReportsPage from "./components/ReportsPage";
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { canUserSeeComponent, AppComponentKey } from "./permissions";
+
+// Lazy load large components for better performance
+const ProductForm = lazy(() => import("./components/ProductForm").then(module => ({ default: module.ProductForm })));
+const ClientForm = lazy(() => import("./components/ClientForm").then(module => ({ default: module.ClientForm })));
+const ActiveInvoices = lazy(() => import("./components/ActiveInvoices"));
+const PickupWashing = lazy(() => import("./components/PickupWashing"));
+const Washing = lazy(() => import("./components/Washing"));
+const Segregation = lazy(() => import("./components/Segregation"));
+const DriverNotificationSettings = lazy(() => import("./components/DriverNotificationSettings"));
+const BillingPage = lazy(() => import("./components/BillingPage"));
+const ShippingPage = lazy(() => import("./components/ShippingPage"));
+const UserManagement = lazy(() => import("./components/UserManagement"));
+const DriverManagement = lazy(() => import("./components/DriverManagement"));
+const PrintingSettings = lazy(() => import("./components/PrintingSettings"));
+const ReportsPage = lazy(() => import("./components/ReportsPage"));
+const AnalyticsPage = lazy(() => import("./components/AnalyticsPage"));
+const GlobalActivityLog = lazy(() => import("./components/GlobalActivityLog"));
+const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivityDashboard"));
+const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
@@ -85,16 +94,11 @@ import CalculateIcon from "@mui/icons-material/Calculate";
 import kingUniformsLogo from "./assets/King Uniforms Logo.jpeg";
 import SignInSide from "./components/SignInSide";
 import RutasPorCamion from "./components/RutasPorCamion";
-import GlobalActivityLog from "./components/GlobalActivityLog";
-import RealTimeActivityDashboard from "./components/RealTimeActivityDashboard";
-import BillingPage from "./components/BillingPage";
 import SendInvoicePage from "./components/SendInvoicePage";
-import AnalyticsPage from "./components/AnalyticsPage";
-import ShippingPage from "./components/ShippingPage";
-import SuggestionsPanel from "./components/SuggestionsPanel";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 // Import task scheduler to start automated notifications
 import "./services/taskScheduler";
+import { LoadingSpinner, TableSkeleton, FormSkeleton } from './components/LoadingStates';
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -162,59 +166,55 @@ function updateClientInInvoices(
       ? { ...invoice, clientName: client.name }
       : invoice
   );
-}
+  }
 
 function App() {
   const { user, logout } = useAuth();
-  const [activePage, setActivePage] = useState<
-    | "home"
-    | "entradas"
-    | "washing"
-    | "segregation"
-    | "settings"
-    | "reports"
-    | "analytics"
-    | "billing"
-    | "activityLog"
-    | "realTimeActivity"
-    | "shipping"
-  >("home");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [users, setUsers] = useState<UserRecord[]>([]);
-  const [drivers, setDrivers] = useState<{ id: string; name: string }[]>([]);
-  const [showClientForm, setShowClientForm] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
-    null
-  );
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [todayTotalLbs, setTodayTotalLbs] = useState<number>(0);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [showSuggestionsPanel, setShowSuggestionsPanel] = useState(false);
-  const [announcements, setAnnouncements] = useState<string>(
-    localStorage.getItem("loginAnnouncements") || ""
-  );
-  const [announcementImage, setAnnouncementImage] = useState<string | null>(
-    localStorage.getItem("loginAnnouncementImage") || null
-  );
-  const [activeSettingsTab, setActiveSettingsTab] = useState<
-    | "clients"
-    | "products"
-    | "users"
-    | "drivers"
-    | "loginContent"
-    | "rutas"
-    | "printing"
-    | "notifications"
-  >("clients");
+  
+  // Use the new state management hook
+  const appState = useAppState();
+  const businessLogic = useBusinessLogic();
+  
+  // Extract state and actions for easier access
+  const {
+    products,
+    clients,
+    invoices,
+    users,
+    drivers,
+    activePage,
+    showClientForm,
+    showWelcome,
+    selectedInvoiceId,
+    menuOpen,
+    todayTotalLbs,
+    drawerOpen,
+    showSuggestionsPanel,
+    announcements,
+    announcementImage,
+    activeSettingsTab,
+    processMenuOpen,
+    processMenuAnchorEl,
+    setProducts,
+    setClients,
+    setInvoices,
+    setUsers,
+    setDrivers,
+    setActivePage,
+    setShowClientForm,
+    setShowWelcome,
+    setSelectedInvoiceId,
+    setMenuOpen,
+    setTodayTotalLbs,
+    setDrawerOpen,
+    setShowSuggestionsPanel,
+    setAnnouncements,
+    setAnnouncementImage,
+    setActiveSettingsTab,
+    setProcessMenuOpen,
+    setProcessMenuAnchorEl,
+  } = appState;
 
-  // State for which process menu is open (string or null)
-  const [processMenuOpen, setProcessMenuOpen] = useState<string | null>(null);
-  // Add state for anchor element
-  const [processMenuAnchorEl, setProcessMenuAnchorEl] =
-    useState<null | HTMLElement>(null);
   const processMenuOpenState = Boolean(processMenuAnchorEl);
 
   // Helper: check if current user can see a component (per-user or fallback to role)
@@ -397,22 +397,19 @@ function App() {
       };
 
       await updateClient(clientId, clientToUpdate);
-      setClients((prevClients) =>
-        prevClients.map((client) =>
-          client.id === clientId ? { ...client, ...clientToUpdate } : client
-        )
+      const updatedClients = clients.map((client: Client) =>
+        client.id === clientId ? { ...client, ...clientToUpdate } : client
       );
+      setClients(updatedClients);
       // Update client info in all invoices
-      setInvoices((prev) => {
-        const prevClient = clients.find((c) => c.id === clientId);
-        if (prevClient) {
-          return updateClientInInvoices(
-            { ...prevClient, ...clientToUpdate, id: clientId },
-            prev
-          );
-        }
-        return prev;
-      });
+      const prevClient = clients.find((c) => c.id === clientId);
+      if (prevClient) {
+        const updatedInvoices = updateClientInInvoices(
+          { ...prevClient, ...clientToUpdate, id: clientId },
+          invoices
+        );
+        setInvoices(updatedInvoices);
+      }
     } catch (error) {
       console.error("Error updating client:", error);
     }
@@ -421,8 +418,10 @@ function App() {
   const handleDeleteClient = async (clientId: string) => {
     try {
       await deleteClient(clientId);
-      setClients(clients.filter((client) => client.id !== clientId));
-      setInvoices((prev) => removeClientFromInvoices(clientId, prev));
+      const updatedClients = clients.filter((client) => client.id !== clientId);
+      setClients(updatedClients);
+      const updatedInvoices = removeClientFromInvoices(clientId, invoices);
+      setInvoices(updatedInvoices);
     } catch (error) {
       console.error("Error deleting client:", error);
     }
@@ -1019,49 +1018,14 @@ function App() {
               }}
               onClick={() => setActivePage("home")}
             >
-              <Avatar
-                src={"/images/King-Uniforms-Icon.png"}
-                alt="King Uniforms"
-                sx={{
-                  width: { xs: 28, md: 36 },
-                  height: { xs: 28, md: 36 },
-                  bgcolor: "#fff", // changed from var(--ku-yellow) to white
-                  border: "2px solid #fff",
-                }}
+              <img
+                src="/kulogo.png"
+                alt="KU Logo"
+                style={{ height: 32, width: "auto" }}
               />
             </IconButton>
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 800,
-                letterSpacing: 1,
-                color: "#111", // Make King Uniforms black
-                fontSize: { xs: 13, md: 18 },
-                textShadow: "0 2px 8px rgba(0,0,0,0.10)",
-                textTransform: "uppercase",
-                ml: 0.5,
-                display: { xs: "none", sm: "block" },
-                whiteSpace: "nowrap",
-              }}
-            >
-              King Uniforms
-            </Typography>
-          </Box>
-          {/* Navigation bar rendering: add Process dropdown as submenu */}
-          <Box
-            sx={{
-              display: { xs: "none", md: "flex" },
-              gap: 1,
-              alignItems: "center",
-              flex: 1,
-              justifyContent: "center",
-              overflowX: "auto",
-              whiteSpace: "nowrap",
-            }}
-          >
             {navLinks
-              .filter((l: any) => {
-                // For drivers, only show shipping link
+              .filter((l) => {
                 if (user && user.role === "Driver") {
                   return l.page === "shipping" && l.visible;
                 }
@@ -1350,26 +1314,44 @@ function App() {
       </Drawer>
       {/* Main content: only render components if user has permission */}
       {activePage === "home" && (
-        <ActiveInvoices
-          clients={clients}
-          products={products}
-          invoices={invoices}
-          onAddInvoice={handleAddInvoice}
-          onDeleteInvoice={handleDeleteInvoice}
-          onUpdateInvoice={handleUpdateInvoice}
-          selectedInvoiceId={selectedInvoiceId}
-          setSelectedInvoiceId={setSelectedInvoiceId}
-        />
+        <Suspense fallback={<LoadingSpinner />}>
+          <ActiveInvoices
+            clients={clients}
+            products={products}
+            invoices={invoices}
+            onAddInvoice={handleAddInvoice}
+            onDeleteInvoice={handleDeleteInvoice}
+            onUpdateInvoice={handleUpdateInvoice}
+            selectedInvoiceId={selectedInvoiceId}
+            setSelectedInvoiceId={setSelectedInvoiceId}
+          />
+        </Suspense>
       )}
       {activePage === "entradas" && canSee("PickupWashing") && (
-        <PickupWashing clients={clients} drivers={drivers} />
+        <Suspense fallback={<LoadingSpinner />}>
+          <PickupWashing clients={clients} drivers={drivers} />
+        </Suspense>
       )}
       {activePage === "washing" && canSee("Washing") && (
-        <Washing setSelectedInvoiceId={setSelectedInvoiceId} />
+        <Suspense fallback={<LoadingSpinner />}>
+          <Washing setSelectedInvoiceId={setSelectedInvoiceId} />
+        </Suspense>
       )}
-      {activePage === "segregation" && canSee("Segregation") && <Segregation />}
-      {activePage === "reports" && <ReportsPage />}
-      {activePage === "analytics" && <AnalyticsPage />}
+      {activePage === "segregation" && canSee("Segregation") && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <Segregation />
+        </Suspense>
+      )}
+      {activePage === "reports" && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <ReportsPage />
+        </Suspense>
+      )}
+      {activePage === "analytics" && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <AnalyticsPage />
+        </Suspense>
+      )}
       {activePage === "settings" && canManageUsers && (
         <>
           {/* Settings Nav Bar - always visible below main navbar */}
@@ -1620,33 +1602,41 @@ function App() {
           <div className="row">
             {activeSettingsTab === "clients" && canManageClients && (
               <div className="col-md-12">
-                <ClientForm
-                  clients={clients}
-                  products={products}
-                  onAddClient={handleAddClient}
-                  onUpdateClient={handleUpdateClient}
-                  onDeleteClient={handleDeleteClient}
-                />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <ClientForm
+                    clients={clients}
+                    products={products}
+                    onAddClient={handleAddClient}
+                    onUpdateClient={handleUpdateClient}
+                    onDeleteClient={handleDeleteClient}
+                  />
+                </Suspense>
               </div>
             )}
             {activeSettingsTab === "products" && canManageProducts && (
               <div className="col-md-12">
-                <ProductForm
-                  products={products}
-                  onAddProduct={handleAddProduct}
-                  onUpdateProduct={handleUpdateProduct}
-                  onDeleteProduct={handleDeleteProduct}
-                />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <ProductForm
+                    products={products}
+                    onAddProduct={handleAddProduct}
+                    onUpdateProduct={handleUpdateProduct}
+                    onDeleteProduct={handleDeleteProduct}
+                  />
+                </Suspense>
               </div>
             )}
             {activeSettingsTab === "drivers" && (
               <div className="col-md-12">
-                <DriverManagement drivers={drivers} />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <DriverManagement drivers={drivers} />
+                </Suspense>
               </div>
             )}
             {activeSettingsTab === "users" && canManageUsers && (
               <div className="col-md-12">
-                <UserManagement />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <UserManagement />
+                </Suspense>
               </div>
             )}
             {activeSettingsTab === "loginContent" && (
@@ -1704,7 +1694,9 @@ function App() {
             )}
             {activeSettingsTab === "printing" && (
               <div className="col-md-12">
-                <PrintingSettings />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <PrintingSettings />
+                </Suspense>
               </div>
             )}
             {activeSettingsTab === "rutas" && (
@@ -1715,7 +1707,9 @@ function App() {
             )}
             {activeSettingsTab === "notifications" && (
               <div className="col-md-12">
-                <DriverNotificationSettings />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <DriverNotificationSettings />
+                </Suspense>
               </div>
             )}
           </div>
@@ -1797,12 +1791,18 @@ function App() {
           {/* Add settings content here */}
         </div>
       )}
-      {activePage === "billing" && canSee("BillingPage") && <BillingPage />}
+      {activePage === "billing" && canSee("BillingPage") && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <BillingPage />
+        </Suspense>
+      )}
       {activePage === "activityLog" && canSee("GlobalActivityLog") && (
         <div className="container py-5">
           <div className="row justify-content-center">
             <div className="col-12 col-md-10 col-lg-8">
-              <GlobalActivityLog />
+              <Suspense fallback={<LoadingSpinner />}>
+                <GlobalActivityLog />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -1811,7 +1811,9 @@ function App() {
         <div className="container py-5">
           <div className="row justify-content-center">
             <div className="col-12">
-              <RealTimeActivityDashboard />
+              <Suspense fallback={<LoadingSpinner />}>
+                <RealTimeActivityDashboard />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -1820,7 +1822,9 @@ function App() {
         <div className="container py-5">
           <div className="row justify-content-center">
             <div className="col-12">
-              <ShippingPage />
+              <Suspense fallback={<LoadingSpinner />}>
+                <ShippingPage />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -1859,10 +1863,12 @@ function App() {
       )}
       {/* Suggestions Panel (for supervisors and up, and Eric 1991) */}
       {canSeeSuggestionsFloating && (
-        <SuggestionsPanel
-          isVisible={showSuggestionsPanel}
-          onClose={() => setShowSuggestionsPanel(false)}
-        />
+        <Suspense fallback={null}>
+          <SuggestionsPanel
+            isVisible={showSuggestionsPanel}
+            onClose={() => setShowSuggestionsPanel(false)}
+          />
+        </Suspense>
       )}
     </Router>
   );

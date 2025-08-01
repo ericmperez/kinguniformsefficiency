@@ -81,11 +81,16 @@ const ShippingPage: React.FC = () => {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
     null
   );
+  // Track which client is selected to show action buttons
+  const [selectedClientInvoiceId, setSelectedClientInvoiceId] = useState<string | null>(
+    null
+  );
   const [signatureInvoice, setSignatureInvoice] = useState<{
     id: string;
     number?: string;
     clientName: string;
     clientId: string;
+    fullInvoiceData?: any; // Add full invoice data for cart count display
   } | null>(null);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [truckAssignments, setTruckAssignments] = useState<{[key: string]: TruckAssignment}>({});
@@ -142,8 +147,54 @@ const ShippingPage: React.FC = () => {
     setSelectedInvoiceId(invoiceId);
   };
 
+  // Function to handle clearing a signature
+  const handleClearSignature = async (invoice: ShippingInvoice) => {
+    if (!user) return;
+
+    // Check if there is actually a signature to clear
+    if (!invoice.hasSignature) {
+      alert("This invoice does not have a signature to clear.");
+      return;
+    }
+
+    // Confirm the action
+    const confirmClear = window.confirm(
+      `Are you sure you want to clear the signature for ${invoice.clientName}?\n\nThis will:\n• Remove the signature data\n• Reset the invoice to unsigned status\n• Clear the receiver information`
+    );
+
+    if (!confirmClear) return;
+
+    try {
+      // Update the invoice document to remove signature
+      const { updateDoc, doc } = await import("firebase/firestore");
+      
+      await updateDoc(doc(db, "invoices", invoice.id), {
+        signature: null,
+        receivedBy: null,
+      });
+
+      // Log the activity
+      if (user.username) {
+        const { logActivity } = await import("../services/firebaseService");
+        await logActivity({
+          type: "Invoice",
+          message: `User ${user.username} cleared signature for laundry ticket #${invoice.invoiceNumber || invoice.id} (${invoice.clientName})`,
+          user: user.username,
+        });
+      }
+
+      // Refresh the shipping data to reflect the changes
+      await fetchShippingData();
+
+      alert(`Signature cleared for ${invoice.clientName}. The invoice is now marked as unsigned.`);
+    } catch (error) {
+      console.error("Error clearing signature:", error);
+      alert("Error clearing signature. Please try again.");
+    }
+  };
+
   // Function to handle capturing a signature
-  const handleSignatureCapture = (invoice: ShippingInvoice) => {
+  const handleSignatureCapture = async (invoice: ShippingInvoice) => {
     // Check if truck loading verification has been completed
     const loadingVerification = truckLoadingVerifications[invoice.truckNumber];
     if (!loadingVerification || !loadingVerification.isVerified) {
@@ -151,12 +202,28 @@ const ShippingPage: React.FC = () => {
       return;
     }
 
-    setSignatureInvoice({
-      id: invoice.id,
-      number: invoice.invoiceNumber,
-      clientName: invoice.clientName,
-      clientId: invoice.clientId, // Add clientId for signature email
-    });
+    try {
+      // Fetch full invoice data to get cart information
+      const fullInvoiceData = await getDoc(doc(db, "invoices", invoice.id));
+      const invoiceData = fullInvoiceData.exists() ? fullInvoiceData.data() : null;
+
+      setSignatureInvoice({
+        id: invoice.id,
+        number: invoice.invoiceNumber,
+        clientName: invoice.clientName,
+        clientId: invoice.clientId,
+        fullInvoiceData: invoiceData, // Include full invoice data with carts
+      });
+    } catch (error) {
+      console.error("Error fetching invoice data for signature:", error);
+      // Fallback to basic signature without cart data
+      setSignatureInvoice({
+        id: invoice.id,
+        number: invoice.invoiceNumber,
+        clientName: invoice.clientName,
+        clientId: invoice.clientId,
+      });
+    }
   };
 
   // Function to fetch drivers from Firebase
@@ -1118,6 +1185,9 @@ const ShippingPage: React.FC = () => {
   // Fetch truck assignments when date changes
   useEffect(() => {
     if (selectedDate) {
+      // Clear selected client when date changes for clean state
+      setSelectedClientInvoiceId(null);
+      
       fetchTruckAssignments();
       fetchTruckCompletions();
       fetchTruckLoadingVerifications();
@@ -1605,119 +1675,135 @@ const ShippingPage: React.FC = () => {
                         </div>
 
                         <h6 className="border-bottom pb-2 mb-3">
-                          Client Details
+                          Client List
+                          <small className="text-muted d-block mt-1" style={{ fontSize: "12px", fontWeight: "normal" }}>
+                            Click on a client to show action buttons
+                          </small>
                         </h6>
                         <div className="client-list">
                           {truck.invoices.map((invoice) => {
                             // Determine if this is a scheduled (non-shipped) invoice
                             const isScheduled = scheduledInvoices.some(si => si.id === invoice.id);
+                            const isSelected = selectedClientInvoiceId === invoice.id;
                             
                             return (
                               <div 
                                 key={invoice.id} 
-                                className={`client-item border rounded p-3 mb-2 ${isScheduled ? 'border-warning bg-warning-subtle' : 'border-light'}`}
+                                className={`d-flex align-items-center justify-content-between p-3 mb-2 border rounded ${
+                                  isSelected 
+                                    ? 'border-primary bg-primary-subtle' 
+                                    : isScheduled 
+                                      ? 'border-warning bg-warning-subtle' 
+                                      : 'border-light bg-light'
+                                }`}
                                 style={{ 
+                                  minHeight: "60px",
                                   cursor: "pointer",
-                                  transition: "all 0.2s ease",
+                                  transition: "all 0.2s ease"
                                 }}
-                                onClick={() => handleInvoiceClick(invoice.id)}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.transform = "translateY(-1px)";
-                                  e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.1)";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.transform = "translateY(0)";
-                                  e.currentTarget.style.boxShadow = "none";
+                                onClick={() => {
+                                  // Toggle selection - if clicking the same client, deselect, otherwise select the new one
+                                  setSelectedClientInvoiceId(selectedClientInvoiceId === invoice.id ? null : invoice.id);
                                 }}
                               >
-                                <div className="d-flex justify-content-between align-items-start">
-                                  <div className="flex-grow-1">
-                                    <div className="d-flex align-items-center mb-1">
-                                      <span className="fw-bold text-primary me-2">
-                                        {invoice.clientName}
+                                {/* Client info with cart count */}
+                                <div className="d-flex align-items-center gap-3">
+                                  <div>
+                                    <div className="fw-bold text-primary" style={{ fontSize: "16px" }}>
+                                      {invoice.clientName}
+                                      {isSelected && (
+                                        <i className="bi bi-chevron-right ms-2 text-primary"></i>
+                                      )}
+                                    </div>
+                                    <div className="d-flex align-items-center gap-2">
+                                      <span className="badge bg-info" style={{ fontSize: "12px" }}>
+                                        {invoice.cartCount} {invoice.cartCount === 1 ? "cart" : "carts"}
                                       </span>
-                                      
                                       {invoice.hasSignature && (
-                                        <span
-                                          className="badge bg-success"
-                                          title={`Received by ${invoice.receivedBy}`}
-                                        >
-                                          <i className="bi bi-check-circle-fill"></i>{" "}
+                                        <span className="badge bg-success" style={{ fontSize: "11px" }}>
+                                          <i className="bi bi-check-circle-fill me-1"></i>
                                           Signed
                                         </span>
                                       )}
                                     </div>
-                                    
-                                    <div className="d-flex align-items-center gap-2 mb-2">
-                                      <small className="text-muted">
-                                        Invoice #{invoice.invoiceNumber || invoice.id.substring(0, 8)}
-                                      </small>
-                                      <span className="badge rounded-pill bg-info">
-                                        {invoice.cartCount} {invoice.cartCount === 1 ? "cart" : "carts"}
-                                      </span>
-                                    </div>
-                                    
-                                    <div className="d-flex gap-2">
-                                      <button
-                                        className="btn btn-sm btn-outline-primary"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleInvoiceClick(invoice.id);
-                                        }}
-                                        title="View laundry ticket details"
-                                      >
-                                        <i className="bi bi-file-text"></i> Details
-                                      </button>
-                                      <button
-                                        className={`btn btn-sm ${
-                                          !truckLoadingVerifications[invoice.truckNumber]?.isVerified
-                                            ? "btn-secondary"
-                                            : invoice.hasSignature
-                                            ? "btn-success"
-                                            : "btn-outline-success"
-                                        }`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleSignatureCapture(invoice);
-                                        }}
-                                        disabled={!truckLoadingVerifications[invoice.truckNumber]?.isVerified}
-                                        title={
-                                          !truckLoadingVerifications[invoice.truckNumber]?.isVerified
-                                            ? "Loading verification required before signatures"
-                                            : invoice.hasSignature
-                                            ? "Update signature"
-                                            : "Capture signature"
-                                        }
-                                      >
-                                        <i
-                                          className={`bi ${
-                                            !truckLoadingVerifications[invoice.truckNumber]?.isVerified
-                                              ? "bi-lock"
-                                              : invoice.hasSignature
-                                              ? "bi-pencil-square"
-                                              : "bi-pen"
-                                          }`}
-                                        ></i>
-                                        {!truckLoadingVerifications[invoice.truckNumber]?.isVerified
-                                          ? "Locked"
-                                          : invoice.hasSignature ? "Update" : "Sign"}
-                                      </button>
-                                      {/* Revert to Approved button - Only for supervisors and above */}
-                                      {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
-                                        <button
-                                          className="btn btn-sm btn-outline-warning"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleRevertInvoiceToApproved(invoice);
-                                          }}
-                                          title="Revert to approved status (Supervisor only)"
-                                        >
-                                          <i className="bi bi-arrow-left-circle"></i> Revert
-                                        </button>
-                                      )}
-                                    </div>
                                   </div>
                                 </div>
+                                
+                                {/* Action buttons - only show when this client is selected */}
+                                {isSelected && (
+                                  <div className="d-flex gap-2">
+                                    <button
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleInvoiceClick(invoice.id);
+                                      }}
+                                      title="View laundry ticket details"
+                                    >
+                                      <i className="bi bi-file-text"></i> Details
+                                    </button>
+                                    <button
+                                      className={`btn btn-sm ${
+                                        !truckLoadingVerifications[invoice.truckNumber]?.isVerified
+                                          ? "btn-secondary"
+                                          : invoice.hasSignature
+                                          ? "btn-success"
+                                          : "btn-outline-success"
+                                      }`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSignatureCapture(invoice);
+                                      }}
+                                      disabled={!truckLoadingVerifications[invoice.truckNumber]?.isVerified}
+                                      title={
+                                        !truckLoadingVerifications[invoice.truckNumber]?.isVerified
+                                          ? "Loading verification required before signatures"
+                                          : invoice.hasSignature
+                                          ? "Update signature"
+                                          : "Capture signature"
+                                      }
+                                    >
+                                      <i
+                                        className={`bi ${
+                                          !truckLoadingVerifications[invoice.truckNumber]?.isVerified
+                                            ? "bi-lock"
+                                            : invoice.hasSignature
+                                            ? "bi-pencil-square"
+                                            : "bi-pen"
+                                        }`}
+                                      ></i>
+                                      {!truckLoadingVerifications[invoice.truckNumber]?.isVerified
+                                        ? "Locked"
+                                        : invoice.hasSignature ? "Update" : "Sign"}
+                                    </button>
+                                    {/* Clear Signature button - Only show when signature exists */}
+                                    {invoice.hasSignature && (
+                                      <button
+                                        className="btn btn-sm btn-outline-danger"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleClearSignature(invoice);
+                                        }}
+                                        title="Clear signature and reset to unsigned status"
+                                      >
+                                        <i className="bi bi-x-circle"></i> Clear Signature
+                                      </button>
+                                    )}
+                                    {/* Revert to Approved button - Only for supervisors and above */}
+                                    {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
+                                      <button
+                                        className="btn btn-sm btn-outline-warning"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRevertInvoiceToApproved(invoice);
+                                        }}
+                                        title="Revert to approved status (Supervisor only)"
+                                      >
+                                        <i className="bi bi-arrow-left-circle"></i> Revert
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -2702,7 +2788,7 @@ const ShippingPage: React.FC = () => {
           invoiceNumber={signatureInvoice.number}
           clientName={signatureInvoice.clientName}
           clientId={signatureInvoice.clientId}
-          invoice={undefined} // We don't have the full invoice data here, so signature emails won't be sent
+          invoice={signatureInvoice.fullInvoiceData} // Pass full invoice data for cart display
           onSignatureSaved={fetchShippingData}
         />
       )}
