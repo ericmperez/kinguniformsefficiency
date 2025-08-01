@@ -1,5 +1,5 @@
 import React from "react";
-import { Invoice, Product, Client, Cart, LaundryCart } from "../types";
+import { Invoice, Product, Client, Cart, CartItem, LaundryCart } from "../types";
 import { getUsers, UserRecord, logActivity } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
 import { formatDateSpanish, formatDateOnlySpanish } from "../utils/dateFormatter";
@@ -300,240 +300,310 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       footerText: "",
     };
 
-    // Generate HTML content for all carts using EXACT same format as individual cart print
+    // Generate HTML content for all carts with optimized 2-column layout and fixed page size
     const generateAllCartsContent = () => {
       return localCarts.map((cart, index) => {
         const cartIndex = localInvoice.carts.findIndex(c => c.id === cart.id);
         const cartPosition = cartIndex + 1;
         const totalCarts = localInvoice.carts.length;
 
+        // Split items into two columns only if there are more than 5 items
+        const shouldUseTwoColumns = cart.items.length > 5;
+        const splitItemsIntoColumns = (items: CartItem[]) => {
+          if (!shouldUseTwoColumns) {
+            return { column1: items, column2: [] };
+          }
+          const itemsPerColumn = Math.ceil(items.length / 2);
+          const column1 = items.slice(0, itemsPerColumn);
+          const column2 = items.slice(itemsPerColumn);
+          return { column1, column2 };
+        };
+
+        const { column1, column2 } = splitItemsIntoColumns(cart.items);
+
         return `
           <div style="page-break-after: ${index < localCarts.length - 1 ? 'always' : 'auto'};">
             <div style="
-              max-width: 6.46in;
-              height: auto;
+              width: 8in;
+              height: 5in;
               margin: 0 auto;
               background: #fff;
-              padding: 20px;
+              padding: 15px;
               font-family: Arial, sans-serif;
-              font-size: 14px;
-              min-height: 4.25in;
-              box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-              border: 1px solid #eee;
+              font-size: 12px;
+              position: relative;
+              overflow: hidden;
+              box-sizing: border-box;
             ">
-              <!-- Header with Large Client Name -->
+              <!-- Header Section (Fixed Height: ~0.8in) -->
               <div style="
-                margin-bottom: 20px;
-                border-bottom: 2px solid #333;
-                padding-bottom: 15px;
-                position: relative
+                height: 0.8in;
+                border-bottom: 1px solid #333;
+                padding-bottom: 8px;
+                position: relative;
+                margin-bottom: 12px;
               ">
-                <!-- Cart Position - Top Right Corner -->
+                <!-- Cart Position - Top Right -->
                 <div style="
                   position: absolute;
                   top: 0;
                   right: 0;
-                  font-size: 18px;
+                  font-size: 14px;
                   font-weight: bold;
-                  color: #0E62A0
+                  color: #0E62A0;
                 ">
                   ${cartPosition}/${totalCarts}
                 </div>
 
-                <!-- Cart Name - Top Left Corner -->
+                <!-- Cart Name - Top Left -->
                 <div style="
                   position: absolute;
                   top: 0;
                   left: 0;
-                  font-size: 48px;
+                  font-size: 28px;
                   font-weight: bold;
                   color: #333;
                   text-transform: uppercase;
-                  letter-spacing: 1px;
-                  line-height: 1.2
+                  letter-spacing: 0.5px;
+                  line-height: 1.1;
                 ">
-                  <div>Cart</div>
-                  <div>#${cart.name}</div>
+                  Cart #${cart.name}
                 </div>
 
-                <!-- Large Client Name Centered -->
+                <!-- Client Name & Ticket - Center -->
                 <div style="
                   text-align: center;
-                  margin-bottom: 12px;
-                  min-height: 60px;
-                  display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                  justify-content: center;
-                  padding-left: 120px;
-                  padding-right: 60px
+                  margin-top: 35px;
                 ">
-                  <h1 style="
-                    margin: 0;
-                    font-size: 42px;
+                  <div style="
+                    font-size: 24px;
                     font-weight: bold;
                     color: #0E62A0;
                     text-transform: uppercase;
-                    letter-spacing: 2px;
-                    line-height: 1.1;
-                    text-align: center;
-                    margin-bottom: 8px
+                    letter-spacing: 1px;
+                    margin-bottom: 4px;
                   ">
                     ${localInvoice.clientName}
-                  </h1>
-                  
-                  <!-- Large Ticket Number -->
+                  </div>
                   <div style="
-                    font-size: 28px;
+                    font-size: 14px;
                     font-weight: bold;
                     color: #333;
-                    text-align: center;
-                    letter-spacing: 1px
                   ">
-                    Laundry Ticket #${localInvoice.invoiceNumber || localInvoice.id.substring(0, 8)}
+                    Ticket #${localInvoice.invoiceNumber || localInvoice.id.substring(0, 8)}
                   </div>
                 </div>
               </div>
 
-              <!-- Cart Contents -->
-              <div style="margin-bottom: 20px">
+              <!-- Products Section (Flexible Height: ~2.8in) -->
+              <div style="
+                height: 2.8in;
+                overflow: hidden;
+                margin-bottom: 12px;
+              ">
                 ${cart.items.length === 0 ? `
-                  <p style="font-style: italic; color: #666; font-size: 13px">
+                  <p style="
+                    font-style: italic; 
+                    color: #666; 
+                    font-size: 12px;
+                    text-align: center;
+                    margin-top: 40px;
+                  ">
                     No items in this cart
                   </p>
                 ` : `
-                  <table style="
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 20px;
-                    font-size: 13px
-                  ">
-                    <thead>
-                      <tr style="border-bottom: 2px solid #333">
-                        <th style="
-                          text-align: left;
-                          padding: 8px;
-                          font-size: 13px
-                        ">
-                          Product
-                        </th>
-                        <th style="
-                          text-align: center;
-                          padding: 8px;
-                          font-size: 13px
-                        ">
-                          Qty
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${cart.items.map((item, itemIndex) => `
-                        <tr style="border-bottom: 1px solid #ddd">
-                          <td style="padding: 6px; font-size: 12px">${item.productName}</td>
-                          <td style="
-                            padding: 6px;
-                            text-align: center;
-                            font-size: 12px
-                          ">
-                            ${item.quantity}
-                          </td>
-                        </tr>
-                      `).join('')}
-                    </tbody>
-                  </table>
-                `}
-
-                ${printConfig.showProductSummary && cart.items.length > 0 ? `
-                  <div style="margin-top: 20px">
-                    <h5 style="font-size: 14px; margin-bottom: 10px">
-                      Product Summary
-                    </h5>
-                    <table style="
-                      width: 100%;
-                      border-collapse: collapse;
-                      font-size: 12px
+                  <!-- Dynamic Product Layout: Single column for ≤5 items, Two columns for >5 items -->
+                  ${shouldUseTwoColumns ? `
+                    <div style="
+                      display: flex;
+                      gap: 15px;
+                      height: 100%;
                     ">
-                      <thead>
-                        <tr style="border-bottom: 1px solid #333">
-                          <th style="
-                            text-align: left;
-                            padding: 6px;
-                            font-size: 12px
-                          ">
-                            Product
-                          </th>
-                          <th style="
-                            text-align: center;
-                            padding: 6px;
-                            font-size: 12px
-                          ">
-                            Total Qty
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${(() => {
-                          return products
-                            .filter((prod) =>
-                              cart.items.some((item) => item.productId === prod.id)
-                            )
-                            .map((product) => {
-                              const totalQty = cart.items
-                                .filter((item) => item.productId === product.id)
-                                .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-                              return `
-                                <tr style="border-bottom: 1px solid #eee">
-                                  <td style="padding: 5px; font-size: 11px">${product.name}</td>
-                                  <td style="
-                                    padding: 5px;
-                                    text-align: center;
-                                    font-size: 11px;
-                                    font-weight: bold
-                                  ">
-                                    ${totalQty}
-                                  </td>
-                                </tr>
-                              `;
-                            }).join('');
-                        })()}
-                      </tbody>
-                    </table>
+                      <!-- Column 1 -->
+                      <div style="
+                        flex: 1;
+                        overflow: hidden;
+                      ">
+                        <table style="
+                          width: 100%;
+                          border-collapse: collapse;
+                          font-size: 10px;
+                        ">
+                          <thead>
+                            <tr style="border-bottom: 1px solid #333;">
+                              <th style="
+                                text-align: left;
+                                padding: 4px 2px;
+                                font-size: 10px;
+                                font-weight: bold;
+                              ">Product</th>
+                              <th style="
+                                text-align: center;
+                                padding: 4px 2px;
+                                font-size: 10px;
+                                font-weight: bold;
+                                width: 30px;
+                              ">Qty</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${column1.map((item) => `
+                              <tr style="border-bottom: 1px solid #eee;">
+                                <td style="
+                                  padding: 3px 2px;
+                                  font-size: 9px;
+                                  line-height: 1.2;
+                                  word-break: break-word;
+                                ">${item.productName}</td>
+                                <td style="
+                                  padding: 3px 2px;
+                                  text-align: center;
+                                  font-size: 9px;
+                                  font-weight: bold;
+                                ">${item.quantity}</td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <!-- Column 2 -->
+                      <div style="
+                        flex: 1;
+                        overflow: hidden;
+                      ">
+                        <table style="
+                          width: 100%;
+                          border-collapse: collapse;
+                          font-size: 10px;
+                        ">
+                          <thead>
+                            <tr style="border-bottom: 1px solid #333;">
+                              <th style="
+                                text-align: left;
+                                padding: 4px 2px;
+                                font-size: 10px;
+                                font-weight: bold;
+                              ">Product</th>
+                              <th style="
+                                text-align: center;
+                                padding: 4px 2px;
+                                font-size: 10px;
+                                font-weight: bold;
+                                width: 30px;
+                              ">Qty</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${column2.map((item) => `
+                              <tr style="border-bottom: 1px solid #eee;">
+                                <td style="
+                                  padding: 3px 2px;
+                                  font-size: 9px;
+                                  line-height: 1.2;
+                                  word-break: break-word;
+                                ">${item.productName}</td>
+                                <td style="
+                                  padding: 3px 2px;
+                                  text-align: center;
+                                  font-size: 9px;
+                                  font-weight: bold;
+                                ">${item.quantity}</td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ` : `
+                    <!-- Single Column Layout for 5 or fewer items -->
+                    <div style="
+                      height: 100%;
+                      overflow: hidden;
+                    ">
+                      <table style="
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 11px;
+                      ">
+                        <thead>
+                          <tr style="border-bottom: 1px solid #333;">
+                            <th style="
+                              text-align: left;
+                              padding: 6px 4px;
+                              font-size: 11px;
+                              font-weight: bold;
+                            ">Product</th>
+                            <th style="
+                              text-align: center;
+                              padding: 6px 4px;
+                              font-size: 11px;
+                              font-weight: bold;
+                              width: 60px;
+                            ">Qty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${column1.map((item) => `
+                            <tr style="border-bottom: 1px solid #eee;">
+                              <td style="
+                                padding: 5px 4px;
+                                font-size: 10px;
+                                line-height: 1.3;
+                                word-break: break-word;
+                              ">${item.productName}</td>
+                              <td style="
+                                padding: 5px 4px;
+                                text-align: center;
+                                font-size: 10px;
+                                font-weight: bold;
+                              ">${item.quantity}</td>
+                            </tr>
+                          `).join('')}
+                        </tbody>
+                      </table>
+                    </div>
+                  `}
+                `}
+              </div>
+
+              <!-- Footer Section (Fixed at bottom) -->
+              <div style="
+                position: absolute;
+                bottom: 15px;
+                left: 15px;
+                right: 15px;
+              ">
+                <!-- Custom Footer Text -->
+                ${printConfig.footerText ? `
+                  <div style="
+                    text-align: center;
+                    font-size: 9px;
+                    color: #666;
+                    margin-bottom: 8px;
+                    border-top: 1px solid #ddd;
+                    padding-top: 6px;
+                  ">
+                    ${printConfig.footerText}
+                  </div>
+                ` : ''}
+
+                <!-- Delivery Date - Always at Bottom -->
+                ${localInvoice.deliveryDate ? `
+                  <div style="
+                    text-align: center;
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: #0E62A0;
+                    background-color: #f0f8ff;
+                    padding: 8px;
+                    border: 2px solid #0E62A0;
+                    border-radius: 6px;
+                  ">
+                    DELIVERY DATE: ${formatDateOnlySpanish(localInvoice.deliveryDate)}
                   </div>
                 ` : ''}
               </div>
-
-              <!-- Footer -->
-              ${printConfig.footerText ? `
-                <div style="
-                  text-align: center;
-                  margin-top: 20px;
-                  border-top: 1px solid #ddd;
-                  padding-top: 10px;
-                  font-size: 11px;
-                  color: #666
-                ">
-                  ${printConfig.footerText}
-                </div>
-              ` : ''}
-
-              <!-- Delivery Date - Bottom Section -->
-              ${localInvoice.deliveryDate ? `
-                <div style="
-                  text-align: center;
-                  margin-top: 25px;
-                  border-top: 2px solid #0E62A0;
-                  padding-top: 15px;
-                  font-size: 16px;
-                  font-weight: bold;
-                  color: #0E62A0;
-                  background-color: #f0f8ff;
-                  padding: 15px;
-                  border-radius: 8px;
-                  border: 2px solid #0E62A0
-                ">
-                  DELIVERY DATE: ${formatDateOnlySpanish(localInvoice.deliveryDate)}
-                </div>
-              ` : ''}
             </div>
           </div>
         `;
@@ -554,7 +624,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             <title>Print All Carts - ${localInvoice.clientName}</title>
             <style>
               @media print {
-                @page { size: 4.25in 6.46in landscape; margin: 0.25in; }
+                @page { size: 8.5in 5.5in landscape; margin: 0.25in; }
                 body { margin: 0; }
                 .d-print-none { display: none !important; }
                 * { 
@@ -1634,21 +1704,19 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                         <div
                           id="cart-print-area"
                           style={{
-                            border: "2px solid #ddd",
-                            borderRadius: "8px",
                             padding: "15px",
                             background: "#fff",
-                            width: "6.46in",
-                            height: "4.25in",
+                            width: "8.5in",
+                            height: "5.5in",
                             margin: "0 auto",
                             overflowY: "auto",
-                            // Exact dimensions to match print output: 6.46" x 4.25" (1.52:1 ratio)
+                            // Exact dimensions to match print output: 8.5" x 5.5" (A5 size)
                             minHeight: "400px",
                           }}
                         >
                           <div
                             style={{
-                              maxWidth: "6.46in",
+                              maxWidth: "8.5in",
                               height: "auto",
                               margin: "0 auto",
                               background: "#fff",
@@ -1656,8 +1724,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                               fontFamily: "Arial, sans-serif",
                               fontSize: "14px",
                               minHeight: "4.25in",
-                              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                              border: "1px solid #eee",
                             }}
                           >
                             {/* Header with Large Client Name */}
@@ -1929,7 +1995,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                 <title>Print Cart: ${cart.name}</title>
                                 <style>
                                   @media print {
-                                    @page { size: 6.46in 4.25in; margin: 0.25in; }
+                                    @page { size: 8.5in 5.5in; margin: 0.25in; }
                                     body { margin: 0; }
                                     .d-print-none { display: none !important; }
                                     * { 
