@@ -287,6 +287,12 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       return;
     }
 
+    // Check if delivery date is set
+    if (!localInvoice.deliveryDate) {
+      alert("A delivery date is required before printing all carts. Please set a delivery date first.");
+      return;
+    }
+
     // Get client print configuration with defaults
     const printConfig = client?.printConfig?.cartPrintSettings || {
       enabled: true,
