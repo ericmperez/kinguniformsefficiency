@@ -355,19 +355,19 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   ${cartPosition}/${totalCarts}
                 </div>
 
-                <!-- Cart Name - Top Left -->
+                <!-- Cart Name - Top Left (Stacked Format) -->
                 <div style="
                   position: absolute;
                   top: 0;
                   left: 0;
-                  font-size: 28px;
                   font-weight: bold;
                   color: #333;
                   text-transform: uppercase;
                   letter-spacing: 0.5px;
-                  line-height: 1.1;
+                  line-height: 1.0;
                 ">
-                  Cart #${cart.name}
+                  <div style="font-size: 24px; margin-bottom: 2px;">CART</div>
+                  <div style="font-size: 32px;">${cart.name}</div>
                 </div>
 
                 <!-- Client Name & Ticket - Center -->
@@ -376,7 +376,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   margin-top: 35px;
                 ">
                   <div style="
-                    font-size: 64px;
+                    font-size: 55px;
                     font-weight: bold;
                     color: #0E62A0;
                     text-transform: uppercase;
@@ -1064,7 +1064,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               >
                 <div className="d-flex justify-content-between align-items-center mb-2">
                   <div>
-                    <h3
+                    <div
                       style={{
                         fontWeight: 800,
                         color: cart.name
@@ -1073,10 +1073,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           ? "red"
                           : "#0E62A0",
                         marginBottom: 8,
+                        lineHeight: 1.1,
+                        textAlign: "left",
                       }}
                     >
-                      {cart.name}
-                    </h3>
+                      <div style={{ fontSize: "14px", marginBottom: "2px" }}>CART</div>
+                      <div style={{ fontSize: "24px" }}>{cart.name}</div>
+                    </div>
                   </div>
                   <div className="d-flex gap-2">
                     <button
@@ -1767,8 +1770,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                 letterSpacing: "1px",
                                 lineHeight: "1.2"
                               }}>
-                                <div>Cart</div>
-                                <div>#{cart.name}</div>
+                                <div>CART</div>
+                                <div>{cart.name}</div>
                               </div>
 
                               {/* Large Client Name Centered */}
