@@ -79,6 +79,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     addCallback: () => Promise<void>;
   } | null>(null);
 
+  // Invoice-level quantity toggle state
+  const [showQuantitiesForThisInvoice, setShowQuantitiesForThisInvoice] = React.useState(true);
+
   // Local state for carts to enable instant UI update
   const [localCarts, setLocalCarts] = React.useState(invoice.carts);
   const [users, setUsers] = React.useState<UserRecord[]>([]);
@@ -450,7 +453,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                 clientName.includes('aloft') ||
                                 (clientName.includes('dorado') && clientName.includes('acquarius')) ||
                                 clientName.includes('sheraton');
-    const shouldShowQuantities = printConfig.showQuantities && !shouldHideQuantities;
+    const shouldShowQuantities = printConfig.showQuantities && !shouldHideQuantities && showQuantitiesForThisInvoice;
 
     // Generate HTML content for all carts with optimized 2-column layout and fixed page size
     const generateAllCartsContent = () => {
@@ -1134,6 +1137,16 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     >
                       <i className="bi bi-printer-fill me-1" />
                       Print All Carts ({localCarts.length})
+                    </button>
+                  )}
+                  {localCarts.length > 0 && (
+                    <button
+                      className={`btn me-2 ${showQuantitiesForThisInvoice ? 'btn-outline-primary' : 'btn-outline-secondary'}`}
+                      onClick={() => setShowQuantitiesForThisInvoice(!showQuantitiesForThisInvoice)}
+                      title={`${showQuantitiesForThisInvoice ? 'Hide' : 'Show'} product quantities when printing`}
+                    >
+                      <i className={`bi ${showQuantitiesForThisInvoice ? 'bi-123' : 'bi-eye-slash'} me-1`} />
+                      {showQuantitiesForThisInvoice ? 'Hide Qty' : 'Show Qty'}
                     </button>
                   )}
                   {/* Shipping Readiness Indicator */}
@@ -1916,7 +1929,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                       clientName.includes('aloft') ||
                                       (clientName.includes('dorado') && clientName.includes('acquarius')) ||
                                       clientName.includes('sheraton');
-          const shouldShowQuantities = printConfig.showQuantities && !shouldHideQuantities;
+          const shouldShowQuantities = printConfig.showQuantities && !shouldHideQuantities && showQuantitiesForThisInvoice;
 
           // Generate single cart content using EXACT same logic as Print All Carts
           const generateSingleCartContent = () => {
