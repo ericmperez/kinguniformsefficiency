@@ -19,6 +19,7 @@ interface InvoiceDetailsModalProps {
     price?: number,
     itemIdx?: number
   ) => void;
+  onUpdateInvoice: (invoiceId: string, updates: Partial<Invoice>) => Promise<void>;
   refreshInvoices?: () => Promise<void>;
 }
 
@@ -29,6 +30,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   products,
   onAddCart,
   onAddProductToCart,
+  onUpdateInvoice,
   refreshInvoices,
 }) => {
   // Add debugging for incoming invoice data
@@ -81,6 +83,144 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [localCarts, setLocalCarts] = React.useState(invoice.carts);
   const [users, setUsers] = React.useState<UserRecord[]>([]);
   const { user } = useAuth();
+
+  // Helper function to get current user safely
+  const getCurrentUser = () => {
+    try {
+      if (user?.username) {
+        return user.username;
+      }
+      const storedUser = JSON.parse(localStorage.getItem("auth_user") || "null");
+      return storedUser?.username || storedUser?.id || "Unknown";
+    } catch {
+      return "Unknown";
+    }
+  };
+
+  // Helper function to mark cart as printed
+  const markCartAsPrinted = async (cartId: string) => {
+    const currentUser = getCurrentUser();
+    const now = new Date().toISOString();
+    
+    const updatedCarts = localInvoice.carts.map(cart => {
+      if (cart.id === cartId) {
+        return {
+          ...cart,
+          lastPrintedAt: now,
+          lastPrintedBy: currentUser,
+          needsReprint: false
+        };
+      }
+      return cart;
+    });
+
+    const updatedInvoice = { ...localInvoice, carts: updatedCarts };
+    setLocalInvoice(updatedInvoice);
+
+    // Update in database using proper invoice update
+    try {
+      await onUpdateInvoice(localInvoice.id, { carts: updatedCarts });
+      
+      // Refresh parent data to update indicators instantly
+      if (refreshInvoices) {
+        await refreshInvoices();
+      }
+      
+      // Close print modal
+      setShowCartPrintModal(null);
+      
+      console.log("✅ Cart marked as printed successfully:", { cartId, user: currentUser, timestamp: now });
+    } catch (error) {
+      console.error("Failed to update cart print status:", error);
+      // Revert local state on error
+      setLocalInvoice(localInvoice);
+    }
+  };
+
+  // Helper function to mark cart as modified (needs reprint)
+  const markCartAsModified = async (cartId: string) => {
+    const currentUser = getCurrentUser();
+    const now = new Date().toISOString();
+    
+    const updatedCarts = localInvoice.carts.map(cart => {
+      if (cart.id === cartId) {
+        return {
+          ...cart,
+          lastModifiedAt: now,
+          lastModifiedBy: currentUser,
+          needsReprint: true
+        };
+      }
+      return cart;
+    });
+
+    const updatedInvoice = { ...localInvoice, carts: updatedCarts };
+    setLocalInvoice(updatedInvoice);
+
+    // Update in database using proper invoice update
+    try {
+      await onUpdateInvoice(localInvoice.id, { carts: updatedCarts });
+      console.log("✅ Cart marked as modified successfully:", { cartId, user: currentUser, timestamp: now });
+    } catch (error) {
+      console.error("Failed to update cart modification status:", error);
+      // Revert local state on error
+      setLocalInvoice(localInvoice);
+    }
+  };
+
+  // Helper function to check if all carts are printed and ready for shipping
+  const areAllCartsPrintedAndReady = () => {
+    if (localInvoice.carts.length === 0) return false;
+    
+    return localInvoice.carts.every(cart => {
+      // Cart must be printed at least once
+      if (!cart.lastPrintedAt) return false;
+      
+      // If cart was modified after printing, it needs reprint
+      if (cart.needsReprint) return false;
+      
+      // If cart was modified after last print, it needs reprint
+      if (cart.lastModifiedAt && cart.lastPrintedAt && 
+          new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+        return false;
+      }
+      
+      return true;
+    });
+  };
+
+  // Get visual status for a cart
+  const getCartStatus = (cart: Cart) => {
+    if (!cart.lastPrintedAt) {
+      return { 
+        status: 'not-printed', 
+        text: 'NOT PRINTED', 
+        icon: '🚫', 
+        color: '#dc3545',
+        bgColor: '#fff5f5' 
+      };
+    }
+    
+    if (cart.needsReprint || 
+        (cart.lastModifiedAt && cart.lastPrintedAt && 
+         new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt))) {
+      return { 
+        status: 'needs-reprint', 
+        text: 'NEEDS REPRINT', 
+        icon: '⚠️', 
+        color: '#fd7e14',
+        bgColor: '#fff8f0' 
+      };
+    }
+    
+    return { 
+      status: 'printed', 
+      text: 'PRINTED', 
+      icon: '✅', 
+      color: '#198754',
+      bgColor: '#f0fff4' 
+    };
+  };
 
   // --- Invoice Name Editing ---
   const [editingInvoiceName, setEditingInvoiceName] = React.useState(false);
@@ -275,6 +415,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       };
     });
     setLocalCarts(updatedCarts);
+    
+    // Mark cart as modified when items are deleted
+    await markCartAsModified(cartId);
+    
     // Persist change
     await onAddProductToCart(cartId, productId, 0, undefined, itemIdx);
     if (refreshInvoices) await refreshInvoices();
@@ -300,10 +444,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       footerText: "",
     };
 
-    // Special handling for Costa Bahía: disable quantities display
-    const shouldShowQuantities = printConfig.showQuantities && 
-      !(localInvoice.clientName?.toLowerCase().includes('costa') && 
-        localInvoice.clientName?.toLowerCase().includes('bah'));
+    // Hide product quantities for specific clients: Costa Bahía, Aloft, Dorado Acquarius, and Sheraton
+    const clientName = localInvoice.clientName?.toLowerCase() || '';
+    const shouldHideQuantities = clientName.includes('costa') && clientName.includes('bah') ||
+                                clientName.includes('aloft') ||
+                                (clientName.includes('dorado') && clientName.includes('acquarius')) ||
+                                clientName.includes('sheraton');
+    const shouldShowQuantities = printConfig.showQuantities && !shouldHideQuantities;
 
     // Generate HTML content for all carts with optimized 2-column layout and fixed page size
     const generateAllCartsContent = () => {
@@ -379,18 +526,16 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 <div style="
                   text-align: center;
                   margin-top: 35px;
-                ">
-                  <div style="
-                    font-size: ${localInvoice.clientName?.toLowerCase().includes('costa') && 
-                      localInvoice.clientName?.toLowerCase().includes('bah') ? '45px' : '64px'};
-                    font-weight: bold;
-                    color: #0E62A0;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                    margin-bottom: 4px;
-                  ">
-                    ${localInvoice.clientName}
-                  </div>
+                ">                    <div style="
+                      font-size: ${localInvoice.clientName?.toLowerCase().includes('sheraton') ? '28px' : '45px'};
+                      font-weight: bold;
+                      color: #0E62A0;
+                      text-transform: uppercase;
+                      letter-spacing: 1px;
+                      margin-bottom: 4px;
+                    ">
+                      ${localInvoice.clientName}
+                    </div>
                   <div style="
                     font-size: 14px;
                     font-weight: bold;
@@ -635,7 +780,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       return;
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       printWindow.document.write(`
         <html>
           <head>
@@ -660,7 +805,42 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       printWindow.focus();
       printWindow.print();
       printWindow.close();
+      
+      // Mark all carts as printed after print dialog
+      await markAllCartsAsPrinted();
     }, 100);
+  };
+
+  // Helper function to mark all carts as printed in one operation
+  const markAllCartsAsPrinted = async () => {
+    const currentUser = getCurrentUser();
+    const now = new Date().toISOString();
+    
+    const updatedCarts = localInvoice.carts.map(cart => ({
+      ...cart,
+      lastPrintedAt: now,
+      lastPrintedBy: currentUser,
+      needsReprint: false
+    }));
+
+    const updatedInvoice = { ...localInvoice, carts: updatedCarts };
+    setLocalInvoice(updatedInvoice);
+
+    // Update in database using proper invoice update
+    try {
+      await onUpdateInvoice(localInvoice.id, { carts: updatedCarts });
+      
+      // Refresh parent data to update indicators instantly
+      if (refreshInvoices) {
+        await refreshInvoices();
+      }
+      
+      console.log("✅ All carts marked as printed successfully:", { cartCount: localInvoice.carts.length, user: currentUser, timestamp: now });
+    } catch (error) {
+      console.error("Failed to update cart print status:", error);
+      // Revert local state on error
+      setLocalInvoice(localInvoice);
+    }
   };
 
   // Add logActivity to cart creation (new cart and default cart)
@@ -956,6 +1136,32 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       Print All Carts ({localCarts.length})
                     </button>
                   )}
+                  {/* Shipping Readiness Indicator */}
+                  {localCarts.length > 0 && (
+                    <div className="ms-auto">
+                      {(() => {
+                        const allReady = areAllCartsPrintedAndReady();
+                        const totalCarts = localCarts.length;
+                        const printedCarts = localCarts.filter(c => c.lastPrintedAt && !c.needsReprint && 
+                          (!c.lastModifiedAt || !c.lastPrintedAt || new Date(c.lastModifiedAt) <= new Date(c.lastPrintedAt))).length;
+                        const needsPrintCarts = totalCarts - printedCarts;
+                        
+                        return (
+                          <div className="d-flex align-items-center">
+                            <span 
+                              className={`badge ${allReady ? 'bg-success' : 'bg-warning text-dark'} me-2`}
+                              style={{ fontSize: '12px' }}
+                            >
+                              {allReady ? '✅ Ready to Ship' : `⚠️ ${needsPrintCarts} cart${needsPrintCarts !== 1 ? 's' : ''} need${needsPrintCarts === 1 ? 's' : ''} printing`}
+                            </span>
+                            <small className="text-muted">
+                              {printedCarts}/{totalCarts} printed
+                            </small>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="d-flex gap-2 align-items-center">
@@ -1081,7 +1287,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 }}
               >
                 <div className="d-flex justify-content-between align-items-center mb-2">
-                  <div>
+                  <div className="d-flex align-items-center gap-3">
                     <h3
                       style={{
                         fontWeight: 800,
@@ -1090,11 +1296,30 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           .startsWith("CARRO SIN NOMBRE")
                           ? "red"
                           : "#0E62A0",
-                        marginBottom: 8,
+                        marginBottom: 0,
                       }}
                     >
                       {cart.name}
                     </h3>
+                    
+                    {/* Print Status Indicator */}
+                    {(() => {
+                      const status = getCartStatus(cart);
+                      return (
+                        <div
+                          className="d-flex align-items-center gap-2 px-3 py-1 rounded"
+                          style={{
+                            backgroundColor: status.bgColor,
+                            border: `2px solid ${status.color}`,
+                            fontSize: '14px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          <span style={{ fontSize: '16px' }}>{status.icon}</span>
+                          <span style={{ color: status.color }}>{status.text}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="d-flex gap-2">
                     <button
@@ -1161,6 +1386,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           try {
                             // Use the new direct cart editor
                             await cartEditor.updateCartName(cart.id, newName.trim());
+                            
+                            // Mark cart as modified since name changed
+                            await markCartAsModified(cart.id);
                             
                             // Log activity
                             if (typeof logActivity === "function") {
@@ -1375,7 +1603,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                           })
                                         );
                                         
-                                        // 2. Persist to Firestore (parent handler)
+                                        // 2. Mark cart as modified (needs reprint)
+                                        await markCartAsModified(showProductKeypad.cartId);
+                                        
+                                        // 3. Persist to Firestore (parent handler)
                                         await onAddProductToCart(
                                           showProductKeypad.cartId,
                                           showProductKeypad.productId,
@@ -1666,7 +1897,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           const cart = localInvoice.carts.find((c) => c.id === showCartPrintModal.cartId);
           if (!cart) return null;
 
-          // Get client print configuration with defaults
+          // Get client print configuration with defaults (same as Print All Carts)
           const printConfig = client?.printConfig?.cartPrintSettings || {
             enabled: true,
             showProductDetails: true,
@@ -1679,10 +1910,331 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             footerText: "",
           };
 
-          // Special handling for Costa Bahía: disable quantities display
-          const shouldShowQuantities = printConfig.showQuantities && 
-            !(localInvoice.clientName?.toLowerCase().includes('costa') && 
-              localInvoice.clientName?.toLowerCase().includes('bah'));
+          // Hide product quantities for specific clients: Costa Bahía, Aloft, Dorado Acquarius, and Sheraton
+          const clientName = localInvoice.clientName?.toLowerCase() || '';
+          const shouldHideQuantities = clientName.includes('costa') && clientName.includes('bah') ||
+                                      clientName.includes('aloft') ||
+                                      (clientName.includes('dorado') && clientName.includes('acquarius')) ||
+                                      clientName.includes('sheraton');
+          const shouldShowQuantities = printConfig.showQuantities && !shouldHideQuantities;
+
+          // Generate single cart content using EXACT same logic as Print All Carts
+          const generateSingleCartContent = () => {
+            const cartIndex = localInvoice.carts.findIndex(c => c.id === cart.id);
+            const cartPosition = cartIndex + 1;
+            const totalCarts = localInvoice.carts.length;
+
+            // Split items into two columns only if there are more than 5 items (same as Print All Carts)
+            const shouldUseTwoColumns = cart.items.length > 5;
+            const splitItemsIntoColumns = (items: CartItem[]) => {
+              if (!shouldUseTwoColumns) {
+                return { column1: items, column2: [] };
+              }
+              const itemsPerColumn = Math.ceil(items.length / 2);
+              const column1 = items.slice(0, itemsPerColumn);
+              const column2 = items.slice(itemsPerColumn);
+              return { column1, column2 };
+            };
+
+            const { column1, column2 } = splitItemsIntoColumns(cart.items);
+
+            return `
+              <div style="
+                width: 8in;
+                height: 5in;
+                margin: 0 auto;
+                background: #fff;
+                padding: 15px;
+                font-family: Arial, sans-serif;
+                font-size: 12px;
+                position: relative;
+                overflow: hidden;
+                box-sizing: border-box;
+              ">
+                <!-- Header Section (Fixed Height: ~0.8in) -->
+                <div style="
+                  height: 0.8in;
+                  border-bottom: 1px solid #333;
+                  padding-bottom: 8px;
+                  position: relative;
+                  margin-bottom: 12px;
+                ">
+                  <!-- Cart Position - Top Right -->
+                  <div style="
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: #0E62A0;
+                  ">
+                    ${cartPosition}/${totalCarts}
+                  </div>
+
+                  <!-- Cart Name - Top Left -->
+                  <div style="
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    font-size: 28px;
+                    font-weight: bold;
+                    color: #333;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    line-height: 1.1;
+                  ">
+                    Cart #${cart.name}
+                  </div>
+
+                  <!-- Client Name & Ticket - Center -->
+                  <div style="
+                    text-align: center;
+                    margin-top: 35px;
+                  ">
+                    <div style="
+                      font-size: ${localInvoice.clientName?.toLowerCase().includes('sheraton') ? '28px' : '45px'};
+                      font-weight: bold;
+                      color: #0E62A0;
+                      text-transform: uppercase;
+                      letter-spacing: 1px;
+                      margin-bottom: 4px;
+                    ">
+                      ${localInvoice.clientName}
+                    </div>
+                    <div style="
+                      font-size: 14px;
+                      font-weight: bold;
+                      color: #333;
+                    ">
+                      Ticket #${localInvoice.invoiceNumber || localInvoice.id.substring(0, 8)}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Products Section (Flexible Height: ~2.8in) -->
+                <div style="
+                  height: 2.8in;
+                  overflow: hidden;
+                  margin-bottom: 12px;
+                ">
+                  ${cart.items.length === 0 ? `
+                    <p style="
+                      font-style: italic; 
+                      color: #666; 
+                      font-size: 12px;
+                      text-align: center;
+                      margin-top: 40px;
+                    ">
+                      No items in this cart
+                    </p>
+                  ` : `
+                    <!-- Dynamic Product Layout: Single column for ≤5 items, Two columns for >5 items -->
+                    ${shouldUseTwoColumns ? `
+                      <div style="
+                        display: flex;
+                        gap: 15px;
+                        height: 100%;
+                      ">
+                        <!-- Column 1 -->
+                        <div style="
+                          flex: 1;
+                          overflow: hidden;
+                        ">
+                          <table style="
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 10px;
+                          ">
+                            <thead>
+                              <tr style="border-bottom: 1px solid #333;">
+                                <th style="
+                                  text-align: left;
+                                  padding: 4px 2px;
+                                  font-size: 10px;
+                                  font-weight: bold;
+                                ">Product</th>
+                                ${shouldShowQuantities ? `
+                                  <th style="
+                                    text-align: center;
+                                    padding: 4px 2px;
+                                    font-size: 10px;
+                                    font-weight: bold;
+                                    width: 30px;
+                                  ">Qty</th>
+                                ` : ''}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              ${column1.map((item) => `
+                                <tr style="border-bottom: 1px solid #eee;">
+                                  <td style="
+                                    padding: 3px 2px;
+                                    font-size: 9px;
+                                    line-height: 1.2;
+                                    word-break: break-word;
+                                  ">${item.productName}</td>
+                                  ${shouldShowQuantities ? `
+                                    <td style="
+                                      padding: 3px 2px;
+                                      text-align: center;
+                                      font-size: 9px;
+                                      font-weight: bold;
+                                    ">${item.quantity}</td>
+                                  ` : ''}
+                                </tr>
+                              `).join('')}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <!-- Column 2 -->
+                        <div style="
+                          flex: 1;
+                          overflow: hidden;
+                        ">
+                          <table style="
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 10px;
+                          ">
+                            <thead>
+                              <tr style="border-bottom: 1px solid #333;">
+                                <th style="
+                                  text-align: left;
+                                  padding: 4px 2px;
+                                  font-size: 10px;
+                                  font-weight: bold;
+                                ">Product</th>
+                                ${shouldShowQuantities ? `
+                                  <th style="
+                                    text-align: center;
+                                    padding: 4px 2px;
+                                    font-size: 10px;
+                                    font-weight: bold;
+                                    width: 30px;
+                                  ">Qty</th>
+                                ` : ''}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              ${column2.map((item) => `
+                                <tr style="border-bottom: 1px solid #eee;">
+                                  <td style="
+                                    padding: 3px 2px;
+                                    font-size: 9px;
+                                    line-height: 1.2;
+                                    word-break: break-word;
+                                  ">${item.productName}</td>
+                                  ${shouldShowQuantities ? `
+                                    <td style="
+                                      padding: 3px 2px;
+                                      text-align: center;
+                                      font-size: 9px;
+                                      font-weight: bold;
+                                    ">${item.quantity}</td>
+                                  ` : ''}
+                                </tr>
+                              `).join('')}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ` : `
+                      <!-- Single Column Layout for 5 or fewer items -->
+                      <div style="
+                        height: 100%;
+                        overflow: hidden;
+                      ">
+                        <table style="
+                          width: 100%;
+                          border-collapse: collapse;
+                          font-size: 11px;
+                        ">
+                          <thead>
+                            <tr style="border-bottom: 1px solid #333;">
+                              <th style="
+                                text-align: left;
+                                padding: 6px 4px;
+                                font-size: 11px;
+                                font-weight: bold;
+                              ">Product</th>
+                              ${shouldShowQuantities ? `
+                                <th style="
+                                  text-align: center;
+                                  padding: 6px 4px;
+                                  font-size: 11px;
+                                  font-weight: bold;
+                                  width: 60px;
+                                ">Qty</th>
+                              ` : ''}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${column1.map((item) => `
+                              <tr style="border-bottom: 1px solid #eee;">
+                                <td style="
+                                  padding: 5px 4px;
+                                  font-size: 10px;
+                                  line-height: 1.3;
+                                  word-break: break-word;
+                                ">${item.productName}</td>
+                                ${shouldShowQuantities ? `
+                                  <td style="
+                                    padding: 5px 4px;
+                                    text-align: center;
+                                    font-size: 10px;
+                                    font-weight: bold;
+                                  ">${item.quantity}</td>
+                                ` : ''}
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
+                      </div>
+                    `}
+                  `}
+                </div>
+
+                <!-- Footer Section (Fixed at bottom) -->
+                <div style="
+                  position: absolute;
+                  bottom: 15px;
+                  left: 15px;
+                  right: 15px;
+                ">
+                  <!-- Custom Footer Text -->
+                  ${printConfig.footerText ? `
+                    <div style="
+                      text-align: center;
+                      font-size: 9px;
+                      color: #666;
+                      margin-bottom: 8px;
+                      border-top: 1px solid #ddd;
+                      padding-top: 6px;
+                    ">
+                      ${printConfig.footerText}
+                    </div>
+                  ` : ''}
+
+                  <!-- Delivery Date - Always at Bottom -->
+                  ${localInvoice.deliveryDate ? `
+                    <div style="
+                      text-align: center;
+                      font-size: 14px;
+                      font-weight: bold;
+                      color: #0E62A0;
+                      background-color: #f0f8ff;
+                      padding: 8px;
+                      border: 2px solid #0E62A0;
+                      border-radius: 6px;
+                    ">
+                      DELIVERY DATE: ${formatDateOnlySpanish(localInvoice.deliveryDate)}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          };
 
           return (
             <div
@@ -1723,307 +2275,43 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     <div className="h-100">
                       {/* Standard 8.5x5.5 Print Preview - Full Width */}
                       <div className="h-100">
-                        <h6 className="mb-3">📄 Print Preview (6.46" x 4.25")</h6>
+                        <h6 className="mb-3">📄 Print Preview (8" x 5" - Same as Print All Carts)</h6>
                         <div
                           id="cart-print-area"
                           style={{
-                            padding: "15px",
+                            padding: "0",
                             background: "#fff",
                             width: "8.5in",
                             height: "5.5in",
                             margin: "0 auto",
                             overflowY: "auto",
-                            // Exact dimensions to match print output: 8.5" x 5.5" (A5 size)
                             minHeight: "400px",
+                            border: "1px solid #ddd"
                           }}
-                        >
-                          <div
-                            style={{
-                              maxWidth: "8.5in",
-                              height: "auto",
-                              margin: "0 auto",
-                              background: "#fff",
-                              padding: 20,
-                              fontFamily: "Arial, sans-serif",
-                              fontSize: "14px",
-                              minHeight: "4.25in",
-                            }}
-                          >
-                            {/* Header with Large Client Name */}
-                            <div
-                              style={{
-                                marginBottom: 20,
-                                borderBottom: "2px solid #333",
-                                paddingBottom: 15,
-                                position: "relative"
-                              }}
-                            >
-                              {/* Cart Position - Top Right Corner */}
-                              {(() => {
-                                const cartIndex = localInvoice.carts.findIndex(c => c.id === cart.id);
-                                const cartPosition = cartIndex + 1;
-                                const totalCarts = localInvoice.carts.length;
-                                
-                                return (
-                                  <div style={{
-                                    position: "absolute",
-                                    top: "0",
-                                    right: "0",
-                                    fontSize: "18px",
-                                    fontWeight: "bold",
-                                    color: "#0E62A0"
-                                  }}>
-                                    {cartPosition}/{totalCarts}
-                                  </div>
-                                );
-                              })()}
-
-                              {/* Cart Name - Top Left Corner */}
-                              <div style={{
-                                position: "absolute",
-                                top: "0",
-                                left: "0",
-                                fontSize: "48px",
-                                fontWeight: "bold",
-                                color: "#333",
-                                textTransform: "uppercase",
-                                letterSpacing: "1px",
-                                lineHeight: "1.2"
-                              }}>
-                                <div>Cart</div>
-                                <div>#{cart.name}</div>
-                              </div>
-
-                              {/* Large Client Name Centered */}
-                              <div style={{
-                                textAlign: "center",
-                                marginBottom: "12px",
-                                minHeight: "60px",
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                paddingLeft: "120px", // Space for cart name
-                                paddingRight: "60px"  // Space for cart position
-                              }}>
-                                <h1 style={{ 
-                                  margin: "0", 
-                                  fontSize: localInvoice.clientName?.toLowerCase().includes('costa') && 
-                                    localInvoice.clientName?.toLowerCase().includes('bah') ? "45px" : "64px",
-                                  fontWeight: "bold",
-                                  color: "#0E62A0",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "2px",
-                                  lineHeight: "1.1",
-                                  textAlign: "center",
-                                  marginBottom: "8px"
-                                }}>
-                                  {localInvoice.clientName}
-                                </h1>
-                                
-                                {/* Large Ticket Number */}
-                                <div style={{
-                                  fontSize: "28px",
-                                  fontWeight: "bold",
-                                  color: "#333",
-                                  textAlign: "center",
-                                  letterSpacing: "1px"
-                                }}>
-                                  Laundry Ticket #{localInvoice.invoiceNumber || localInvoice.id.substring(0, 8)}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Cart Contents */}
-                            <div style={{ marginBottom: 20 }}>
-                              {cart.items.length === 0 ? (
-                                <p style={{ fontStyle: "italic", color: "#666", fontSize: "13px" }}>
-                                  No items in this cart
-                                </p>
-                              ) : (
-                                <table
-                                  style={{
-                                    width: "100%",
-                                    borderCollapse: "collapse",
-                                    marginBottom: "20px",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  <thead>
-                                    <tr style={{ borderBottom: "2px solid #333" }}>
-                                      <th
-                                        style={{
-                                          textAlign: "left",
-                                          padding: "8px",
-                                          fontSize: "13px",
-                                        }}
-                                      >
-                                        Product
-                                      </th>
-                                      {shouldShowQuantities && (
-                                        <th
-                                          style={{
-                                            textAlign: "center",
-                                            padding: "8px",
-                                            fontSize: "13px",
-                                          }}
-                                        >
-                                          Qty
-                                        </th>
-                                      )}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {cart.items.map((item, index) => (
-                                      <tr
-                                        key={index}
-                                        style={{ borderBottom: "1px solid #ddd" }}
-                                      >
-                                        <td style={{ padding: "6px", fontSize: "12px" }}>
-                                          {item.productName}
-                                        </td>
-                                        {shouldShowQuantities && (
-                                          <td
-                                            style={{
-                                              padding: "6px",
-                                              textAlign: "center",
-                                              fontSize: "12px",
-                                            }}
-                                          >
-                                            {item.quantity}
-                                          </td>
-                                        )}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              )}
-
-                              {/* Product Summary */}
-                              {printConfig.showProductSummary && cart.items.length > 0 && (
-                                <div style={{ marginTop: 20 }}>
-                                  <h5 style={{ fontSize: "14px", marginBottom: "10px" }}>
-                                    Product Summary
-                                  </h5>
-                                  <table
-                                    style={{
-                                      width: "100%",
-                                      borderCollapse: "collapse",
-                                      fontSize: "12px",
-                                    }}
-                                  >
-                                    <thead>
-                                      <tr style={{ borderBottom: "1px solid #333" }}>
-                                        <th
-                                          style={{
-                                            textAlign: "left",
-                                            padding: "6px",
-                                            fontSize: "12px",
-                                          }}
-                                        >
-                                          Product
-                                        </th>
-                                        <th
-                                          style={{
-                                            textAlign: "center",
-                                            padding: "6px",
-                                            fontSize: "12px",
-                                          }}
-                                        >
-                                          Total Qty
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {products
-                                        .filter((prod) =>
-                                          cart.items.some((item) => item.productId === prod.id)
-                                        )
-                                        .map((product) => {
-                                          const totalQty = cart.items
-                                            .filter((item) => item.productId === product.id)
-                                            .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-                                          return (
-                                            <tr key={product.id} style={{ borderBottom: "1px solid #eee" }}>
-                                              <td style={{ padding: "5px", fontSize: "11px" }}>
-                                                {product.name}
-                                              </td>
-                                              <td
-                                                style={{
-                                                  padding: "5px",
-                                                  textAlign: "center",
-                                                  fontSize: "11px",
-                                                  fontWeight: "bold",
-                                                }}
-                                              >
-                                                {totalQty}
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Footer */}
-                            {printConfig.footerText && (
-                              <div
-                                style={{
-                                  textAlign: "center",
-                                  marginTop: 20,
-                                  borderTop: "1px solid #ddd",
-                                  paddingTop: 10,
-                                  fontSize: "11px",
-                                  color: "#666",
-                                }}
-                              >
-                                {printConfig.footerText}
-                              </div>
-                            )}
-
-                            {/* Delivery Date - Bottom Section */}
-                            {localInvoice.deliveryDate && (
-                              <div
-                                style={{
-                                  textAlign: "center",
-                                  marginTop: 25,
-                                  borderTop: "2px solid #0E62A0",
-                                  paddingTop: 15,
-                                  fontSize: "16px",
-                                  fontWeight: "bold",
-                                  color: "#0E62A0",
-                                  backgroundColor: "#f0f8ff",
-                                  padding: "15px",
-                                  borderRadius: "8px",
-                                  border: "2px solid #0E62A0"
-                                }}
-                              >
-                                DELIVERY DATE: {formatDateOnlySpanish(localInvoice.deliveryDate)}
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                          dangerouslySetInnerHTML={{ __html: generateSingleCartContent() }}
+                        />
                       </div>
                     </div>
                   </div>
                   <div className="modal-footer d-print-none">
                     <button
                       className="btn btn-primary"
-                      onClick={() => {
-                        const printContents = document.getElementById("cart-print-area")?.innerHTML;
-                        if (printContents) {
-                          const printWindow = window.open("", "", "height=800,width=600");
-                          if (!printWindow) return;
-                          setTimeout(() => {
-                            printWindow.document.write(`
+                      onClick={async () => {
+                        // Use the same exact approach as Print All Carts
+                        const printWindow = window.open("", "", "height=800,width=600");
+                        if (!printWindow) {
+                          alert("Please allow popups to print cart");
+                          return;
+                        }
+
+                        setTimeout(async () => {
+                          printWindow.document.write(`
                             <html>
                               <head>
                                 <title>Print Cart: ${cart.name}</title>
                                 <style>
                                   @media print {
-                                    @page { size: 8.5in 5.5in; margin: 0.25in; }
+                                    @page { size: 8.5in 5.5in landscape; margin: 0.25in; }
                                     body { margin: 0; }
                                     .d-print-none { display: none !important; }
                                     * { 
@@ -2034,18 +2322,20 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                   body { font-family: Arial, sans-serif; }
                                 </style>
                               </head>
-                              <body>${printContents}</body>
+                              <body>${generateSingleCartContent()}</body>
                             </html>
                           `);
-                            printWindow.document.close();
-                            printWindow.focus();
-                            printWindow.print();
-                            printWindow.close();
-                          }, 100);
-                        }
+                          printWindow.document.close();
+                          printWindow.focus();
+                          printWindow.print();
+                          printWindow.close();
+                          
+                          // Mark cart as printed after print dialog
+                          await markCartAsPrinted(cart.id);
+                        }, 100);
                       }}
                     >
-                      📄 Print Cart (6.46" x 4.25")
+                      📄 Print Cart (Same Format as Print All)
                     </button>
                     <button
                       className="btn btn-secondary"

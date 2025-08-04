@@ -62,6 +62,7 @@ const DriverManagement = lazy(() => import("./components/DriverManagement"));
 const PrintingSettings = lazy(() => import("./components/PrintingSettings"));
 const ReportsPage = lazy(() => import("./components/ReportsPage"));
 const AnalyticsPage = lazy(() => import("./components/AnalyticsPage"));
+const ComprehensiveAnalyticsDashboard = lazy(() => import("./components/ComprehensiveAnalyticsDashboard"));
 const GlobalActivityLog = lazy(() => import("./components/GlobalActivityLog"));
 const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivityDashboard"));
 const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
@@ -680,6 +681,12 @@ function App() {
         {
           label: "Analytics",
           page: "analytics",
+          icon: <AssessmentIcon />,
+          visible: true,
+        },
+        {
+          label: "Comprehensive Analytics",
+          page: "comprehensiveAnalytics",
           icon: <AssessmentIcon />,
           visible: true,
         },
@@ -1350,6 +1357,11 @@ function App() {
       {activePage === "analytics" && (
         <Suspense fallback={<LoadingSpinner />}>
           <AnalyticsPage />
+        </Suspense>
+      )}
+      {activePage === "comprehensiveAnalytics" && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <ComprehensiveAnalyticsDashboard />
         </Suspense>
       )}
       {activePage === "settings" && canManageUsers && (

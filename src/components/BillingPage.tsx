@@ -3074,6 +3074,7 @@ const BillingPage: React.FC = () => {
           onAddProductToCart={(cartId, productId, quantity) => {
             // Placeholder function as it's not needed in this context
           }}
+          onUpdateInvoice={updateInvoice}
           refreshInvoices={refreshInvoices}
         />
       )}

@@ -387,6 +387,7 @@ const ReportsPage: React.FC = () => {
                 });
                 setShowAddConfirmation(true);
               }}
+              onUpdateInvoice={updateInvoice}
               refreshInvoices={refreshInvoices}
             />
           )}
@@ -899,6 +900,7 @@ const ReportsPage: React.FC = () => {
             await updateInvoice(invoice.id, { carts: updatedCarts });
             await refreshInvoices();
           }}
+          onUpdateInvoice={updateInvoice}
           refreshInvoices={refreshInvoices}
         />
       )}

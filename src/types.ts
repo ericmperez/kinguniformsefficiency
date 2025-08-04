@@ -84,6 +84,11 @@ export interface Cart {
   total: number;
   createdAt: string;
   createdBy?: string; // Name or ID of the user who created the cart
+  lastModifiedAt?: string; // When cart content was last modified
+  lastModifiedBy?: string; // Who last modified the cart
+  lastPrintedAt?: string; // When cart was last printed
+  lastPrintedBy?: string; // Who last printed the cart
+  needsReprint?: boolean; // True if cart was modified after last print
 }
 
 export interface Invoice {

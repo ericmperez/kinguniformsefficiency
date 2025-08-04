@@ -114,6 +114,37 @@ function mergeCartItems(existingItems: CartItem[], newItems: CartItem[]): CartIt
   return mergedItems;
 }
 
+// Helper function to mark cart as modified for reprint tracking
+async function markCartAsModified(invoiceId: string, cartId: string, currentUser: string) {
+  try {
+    const invoiceRef = doc(db, "invoices", invoiceId);
+    const invoiceDoc = await getDoc(invoiceRef);
+    
+    if (invoiceDoc.exists()) {
+      const invoice = invoiceDoc.data() as Invoice;
+      const updatedCarts = (invoice.carts || []).map(cart => {
+        if (cart.id === cartId) {
+          return {
+            ...cart,
+            needsReprint: true,
+            lastModifiedAt: new Date().toISOString(),
+            lastModifiedBy: currentUser
+          };
+        }
+        return cart;
+      });
+      
+      await updateDoc(invoiceRef, {
+        carts: updatedCarts,
+        lastModifiedAt: new Date().toISOString(),
+        lastModifiedBy: currentUser
+      });
+    }
+  } catch (error) {
+    console.error("Error marking cart as modified:", error);
+  }
+}
+
 export default function ActiveInvoices({
   clients,
   products,
@@ -873,10 +904,35 @@ export default function ActiveInvoices({
           addedAt: new Date().toISOString(),
         },
       ];
+      
       // Update the cart in the invoice
       const updatedCarts = [...invoice.carts];
-      updatedCarts[cartIdx] = cart;
+      updatedCarts[cartIdx] = {
+        ...cart,
+        needsReprint: true,
+        lastModifiedAt: new Date().toISOString(),
+        lastModifiedBy: user?.username || "Unknown"
+      };
+      
+      // Update local state immediately for instant UI feedback
+      setInvoicesState(prevInvoices => 
+        prevInvoices.map(inv => 
+          inv.id === selectedInvoiceId 
+            ? { ...inv, carts: updatedCarts }
+            : inv
+        )
+      );
+      
+      // Update selected invoice if modal is open
+      if (showInvoiceDetailsModal && selectedInvoice?.id === selectedInvoiceId) {
+        setSelectedInvoice(prev => prev ? { ...prev, carts: updatedCarts } : null);
+      }
+      
+      // Persist to Firestore
       await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
+
+      // Mark cart as modified for reprint tracking
+      await markCartAsModified(selectedInvoiceId, cart.id, user?.username || "Unknown");
 
       if (user?.username) {
         await logActivity({
@@ -2424,6 +2480,42 @@ export default function ActiveInvoices({
                                   }
                                 }
                               } else {
+                                // Check if all carts are properly printed before shipping
+                                const areAllCartsPrinted = (invoice.carts || []).every(cart => {
+                                  // Cart must be printed at least once
+                                  if (!cart.lastPrintedAt) return false;
+                                  
+                                  // If cart was modified after printing, it needs reprint
+                                  if (cart.needsReprint) return false;
+                                  
+                                  // If cart was modified after last print, it needs reprint
+                                  if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                                      new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                    return false;
+                                  }
+                                  
+                                  return true;
+                                });
+                                
+                                if (!areAllCartsPrinted) {
+                                  const unprintedCarts = (invoice.carts || []).filter(cart => {
+                                    if (!cart.lastPrintedAt) return true;
+                                    if (cart.needsReprint) return true;
+                                    if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                                        new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                      return true;
+                                    }
+                                    return false;
+                                  });
+                                  
+                                  alert(
+                                    `Cannot ship laundry ticket: ${unprintedCarts.length} cart(s) need to be printed first.\n\n` +
+                                    `Carts requiring print: ${unprintedCarts.map(c => c.name).join(', ')}\n\n` +
+                                    `Please print all carts before shipping.`
+                                  );
+                                  return;
+                                }
+                                
                                 // Ship the invoice - show modal for truck number and delivery date
                                 setShowShippedModal(invoice.id);
                                 // Pre-fill with existing values if they exist
@@ -2437,15 +2529,37 @@ export default function ActiveInvoices({
                             disabled={
                               !invoice.verified || hasUnnamedCart(invoice)
                             }
-                            title={
-                              !invoice.verified
-                                ? "Must be approved first"
-                                : hasUnnamedCart(invoice)
-                                ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
-                                : invoice.status === "done"
-                                ? "Click to unship"
-                                : "Mark as Shipped"
-                            }
+                            title={(() => {
+                              if (!invoice.verified) return "Must be approved first";
+                              if (hasUnnamedCart(invoice)) return 'Cannot modify with "CARRO SIN NOMBRE" cart';
+                              if (invoice.status === "done") return "Click to unship";
+                              
+                              // Check cart print status
+                              const areAllCartsPrinted = (invoice.carts || []).every(cart => {
+                                if (!cart.lastPrintedAt) return false;
+                                if (cart.needsReprint) return false;
+                                if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                                    new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                  return false;
+                                }
+                                return true;
+                              });
+                              
+                              if (!areAllCartsPrinted) {
+                                const unprintedCarts = (invoice.carts || []).filter(cart => {
+                                  if (!cart.lastPrintedAt) return true;
+                                  if (cart.needsReprint) return true;
+                                  if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                                      new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                    return true;
+                                  }
+                                  return false;
+                                });
+                                return `${unprintedCarts.length} cart(s) need printing: ${unprintedCarts.map(c => c.name).join(', ')}`;
+                              }
+                              
+                              return "Mark as Shipped";
+                            })()}
                           >
                             <i
                               className="bi bi-truck"
@@ -2844,6 +2958,43 @@ export default function ActiveInvoices({
                                     );
                                     return;
                                   }
+                                  
+                                  // Check if all carts are properly printed before shipping
+                                  const areAllCartsPrinted = (invoice.carts || []).every(cart => {
+                                    // Cart must be printed at least once
+                                    if (!cart.lastPrintedAt) return false;
+                                    
+                                    // If cart was modified after printing, it needs reprint
+                                    if (cart.needsReprint) return false;
+                                    
+                                    // If cart was modified after last print, it needs reprint
+                                    if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                                        new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                      return false;
+                                    }
+                                    
+                                    return true;
+                                  });
+                                  
+                                  if (!areAllCartsPrinted) {
+                                    const unprintedCarts = (invoice.carts || []).filter(cart => {
+                                      if (!cart.lastPrintedAt) return true;
+                                      if (cart.needsReprint) return true;
+                                      if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                                          new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                        return true;
+                                      }
+                                      return false;
+                                    });
+                                    
+                                    alert(
+                                      `Cannot ship laundry ticket: ${unprintedCarts.length} cart(s) need to be printed first.\n\n` +
+                                      `Carts requiring print: ${unprintedCarts.map(c => c.name).join(', ')}\n\n` +
+                                      `Please print all carts before shipping.`
+                                    );
+                                    return;
+                                  }
+                                  
                                   // Ship the invoice - show modal for truck number and delivery date
                                   setShowShippedModal(invoice.id);
                                   // Pre-fill with existing values if they exist
@@ -2857,12 +3008,37 @@ export default function ActiveInvoices({
                               disabled={
                                 invoice.status !== "done" && (!invoice.verified || hasUnnamedCart(invoice))
                               }
-                              title={
-                                invoice.status === "done" ? "Click to unship" :
-                                !invoice.verified ? "Must be approved first" :
-                                hasUnnamedCart(invoice) ? 'Cannot ship with "CARRO SIN NOMBRE" cart' :
-                                "Mark as shipped"
-                              }
+                              title={(() => {
+                                if (invoice.status === "done") return "Click to unship";
+                                if (!invoice.verified) return "Must be approved first";
+                                if (hasUnnamedCart(invoice)) return 'Cannot ship with "CARRO SIN NOMBRE" cart';
+                                
+                                // Check cart print status
+                                const areAllCartsPrinted = (invoice.carts || []).every(cart => {
+                                  if (!cart.lastPrintedAt) return false;
+                                  if (cart.needsReprint) return false;
+                                  if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                                      new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                    return false;
+                                  }
+                                  return true;
+                                });
+                                
+                                if (!areAllCartsPrinted) {
+                                  const unprintedCarts = (invoice.carts || []).filter(cart => {
+                                    if (!cart.lastPrintedAt) return true;
+                                    if (cart.needsReprint) return true;
+                                    if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                                        new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                      return true;
+                                    }
+                                    return false;
+                                  });
+                                  return `${unprintedCarts.length} cart(s) need printing: ${unprintedCarts.map(c => c.name).join(', ')}`;
+                                }
+                                
+                                return "Mark as shipped";
+                              })()}
                             >
                               <i className="bi bi-truck"></i>
                             </button>
@@ -4196,6 +4372,43 @@ export default function ActiveInvoices({
                       (inv) => inv.id === showShippedModal
                     );
                     if (!invoice) return;
+                    
+                    // Check if all carts are properly printed before shipping
+                    const areAllCartsPrinted = (invoice.carts || []).every(cart => {
+                      // Cart must be printed at least once
+                      if (!cart.lastPrintedAt) return false;
+                      
+                      // If cart was modified after printing, it needs reprint
+                      if (cart.needsReprint) return false;
+                      
+                      // If cart was modified after last print, it needs reprint
+                      if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                          new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                        return false;
+                      }
+                      
+                      return true;
+                    });
+                    
+                    if (!areAllCartsPrinted) {
+                      const unprintedCarts = (invoice.carts || []).filter(cart => {
+                        if (!cart.lastPrintedAt) return true;
+                        if (cart.needsReprint) return true;
+                        if (cart.lastModifiedAt && cart.lastPrintedAt && 
+                            new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                          return true;
+                        }
+                        return false;
+                      });
+                      
+                      alert(
+                        `Cannot ship laundry ticket: ${unprintedCarts.length} cart(s) need to be printed first.\n\n` +
+                        `Carts requiring print: ${unprintedCarts.map(c => c.name).join(', ')}\n\n` +
+                        `Please print all carts before shipping.`
+                      );
+                      return;
+                    }
+                    
                     await onUpdateInvoice(invoice.id, {
                       status: "done",
                       truckNumber: shippedTruckNumber.toString(),
@@ -4945,11 +5158,43 @@ export default function ActiveInvoices({
                   },
                 ];
               }
-              return { ...cart, items: newItems };
+              
+              // For item additions, mark cart as needing reprint
+              const updatedCart = { ...cart, items: newItems };
+              if (quantity > 0) {
+                updatedCart.needsReprint = true;
+                updatedCart.lastModifiedAt = new Date().toISOString();
+                updatedCart.lastModifiedBy = user?.username || "Unknown";
+              }
+              
+              return updatedCart;
             });
+            
+            // Update local state immediately for instant UI feedback
+            setInvoicesState(prevInvoices => 
+              prevInvoices.map(inv => 
+                inv.id === invoice.id 
+                  ? { ...inv, carts: updatedCarts }
+                  : inv
+              )
+            );
+            
+            // Update selected invoice if modal is open
+            if (showInvoiceDetailsModal && selectedInvoice?.id === invoice.id) {
+              setSelectedInvoice(prev => prev ? { ...prev, carts: updatedCarts } : null);
+            }
+            
+            // Persist to Firestore
             await onUpdateInvoice(invoice.id, { carts: updatedCarts });
+            
+            // Mark cart as modified for reprint tracking when adding items
+            if (quantity > 0) {
+              await markCartAsModified(invoice.id, cartId, user?.username || "Unknown");
+            }
+            
             await refreshInvoices();
           }}
+          onUpdateInvoice={onUpdateInvoice}
           refreshInvoices={refreshInvoices}
         />
       )}
