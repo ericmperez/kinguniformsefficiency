@@ -6,6 +6,8 @@
  * Transforms client names for display purposes
  * - "Doctor Center" clients → "D.C."
  * - "Children's Hospital" clients → Keep full name (no transformation)
+ * - "Encanto Dorado Beach" → "Encanto"
+ * - "Watermill Dorado Beach" → "Watermill"
  * @param clientName - The original client name
  * @returns The transformed client name for display
  */
@@ -18,6 +20,16 @@ export function transformClientNameForDisplay(clientName: string | undefined | n
     return clientName
       .replace(/doctor\s+center/gi, 'D.C.')
       .trim();
+  }
+  
+  // Transform "Encanto Dorado Beach" to "Encanto"
+  if (clientName.toLowerCase().includes('encanto') && clientName.toLowerCase().includes('dorado') && clientName.toLowerCase().includes('beach')) {
+    return 'Encanto';
+  }
+  
+  // Transform "Watermill Dorado Beach" to "Watermill"
+  if (clientName.toLowerCase().includes('watermill') && clientName.toLowerCase().includes('dorado') && clientName.toLowerCase().includes('beach')) {
+    return 'Watermill';
   }
   
   // Children's Hospital: Keep full name, no transformation
