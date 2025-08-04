@@ -5,7 +5,7 @@
 /**
  * Transforms client names for display purposes
  * - "Doctor Center" clients → "D.C."
- * - "Children's Hospital" clients → "C.H."
+ * - "Children's Hospital" clients → Keep full name (no transformation)
  * @param clientName - The original client name
  * @returns The transformed client name for display
  */
@@ -20,13 +20,8 @@ export function transformClientNameForDisplay(clientName: string | undefined | n
       .trim();
   }
   
-  // Transform "Children's Hospital" variations to "C.H."
-  if (clientName.toLowerCase().includes('children') && clientName.toLowerCase().includes('hospital')) {
-    // Replace "Children's Hospital" with "C.H." while preserving any additional text
-    return clientName
-      .replace(/children['']?s\s+hospital/gi, 'C.H.')
-      .trim();
-  }
+  // Children's Hospital: Keep full name, no transformation
+  // (This is handled by returning the original clientName at the end)
   
   return clientName;
 }
