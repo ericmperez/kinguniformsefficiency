@@ -5,6 +5,7 @@
 /**
  * Transforms client names for display purposes
  * - "Doctor Center" clients → "D.C."
+ * - "Children's Hospital" clients → "C.H."
  * @param clientName - The original client name
  * @returns The transformed client name for display
  */
@@ -16,6 +17,14 @@ export function transformClientNameForDisplay(clientName: string | undefined | n
     // Replace "Doctor Center" with "D.C." while preserving any additional text
     return clientName
       .replace(/doctor\s+center/gi, 'D.C.')
+      .trim();
+  }
+  
+  // Transform "Children's Hospital" variations to "C.H."
+  if (clientName.toLowerCase().includes('children') && clientName.toLowerCase().includes('hospital')) {
+    // Replace "Children's Hospital" with "C.H." while preserving any additional text
+    return clientName
+      .replace(/children['']?s\s+hospital/gi, 'C.H.')
       .trim();
   }
   
@@ -33,12 +42,47 @@ export function isOncologicoClient(clientName: string | undefined | null): boole
 }
 
 /**
+ * Checks if a client is a Children's Hospital client
+ * @param clientName - The client name to check
+ * @returns True if the client is a Children's Hospital client
+ */
+export function isChildrensHospitalClient(clientName: string | undefined | null): boolean {
+  if (!clientName) return false;
+  return clientName.toLowerCase().includes('children') && clientName.toLowerCase().includes('hospital');
+}
+
+/**
+ * Checks if a client should NOT show quantities (excluded clients)
+ * @param clientName - The client name to check
+ * @returns True if the client is in the excluded list
+ */
+export function isExcludedFromQuantities(clientName: string | undefined | null): boolean {
+  if (!clientName) return false;
+  
+  const lowerName = clientName.toLowerCase();
+  
+  // List of clients that should NOT show quantities
+  const excludedClients = [
+    'costa bahía', 'costa bahia',
+    'dorado aquarius', 'dorado acquarius',
+    'plantation rooms',
+    'hyatt',
+    'sheraton convenciones',
+    'aloft'
+  ];
+  
+  return excludedClients.some(excluded => lowerName.includes(excluded));
+}
+
+/**
  * Determines if quantities should always be shown for a specific client
+ * All clients show quantities EXCEPT: Costa Bahía, Dorado Aquarius, Plantation Rooms, Hyatt, Sheraton Convenciones, Aloft
  * @param clientName - The client name to check
  * @returns True if quantities should always be shown for this client
  */
 export function shouldAlwaysShowQuantities(clientName: string | undefined | null): boolean {
-  return isOncologicoClient(clientName);
+  // Show quantities for all clients except the excluded ones
+  return !isExcludedFromQuantities(clientName);
 }
 
 /**

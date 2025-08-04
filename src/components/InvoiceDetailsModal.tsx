@@ -5,7 +5,7 @@ import { useAuth } from "./AuthContext";
 import { formatDateSpanish, formatDateOnlySpanish } from "../utils/dateFormatter";
 import { useCartEditor } from "./CartEditHandler";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
-import { transformClientNameForDisplay, shouldAlwaysShowQuantities, isOncologicoClient } from "../utils/clientNameUtils";
+import { transformClientNameForDisplay, shouldAlwaysShowQuantities, isOncologicoClient, isChildrensHospitalClient, isExcludedFromQuantities } from "../utils/clientNameUtils";
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice;
