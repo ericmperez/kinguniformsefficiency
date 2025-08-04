@@ -447,13 +447,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       footerText: "",
     };
 
-    // Hide product quantities for specific clients: Costa Bahía, Aloft, Dorado Acquarius, and Sheraton
-    const clientName = localInvoice.clientName?.toLowerCase() || '';
-    const shouldHideQuantities = clientName.includes('costa') && clientName.includes('bah') ||
-                                clientName.includes('aloft') ||
-                                (clientName.includes('dorado') && clientName.includes('acquarius')) ||
-                                clientName.includes('sheraton');
-    const shouldShowQuantities = printConfig.showQuantities && !shouldHideQuantities && showQuantitiesForThisInvoice;
+    // Show quantities for all clients (quantity hiding logic removed)
+    const shouldShowQuantities = printConfig.showQuantities && showQuantitiesForThisInvoice;
 
     // Generate HTML content for all carts with optimized 2-column layout and fixed page size
     const generateAllCartsContent = () => {
@@ -530,7 +525,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   text-align: center;
                   margin-top: 35px;
                 ">                    <div style="
-                      font-size: ${localInvoice.clientName?.toLowerCase().includes('sheraton') ? '28px' : '45px'};
+                      font-size: 35px;
                       font-weight: bold;
                       color: #0E62A0;
                       text-transform: uppercase;
@@ -1923,13 +1918,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             footerText: "",
           };
 
-          // Hide product quantities for specific clients: Costa Bahía, Aloft, Dorado Acquarius, and Sheraton
-          const clientName = localInvoice.clientName?.toLowerCase() || '';
-          const shouldHideQuantities = clientName.includes('costa') && clientName.includes('bah') ||
-                                      clientName.includes('aloft') ||
-                                      (clientName.includes('dorado') && clientName.includes('acquarius')) ||
-                                      clientName.includes('sheraton');
-          const shouldShowQuantities = printConfig.showQuantities && !shouldHideQuantities && showQuantitiesForThisInvoice;
+          // Show quantities for all clients (quantity hiding logic removed)
+          const shouldShowQuantities = printConfig.showQuantities && showQuantitiesForThisInvoice;
 
           // Generate single cart content using EXACT same logic as Print All Carts
           const generateSingleCartContent = () => {
@@ -2005,7 +1995,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     margin-top: 35px;
                   ">
                     <div style="
-                      font-size: ${localInvoice.clientName?.toLowerCase().includes('sheraton') ? '28px' : '45px'};
+                      font-size: 35px;
                       font-weight: bold;
                       color: #0E62A0;
                       text-transform: uppercase;
