@@ -5,6 +5,7 @@ import { useAuth } from "./AuthContext";
 import { formatDateSpanish, formatDateOnlySpanish } from "../utils/dateFormatter";
 import { useCartEditor } from "./CartEditHandler";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
+import { transformClientNameForDisplay, shouldAlwaysShowQuantities, isOncologicoClient } from "../utils/clientNameUtils";
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice;
@@ -447,8 +448,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       footerText: "",
     };
 
-    // Show quantities for all clients (quantity hiding logic removed)
-    const shouldShowQuantities = printConfig.showQuantities && showQuantitiesForThisInvoice;
+    // Show quantities for all clients, with special handling for Oncologico clients
+    // Oncologico clients always show quantities regardless of toggle state
+    const shouldShowQuantities = shouldAlwaysShowQuantities(localInvoice.clientName) || 
+                                 (printConfig.showQuantities && showQuantitiesForThisInvoice);
 
     // Generate HTML content for all carts with optimized 2-column layout and fixed page size
     const generateAllCartsContent = () => {
@@ -532,7 +535,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       letter-spacing: 1px;
                       margin-bottom: 4px;
                     ">
-                      ${localInvoice.clientName}
+                      ${transformClientNameForDisplay(localInvoice.clientName)}
                     </div>
                   <div style="
                     font-size: 14px;
@@ -782,7 +785,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       printWindow.document.write(`
         <html>
           <head>
-            <title>Print All Carts - ${localInvoice.clientName}</title>
+            <title>Print All Carts - ${transformClientNameForDisplay(localInvoice.clientName)}</title>
             <style>
               @media print {
                 @page { size: 8.5in 5.5in landscape; margin: 0.25in; }
@@ -1918,8 +1921,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             footerText: "",
           };
 
-          // Show quantities for all clients (quantity hiding logic removed)
-          const shouldShowQuantities = printConfig.showQuantities && showQuantitiesForThisInvoice;
+          // Show quantities for all clients, with special handling for Oncologico clients
+          // Oncologico clients always show quantities regardless of toggle state
+          const shouldShowQuantities = shouldAlwaysShowQuantities(localInvoice.clientName) || 
+                                       (printConfig.showQuantities && showQuantitiesForThisInvoice);
 
           // Generate single cart content using EXACT same logic as Print All Carts
           const generateSingleCartContent = () => {
@@ -2002,7 +2007,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       letter-spacing: 1px;
                       margin-bottom: 4px;
                     ">
-                      ${localInvoice.clientName}
+                      ${transformClientNameForDisplay(localInvoice.clientName)}
                     </div>
                     <div style="
                       font-size: 14px;
