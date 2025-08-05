@@ -79,32 +79,111 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
   if (!show) return null;
 
   return (
-    <div className="modal show d-block" tabIndex={-1}>
-      <div className="modal-dialog modal-xl">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h5 className="modal-title">
-              {client
-                ? `Print Configuration - ${client.name}`
-                : "Default Print Template Configuration"}
-            </h5>
+    <div 
+      className="modal show d-block" 
+      tabIndex={-1}
+      style={{
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(3px)'
+      }}
+    >
+      <div 
+        className="modal-dialog" 
+        style={{
+          maxWidth: '70vw',
+          width: '70vw',
+          minWidth: '800px',
+          margin: '2vh auto',
+          height: '96vh'
+        }}
+      >
+        <div 
+          className="modal-content"
+          style={{
+            height: '100%',
+            borderRadius: '12px',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            border: 'none',
+            overflow: 'hidden'
+          }}
+        >
+          <div 
+            className="modal-header"
+            style={{
+              background: 'linear-gradient(135deg, #0E62A0 0%, #1976d2 100%)',
+              color: 'white',
+              padding: '1.5rem 2rem',
+              borderBottom: 'none'
+            }}
+          >
+            <div className="d-flex align-items-center">
+              <i className="bi bi-printer-fill me-3" style={{ fontSize: '1.5rem' }}></i>
+              <h4 className="modal-title mb-0" style={{ fontWeight: '600', fontSize: '1.4rem' }}>
+                {client
+                  ? `Print Configuration - ${client.name}`
+                  : "Default Print Template Configuration"}
+              </h4>
+            </div>
             <button
               type="button"
-              className="btn-close"
+              className="btn-close btn-close-white"
               onClick={onClose}
               aria-label="Close"
+              style={{
+                fontSize: '1.2rem',
+                opacity: 0.8
+              }}
             ></button>
           </div>
-          <div className="modal-body">
-            <div className="row">
+          <div 
+            className="modal-body"
+            style={{
+              padding: '2rem',
+              height: 'calc(100% - 140px)',
+              overflowY: 'auto',
+              backgroundColor: '#f8f9fa'
+            }}
+          >
+            <div className="row g-4">
               {/* Cart Print Settings */}
               <div className="col-md-6">
-                <div className="card">
-                  <div className="card-header">
-                    <h6 className="mb-0">Cart Print Settings</h6>
+                <div 
+                  className="card h-100"
+                  style={{
+                    borderRadius: '10px',
+                    border: 'none',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+                    transition: 'transform 0.2s ease'
+                  }}
+                >
+                  <div 
+                    className="card-header"
+                    style={{
+                      backgroundColor: '#fff',
+                      borderBottom: '2px solid #e9ecef',
+                      borderRadius: '10px 10px 0 0',
+                      padding: '1.25rem 1.5rem'
+                    }}
+                  >
+                    <div className="d-flex align-items-center">
+                      <i className="bi bi-cart-fill me-2 text-primary" style={{ fontSize: '1.2rem' }}></i>
+                      <h6 className="mb-0 fw-bold text-dark">Cart Print Settings</h6>
+                    </div>
                   </div>
-                  <div className="card-body">
-                    <div className="form-check mb-3">
+                  <div 
+                    className="card-body"
+                    style={{
+                      padding: '1.5rem'
+                    }}
+                  >
+                    <div 
+                      className="form-check mb-4 p-3"
+                      style={{
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '8px',
+                        border: '1px solid #e9ecef'
+                      }}
+                    >
                       <input
                         className="form-check-input"
                         type="checkbox"
@@ -119,10 +198,31 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                             },
                           })
                         }
+                        style={{
+                          transform: 'scale(1.2)',
+                          marginTop: '0.2rem'
+                        }}
                       />
-                      <label className="form-check-label" htmlFor="cartEnabled">
+                      <label 
+                        className="form-check-label fw-semibold ms-2" 
+                        htmlFor="cartEnabled"
+                        style={{ fontSize: '1.1rem' }}
+                      >
+                        <i className="bi bi-toggle-on me-2 text-success"></i>
                         Enable cart printing
                       </label>
+                    </div>
+
+                    <div 
+                      className="border-top pt-3 mt-3 mb-3"
+                      style={{
+                        borderColor: '#e9ecef !important'
+                      }}
+                    >
+                      <h6 className="text-secondary mb-3 fw-semibold">
+                        <i className="bi bi-list-check me-2"></i>
+                        Display Options
+                      </h6>
                     </div>
 
                     <div className="form-check mb-2">
@@ -173,31 +273,15 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                       </label>
                     </div>
 
-                    <div className="form-check mb-2">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="cartShowProductSummary"
-                        checked={config.cartPrintSettings.showProductSummary}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            cartPrintSettings: {
-                              ...config.cartPrintSettings,
-                              showProductSummary: e.target.checked,
-                            },
-                          })
-                        }
-                      />
-                      <label
-                        className="form-check-label"
-                        htmlFor="cartShowProductSummary"
-                      >
-                        Show product summary
-                      </label>
-                    </div>
-
-                    <div className="form-check mb-2">
+                    <div 
+                      className="form-check mb-3 p-3"
+                      style={{
+                        backgroundColor: '#fff3cd',
+                        borderRadius: '8px',
+                        border: '2px solid #ffeaa7',
+                        boxShadow: '0 2px 8px rgba(255, 193, 7, 0.2)'
+                      }}
+                    >
                       <input
                         className="form-check-input"
                         type="checkbox"
@@ -212,12 +296,24 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                             },
                           })
                         }
+                        style={{
+                          transform: 'scale(1.3)',
+                          marginTop: '0.2rem'
+                        }}
                       />
                       <label
-                        className="form-check-label"
+                        className="form-check-label fw-bold ms-2"
                         htmlFor="showQuantities"
+                        style={{ 
+                          fontSize: '1.1rem',
+                          color: '#856404'
+                        }}
                       >
+                        <i className="bi bi-123 me-2 text-warning"></i>
                         Show quantities
+                        <small className="d-block text-muted mt-1" style={{ fontSize: '0.85rem', fontWeight: 'normal' }}>
+                          Control whether quantities appear on printed cart contents
+                        </small>
                       </label>
                     </div>
 
@@ -290,8 +386,21 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                       </label>
                     </div>
 
+                    <div 
+                      className="border-top pt-3 mt-4 mb-3"
+                      style={{
+                        borderColor: '#e9ecef !important'
+                      }}
+                    >
+                      <h6 className="text-secondary mb-3 fw-semibold">
+                        <i className="bi bi-card-text me-2"></i>
+                        Custom Text
+                      </h6>
+                    </div>
+
                     <div className="mb-3">
-                      <label htmlFor="cartHeaderText" className="form-label">
+                      <label htmlFor="cartHeaderText" className="form-label fw-semibold">
+                        <i className="bi bi-arrow-up-circle me-1 text-info"></i>
                         Header Text
                       </label>
                       <input
@@ -312,7 +421,8 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                     </div>
 
                     <div className="mb-3">
-                      <label htmlFor="cartFooterText" className="form-label">
+                      <label htmlFor="cartFooterText" className="form-label fw-semibold">
+                        <i className="bi bi-arrow-down-circle me-1 text-info"></i>
                         Footer Text
                       </label>
                       <textarea
@@ -331,18 +441,78 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                         }
                       />
                     </div>
+
+                    <div className="mb-3">
+                      <label htmlFor="clientNameFontSize" className="form-label fw-semibold">
+                        <i className="bi bi-fonts me-1 text-warning"></i>
+                        Client Name Size
+                      </label>
+                      <select
+                        className="form-select"
+                        id="clientNameFontSize"
+                        value={config.cartPrintSettings.clientNameFontSize || "large"}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            cartPrintSettings: {
+                              ...config.cartPrintSettings,
+                              clientNameFontSize: e.target.value as 'small' | 'medium' | 'large',
+                            },
+                          })
+                        }
+                      >
+                        <option value="small">Small (28px)</option>
+                        <option value="medium">Medium (35px)</option>
+                        <option value="large">Large (45px)</option>
+                      </select>
+                      <div className="form-text text-muted">
+                        <i className="bi bi-info-circle me-1"></i>
+                        Choose the font size for the client name on printed cart labels
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Invoice Print Settings */}
               <div className="col-md-6">
-                <div className="card">
-                  <div className="card-header">
-                    <h6 className="mb-0">Laundry Ticket Print Settings</h6>
+                <div 
+                  className="card h-100"
+                  style={{
+                    borderRadius: '10px',
+                    border: 'none',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+                    transition: 'transform 0.2s ease'
+                  }}
+                >
+                  <div 
+                    className="card-header"
+                    style={{
+                      backgroundColor: '#fff',
+                      borderBottom: '2px solid #e9ecef',
+                      borderRadius: '10px 10px 0 0',
+                      padding: '1.25rem 1.5rem'
+                    }}
+                  >
+                    <div className="d-flex align-items-center">
+                      <i className="bi bi-file-earmark-text-fill me-2 text-success" style={{ fontSize: '1.2rem' }}></i>
+                      <h6 className="mb-0 fw-bold text-dark">Laundry Ticket Print Settings</h6>
+                    </div>
                   </div>
-                  <div className="card-body">
-                    <div className="form-check mb-3">
+                  <div 
+                    className="card-body"
+                    style={{
+                      padding: '1.5rem'
+                    }}
+                  >
+                    <div 
+                      className="form-check mb-4 p-3"
+                      style={{
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '8px',
+                        border: '1px solid #e9ecef'
+                      }}
+                    >
                       <input
                         className="form-check-input"
                         type="checkbox"
@@ -357,11 +527,17 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                             },
                           })
                         }
+                        style={{
+                          transform: 'scale(1.2)',
+                          marginTop: '0.2rem'
+                        }}
                       />
-                      <label
-                        className="form-check-label"
+                      <label 
+                        className="form-check-label fw-semibold ms-2" 
                         htmlFor="invoiceEnabled"
+                        style={{ fontSize: '1.1rem' }}
                       >
+                        <i className="bi bi-toggle-on me-2 text-success"></i>
                         Enable invoice printing
                       </label>
                     </div>
@@ -690,19 +866,52 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
             </div>
 
             {/* Email Settings */}
-            <div className="row mt-3">
+            <div className="row mt-4">
               <div className="col-12">
-                <div className="card">
-                  <div className="card-header">
-                    <h6 className="mb-0">Email Settings</h6>
+                <div 
+                  className="card"
+                  style={{
+                    borderRadius: '10px',
+                    border: 'none',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)'
+                  }}
+                >
+                  <div 
+                    className="card-header"
+                    style={{
+                      backgroundColor: '#fff',
+                      borderBottom: '2px solid #e9ecef',
+                      borderRadius: '10px 10px 0 0',
+                      padding: '1.25rem 1.5rem'
+                    }}
+                  >
+                    <div className="d-flex align-items-center">
+                      <i className="bi bi-envelope-fill me-2 text-info" style={{ fontSize: '1.2rem' }}></i>
+                      <h6 className="mb-0 fw-bold text-dark">Email Settings</h6>
+                    </div>
                   </div>
-                  <div className="card-body">
+                  <div 
+                    className="card-body"
+                    style={{
+                      padding: '1.5rem'
+                    }}
+                  >
                     <div className="row">
                       {/* Configuration Panel */}
                       <div className="col-md-6">
-                        <h6 className="text-primary mb-3">Configuration</h6>
+                        <h6 className="text-primary mb-3">
+                          <i className="bi bi-gear-fill me-2"></i>
+                          Configuration
+                        </h6>
 
-                        <div className="form-check mb-3">
+                        <div 
+                          className="form-check mb-4 p-3"
+                          style={{
+                            backgroundColor: '#f8f9fa',
+                            borderRadius: '8px',
+                            border: '1px solid #e9ecef'
+                          }}
+                        >
                           <input
                             className="form-check-input"
                             type="checkbox"
@@ -717,11 +926,17 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                                 },
                               })
                             }
+                            style={{
+                              transform: 'scale(1.2)',
+                              marginTop: '0.2rem'
+                            }}
                           />
                           <label
-                            className="form-check-label"
+                            className="form-check-label fw-semibold ms-2"
                             htmlFor="emailEnabled"
+                            style={{ fontSize: '1.1rem' }}
                           >
+                            <i className="bi bi-toggle-on me-2 text-success"></i>
                             Enable email functionality
                           </label>
                         </div>
@@ -1140,22 +1355,52 @@ King Uniforms Team`}
               </div>
             </div>
           </div>
-          <div className="modal-footer">
+          <div 
+            className="modal-footer"
+            style={{
+              backgroundColor: '#fff',
+              borderTop: '2px solid #e9ecef',
+              padding: '1.5rem 2rem',
+              borderRadius: '0 0 12px 12px'
+            }}
+          >
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-outline-secondary btn-lg px-4"
               onClick={onClose}
               disabled={saving}
+              style={{
+                borderRadius: '8px',
+                fontWeight: '500'
+              }}
             >
+              <i className="bi bi-x-circle me-2"></i>
               Cancel
             </button>
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary btn-lg px-4"
               onClick={handleSave}
               disabled={saving}
+              style={{
+                borderRadius: '8px',
+                fontWeight: '600',
+                background: 'linear-gradient(135deg, #0E62A0 0%, #1976d2 100%)',
+                border: 'none',
+                boxShadow: '0 4px 15px rgba(14, 98, 160, 0.3)'
+              }}
             >
-              {saving ? "Saving..." : "Save Configuration"}
+              {saving ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-check-circle-fill me-2"></i>
+                  Save Configuration
+                </>
+              )}
             </button>
           </div>
         </div>

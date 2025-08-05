@@ -19,6 +19,7 @@ import {
 } from "../services/emailService";
 import LaundryTicketPreview from "./LaundryTicketPreview";
 import LaundryTicketFieldsModal from "./LaundryTicketFieldsModal";
+import PrintConfigModal from "./PrintConfigModal";
 import "./LaundryTicketPreview.css";
 
 interface PrintingSettingsProps {}
@@ -35,6 +36,10 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = () => {
   const [showFieldsModal, setShowFieldsModal] = useState(false);
   const [fieldsModalClient, setFieldsModalClient] = useState<Client | null>(null);
   const [fieldsModalConfig, setFieldsModalConfig] = useState<PrintConfiguration["invoicePrintSettings"] | null>(null);
+  
+  // Print configuration modal state
+  const [showPrintConfigModal, setShowPrintConfigModal] = useState(false);
+  const [printConfigClient, setPrintConfigClient] = useState<Client | null>(null);
 
   // Email testing and preview states
   const [showEmailPreview, setShowEmailPreview] = useState(false);
@@ -71,6 +76,7 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = () => {
         includeTimestamp: false,
         headerText: "",
         footerText: "",
+        clientNameFontSize: "large",
       },
       invoicePrintSettings: {
         enabled: false,
@@ -177,6 +183,18 @@ King Uniforms Team`,
     setShowEmailConfigModal(true);
   };
 
+  const openPrintConfiguration = (client: Client) => {
+    // Ensure client has printConfig before opening modal
+    const clientWithConfig = {
+      ...client,
+      printConfig: client.printConfig || {
+        ...defaultPrintConfig,
+      },
+    };
+    setPrintConfigClient(clientWithConfig);
+    setShowPrintConfigModal(true);
+  };
+
   const handleConfigurationSave = async (
     clientId: string,
     updatedConfig: PrintConfiguration,
@@ -276,6 +294,40 @@ King Uniforms Team`,
       showNotification("error", "Failed to apply default email configuration");
     } finally {
       setSaving(null);
+    }
+  };
+
+  const handlePrintConfigSave = async (
+    clientId: string,
+    updatedConfig: PrintConfiguration
+  ) => {
+    try {
+      await updateClient(clientId, { printConfig: updatedConfig });
+
+      await logActivity({
+        type: "Client",
+        message: `Print configuration updated for client '${
+          printConfigClient?.name || clientId
+        }'`,
+      });
+
+      // Update local state
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === clientId ? { ...c, printConfig: updatedConfig } : c
+        )
+      );
+
+      setShowPrintConfigModal(false);
+      setPrintConfigClient(null);
+
+      showNotification(
+        "success",
+        "Print configuration updated successfully"
+      );
+    } catch (error) {
+      console.error("Failed to save print configuration:", error);
+      showNotification("error", "Failed to save print configuration");
     }
   };
 
@@ -778,6 +830,13 @@ King Uniforms Team`;
                             title="Customize Laundry Ticket Fields"
                           >
                             <i className="bi bi-ui-checks-grid me-1"></i>Customize Ticket Fields
+                          </button>
+                          <button
+                            className="btn btn-outline-warning btn-sm px-3"
+                            onClick={() => openPrintConfiguration(client)}
+                            title="Configure cart print settings"
+                          >
+                            <i className="bi bi-printer-fill me-1"></i>Cart Print Settings
                           </button>
                         </div>
                       </td>
@@ -1783,6 +1842,19 @@ King Uniforms Team`}
             setClients((prev) => prev.map((c) => c.id === fieldsModalClient.id ? { ...c, printConfig: updatedConfig } : c));
             showNotification("success", "Laundry Ticket print fields updated.");
           }}
+        />
+      )}
+
+      {/* Print Configuration Modal */}
+      {showPrintConfigModal && printConfigClient && (
+        <PrintConfigModal
+          show={showPrintConfigModal}
+          onClose={() => {
+            setShowPrintConfigModal(false);
+            setPrintConfigClient(null);
+          }}
+          client={printConfigClient}
+          onSave={handlePrintConfigSave}
         />
       )}
     </div>

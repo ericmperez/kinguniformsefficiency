@@ -33,6 +33,7 @@ export interface PrintConfiguration {
     includeTimestamp: boolean;
     headerText?: string;
     footerText?: string;
+    clientNameFontSize?: 'small' | 'medium' | 'large'; // Size option for client name display
   };
   // Invoice printing settings
   invoicePrintSettings: {

@@ -446,12 +446,24 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       includeTimestamp: true,
       headerText: "Cart Contents",
       footerText: "",
+      clientNameFontSize: "large",
     };
 
-    // Show quantities for all clients, with special handling for Oncologico clients
-    // Oncologico clients always show quantities regardless of toggle state
-    const shouldShowQuantities = shouldAlwaysShowQuantities(localInvoice.clientName) || 
-                                 (printConfig.showQuantities && showQuantitiesForThisInvoice);
+    // Helper function to get client name font size
+    const getClientNameFontSize = () => {
+      switch (printConfig.clientNameFontSize) {
+        case 'small': return '28px';
+        case 'medium': return '35px';
+        case 'large': return '45px';
+        default: return '35px'; // fallback to medium
+      }
+    };
+
+    // Show quantities based on client-specific print configuration
+    // Priority: 1) Client's print config setting, 2) Global toggle for this invoice, 3) Oncologico special case
+    const shouldShowQuantities = (printConfig.showQuantities && showQuantitiesForThisInvoice) || 
+                                 isOncologicoClient(localInvoice.clientName) || 
+                                 isChildrensHospitalClient(localInvoice.clientName);
 
     // Generate HTML content for all carts with optimized 2-column layout and fixed page size
     const generateAllCartsContent = () => {
@@ -528,7 +540,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   text-align: center;
                   margin-top: 35px;
                 ">                    <div style="
-                      font-size: 35px;
+                      font-size: ${getClientNameFontSize()};
                       font-weight: bold;
                       color: #0E62A0;
                       text-transform: uppercase;
@@ -1919,12 +1931,24 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             includeTimestamp: true,
             headerText: "Cart Contents",
             footerText: "",
+            clientNameFontSize: "large",
           };
 
-          // Show quantities for all clients, with special handling for Oncologico clients
-          // Oncologico clients always show quantities regardless of toggle state
-          const shouldShowQuantities = shouldAlwaysShowQuantities(localInvoice.clientName) || 
-                                       (printConfig.showQuantities && showQuantitiesForThisInvoice);
+          // Helper function to get client name font size
+          const getClientNameFontSize = () => {
+            switch (printConfig.clientNameFontSize) {
+              case 'small': return '28px';
+              case 'medium': return '35px';
+              case 'large': return '45px';
+              default: return '35px'; // fallback to medium
+            }
+          };
+
+          // Show quantities based on client-specific print configuration
+          // Priority: 1) Client's print config setting, 2) Global toggle for this invoice, 3) Oncologico special case
+          const shouldShowQuantities = (printConfig.showQuantities && showQuantitiesForThisInvoice) || 
+                                       isOncologicoClient(localInvoice.clientName) || 
+                                       isChildrensHospitalClient(localInvoice.clientName);
 
           // Generate single cart content using EXACT same logic as Print All Carts
           const generateSingleCartContent = () => {
@@ -2000,7 +2024,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     margin-top: 35px;
                   ">
                     <div style="
-                      font-size: 35px;
+                      font-size: ${getClientNameFontSize()};
                       font-weight: bold;
                       color: #0E62A0;
                       text-transform: uppercase;
