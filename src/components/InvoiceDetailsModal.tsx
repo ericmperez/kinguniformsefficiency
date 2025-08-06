@@ -6,6 +6,7 @@ import { formatDateSpanish, formatDateOnlySpanish } from "../utils/dateFormatter
 import { useCartEditor } from "./CartEditHandler";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
 import { transformClientNameForDisplay, shouldAlwaysShowQuantities, isOncologicoClient, isChildrensHospitalClient, isExcludedFromQuantities } from "../utils/clientNameUtils";
+import { useCartMerger, CartMergeModal } from "./CartMergeUtility";
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice;
@@ -87,6 +88,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [localCarts, setLocalCarts] = React.useState(invoice.carts);
   const [users, setUsers] = React.useState<UserRecord[]>([]);
   const { user } = useAuth();
+
+  // Initialize cart merger hook
+  const cartMerger = useCartMerger(localInvoice, setLocalInvoice);
+
+  // Cart merge modal state
+  const [showCartMergeModal, setShowCartMergeModal] = React.useState(false);
+  const [cartsToMerge, setCartsToMerge] = React.useState<Cart[]>([]);
 
   // Helper function to get current user safely
   const getCurrentUser = () => {
@@ -836,19 +844,44 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       needsReprint: false
     }));
 
-    const updatedInvoice = { ...localInvoice, carts: updatedCarts };
+    // Record "Print All Carts" tracking information
+    const lastPrintAllCarts = {
+      printedBy: currentUser,
+      printedAt: now,
+      cartCount: localInvoice.carts.length
+    };
+
+    const updatedInvoice = { 
+      ...localInvoice, 
+      carts: updatedCarts,
+      printHistory: {
+        ...localInvoice.printHistory,
+        lastPrintAllCarts: lastPrintAllCarts
+      }
+    };
     setLocalInvoice(updatedInvoice);
 
     // Update in database using proper invoice update
     try {
-      await onUpdateInvoice(localInvoice.id, { carts: updatedCarts });
+      await onUpdateInvoice(localInvoice.id, { 
+        carts: updatedCarts,
+        printHistory: {
+          ...localInvoice.printHistory,
+          lastPrintAllCarts: lastPrintAllCarts
+        }
+      });
       
       // Refresh parent data to update indicators instantly
       if (refreshInvoices) {
         await refreshInvoices();
       }
       
-      console.log("✅ All carts marked as printed successfully:", { cartCount: localInvoice.carts.length, user: currentUser, timestamp: now });
+      console.log("✅ All carts marked as printed successfully:", { 
+        cartCount: localInvoice.carts.length, 
+        user: currentUser, 
+        timestamp: now,
+        printAllCartsTracking: lastPrintAllCarts
+      });
     } catch (error) {
       console.error("Failed to update cart print status:", error);
       // Revert local state on error
@@ -1185,6 +1218,28 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       })()}
                     </div>
                   )}
+                  {/* Print All Carts Tracking Display */}
+                  {localInvoice.printHistory?.lastPrintAllCarts && (
+                    <div className="col-12 mt-3">
+                      <div 
+                        className="alert alert-info d-flex align-items-center p-2"
+                        style={{ fontSize: '13px' }}
+                      >
+                        <i className="bi bi-printer-fill me-2" style={{ fontSize: '16px' }}></i>
+                        <div>
+                          <strong>Last "Print All Carts" operation:</strong>
+                          <br />
+                          <span className="text-muted">
+                            Performed by <strong>{localInvoice.printHistory.lastPrintAllCarts.printedBy}</strong> on{' '}
+                            {formatDateSpanish(localInvoice.printHistory.lastPrintAllCarts.printedAt)}
+                            {localInvoice.printHistory.lastPrintAllCarts.cartCount && (
+                              <span> ({localInvoice.printHistory.lastPrintAllCarts.cartCount} cart{localInvoice.printHistory.lastPrintAllCarts.cartCount !== 1 ? 's' : ''})</span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="d-flex gap-2 align-items-center">
@@ -1325,21 +1380,36 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       {cart.name}
                     </h3>
                     
-                    {/* Print Status Indicator */}
+                    {/* Print Status Indicator with Tracking Info */}
                     {(() => {
                       const status = getCartStatus(cart);
                       return (
-                        <div
-                          className="d-flex align-items-center gap-2 px-3 py-1 rounded"
-                          style={{
-                            backgroundColor: status.bgColor,
-                            border: `2px solid ${status.color}`,
-                            fontSize: '14px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          <span style={{ fontSize: '16px' }}>{status.icon}</span>
-                          <span style={{ color: status.color }}>{status.text}</span>
+                        <div className="d-flex flex-column align-items-end">
+                          <div
+                            className="d-flex align-items-center gap-2 px-3 py-1 rounded"
+                            style={{
+                              backgroundColor: status.bgColor,
+                              border: `2px solid ${status.color}`,
+                              fontSize: '14px',
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            <span style={{ fontSize: '16px' }}>{status.icon}</span>
+                            <span style={{ color: status.color }}>{status.text}</span>
+                          </div>
+                          {/* Print Tracking Information */}
+                          {cart.lastPrintedAt && cart.lastPrintedBy && (
+                            <div 
+                              className="text-muted small mt-1"
+                              style={{ fontSize: '11px', textAlign: 'right' }}
+                            >
+                              Last printed by: <strong>{cart.lastPrintedBy}</strong>
+                              <br />
+                              <span style={{ fontSize: '10px' }}>
+                                {formatDateSpanish(cart.lastPrintedAt)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
@@ -1353,6 +1423,22 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       }}
                     >
                       <i className="bi bi-printer" />
+                    </button>
+                    <button
+                      className="btn btn-outline-primary btn-sm"
+                      title="Merge Cart"
+                      onClick={() => {
+                        // Find all other carts in the invoice to merge with
+                        const otherCarts = localInvoice.carts.filter(c => c.id !== cart.id);
+                        if (otherCarts.length === 0) {
+                          alert("No other carts available to merge with.");
+                          return;
+                        }
+                        setCartsToMerge([cart, ...otherCarts]);
+                        setShowCartMergeModal(true);
+                      }}
+                    >
+                      <i className="bi bi-arrow-left-right" />
                     </button>
                     <button
                       className="btn btn-outline-danger btn-sm"
@@ -1914,6 +2000,44 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
         />
       )}
 
+      {/* Cart Merge Modal */}
+      {showCartMergeModal && (
+        <CartMergeModal
+          show={showCartMergeModal}
+          onClose={() => {
+            setShowCartMergeModal(false);
+            setCartsToMerge([]);
+          }}
+          sourceCarts={cartsToMerge}
+          onMerge={async (sourceId: string, targetId: string) => {
+            try {
+              // Use the cart merger utility to perform the merge
+              await cartMerger.mergeCartsDirect(sourceId, targetId);
+              
+              // Close the modal
+              setShowCartMergeModal(false);
+              setCartsToMerge([]);
+              
+              // Log the merge activity
+              if (typeof logActivity === "function") {
+                const sourceCart = cartsToMerge.find(c => c.id === sourceId);
+                const targetCart = cartsToMerge.find(c => c.id === targetId);
+                await logActivity({
+                  type: "Cart",
+                  message: `Merged cart "${sourceCart?.name}" into "${targetCart?.name}" in invoice #${localInvoice.invoiceNumber || localInvoice.id}`,
+                  user: user?.username,
+                });
+              }
+              
+              console.log("✅ Cart merge completed successfully");
+            } catch (error: any) {
+              console.error("❌ Error merging carts:", error);
+              alert(`Failed to merge carts: ${error?.message || 'Network error. Please try again.'}`);
+            }
+          }}
+        />
+      )}
+
       {/* Cart Print Modal */}
       {showCartPrintModal &&
         (() => {
@@ -2224,49 +2348,49 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                         </table>
                       </div>
                     `}
-                  `}
-                </div>
-
-                <!-- Footer Section (Fixed at bottom) -->
-                <div style="
-                  position: absolute;
-                  bottom: 15px;
-                  left: 15px;
-                  right: 15px;
-                ">
-                  <!-- Custom Footer Text -->
-                  ${printConfig.footerText ? `
-                    <div style="
-                      text-align: center;
-                      font-size: 9px;
-                      color: #666;
-                      margin-bottom: 8px;
-                      border-top: 1px solid #ddd;
-                      padding-top: 6px;
-                    ">
-                      ${printConfig.footerText}
-                    </div>
-                  ` : ''}
-
-                  <!-- Delivery Date - Always at Bottom -->
-                  ${localInvoice.deliveryDate ? `
-                    <div style="
-                      text-align: center;
-                      font-size: 14px;
-                      font-weight: bold;
-                      color: #0E62A0;
-                      background-color: #f0f8ff;
-                      padding: 8px;
-                      border: 2px solid #0E62A0;
-                      border-radius: 6px;
-                    ">
-                      DELIVERY DATE: ${formatDateOnlySpanish(localInvoice.deliveryDate)}
-                    </div>
-                  ` : ''}
-                </div>
+                `}
               </div>
-            `;
-          };
+
+              <!-- Footer Section (Fixed at bottom) -->
+              <div style="
+                position: absolute;
+                bottom: 15px;
+                left: 15px;
+                right: 15px;
+              ">
+                <!-- Custom Footer Text -->
+                ${printConfig.footerText ? `
+                  <div style="
+                    text-align: center;
+                    font-size: 9px;
+                    color: #666;
+                    margin-bottom: 8px;
+                    border-top: 1px solid #ddd;
+                    padding-top: 6px;
+                  ">
+                    ${printConfig.footerText}
+                  </div>
+                ` : ''}
+
+                <!-- Delivery Date - Always at Bottom -->
+                ${localInvoice.deliveryDate ? `
+                  <div style="
+                    text-align: center;
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: #0E62A0;
+                    background-color: #f0f8ff;
+                    padding: 8px;
+                    border: 2px solid #0E62A0;
+                    border-radius: 6px;
+                  ">
+                    DELIVERY DATE: ${formatDateOnlySpanish(localInvoice.deliveryDate)}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        };
 
           return (
             <div

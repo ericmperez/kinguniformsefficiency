@@ -55,9 +55,21 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
         if (currentCart && currentCart.items && currentCart.items.length > 0) {
           // Merge items from current cart into existing cart using the same logic as ActiveInvoices
           const mergedItems = mergeCartItems(existingCart.items || [], currentCart.items);
+          
+          // Mark merged cart as needing reprint
+          const now = new Date().toISOString();
+          const currentUser = user?.username || 'Unknown User';
+          
           const updatedCarts = invoice.carts
             .map(cart => cart.id === existingCart.id 
-              ? { ...cart, items: mergedItems, total: mergedItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) }
+              ? { 
+                  ...cart, 
+                  items: mergedItems, 
+                  total: mergedItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0),
+                  needsReprint: true,
+                  lastModifiedAt: now,
+                  lastModifiedBy: currentUser
+                }
               : cart
             )
             .filter(cart => cart.id !== cartId); // Remove the current cart
@@ -67,7 +79,7 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
           const updatedInvoice = { ...invoice, carts: updatedCarts };
           onCartUpdate(updatedInvoice);
           
-          console.log('✅ Cart merged successfully');
+          console.log('✅ Cart merged successfully and marked for reprint');
           return true;
         } else {
           // If current cart has no items, just delete it and return existing cart ID
@@ -95,7 +107,7 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
     setIsUpdating(true);
     
     try {
-      console.log('%c🏷️ Updating cart name directly:', 'color: #fff; background: #111; font-weight: bold; padding: 2px 6px;', { 
+      console.log('🏷️ Updating cart name directly:', { 
         invoiceId: invoice.id, 
         cartId, 
         oldName: invoice.carts.find(c => c.id === cartId)?.name,
@@ -122,11 +134,11 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
       
       onCartUpdate(updatedInvoice);
       
-      console.log('%c✅ Cart name updated successfully', 'color: #fff; background: #111; font-weight: bold; padding: 2px 6px;');
+      console.log('✅ Cart name updated successfully');
       return true;
       
     } catch (error: any) {
-      console.error('%c❌ Failed to update cart name:', 'color: #fff; background: #111; font-weight: bold; padding: 2px 6px;', error);
+      console.error('❌ Failed to update cart name:', error);
       throw new Error(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
     } finally {
       setIsUpdating(false);
@@ -137,7 +149,7 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
     setIsUpdating(true);
     
     try {
-      console.log('%c🗑️ Deleting cart directly:', 'color: #fff; background: #111; font-weight: bold; padding: 2px 6px;', { 
+      console.log('🗑️ Deleting cart directly:', { 
         invoiceId: invoice.id, 
         cartId,
         cartName: invoice.carts.find(c => c.id === cartId)?.name
@@ -159,11 +171,11 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
       
       onCartUpdate(updatedInvoice);
       
-      console.log('%c✅ Cart deleted successfully', 'color: #fff; background: #111; font-weight: bold; padding: 2px 6px;');
+      console.log('✅ Cart deleted successfully');
       return true;
       
     } catch (error: any) {
-      console.error('%c❌ Failed to delete cart:', 'color: #fff; background: #111; font-weight: bold; padding: 2px 6px;', error);
+      console.error('❌ Failed to delete cart:', error);
       throw new Error(`Failed to delete cart: ${error?.message || 'Unknown error'}`);
     } finally {
       setIsUpdating(false);
@@ -205,7 +217,7 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
     setIsUpdating(true);
     
     try {
-      console.log('%c➕ Adding new cart directly:', 'color: #fff; background: #111; font-weight: bold; padding: 2px 6px;', { 
+      console.log('➕ Adding new cart directly:', { 
         invoiceId: invoice.id, 
         cartName: cartName.trim()
       });
@@ -236,11 +248,11 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
       
       onCartUpdate(updatedInvoice);
       
-      console.log('%c✅ Cart added successfully', 'color: #fff; background: #111; font-weight: bold; padding: 2px 6px;');
+      console.log('✅ Cart added successfully');
       return newCart;
       
     } catch (error: any) {
-      console.error('%c❌ Failed to add cart:', 'color: #fff; background: #111; font-weight: bold; padding: 2px 6px;', error);
+      console.error('❌ Failed to add cart:', error);
       throw new Error(`Failed to add cart: ${error?.message || 'Unknown error'}`);
     } finally {
       setIsUpdating(false);
@@ -253,59 +265,6 @@ export const useCartEditor = (invoice: Invoice, onCartUpdate: (updatedInvoice: I
     addCart,
     isUpdating
   };
-};
-
-// Black-themed notification modal
-export const NotificationModal: React.FC<{
-  open: boolean;
-  message: string;
-  onClose: () => void;
-  onConfirm?: () => void;
-  confirmText?: string;
-  cancelText?: string;
-}> = ({ open, message, onClose, onConfirm, confirmText = 'OK', cancelText = 'Cancel' }) => {
-  if (!open) return null;
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(0,0,0,0.7)',
-      zIndex: 99999,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <div style={{
-        background: '#111',
-        color: '#fff',
-        borderRadius: 12,
-        padding: '32px 28px',
-        minWidth: 340,
-        boxShadow: '0 8px 32px #000',
-        textAlign: 'center',
-        fontSize: 18,
-        fontWeight: 500,
-      }}>
-        <div style={{ marginBottom: 24 }}>{message}</div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
-          {onConfirm && (
-            <button
-              onClick={() => { onConfirm(); onClose(); }}
-              style={{ background: '#fff', color: '#111', border: 'none', borderRadius: 6, padding: '8px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
-            >
-              {confirmText}
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            style={{ background: '#222', color: '#fff', border: '1px solid #444', borderRadius: 6, padding: '8px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
-          >
-            {onConfirm ? cancelText : 'Close'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 export default useCartEditor;
