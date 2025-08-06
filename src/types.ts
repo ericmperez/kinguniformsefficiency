@@ -106,7 +106,9 @@ export interface Invoice {
   groupedInvoiceNumber?: string; // Custom invoice number when invoices are grouped
   locked?: boolean; // If true, invoice is locked and not editable
   verified?: boolean; // If true, invoice is approved
-  partiallyVerified?: boolean; // If true, invoice is partially approved  
+  partiallyVerified?: boolean; // If true, invoice is partially approved
+  manglesCompleted?: boolean; // If true, "Mangles - Arriba" (top part) is completed
+  dobladoCompleted?: boolean; // If true, "Doblado - Abajo" (bottom part) is completed  
   verifiedBy?: string; // User ID who approved
   verifiedAt?: string; // Timestamp of approval
   verifiedProducts?: { [cartId: string]: string[] }; // Product IDs checked per cart

@@ -252,6 +252,14 @@ export default function ActiveInvoices({
     [id: string]: boolean;
   }>({});
 
+  // --- Two-Step Completion State ---
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [completionInvoiceId, setCompletionInvoiceId] = useState<string | null>(null);
+  const [selectedCompletionParts, setSelectedCompletionParts] = useState<{
+    mangles: boolean;
+    doblado: boolean;
+  }>({ mangles: false, doblado: false });
+
   // --- Print Options Modal State ---
   const [showPrintOptionsModal, setShowPrintOptionsModal] = useState<
     string | null
@@ -396,6 +404,72 @@ export default function ActiveInvoices({
     return Object.values(verifyChecks).some((cartChecks) =>
       Object.values(cartChecks).some(Boolean)
     );
+  };
+
+  // Handler to open completion selection modal
+  const handleOpenCompletionModal = (invoiceId: string) => {
+    const invoice = invoices.find((inv) => inv.id === invoiceId);
+    if (!invoice) return;
+    
+    setCompletionInvoiceId(invoiceId);
+    setSelectedCompletionParts({
+      mangles: invoice.manglesCompleted || false,
+      doblado: invoice.dobladoCompleted || false,
+    });
+    setShowCompletionModal(true);
+  };
+
+  // Handler to apply completion selection
+  const handleApplyCompletion = async () => {
+    if (!completionInvoiceId) return;
+    
+    const { mangles, doblado } = selectedCompletionParts;
+    
+    // Update invoice with completion parts
+    const updateData: Partial<Invoice> = {
+      manglesCompleted: mangles,
+      dobladoCompleted: doblado,
+    };
+    
+    // Only mark as fully completed if both parts are done
+    if (mangles && doblado) {
+      updateData.status = "completed";
+    } else if (!mangles && !doblado) {
+      // If unchecking both, revert to active
+      updateData.status = "active";
+    }
+    // If only one part is completed, don't change the status yet
+    
+    await onUpdateInvoice(completionInvoiceId, updateData);
+    
+    // Trigger animation based on completion state
+    if (mangles && doblado) {
+      triggerApprovalAnimation(completionInvoiceId, "partial");
+    }
+    
+    // Log activity
+    if (user?.username) {
+      const invoice = invoices.find((inv) => inv.id === completionInvoiceId);
+      const completedParts = [];
+      if (mangles) completedParts.push("Mangles - Arriba");
+      if (doblado) completedParts.push("Doblado - Abajo");
+      
+      let message = `User ${user.username} marked laundry ticket #${invoice?.invoiceNumber || completionInvoiceId}`;
+      if (completedParts.length > 0) {
+        message += ` - completed parts: ${completedParts.join(", ")}`;
+      } else {
+        message += " as uncompleted";
+      }
+      
+      await logActivity({
+        type: "Invoice",
+        message,
+        user: user.username,
+      });
+    }
+    
+    setShowCompletionModal(false);
+    setCompletionInvoiceId(null);
   };
 
   // When user clicks Done in verify modal
@@ -1726,6 +1800,24 @@ export default function ActiveInvoices({
                 cardBackground =
                   "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
                 cardBorderColor = "#eab308";
+              } else if (invoice.manglesCompleted || invoice.dobladoCompleted) {
+                // Partial completion - Split background
+                if (invoice.manglesCompleted && invoice.dobladoCompleted) {
+                  // Both parts completed - should be status "completed", but fallback
+                  cardBackground =
+                    "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+                  cardBorderColor = "#eab308";
+                } else if (invoice.manglesCompleted) {
+                  // Only top part completed - Yellow top, blue bottom
+                  cardBackground =
+                    "linear-gradient(to bottom, #fef3c7 0%, #fef3c7 50%, #dbeafe 50%, #dbeafe 100%)";
+                  cardBorderColor = "#3b82f6";
+                } else if (invoice.dobladoCompleted) {
+                  // Only bottom part completed - Blue top, yellow bottom
+                  cardBackground =
+                    "linear-gradient(to bottom, #dbeafe 0%, #dbeafe 50%, #fef3c7 50%, #fef3c7 100%)";
+                  cardBorderColor = "#3b82f6";
+                }
               } else if (isReady) {
                 // Ready status - Light yellow
                 cardBackground =
@@ -2197,34 +2289,23 @@ export default function ActiveInvoices({
                                   verifiedAt: "",
                                 });
                               } else {
-                                // Just remove completion
+                                // Just remove completion parts
                                 await onUpdateInvoice(invoice.id, {
                                   status: "active",
+                                  manglesCompleted: false,
+                                  dobladoCompleted: false,
                                 });
                               }
                               if (user?.username) {
-                                await                                logActivity({
+                                await logActivity({
                                   type: "Invoice",
                                   message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as active (uncompleted)`,
                                   user: user.username,
                                 });
                               }
                             } else {
-                              // Mark as completed
-                              await onUpdateInvoice(invoice.id, {
-                                status: "completed",
-                              });
-
-                              // Trigger completion animation (yellow)
-                              triggerApprovalAnimation(invoice.id, "partial");
-
-                              if (user?.username) {
-                                await                                logActivity({
-                                  type: "Invoice",
-                                  message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as completed`,
-                                  user: user.username,
-                                });
-                              }
+                              // Open completion selection modal
+                              handleOpenCompletionModal(invoice.id);
                             }
                           }}
                           disabled={hasUnnamedCart(invoice)}
@@ -2236,7 +2317,7 @@ export default function ActiveInvoices({
                               : invoice.status === "completed" ||
                                 invoice.verified
                               ? "Click to mark as active"
-                              : "Mark as Completed"
+                              : "Select completion parts"
                           }
                         >
                           <i
@@ -2287,6 +2368,14 @@ export default function ActiveInvoices({
                               );
                               return;
                             }
+                            
+                            // Check if both parts are completed
+                            if (!invoice.manglesCompleted || !invoice.dobladoCompleted) {
+                              alert(
+                                "Both Mangles (top) and Doblado (bottom) parts must be completed before approval."
+                              );
+                              return;
+                            }
 
                             // Toggle approval status
                             if (invoice.verified) {
@@ -2315,11 +2404,15 @@ export default function ActiveInvoices({
                           }}
                           disabled={
                             invoice.status !== "completed" ||
+                            !invoice.manglesCompleted ||
+                            !invoice.dobladoCompleted ||
                             hasUnnamedCart(invoice)
                           }
                           title={
                             invoice.status !== "completed"
                               ? "Must be completed first"
+                              : !invoice.manglesCompleted || !invoice.dobladoCompleted
+                              ? "Both Mangles (top) and Doblado (bottom) must be completed first"
                               : hasUnnamedCart(invoice)
                               ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
                               : (invoice as any).status === "done" &&
@@ -2828,16 +2921,16 @@ export default function ActiveInvoices({
                                       verifiedAt: "",
                                     });
                                   } else {
-                                    // Just remove completion
+                                    // Just remove completion parts
                                     await onUpdateInvoice(invoice.id, {
                                       status: "active",
+                                      manglesCompleted: false,
+                                      dobladoCompleted: false,
                                     });
                                   }
                                 } else {
-                                  // Mark as completed
-                                  await onUpdateInvoice(invoice.id, {
-                                    status: "completed",
-                                  });
+                                  // Open completion selection modal
+                                  handleOpenCompletionModal(invoice.id);
                                 }
 
                                 if (user?.username) {
@@ -2860,6 +2953,14 @@ export default function ActiveInvoices({
                                 if (invoice.status !== "completed") {
                                   alert(
                                     "Laundry Ticket must be completed before it can be approved."
+                                  );
+                                  return;
+                                }
+                                
+                                // Check if both parts are completed
+                                if (!invoice.manglesCompleted || !invoice.dobladoCompleted) {
+                                  alert(
+                                    "Both Mangles (top) and Doblado (bottom) parts must be completed before approval."
                                   );
                                   return;
                                 }
@@ -2893,10 +2994,15 @@ export default function ActiveInvoices({
                                 handleVerifyInvoice(invoice.id);
                               }
                             }}
-                            disabled={hasUnnamedCart(invoice)}
+                            disabled={
+                              hasUnnamedCart(invoice) ||
+                              (invoice.status !== "completed") ||
+                              (!invoice.manglesCompleted || !invoice.dobladoCompleted)
+                            }
                             title={
                               hasUnnamedCart(invoice) ? 'Cannot modify with "CARRO SIN NOMBRE" cart' :
-                              invoice.status !== "completed" ? "Mark as completed" :
+                              invoice.status !== "completed" ? "Mark as completed first" :
+                              (!invoice.manglesCompleted || !invoice.dobladoCompleted) ? "Both Mangles and Doblado parts must be completed first" :
                               isVerified ? "Remove approval" : "Approve"
                             }
                           >
@@ -5266,6 +5372,157 @@ export default function ActiveInvoices({
                   disabled={!anyVerified()}
                 >
                   Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Two-Step Completion Modal */}
+      {showCompletionModal && completionInvoiceId && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-clipboard-check me-2"></i>
+                  Select Completion Parts
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowCompletionModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <p className="text-muted mb-3">
+                  Select which parts of the work are completed for this laundry ticket:
+                </p>
+                
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <div className="card h-100">
+                      <div className="card-body text-center">
+                        <div className="form-check">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="manglesCheckbox"
+                            checked={selectedCompletionParts.mangles}
+                            onChange={(e) =>
+                              setSelectedCompletionParts(prev => ({
+                                ...prev,
+                                mangles: e.target.checked
+                              }))
+                            }
+                          />
+                          <label className="form-check-label fs-5 fw-bold" htmlFor="manglesCheckbox">
+                            Mangles - Arriba
+                          </label>
+                        </div>
+                        <p className="text-muted mt-2 small">Top part of the invoice</p>
+                        <div className="mt-3">
+                          <div 
+                            className="border rounded p-2"
+                            style={{ 
+                              backgroundColor: selectedCompletionParts.mangles ? '#fef3c7' : '#f8f9fa',
+                              borderColor: selectedCompletionParts.mangles ? '#f59e0b' : '#dee2e6',
+                              height: '40px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {selectedCompletionParts.mangles ? 'TOP COMPLETED' : 'TOP SECTION'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="col-md-6">
+                    <div className="card h-100">
+                      <div className="card-body text-center">
+                        <div className="form-check">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="dobladoCheckbox"
+                            checked={selectedCompletionParts.doblado}
+                            onChange={(e) =>
+                              setSelectedCompletionParts(prev => ({
+                                ...prev,
+                                doblado: e.target.checked
+                              }))
+                            }
+                          />
+                          <label className="form-check-label fs-5 fw-bold" htmlFor="dobladoCheckbox">
+                            Doblado - Abajo
+                          </label>
+                        </div>
+                        <p className="text-muted mt-2 small">Bottom part of the invoice</p>
+                        <div className="mt-3">
+                          <div 
+                            className="border rounded p-2"
+                            style={{ 
+                              backgroundColor: selectedCompletionParts.doblado ? '#fef3c7' : '#f8f9fa',
+                              borderColor: selectedCompletionParts.doblado ? '#f59e0b' : '#dee2e6',
+                              height: '40px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {selectedCompletionParts.doblado ? 'BOTTOM COMPLETED' : 'BOTTOM SECTION'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-4">
+                  {selectedCompletionParts.mangles && selectedCompletionParts.doblado && (
+                    <div className="alert alert-success" role="alert">
+                      <i className="bi bi-check-circle-fill me-2"></i>
+                      Both parts completed! This invoice will be marked as fully completed.
+                    </div>
+                  )}
+                  {(selectedCompletionParts.mangles || selectedCompletionParts.doblado) && 
+                   !(selectedCompletionParts.mangles && selectedCompletionParts.doblado) && (
+                    <div className="alert alert-warning" role="alert">
+                      <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                      Partial completion. The invoice will not be available for approval until both parts are completed.
+                    </div>
+                  )}
+                  {!selectedCompletionParts.mangles && !selectedCompletionParts.doblado && (
+                    <div className="alert alert-info" role="alert">
+                      <i className="bi bi-info-circle-fill me-2"></i>
+                      Select at least one part to mark as completed.
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowCompletionModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleApplyCompletion}
+                >
+                  Apply Changes
                 </button>
               </div>
             </div>

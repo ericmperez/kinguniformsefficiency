@@ -174,6 +174,11 @@ const Segregation: React.FC<SegregationProps> = ({
     [groupId: string]: string;
   }>({});
   const [completingGroup, setCompletingGroup] = useState<string | null>(null);
+  
+  // Track washing type overrides per group (to force Tunnel clients to Conventional)
+  const [washingTypeOverrides, setWashingTypeOverrides] = useState<{
+    [groupId: string]: "Conventional" | null;
+  }>({});
 
   // Track manual order for segregation groups, persist in Firestore
   const [groupOrder, setGroupOrder] = useState<string[]>([]);
@@ -373,6 +378,54 @@ const Segregation: React.FC<SegregationProps> = ({
       // Optionally show error and revert UI if needed
       // For now, do nothing (UI will sync with Firestore on next snapshot)
     }
+  };
+
+  // Helper to get effective washing type (considering overrides)
+  const getEffectiveWashingType = (groupId: string, client?: Client) => {
+    // Check if there's an override for this group
+    const override = washingTypeOverrides[groupId];
+    if (override) {
+      return override;
+    }
+    // Otherwise return the client's default washing type
+    return client?.washingType || "Conventional";
+  };
+
+  // Toggle washing type override for a group
+  const toggleWashingTypeOverride = async (groupId: string) => {
+    const group = groups.find((g) => g.id === groupId);
+    const client = clients.find((c) => c.id === group?.clientId);
+    
+    if (!client || client.washingType !== "Tunnel") {
+      return; // Only allow overriding Tunnel clients
+    }
+    
+    const currentOverride = washingTypeOverrides[groupId];
+    const newOverride = currentOverride ? null : "Conventional";
+    
+    setWashingTypeOverrides((prev) => {
+      const newOverrides = { ...prev };
+      if (newOverride) {
+        newOverrides[groupId] = newOverride;
+      } else {
+        delete newOverrides[groupId];
+      }
+      return newOverrides;
+    });
+    
+    // Log the override action
+    const action = newOverride ? "enabled" : "disabled";
+    const message = newOverride 
+      ? `Override ${action}: ${getGroupDisplayName(groupId, group)} (Tunnel client) will be forced to Conventional by ${getCurrentUser()}`
+      : `Override ${action}: ${getGroupDisplayName(groupId, group)} will use default Tunnel washing by ${getCurrentUser()}`;
+    
+    await logActivity({
+      type: "Segregation",
+      message,
+      user: getCurrentUser(),
+    });
+    
+    console.log(`🔄 [OVERRIDE ${action.toUpperCase()}] ${group?.clientName}: ${client.washingType} → ${newOverride || client.washingType}`);
   };
 
   // Helper to get current user (from localStorage or context)
@@ -655,7 +708,10 @@ const Segregation: React.FC<SegregationProps> = ({
       let newStatus = "Conventional";
       let orderUpdate: any = {};
       
-      if (client?.washingType === "Tunnel") {
+      // Use effective washing type (considering overrides)
+      const effectiveWashingType = getEffectiveWashingType(group?.id || groupId, client);
+      
+      if (effectiveWashingType === "Tunnel") {
         newStatus = "Tunnel";
         // Find max order among existing Tunnel groups and add 1 to put at bottom
         const existingTunnelGroups = groups.filter(
@@ -687,11 +743,31 @@ const Segregation: React.FC<SegregationProps> = ({
       console.log(`📋 New Status: ${newStatus}`);
       console.log(`📈 Order Update:`, orderUpdate);
       
+      // Log override usage if applicable
+      const override = washingTypeOverrides[groupId];
+      if (override) {
+        console.log(`🔄 OVERRIDE APPLIED: Client default (${client?.washingType}) → ${override}`);
+        await logActivity({
+          type: "Segregation",
+          message: `Override applied to ${getGroupDisplayName(groupId, group)}: Client default (${client?.washingType}) forced to ${override} by ${getCurrentUser()}`,
+          user: getCurrentUser(),
+        });
+      }
+      
       await updateDoc(doc(db, "pickup_groups", groupId), {
         segregatedCarts: segregatedCount,
         status: newStatus,
         ...orderUpdate,
       });
+      
+      // Clean up the override for this group since it's completed
+      if (override) {
+        setWashingTypeOverrides((prev) => {
+          const newOverrides = { ...prev };
+          delete newOverrides[groupId];
+          return newOverrides;
+        });
+      }
       // --- LOG TO segregation_done_logs ---
       // Calculate total weight for this group (sum all carts' totalWeight or use group.totalWeight if available)
       let totalWeight = 0;
@@ -749,9 +825,12 @@ const Segregation: React.FC<SegregationProps> = ({
       let newStatus = "Conventional";
       let orderUpdate: any = {};
       
-      if (client?.washingType === "Tunnel") {
+      // Use effective washing type (considering overrides)
+      const effectiveWashingType = getEffectiveWashingType(groupId, client);
+      
+      if (effectiveWashingType === "Tunnel") {
         newStatus = "Tunnel";
-        console.log(`🔄 Client washing type is Tunnel, changing status to: ${newStatus}`);
+        console.log(`🔄 Effective washing type is Tunnel, changing status to: ${newStatus}`);
         // Find max order among existing Tunnel groups and add 1 to put at bottom
         const existingTunnelGroups = groups.filter(
           (g) =>
@@ -766,7 +845,7 @@ const Segregation: React.FC<SegregationProps> = ({
         orderUpdate = { order: maxOrder + 1 };
         console.log(`📈 Assigned tunnel order: ${maxOrder + 1}`);
       } else {
-        console.log(`🔄 Client washing type is Conventional, changing status to: ${newStatus}`);
+        console.log(`🔄 Effective washing type is Conventional, changing status to: ${newStatus}`);
         // For Conventional groups, also assign order to put at bottom
         const existingConventionalGroups = groups.filter(
           (g) =>
@@ -784,6 +863,17 @@ const Segregation: React.FC<SegregationProps> = ({
       
       console.log(`💾 Updating Firestore with status: ${newStatus}, order: ${orderUpdate.order}`);
       
+      // Log override usage if applicable
+      const override = washingTypeOverrides[groupId];
+      if (override) {
+        console.log(`🔄 OVERRIDE APPLIED: Client default (${client?.washingType}) → ${override}`);
+        await logActivity({
+          type: "Segregation",
+          message: `Override applied to ${getGroupDisplayName(groupId, group)}: Client default (${client?.washingType}) forced to ${override} by ${getCurrentUser()}`,
+          user: getCurrentUser(),
+        });
+      }
+      
       // Update Firestore
       const groupRef = doc(db, "pickup_groups", groupId);
       await updateDoc(groupRef, {
@@ -791,6 +881,15 @@ const Segregation: React.FC<SegregationProps> = ({
         status: newStatus,
         ...orderUpdate,
       });
+      
+      // Clean up the override for this group since it's completed
+      if (override) {
+        setWashingTypeOverrides((prev) => {
+          const newOverrides = { ...prev };
+          delete newOverrides[groupId];
+          return newOverrides;
+        });
+      }
       
       console.log(`✅ Firestore update complete`);
       
@@ -1142,6 +1241,32 @@ const Segregation: React.FC<SegregationProps> = ({
           }}
         >
           {topGroup.clientName}
+          {(() => {
+            const client = clients.find((c) => c.id === topGroup.clientId);
+            const hasOverride = washingTypeOverrides[topGroup.id];
+            
+            // Show override indicator for top group
+            if (hasOverride && client?.washingType === "Tunnel") {
+              return (
+                <span
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 600,
+                    marginLeft: 12,
+                    padding: "4px 8px",
+                    backgroundColor: "#fff3cd",
+                    border: "2px solid #ffc107",
+                    borderRadius: 8,
+                    color: "#856404"
+                  }}
+                  title="Override active: Will go to Conventional instead of Tunnel"
+                >
+                  T→C Override
+                </span>
+              );
+            }
+            return null;
+          })()}
           <div
             style={{
               fontSize: 18,
@@ -1229,6 +1354,42 @@ const Segregation: React.FC<SegregationProps> = ({
             >
               +
             </button>
+            
+            {/* Washing Type Override Button for top group - only for Tunnel clients */}
+            {(() => {
+              const client = clients.find((c) => c.id === topGroup.clientId);
+              const hasOverride = washingTypeOverrides[topGroup.id];
+              const effectiveType = getEffectiveWashingType(topGroup.id, client);
+              
+              // Only show for Tunnel clients
+              if (client?.washingType === "Tunnel") {
+                return (
+                  <button
+                    className={`btn ms-3 ${
+                      hasOverride ? "btn-warning" : "btn-outline-warning"
+                    }`}
+                    disabled={completingGroup === topGroup.id}
+                    onClick={() => toggleWashingTypeOverride(topGroup.id)}
+                    title={
+                      hasOverride
+                        ? `Override Active: Will go to Conventional (default: ${client.washingType})`
+                        : `Click to force to Conventional (default: ${client.washingType})`
+                    }
+                    style={{ 
+                      fontSize: 18,
+                      minWidth: 80,
+                      minHeight: 56,
+                      borderRadius: 12,
+                      fontWeight: 700
+                    }}
+                  >
+                    {hasOverride ? "→Conv" : "T→C"}
+                  </button>
+                );
+              }
+              return null;
+            })()}
+            
             <button
               className="btn btn-success ms-3"
               style={{
@@ -1499,6 +1660,33 @@ const Segregation: React.FC<SegregationProps> = ({
                       {!isSupervisorOrAbove && idx < 2 && "🟢 "}
                       {!isSupervisorOrAbove && idx >= 2 && "⏳ "}
                       {group.clientName}
+                      {(() => {
+                        const client = clients.find((c) => c.id === group.clientId);
+                        const hasOverride = washingTypeOverrides[group.id];
+                        const effectiveType = getEffectiveWashingType(group.id, client);
+                        
+                        // Show override indicator
+                        if (hasOverride && client?.washingType === "Tunnel") {
+                          return (
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                marginLeft: 8,
+                                padding: "2px 6px",
+                                backgroundColor: "#fff3cd",
+                                border: "1px solid #ffc107",
+                                borderRadius: 4,
+                                color: "#856404"
+                              }}
+                              title="Override active: Will go to Conventional instead of Tunnel"
+                            >
+                              T→C
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                       {!isSupervisorOrAbove && idx >= 2 && (
                         <span
                           style={{
@@ -1663,6 +1851,41 @@ const Segregation: React.FC<SegregationProps> = ({
                           -
                         </span>
                       </button>
+                      
+                      {/* Washing Type Override Button - only for Tunnel clients */}
+                      {(() => {
+                        const client = clients.find((c) => c.id === group.clientId);
+                        const hasOverride = washingTypeOverrides[group.id];
+                        const effectiveType = getEffectiveWashingType(group.id, client);
+                        
+                        // Only show for Tunnel clients
+                        if (client?.washingType === "Tunnel") {
+                          return (
+                            <button
+                              className={`btn btn-sm ms-1 px-2 ${
+                                hasOverride ? "btn-warning" : "btn-outline-warning"
+                              }`}
+                              disabled={disableActions || completingGroup === group.id}
+                              onClick={() => toggleWashingTypeOverride(group.id)}
+                              title={
+                                hasOverride
+                                  ? `Override Active: Will go to Conventional (default: ${client.washingType})`
+                                  : `Click to force to Conventional (default: ${client.washingType})`
+                              }
+                              style={{ 
+                                fontWeight: 700, 
+                                fontSize: 11, 
+                                minWidth: 44,
+                                padding: "2px 4px"
+                              }}
+                            >
+                              {hasOverride ? "→C" : "T→C"}
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
+                      
                       <button
                         className="btn btn-success btn-sm ms-1 px-2"
                         disabled={
