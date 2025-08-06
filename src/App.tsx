@@ -46,6 +46,7 @@ import { useAppState, useBusinessLogic } from './hooks';
 import Report from "./components/Report";
 import React, { Suspense, lazy } from "react";
 import { canUserSeeComponent, AppComponentKey } from "./permissions";
+import TodoListFloating from "./components/TodoListFloating";
 
 // Lazy load large components for better performance
 const ProductForm = lazy(() => import("./components/ProductForm").then(module => ({ default: module.ProductForm })));
@@ -1882,6 +1883,8 @@ function App() {
           />
         </Suspense>
       )}
+      {/* Floating Todo List - always visible */}
+      <TodoListFloating />
     </Router>
   );
 }
