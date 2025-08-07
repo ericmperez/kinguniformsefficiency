@@ -19,7 +19,7 @@ export interface Client {
   email?: string; // Optional email property
   needsInvoice?: boolean; // New field: does this client require invoice creation?
   printConfig?: PrintConfiguration; // Print configuration for this client
-  completedOptionPosition?: 'top' | 'bottom' | 'both'; // Where to show completed option in invoice
+  completedOptionPosition?: 'top' | 'bottom' | 'both' | 'uniformes'; // Where to show completed option in invoice
 }
 
 export interface PrintConfiguration {

@@ -38,7 +38,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     washingType === "Tunnel"
   );
   const [completedOptionPosition, setCompletedOptionPosition] = useState<
-    "top" | "bottom" | "both"
+    "top" | "bottom" | "both" | "uniformes"
   >("both");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -468,7 +468,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                     className="form-check-label"
                     htmlFor="completedPositionTop"
                   >
-                    Top Only
+                    Mangle
                   </label>
                 </div>
                 <div className="form-check form-check-inline">
@@ -485,7 +485,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                     className="form-check-label"
                     htmlFor="completedPositionBottom"
                   >
-                    Bottom Only
+                    Doblado
                   </label>
                 </div>
                 <div className="form-check form-check-inline">
@@ -502,7 +502,24 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                     className="form-check-label"
                     htmlFor="completedPositionBoth"
                   >
-                    Both Top & Bottom
+                    Both (Mangle and Doblado)
+                  </label>
+                </div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="completedOptionPosition"
+                    id="completedPositionUniforms"
+                    value="uniformes"
+                    checked={completedOptionPosition === "uniformes"}
+                    onChange={() => setCompletedOptionPosition("uniformes")}
+                  />
+                  <label
+                    className="form-check-label"
+                    htmlFor="completedPositionUniforms"
+                  >
+                    Uniformes
                   </label>
                 </div>
               </div>
@@ -1085,7 +1102,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           disabled={isSaving}
                         />
                         <label className="form-check-label" htmlFor="completedPositionTopEdit">
-                          Top Only
+                          Mangle
                         </label>
                       </div>
                       <div className="form-check form-check-inline">
@@ -1113,7 +1130,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           disabled={isSaving}
                         />
                         <label className="form-check-label" htmlFor="completedPositionBottomEdit">
-                          Bottom Only
+                          Doblado
                         </label>
                       </div>
                       <div className="form-check form-check-inline">
@@ -1141,7 +1158,35 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           disabled={isSaving}
                         />
                         <label className="form-check-label" htmlFor="completedPositionBothEdit">
-                          Both Top & Bottom
+                          Both (Mangle and Doblado)
+                        </label>
+                      </div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="completedOptionPositionEdit"
+                          id="completedPositionUniformsEdit"
+                          value="uniformes"
+                          checked={completedOptionPosition === "uniformes"}
+                          onChange={async () => {
+                            setCompletedOptionPosition("uniformes");
+                            if (editingClient) {
+                              setIsSaving(true);
+                              setSaveError(null);
+                              try {
+                                await onUpdateClient(editingClient.id, { completedOptionPosition: "uniformes" });
+                              } catch {
+                                setSaveError("Failed to save changes.");
+                              } finally {
+                                setIsSaving(false);
+                              }
+                            }
+                          }}
+                          disabled={isSaving}
+                        />
+                        <label className="form-check-label" htmlFor="completedPositionUniformsEdit">
+                          Uniformes
                         </label>
                       </div>
                     </div>

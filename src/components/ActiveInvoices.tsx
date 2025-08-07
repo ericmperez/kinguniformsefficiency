@@ -261,7 +261,7 @@ export default function ActiveInvoices({
   }>({ mangles: false, doblado: false });
   
   // Helper to get completed option position for a client
-  function getCompletedOptionPosition(client: Client): 'top' | 'bottom' | 'both' {
+  function getCompletedOptionPosition(client: Client): 'top' | 'bottom' | 'both' | 'uniformes' {
     return client.completedOptionPosition || 'both';
   }
 
@@ -448,6 +448,9 @@ export default function ActiveInvoices({
     } else if (completedPosition === 'bottom') {
       // For bottom-only clients, completed when doblado is done
       isCompleted = doblado;
+    } else if (completedPosition === 'uniformes') {
+      // For uniformes clients, completed when either mangles or doblado is done
+      isCompleted = mangles || doblado;
     } else {
       // For 'both' clients, completed when both parts are done
       isCompleted = mangles && doblado;
@@ -1822,22 +1825,40 @@ export default function ActiveInvoices({
                   "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
                 cardBorderColor = "#eab308";
               } else if (invoice.manglesCompleted || invoice.dobladoCompleted) {
-                // Partial completion - Split background
+                // Partial completion - Enhanced logic for client settings
+                const completedPosition = getCompletedOptionPosition(client!);
+                
                 if (invoice.manglesCompleted && invoice.dobladoCompleted) {
                   // Both parts completed - should be status "completed", but fallback
                   cardBackground =
                     "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
                   cardBorderColor = "#eab308";
                 } else if (invoice.manglesCompleted) {
-                  // Only top part completed - Yellow top, blue bottom
-                  cardBackground =
-                    "linear-gradient(to bottom, #fef3c7 0%, #fef3c7 50%, #dbeafe 50%, #dbeafe 100%)";
-                  cardBorderColor = "#3b82f6";
+                  // Top part completed
+                  if (completedPosition === 'top' || completedPosition === 'uniformes') {
+                    // Client only has top option or uniformes - full yellow card (partial completion)
+                    cardBackground =
+                      "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+                    cardBorderColor = "#eab308";
+                  } else {
+                    // Client has both options - split background (yellow top, blue bottom)
+                    cardBackground =
+                      "linear-gradient(to bottom, #fef3c7 0%, #fef3c7 50%, #dbeafe 50%, #dbeafe 100%)";
+                    cardBorderColor = "#3b82f6";
+                  }
                 } else if (invoice.dobladoCompleted) {
-                  // Only bottom part completed - Blue top, yellow bottom
-                  cardBackground =
-                    "linear-gradient(to bottom, #dbeafe 0%, #dbeafe 50%, #fef3c7 50%, #fef3c7 100%)";
-                  cardBorderColor = "#3b82f6";
+                  // Bottom part completed
+                  if (completedPosition === 'bottom' || completedPosition === 'uniformes') {
+                    // Client only has bottom option or uniformes - full yellow card (partial completion)
+                    cardBackground =
+                      "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+                    cardBorderColor = "#eab308";
+                  } else {
+                    // Client has both options - split background (blue top, yellow bottom)
+                    cardBackground =
+                      "linear-gradient(to bottom, #dbeafe 0%, #dbeafe 50%, #fef3c7 50%, #fef3c7 100%)";
+                    cardBorderColor = "#3b82f6";
+                  }
                 }
               } else if (isReady) {
                 // Ready status - Light yellow
@@ -2793,12 +2814,38 @@ export default function ActiveInvoices({
                     total + cart.items.reduce((cartTotal, item) => cartTotal + item.quantity, 0), 0
                   );
 
-                  // Get row background color based on status
+                  // Get row background color based on status - Enhanced logic for client settings
                   let rowClass = "";
                   if (isVerified) {
                     rowClass = invoice.deliveryMethod === "client_pickup" ? "table-warning" : "table-success";
                   } else if (isPartiallyVerified || invoice.status === "completed") {
                     rowClass = "table-warning";
+                  } else if (invoice.manglesCompleted || invoice.dobladoCompleted) {
+                    // Enhanced logic for partial completion based on client settings
+                    const completedPosition = getCompletedOptionPosition(client!);
+                    
+                    if (invoice.manglesCompleted && invoice.dobladoCompleted) {
+                      // Both parts completed
+                      rowClass = "table-warning";
+                    } else if (invoice.manglesCompleted) {
+                      // Top part completed
+                      if (completedPosition === 'top' || completedPosition === 'uniformes') {
+                        // Client only has top option or uniformes - yellow row (partial completion)
+                        rowClass = "table-warning";
+                      } else {
+                        // Client has both options - default row
+                        rowClass = "";
+                      }
+                    } else if (invoice.dobladoCompleted) {
+                      // Bottom part completed
+                      if (completedPosition === 'bottom' || completedPosition === 'uniformes') {
+                        // Client only has bottom option or uniformes - yellow row (partial completion)
+                        rowClass = "table-warning";
+                      } else {
+                        // Client has both options - default row
+                        rowClass = "";
+                      }
+                    }
                   } else if (isReady) {
                     rowClass = "table-info";
                   }
@@ -5430,6 +5477,52 @@ export default function ActiveInvoices({
                   </p>
                   
                   <div className={`row g-3 ${completedPosition === 'both' ? '' : 'justify-content-center'}`}>
+                    {/* Uniformes section - single option */}
+                    {completedPosition === 'uniformes' && (
+                      <div className="col-md-8">
+                        <div className="card h-100">
+                          <div className="card-body text-center">
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="uniformesCheckbox"
+                                checked={selectedCompletionParts.mangles || selectedCompletionParts.doblado}
+                                onChange={(e) =>
+                                  setSelectedCompletionParts(prev => ({
+                                    ...prev,
+                                    mangles: e.target.checked,
+                                    doblado: false // Only one option for uniformes
+                                  }))
+                                }
+                              />
+                              <label className="form-check-label fs-5 fw-bold" htmlFor="uniformesCheckbox">
+                                Uniformes
+                              </label>
+                            </div>
+                            <p className="text-muted mt-2 small">Uniform processing completed</p>
+                            <div className="mt-3">
+                              <div 
+                                className="border rounded p-2"
+                                style={{ 
+                                  backgroundColor: (selectedCompletionParts.mangles || selectedCompletionParts.doblado) ? '#fef3c7' : '#f8f9fa',
+                                  borderColor: (selectedCompletionParts.mangles || selectedCompletionParts.doblado) ? '#f59e0b' : '#dee2e6',
+                                  height: '40px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '12px',
+                                  fontWeight: '600'
+                                }}
+                              >
+                                {(selectedCompletionParts.mangles || selectedCompletionParts.doblado) ? 'UNIFORMES COMPLETED' : 'UNIFORMES SECTION'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Mangles - Arriba (Top) section */}
                     {(completedPosition === 'top' || completedPosition === 'both') && (
                       <div className={completedPosition === 'both' ? 'col-md-6' : 'col-md-8'}>
@@ -5529,6 +5622,12 @@ export default function ActiveInvoices({
                       Both parts completed! This invoice will be marked as fully completed.
                     </div>
                   )}
+                  {completedPosition === 'uniformes' && (selectedCompletionParts.mangles || selectedCompletionParts.doblado) && (
+                    <div className="alert alert-success" role="alert">
+                      <i className="bi bi-check-circle-fill me-2"></i>
+                      Uniformes completed! This invoice will be marked as completed.
+                    </div>
+                  )}
                   {completedPosition === 'top' && selectedCompletionParts.mangles && (
                     <div className="alert alert-success" role="alert">
                       <i className="bi bi-check-circle-fill me-2"></i>
@@ -5550,10 +5649,11 @@ export default function ActiveInvoices({
                   )}
                   {((completedPosition === 'top' && !selectedCompletionParts.mangles) ||
                     (completedPosition === 'bottom' && !selectedCompletionParts.doblado) ||
+                    (completedPosition === 'uniformes' && !selectedCompletionParts.mangles && !selectedCompletionParts.doblado) ||
                     (completedPosition === 'both' && !selectedCompletionParts.mangles && !selectedCompletionParts.doblado)) && (
                     <div className="alert alert-info" role="alert">
                       <i className="bi bi-info-circle-fill me-2"></i>
-                      Select {completedPosition === 'both' ? 'at least one part' : 'the available part'} to mark as completed.
+                      Select {completedPosition === 'both' ? 'at least one part' : completedPosition === 'uniformes' ? 'uniformes' : 'the available part'} to mark as completed.
                     </div>
                   )}
                 </div>
