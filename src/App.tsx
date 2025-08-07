@@ -64,6 +64,7 @@ const PrintingSettings = lazy(() => import("./components/PrintingSettings"));
 const ReportsPage = lazy(() => import("./components/ReportsPage"));
 const AnalyticsPage = lazy(() => import("./components/AnalyticsPage"));
 const ComprehensiveAnalyticsDashboard = lazy(() => import("./components/ComprehensiveAnalyticsDashboard"));
+const DailyProductAnalytics = lazy(() => import("./components/DailyProductAnalytics"));
 const GlobalActivityLog = lazy(() => import("./components/GlobalActivityLog"));
 const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivityDashboard"));
 const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
@@ -688,6 +689,12 @@ function App() {
         {
           label: "Comprehensive Analytics",
           page: "comprehensiveAnalytics",
+          icon: <AssessmentIcon />,
+          visible: true,
+        },
+        {
+          label: "Daily Product Analytics",
+          page: "dailyProductAnalytics",
           icon: <AssessmentIcon />,
           visible: true,
         },
@@ -1363,6 +1370,11 @@ function App() {
       {activePage === "comprehensiveAnalytics" && (
         <Suspense fallback={<LoadingSpinner />}>
           <ComprehensiveAnalyticsDashboard />
+        </Suspense>
+      )}
+      {activePage === "dailyProductAnalytics" && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <DailyProductAnalytics />
         </Suspense>
       )}
       {activePage === "settings" && canManageUsers && (

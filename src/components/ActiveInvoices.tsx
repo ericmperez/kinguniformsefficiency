@@ -259,6 +259,11 @@ export default function ActiveInvoices({
     mangles: boolean;
     doblado: boolean;
   }>({ mangles: false, doblado: false });
+  
+  // Helper to get completed option position for a client
+  function getCompletedOptionPosition(client: Client): 'top' | 'bottom' | 'both' {
+    return client.completedOptionPosition || 'both';
+  }
 
   // --- Print Options Modal State ---
   const [showPrintOptionsModal, setShowPrintOptionsModal] = useState<
@@ -423,6 +428,10 @@ export default function ActiveInvoices({
   const handleApplyCompletion = async () => {
     if (!completionInvoiceId) return;
     
+    const invoice = invoices.find((inv) => inv.id === completionInvoiceId);
+    const client = clients.find((c) => c.id === invoice?.clientId);
+    const completedPosition = getCompletedOptionPosition(client!);
+    
     const { mangles, doblado } = selectedCompletionParts;
     
     // Update invoice with completion parts
@@ -431,25 +440,37 @@ export default function ActiveInvoices({
       dobladoCompleted: doblado,
     };
     
-    // Only mark as fully completed if both parts are done
-    if (mangles && doblado) {
+    // Determine completion status based on client setting
+    let isCompleted = false;
+    if (completedPosition === 'top') {
+      // For top-only clients, completed when mangles is done
+      isCompleted = mangles;
+    } else if (completedPosition === 'bottom') {
+      // For bottom-only clients, completed when doblado is done
+      isCompleted = doblado;
+    } else {
+      // For 'both' clients, completed when both parts are done
+      isCompleted = mangles && doblado;
+    }
+    
+    // Update status based on completion
+    if (isCompleted) {
       updateData.status = "completed";
     } else if (!mangles && !doblado) {
-      // If unchecking both, revert to active
+      // If unchecking all available parts, revert to active
       updateData.status = "active";
     }
-    // If only one part is completed, don't change the status yet
+    // If only partially completed (for 'both' clients), keep current status
     
     await onUpdateInvoice(completionInvoiceId, updateData);
     
     // Trigger animation based on completion state
-    if (mangles && doblado) {
+    if (isCompleted) {
       triggerApprovalAnimation(completionInvoiceId, "partial");
     }
     
     // Log activity
     if (user?.username) {
-      const invoice = invoices.find((inv) => inv.id === completionInvoiceId);
       const completedParts = [];
       if (mangles) completedParts.push("Mangles - Arriba");
       if (doblado) completedParts.push("Doblado - Abajo");
@@ -5380,133 +5401,159 @@ export default function ActiveInvoices({
       )}
 
       {/* Two-Step Completion Modal */}
-      {showCompletionModal && completionInvoiceId && (
-        <div
-          className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-        >
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  <i className="bi bi-clipboard-check me-2"></i>
-                  Select Completion Parts
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowCompletionModal(false)}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <p className="text-muted mb-3">
-                  Select which parts of the work are completed for this laundry ticket:
-                </p>
-                
-                <div className="row g-3">
-                  <div className="col-md-6">
-                    <div className="card h-100">
-                      <div className="card-body text-center">
-                        <div className="form-check">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            id="manglesCheckbox"
-                            checked={selectedCompletionParts.mangles}
-                            onChange={(e) =>
-                              setSelectedCompletionParts(prev => ({
-                                ...prev,
-                                mangles: e.target.checked
-                              }))
-                            }
-                          />
-                          <label className="form-check-label fs-5 fw-bold" htmlFor="manglesCheckbox">
-                            Mangles - Arriba
-                          </label>
-                        </div>
-                        <p className="text-muted mt-2 small">Top part of the invoice</p>
-                        <div className="mt-3">
-                          <div 
-                            className="border rounded p-2"
-                            style={{ 
-                              backgroundColor: selectedCompletionParts.mangles ? '#fef3c7' : '#f8f9fa',
-                              borderColor: selectedCompletionParts.mangles ? '#f59e0b' : '#dee2e6',
-                              height: '40px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '12px',
-                              fontWeight: '600'
-                            }}
-                          >
-                            {selectedCompletionParts.mangles ? 'TOP COMPLETED' : 'TOP SECTION'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="col-md-6">
-                    <div className="card h-100">
-                      <div className="card-body text-center">
-                        <div className="form-check">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            id="dobladoCheckbox"
-                            checked={selectedCompletionParts.doblado}
-                            onChange={(e) =>
-                              setSelectedCompletionParts(prev => ({
-                                ...prev,
-                                doblado: e.target.checked
-                              }))
-                            }
-                          />
-                          <label className="form-check-label fs-5 fw-bold" htmlFor="dobladoCheckbox">
-                            Doblado - Abajo
-                          </label>
-                        </div>
-                        <p className="text-muted mt-2 small">Bottom part of the invoice</p>
-                        <div className="mt-3">
-                          <div 
-                            className="border rounded p-2"
-                            style={{ 
-                              backgroundColor: selectedCompletionParts.doblado ? '#fef3c7' : '#f8f9fa',
-                              borderColor: selectedCompletionParts.doblado ? '#f59e0b' : '#dee2e6',
-                              height: '40px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '12px',
-                              fontWeight: '600'
-                            }}
-                          >
-                            {selectedCompletionParts.doblado ? 'BOTTOM COMPLETED' : 'BOTTOM SECTION'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+      {showCompletionModal && completionInvoiceId && (() => {
+        const invoice = invoices.find(inv => inv.id === completionInvoiceId);
+        const client = clients.find(c => c.id === invoice?.clientId);
+        const completedPosition = getCompletedOptionPosition(client!);
+        
+        return (
+          <div
+            className="modal show"
+            style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+          >
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    <i className="bi bi-clipboard-check me-2"></i>
+                    Select Completion Parts
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowCompletionModal(false)}
+                  ></button>
                 </div>
+                <div className="modal-body">
+                  <p className="text-muted mb-3">
+                    Select which parts of the work are completed for this laundry ticket:
+                  </p>
+                  
+                  <div className={`row g-3 ${completedPosition === 'both' ? '' : 'justify-content-center'}`}>
+                    {/* Mangles - Arriba (Top) section */}
+                    {(completedPosition === 'top' || completedPosition === 'both') && (
+                      <div className={completedPosition === 'both' ? 'col-md-6' : 'col-md-8'}>
+                        <div className="card h-100">
+                          <div className="card-body text-center">
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="manglesCheckbox"
+                                checked={selectedCompletionParts.mangles}
+                                onChange={(e) =>
+                                  setSelectedCompletionParts(prev => ({
+                                    ...prev,
+                                    mangles: e.target.checked
+                                  }))
+                                }
+                              />
+                              <label className="form-check-label fs-5 fw-bold" htmlFor="manglesCheckbox">
+                                Mangles - Arriba
+                              </label>
+                            </div>
+                            <p className="text-muted mt-2 small">Top part of the invoice</p>
+                            <div className="mt-3">
+                              <div 
+                                className="border rounded p-2"
+                                style={{ 
+                                  backgroundColor: selectedCompletionParts.mangles ? '#fef3c7' : '#f8f9fa',
+                                  borderColor: selectedCompletionParts.mangles ? '#f59e0b' : '#dee2e6',
+                                  height: '40px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '12px',
+                                  fontWeight: '600'
+                                }}
+                              >
+                                {selectedCompletionParts.mangles ? 'TOP COMPLETED' : 'TOP SECTION'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Doblado - Abajo (Bottom) section */}
+                    {(completedPosition === 'bottom' || completedPosition === 'both') && (
+                      <div className={completedPosition === 'both' ? 'col-md-6' : 'col-md-8'}>
+                        <div className="card h-100">
+                          <div className="card-body text-center">
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="dobladoCheckbox"
+                                checked={selectedCompletionParts.doblado}
+                                onChange={(e) =>
+                                  setSelectedCompletionParts(prev => ({
+                                    ...prev,
+                                    doblado: e.target.checked
+                                  }))
+                                }
+                              />
+                              <label className="form-check-label fs-5 fw-bold" htmlFor="dobladoCheckbox">
+                                Doblado - Abajo
+                              </label>
+                            </div>
+                            <p className="text-muted mt-2 small">Bottom part of the invoice</p>
+                            <div className="mt-3">
+                              <div 
+                                className="border rounded p-2"
+                                style={{ 
+                                  backgroundColor: selectedCompletionParts.doblado ? '#fef3c7' : '#f8f9fa',
+                                  borderColor: selectedCompletionParts.doblado ? '#f59e0b' : '#dee2e6',
+                                  height: '40px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '12px',
+                                  fontWeight: '600'
+                                }}
+                              >
+                                {selectedCompletionParts.doblado ? 'BOTTOM COMPLETED' : 'BOTTOM SECTION'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 
                 <div className="mt-4">
-                  {selectedCompletionParts.mangles && selectedCompletionParts.doblado && (
+                  {/* Dynamic alerts based on client setting and selections */}
+                  {completedPosition === 'both' && selectedCompletionParts.mangles && selectedCompletionParts.doblado && (
                     <div className="alert alert-success" role="alert">
                       <i className="bi bi-check-circle-fill me-2"></i>
                       Both parts completed! This invoice will be marked as fully completed.
                     </div>
                   )}
-                  {(selectedCompletionParts.mangles || selectedCompletionParts.doblado) && 
+                  {completedPosition === 'top' && selectedCompletionParts.mangles && (
+                    <div className="alert alert-success" role="alert">
+                      <i className="bi bi-check-circle-fill me-2"></i>
+                      Top part completed! This invoice will be marked as completed.
+                    </div>
+                  )}
+                  {completedPosition === 'bottom' && selectedCompletionParts.doblado && (
+                    <div className="alert alert-success" role="alert">
+                      <i className="bi bi-check-circle-fill me-2"></i>
+                      Bottom part completed! This invoice will be marked as completed.
+                    </div>
+                  )}
+                  {completedPosition === 'both' && (selectedCompletionParts.mangles || selectedCompletionParts.doblado) && 
                    !(selectedCompletionParts.mangles && selectedCompletionParts.doblado) && (
                     <div className="alert alert-warning" role="alert">
                       <i className="bi bi-exclamation-triangle-fill me-2"></i>
                       Partial completion. The invoice will not be available for approval until both parts are completed.
                     </div>
                   )}
-                  {!selectedCompletionParts.mangles && !selectedCompletionParts.doblado && (
+                  {((completedPosition === 'top' && !selectedCompletionParts.mangles) ||
+                    (completedPosition === 'bottom' && !selectedCompletionParts.doblado) ||
+                    (completedPosition === 'both' && !selectedCompletionParts.mangles && !selectedCompletionParts.doblado)) && (
                     <div className="alert alert-info" role="alert">
                       <i className="bi bi-info-circle-fill me-2"></i>
-                      Select at least one part to mark as completed.
+                      Select {completedPosition === 'both' ? 'at least one part' : 'the available part'} to mark as completed.
                     </div>
                   )}
                 </div>
@@ -5528,7 +5575,8 @@ export default function ActiveInvoices({
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Print Options Modal */}
       {showPrintOptionsModal &&

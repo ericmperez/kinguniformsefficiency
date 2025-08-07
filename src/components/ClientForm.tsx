@@ -37,6 +37,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
   const [needsInvoice, setNeedsInvoice] = useState<boolean>(
     washingType === "Tunnel"
   );
+  const [completedOptionPosition, setCompletedOptionPosition] = useState<
+    "top" | "bottom" | "both"
+  >("both");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +52,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
       segregation,
       billingCalculation,
       needsInvoice,
+      completedOptionPosition,
     };
     // Only include image if a new image is selected
     if (newClientImage) {
@@ -77,6 +81,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setSegregation(false);
     setBillingCalculation("byWeight");
     setNeedsInvoice(false);
+    setCompletedOptionPosition("both");
   };
 
   // Patch: always provide image as File|null (never undefined) for AppClient
@@ -95,6 +100,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setNewClientImage(null); // Always reset when opening edit modal
     setBillingCalculation(client.billingCalculation || "byWeight");
     setNeedsInvoice(client.needsInvoice ?? client.washingType === "Tunnel");
+    setCompletedOptionPosition(client.completedOptionPosition || "both");
   };
 
   const handleCancel = () => {
@@ -107,6 +113,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
     setSegregation(false);
     setBillingCalculation("byWeight");
     setNeedsInvoice(false);
+    setCompletedOptionPosition("both");
   };
 
   const handleProductToggle = async (productId: string) => {
@@ -441,6 +448,67 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                     No
                   </label>
                 </div>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">Completed Option Position</label>
+              <div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="completedOptionPosition"
+                    id="completedPositionTop"
+                    value="top"
+                    checked={completedOptionPosition === "top"}
+                    onChange={() => setCompletedOptionPosition("top")}
+                  />
+                  <label
+                    className="form-check-label"
+                    htmlFor="completedPositionTop"
+                  >
+                    Top Only
+                  </label>
+                </div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="completedOptionPosition"
+                    id="completedPositionBottom"
+                    value="bottom"
+                    checked={completedOptionPosition === "bottom"}
+                    onChange={() => setCompletedOptionPosition("bottom")}
+                  />
+                  <label
+                    className="form-check-label"
+                    htmlFor="completedPositionBottom"
+                  >
+                    Bottom Only
+                  </label>
+                </div>
+                <div className="form-check form-check-inline">
+                  <input
+                    className="form-check-input"
+                    type="radio"
+                    name="completedOptionPosition"
+                    id="completedPositionBoth"
+                    value="both"
+                    checked={completedOptionPosition === "both"}
+                    onChange={() => setCompletedOptionPosition("both")}
+                  />
+                  <label
+                    className="form-check-label"
+                    htmlFor="completedPositionBoth"
+                  >
+                    Both Top & Bottom
+                  </label>
+                </div>
+              </div>
+              <div className="form-text text-muted">
+                Choose where the completed option appears in the active invoice page
+                for this client.
               </div>
             </div>
 
@@ -986,6 +1054,99 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           No
                         </label>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Completed Option Position</label>
+                    <div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="completedOptionPositionEdit"
+                          id="completedPositionTopEdit"
+                          value="top"
+                          checked={completedOptionPosition === "top"}
+                          onChange={async () => {
+                            setCompletedOptionPosition("top");
+                            if (editingClient) {
+                              setIsSaving(true);
+                              setSaveError(null);
+                              try {
+                                await onUpdateClient(editingClient.id, { completedOptionPosition: "top" });
+                              } catch {
+                                setSaveError("Failed to save changes.");
+                              } finally {
+                                setIsSaving(false);
+                              }
+                            }
+                          }}
+                          disabled={isSaving}
+                        />
+                        <label className="form-check-label" htmlFor="completedPositionTopEdit">
+                          Top Only
+                        </label>
+                      </div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="completedOptionPositionEdit"
+                          id="completedPositionBottomEdit"
+                          value="bottom"
+                          checked={completedOptionPosition === "bottom"}
+                          onChange={async () => {
+                            setCompletedOptionPosition("bottom");
+                            if (editingClient) {
+                              setIsSaving(true);
+                              setSaveError(null);
+                              try {
+                                await onUpdateClient(editingClient.id, { completedOptionPosition: "bottom" });
+                              } catch {
+                                setSaveError("Failed to save changes.");
+                              } finally {
+                                setIsSaving(false);
+                              }
+                            }
+                          }}
+                          disabled={isSaving}
+                        />
+                        <label className="form-check-label" htmlFor="completedPositionBottomEdit">
+                          Bottom Only
+                        </label>
+                      </div>
+                      <div className="form-check form-check-inline">
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="completedOptionPositionEdit"
+                          id="completedPositionBothEdit"
+                          value="both"
+                          checked={completedOptionPosition === "both"}
+                          onChange={async () => {
+                            setCompletedOptionPosition("both");
+                            if (editingClient) {
+                              setIsSaving(true);
+                              setSaveError(null);
+                              try {
+                                await onUpdateClient(editingClient.id, { completedOptionPosition: "both" });
+                              } catch {
+                                setSaveError("Failed to save changes.");
+                              } finally {
+                                setIsSaving(false);
+                              }
+                            }
+                          }}
+                          disabled={isSaving}
+                        />
+                        <label className="form-check-label" htmlFor="completedPositionBothEdit">
+                          Both Top & Bottom
+                        </label>
+                      </div>
+                    </div>
+                    <div className="form-text text-muted">
+                      Choose where the completed option appears in the active invoice page for this client.
                     </div>
                   </div>
 
