@@ -346,6 +346,7 @@ King Uniforms Team
 
 /**
  * Function to send test emails to verify email configuration
+ * Now includes PDF generation for a complete test
  */
 export const sendTestEmail = async (
   client: Client,
@@ -384,45 +385,137 @@ ${client.billingCalculation === "byWeight" ?
   "This client is billed by piece. Emails will include a breakdown of items processed."}
 
 This is a test message sent from King Uniforms printing system.
+A sample PDF laundry ticket is attached to demonstrate PDF generation capability.
 
-If you received this email, your email configuration is working properly!
+If you received this email with a PDF attachment, your email configuration is working properly!
 
 Best regards,
 King Uniforms Team`
     };
 
     // Log the test email (for development/testing)
-    console.log("📧 Test Email Service - Sending test email:", {
+    console.log("📧 Test Email Service - Sending test email with PDF:", {
       to: testEmailData.to,
       cc: testEmailData.cc,
       subject: testEmailData.subject,
       isTest: true
     });
 
-    // Send the test email using the backend API
+    // Generate a sample PDF for testing
+    let pdfContent: string | undefined;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: testEmailData.to,
-          cc: testEmailData.cc,
-          subject: testEmailData.subject,
-          body: testEmailData.body
-        }),
-      });
+      console.log("🔄 Generating sample PDF for test email...");
       
-      const data = await response.json();
+      // Import the simple PDF service (works better in email context)
+      const { generateSimpleLaundryTicketPDF } = await import('./simplePdfService');
       
-      if (!response.ok) {
-        console.error("❌ Email server error:", data.error);
-        return false;
+      // Create a sample invoice for PDF generation
+      const sampleInvoice: Invoice = {
+        id: "TEST-001",
+        invoiceNumber: 1001,
+        clientId: client.id,
+        clientName: client.name,
+        date: new Date().toISOString().split('T')[0],
+        products: [], // Add required products array (empty for test)
+        carts: [
+          {
+            id: "test-cart-1",
+            name: "Sample Cart 1",
+            items: [
+              {
+                productId: "test-product-1",
+                productName: "Sample Uniform Shirt",
+                quantity: 5,
+                price: 2.50
+              },
+              {
+                productId: "test-product-2", 
+                productName: "Sample Uniform Pants",
+                quantity: 3,
+                price: 3.00
+              }
+            ],
+            total: 21.50,
+            createdAt: new Date().toISOString(),
+            createdBy: "Test"
+          }
+        ],
+        total: 21.50,
+        totalWeight: 8.5,
+        status: "approved",
+        verified: true,
+        truckNumber: "TEST-TRUCK-01"
+      };
+
+      pdfContent = await generateSimpleLaundryTicketPDF(sampleInvoice, client);
+      console.log("✅ Sample PDF generated successfully for test email");
+      console.log("📄 PDF content length:", pdfContent?.length || 0);
+      
+      // Log PDF generation status
+      if (pdfContent && pdfContent.length > 0) {
+        console.log("✅ PDF content is valid and ready for email attachment");
+      } else {
+        console.log("⚠️ PDF content appears to be empty or invalid");
       }
-      
-      console.log("✅ Test email sent successfully");
-      return true;
+    } catch (pdfError) {
+      console.error("❌ Could not generate PDF for test email:", pdfError);
+      console.error("❌ PDF Error details:", pdfError instanceof Error ? pdfError.message : 'Unknown error');
+      // Continue without PDF - fallback to text-only email
+      pdfContent = undefined;
+    }
+
+    // Send the test email using the appropriate endpoint
+    try {
+      if (pdfContent) {
+        // Use test email endpoint with PDF attachment
+        const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: testEmailData.to,
+            cc: testEmailData.cc,
+            subject: testEmailData.subject,
+            body: testEmailData.body,
+            pdfBase64: pdfContent.split(',')[1] || pdfContent
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          console.error("❌ Test email with PDF server error:", data.error);
+          return false;
+        }
+        
+        console.log("✅ Test email with PDF sent successfully");
+        return true;
+      } else {
+        // Fallback to text-only email
+        const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: testEmailData.to,
+            cc: testEmailData.cc,
+            subject: testEmailData.subject,
+            body: testEmailData.body
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          console.error("❌ Test email server error:", data.error);
+          return false;
+        }
+        
+        console.log("✅ Test email sent successfully (text only)");
+        return true;
+      }
     } catch (fetchError) {
       console.error("❌ Failed to connect to email server:", fetchError);
       return false;
@@ -435,16 +528,29 @@ King Uniforms Team`
 };
 
 /**
- * Stub function for PDF generation - returns undefined to indicate no PDF
- * This maintains compatibility with existing code that expects this function
+ * PDF generation function that uses the simple PDF service
+ * This replaces the previous stub implementation and should work properly
  */
 export const generateInvoicePDF = async (
   client: Client,
   invoice: Invoice,
   printConfig: any
 ): Promise<string | undefined> => {
-  console.log("📄 PDF generation called but not implemented - emails will be sent without PDF attachments");
-  return undefined;
+  try {
+    console.log("📄 Generating PDF using simple PDF service...");
+    
+    // Import the simple PDF service (better compatibility)
+    const { generateLaundryTicketPDF } = await import('./simplePdfService');
+    
+    // Generate the PDF
+    const pdfContent = await generateLaundryTicketPDF(invoice, client);
+    
+    console.log("✅ PDF generated successfully");
+    return pdfContent;
+  } catch (error) {
+    console.error("❌ Failed to generate PDF:", error);
+    return undefined;
+  }
 };
 
 /**

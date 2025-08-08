@@ -290,6 +290,32 @@ class OfflineSignatureService {
         notes: signature.notes || ''
       });
 
+      // Send signature email if this is the first time syncing this signature
+      try {
+        const { SignatureEmailService } = await import('./signatureEmailService');
+        
+        const now = new Date();
+        const signatureData = {
+          receivedBy: signature.receiverName,
+          signatureDate: now.toLocaleDateString(),
+          signatureTime: now.toLocaleTimeString(),
+          location: signature.location,
+          deviceInfo: signature.deviceInfo,
+          offlineSignature: true
+        };
+
+        await SignatureEmailService.sendSignatureEmail(
+          signature.invoiceId,
+          signature.clientId,
+          signatureData
+        );
+        
+        console.log('📧 Signature email sent for synced offline signature');
+      } catch (emailError) {
+        console.error('❌ Failed to send email for synced signature:', emailError);
+        // Don't fail the sync if email fails
+      }
+
       return true;
     } catch (error) {
       console.error('❌ Failed to upload signature to Firebase:', error);

@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { offlineSignatureService } from '../services/offlineSignatureService';
 import { useNotifications } from '../hooks/useNotifications';
+import { SignatureEmailService } from '../services/signatureEmailService';
 
 interface OfflineSignatureModalProps {
   open: boolean;
@@ -214,9 +215,32 @@ export const OfflineSignatureModal: React.FC<OfflineSignatureModalProps> = ({
         timestamp: new Date().toISOString()
       });
 
-      // Show appropriate success message based on online status
+      // Send signature email if online and enabled
       if (isOnline) {
-        showSuccess('Signature captured and syncing...');
+        try {
+          const now = new Date();
+          const signatureData = {
+            receivedBy: receiverName.trim(),
+            signatureDate: now.toLocaleDateString(),
+            signatureTime: now.toLocaleTimeString(),
+            offlineSignature: true
+          };
+
+          const emailSuccess = await SignatureEmailService.sendSignatureEmail(
+            invoice.id,
+            invoice.clientId,
+            signatureData
+          );
+
+          if (emailSuccess) {
+            showSuccess('Signature captured, syncing, and email sent!');
+          } else {
+            showSuccess('Signature captured and syncing...');
+          }
+        } catch (emailError) {
+          console.error('Failed to send signature email:', emailError);
+          showSuccess('Signature captured and syncing...');
+        }
       } else {
         showSuccess('Signature saved offline. Will sync when connection is restored.');
       }

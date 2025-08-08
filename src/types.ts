@@ -142,6 +142,10 @@ export interface Invoice {
     approvalEmailSentAt?: string; // Timestamp when approval email was sent
     shippingEmailSent?: boolean; // Whether email was sent on shipping
     shippingEmailSentAt?: string; // Timestamp when shipping email was sent
+    manualEmailSent?: boolean; // Manual single email sent
+    manualEmailSentAt?: string; // Timestamp for manual single email
+    bulkEmailSent?: boolean; // Bulk email sent (true if sent in bulk)
+    bulkEmailSentAt?: string; // Timestamp for bulk email
     lastEmailError?: string; // Last email error if any
   };
   printHistory?: { // Print operation tracking

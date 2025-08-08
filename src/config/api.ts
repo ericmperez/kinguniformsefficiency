@@ -2,6 +2,7 @@
 const getApiBaseUrl = () => {
   // Check if we're running in development mode
   if (import.meta.env.DEV) {
+    // Always use port 5173 for the backend in development
     return 'http://localhost:5173';
   }
   

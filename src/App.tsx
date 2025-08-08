@@ -67,6 +67,7 @@ const ComprehensiveAnalyticsDashboard = lazy(() => import("./components/Comprehe
 const DailyProductAnalytics = lazy(() => import("./components/DailyProductAnalytics"));
 const GlobalActivityLog = lazy(() => import("./components/GlobalActivityLog"));
 const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivityDashboard"));
+const DeliveredInvoicesPage = lazy(() => import("./components/DeliveredInvoicesPage"));
 const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
@@ -679,6 +680,12 @@ function App() {
           page: "reports",
           icon: <AssessmentIcon />,
           visible: true,
+        },
+        {
+          label: "Delivered Invoices",
+          page: "deliveredInvoices",
+          icon: <LocalShippingIcon />,
+          visible: canSee("ShippingPage"), // Same permission as shipping
         },
         {
           label: "Analytics",
@@ -1361,6 +1368,17 @@ function App() {
         <Suspense fallback={<LoadingSpinner />}>
           <ReportsPage />
         </Suspense>
+      )}
+      {activePage === "deliveredInvoices" && canSee("ShippingPage") && (
+        <div className="container py-5">
+          <div className="row justify-content-center">
+            <div className="col-12">
+              <Suspense fallback={<LoadingSpinner />}>
+                <DeliveredInvoicesPage />
+              </Suspense>
+            </div>
+          </div>
+        </div>
       )}
       {activePage === "analytics" && (
         <Suspense fallback={<LoadingSpinner />}>

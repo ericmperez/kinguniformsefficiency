@@ -79,6 +79,12 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
       visible: canSee('Report')
     },
     {
+      label: 'Delivered Invoices',
+      value: 'deliveredInvoices',
+      icon: <ShippingIcon />,
+      visible: canSee('ShippingPage')
+    },
+    {
       label: 'Analytics',
       value: 'analytics',
       icon: <ReportsIcon />,

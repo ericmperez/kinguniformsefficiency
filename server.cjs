@@ -48,20 +48,33 @@ app.post('/api/send-invoice', async (req, res) => {
   }
 });
 
-// New endpoint for sending test emails
+// New endpoint for sending test emails (now supports PDF attachments)
 app.post('/api/send-test-email', async (req, res) => {
-  const { to, cc, subject, body } = req.body;
+  const { to, cc, subject, body, pdfBase64 } = req.body;
   if (!to) return res.status(400).json({ error: 'Recipient email is required' });
   
   try {
-    await transporter.sendMail({
+    const mailOptions = {
       from: 'emperez@kinguniforms.net',
       to,
       cc: cc || [],
       subject,
       text: body
-    });
-    console.log(`Test email sent successfully to ${to}`);
+    };
+
+    // Add PDF attachment if provided
+    if (pdfBase64) {
+      mailOptions.attachments = [
+        {
+          filename: 'test-laundry-ticket.pdf',
+          content: Buffer.from(pdfBase64, 'base64'),
+          contentType: 'application/pdf'
+        }
+      ];
+    }
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Test email sent successfully to ${to}${pdfBase64 ? ' with PDF attachment' : ''}`);
     res.json({ success: true });
   } catch (err) {
     console.error('Test email send error:', err);

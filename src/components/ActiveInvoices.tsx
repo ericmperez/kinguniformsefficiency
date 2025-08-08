@@ -19,6 +19,7 @@ import {
   deleteManualConventionalProduct,
 } from "../services/firebaseService";
 import { updateDoc, doc, getDoc, setDoc } from "firebase/firestore";
+// Removed duplicate import of sendInvoiceEmail and generateInvoicePDF
 import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
@@ -33,7 +34,7 @@ import {
   sendInvoiceEmail,
   validateEmailSettings,
   generateInvoicePDF,
-} from "../services/emailService";
+} from "../services/emailService"; // Retained this import statement
 import { collection, onSnapshot } from "firebase/firestore";
 import { formatDateSpanish } from "../utils/dateFormatter";
 
@@ -294,6 +295,8 @@ export default function ActiveInvoices({
   const isSupervisorOrAbove = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
   const isEmployee = user && user.role === "Employee";
   const [users, setUsers] = React.useState<UserRecord[]>([]);
+
+  // Removed duplicate bulk email state declarations
 
   // View mode state - cards or list view
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
@@ -609,7 +612,7 @@ export default function ActiveInvoices({
     if (invoice) {
       // Log the approval activity
       if (user?.username) {
-        await        logActivity({
+        await logActivity({
           type: "Invoice",
           message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} laundry ticket #${invoice.invoiceNumber || invoice.id}`,
           user: user.username,
@@ -1325,6 +1328,9 @@ export default function ActiveInvoices({
       (mp) => mp.clientId === clientId && mp.washed && !mp.invoiceId
     );
 
+  // Helper to safely format dates
+  // Removed duplicate formatDateSafe function
+
   // When adding a manual product to an invoice, set its invoiceId in Firestore
   const handleAddManualProductToInvoice = async (
     manualProductId: string,
@@ -1455,12 +1461,33 @@ export default function ActiveInvoices({
   const [pickupSignatureInvoice, setPickupSignatureInvoice] = useState<Invoice | null>(null);
 
   // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
+  function formatDateSafe(date?: string | number | Date): string {
+    if (!date) return "unknown time";
+    try {
+      return new Date(date).toLocaleString();
+    } catch {
+      return String(date);
+    }
+  }
+  
+  // Replace usages like:
+  // formatDateSafe(emailStatus.approvalEmailSentAt)
+  // with:
+  // formatDateSafe(emailStatus.approvalEmailSentAt)
+  
   const hasOverdue = invoices.some((inv) => {
-    if (!inv.date) return false;
-    const created = new Date(inv.date);
-    const now = new Date();
-    return now.getTime() - created.getTime() > 24 * 60 * 60 * 1000;
-  });
+          if (!inv.date) return false;
+          const createdDate = new Date(inv.date);
+          const now = new Date();
+          return now.getTime() - createdDate.getTime() > 24 * 60 * 60 * 1000;
+        });
+  
+  // Fix: Replace all remaining usages of new Date(emailStatus.approvalEmailSentAt).toLocaleString() with formatDateSafe(emailStatus.approvalEmailSentAt)
+  // Fix: Replace all remaining usages of new Date(emailStatus.manualEmailSentAt).toLocaleString() with formatDateSafe(emailStatus.manualEmailSentAt)
+  // Fix: Replace all remaining usages of new Date(emailStatus.shippingEmailSentAt).toLocaleString() with formatDateSafe(emailStatus.shippingEmailSentAt)
+  // Fix: Replace all remaining usages of new Date(invoice.emailStatus.approvalEmailSentAt).toLocaleString() with formatDateSafe(invoice.emailStatus.approvalEmailSentAt)
+  // Fix: Replace all remaining usages of new Date(invoice.emailStatus.manualEmailSentAt).toLocaleString() with formatDateSafe(invoice.emailStatus.manualEmailSentAt)
+  // Fix: Replace all remaining usages of new Date(invoice.emailStatus.shippingEmailSentAt).toLocaleString() with formatDateSafe(invoice.emailStatus.shippingEmailSentAt)
   let demoInvoices = invoices;
   if (!hasOverdue && invoices.length > 0) {
     // Clone the first invoice and set its date to 2 days ago
@@ -1506,6 +1533,115 @@ export default function ActiveInvoices({
     // If both are unverified or both are verified, sort alphabetically by client name
     return (a.clientName || "").localeCompare(b.clientName || "");
   });
+
+  // Bulk email functionality state
+  const [selectedInvoicesForEmail, setSelectedInvoicesForEmail] = useState<string[]>([]);
+  const [showBulkEmailModal, setShowBulkEmailModal] = useState(false);
+  const [bulkEmailSubject, setBulkEmailSubject] = useState("");
+  const [bulkEmailBody, setBulkEmailBody] = useState("");
+  const [isSendingBulkEmail, setIsSendingBulkEmail] = useState(false);
+  const [bulkEmailStatus, setBulkEmailStatus] = useState("");
+  const [bulkEmailLoading, setBulkEmailLoading] = useState(false);
+
+  // Handler for bulk email
+  const handleBulkEmail = async () => {
+    if (selectedInvoicesForEmail.length === 0) {
+      alert("Please select at least one invoice to email.");
+      return;
+    }
+
+    setIsSendingBulkEmail(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const invoiceId of selectedInvoicesForEmail) {
+        const invoice = invoicesState.find(inv => inv.id === invoiceId);
+        const client = clients.find(c => c.id === invoice?.clientId);
+
+        if (!invoice || !client?.email || !client?.printConfig?.emailSettings?.enabled) {
+          errorCount++;
+          continue;
+        }
+
+        try {
+          // Generate PDF
+          let pdfContent: string | undefined;
+          try {
+            pdfContent = await generateInvoicePDF(
+              client,
+              invoice,
+              client.printConfig?.invoicePrintSettings
+            );
+          } catch (error) {
+            console.error("Failed to generate PDF for", invoice.id, error);
+          }
+
+          // Use custom subject/body if provided, otherwise use client settings
+          const emailSettings = {
+            ...client?.printConfig?.emailSettings,
+            subject: bulkEmailSubject || client?.printConfig?.emailSettings?.subject,
+            bodyTemplate: bulkEmailBody || client?.printConfig?.emailSettings?.bodyTemplate,
+          };
+          
+          // Fix emailClient.printConfig.emailSettings to use optional chaining: emailClient.printConfig?.emailSettings
+
+          const success = await sendInvoiceEmail(
+            client,
+            invoice,
+            emailSettings,
+            pdfContent
+          );
+
+          if (success) {
+            successCount++;
+            // Update email status
+            await onUpdateInvoice(invoice.id, {
+              emailStatus: {
+                ...invoice.emailStatus,
+                manualEmailSent: true,
+                manualEmailSentAt: new Date().toISOString(),
+                lastEmailError: undefined,
+              },
+            });
+          } else {
+            errorCount++;
+          }
+        } catch (error) {
+          console.error("Error sending email to", client.email, error);
+          errorCount++;
+        }
+      }
+
+      // Show results
+      alert(
+        `Bulk email completed!\n\n` +
+        `✅ Successfully sent: ${successCount}\n` +
+        `❌ Failed: ${errorCount}\n\n` +
+        `Total selected: ${selectedInvoicesForEmail.length}`
+      );
+
+      // Log activity
+      if (user?.username) {
+        await logActivity({
+          type: "Email",
+          message: `User ${user.username} sent bulk emails: ${successCount} successful, ${errorCount} failed`,
+          user: user.username,
+        });
+      }
+
+      // Reset state
+      setSelectedInvoicesForEmail([]);
+      setShowBulkEmailModal(false);
+      setBulkEmailSubject("");
+      setBulkEmailBody("");
+    } catch (error) {
+      console.error("Bulk email error:", error);
+      alert("Error during bulk email operation. Please try again.");
+    } finally {
+      setIsSendingBulkEmail(false);
+    }
+  };
 
   // Status filter options
   const STATUS_FILTERS = [
@@ -1846,6 +1982,34 @@ export default function ActiveInvoices({
               </button>
             </div>
           </div>
+          
+          {/* Bulk Actions for List View */}
+          {viewMode === 'list' && selectedInvoicesForEmail.length > 0 && (
+            <div className="col-12 mt-3">
+              <div className="alert alert-info d-flex justify-content-between align-items-center">
+                <span>
+                  <i className="bi bi-check-square me-2"></i>
+                  {selectedInvoicesForEmail.length} invoice{selectedInvoicesForEmail.length !== 1 ? 's' : ''} selected
+                </span>
+                <div>
+                  <button
+                    className="btn btn-outline-secondary btn-sm me-2"
+                    onClick={() => setSelectedInvoicesForEmail([])}
+                  >
+                    Clear Selection
+                  </button>
+                  <button
+                    className="btn btn-success btn-sm"
+                    onClick={() => setShowBulkEmailModal(true)}
+                    disabled={selectedInvoicesForEmail.length === 0}
+                  >
+                    <i className="bi bi-envelope me-1"></i>
+                    Email Selected ({selectedInvoicesForEmail.length})
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2239,6 +2403,119 @@ export default function ActiveInvoices({
                             )}
                           </div>
                         )}
+                        
+                        {/* Email Status Badges */}
+                        {(() => {
+                          const client = clients.find((c) => c.id === invoice.clientId);
+                          const emailStatus = invoice.emailStatus;
+                          const hasEmailConfig = client?.email && client?.printConfig?.emailSettings?.enabled;
+                          
+                          if (!hasEmailConfig) return null;
+                          
+                          const badges = [];
+                          
+                          // Approval email status
+                          if (emailStatus?.approvalEmailSent) {
+                            badges.push(
+                              <div
+                                key="approval"
+                                style={{
+                                  display: "inline-block",
+                                  padding: "2px 8px",
+                                  borderRadius: "8px",
+                                  fontSize: "10px",
+                                  fontWeight: "600",
+                                  marginTop: "4px",
+                                  marginRight: "4px",
+                                  background: "#22c55e",
+                                  color: "white",
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                                }}
+                                title={`Approval email sent at ${formatDateSafe(emailStatus.approvalEmailSentAt)}`}
+                              >
+                                ✓ APPROVAL EMAIL
+                              </div>
+                            );
+                          }
+                          
+                          // Manual email status
+                          if (emailStatus?.manualEmailSent) {
+                            badges.push(
+                              <div
+                                key="manual"
+                                style={{
+                                  display: "inline-block",
+                                  padding: "2px 8px",
+                                  borderRadius: "8px",
+                                  fontSize: "10px",
+                                  fontWeight: "600",
+                                  marginTop: "4px",
+                                  marginRight: "4px",
+                                  background: "#0ea5e9",
+                                  color: "white",
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                                }}
+                                title={`Manual email sent at ${formatDateSafe(emailStatus.manualEmailSentAt)}`}
+                              >
+                                📧 MANUAL EMAIL
+                              </div>
+                            );
+                          }
+                          
+                          // Shipping email status
+                          if (emailStatus?.shippingEmailSent) {
+                            badges.push(
+                              <div
+                                key="shipping"
+                                style={{
+                                  display: "inline-block",
+                                  padding: "2px 8px",
+                                  borderRadius: "8px",
+                                  fontSize: "10px",
+                                  fontWeight: "600",
+                                  marginTop: "4px",
+                                  marginRight: "4px",
+                                  background: "#f59e0b",
+                                  color: "white",
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                                }}
+                                title={`Shipping email sent at ${formatDateSafe(emailStatus.shippingEmailSentAt)}`}
+                              >
+                                🚛 SHIPPING EMAIL
+                              </div>
+                            );
+                          }
+                          
+                          // Error status
+                          if (emailStatus?.lastEmailError) {
+                            badges.push(
+                              <div
+                                key="error"
+                                style={{
+                                  display: "inline-block",
+                                  padding: "2px 8px",
+                                  borderRadius: "8px",
+                                  fontSize: "10px",
+                                  fontWeight: "600",
+                                  marginTop: "4px",
+                                  marginRight: "4px",
+                                  background: "#ef4444",
+                                  color: "white",
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                                }}
+                                title={`Email error: ${emailStatus.lastEmailError}`}
+                              >
+                                ❌ EMAIL ERROR
+                              </div>
+                            );
+                          }
+                          
+                          return badges.length > 0 ? (
+                            <div style={{ marginTop: "8px" }}>
+                              {badges}
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                       {/* Product summary (total qty per product) */}
                       <div style={{ margin: "12px 0 0 0", width: "100%" }}>
@@ -2374,6 +2651,105 @@ export default function ActiveInvoices({
                         >
                           <i className="bi bi-sticky"></i>
                         </button>
+                        {/* Quick Email button - Show for verified invoices with email configured */}
+                        {invoice.verified && (() => {
+                          const emailClient = clients.find((c) => c.id === invoice.clientId);
+                          return emailClient?.email && emailClient?.printConfig?.emailSettings?.enabled ? (
+                            <button
+                              className="btn btn-sm btn-outline-success"
+                              style={{
+                                fontSize: 16,
+                                width: 44,
+                                height: 44,
+                                borderRadius: "50%",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: 0,
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                                border: "2px solid #22c55e",
+                              }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  // Show loading state
+                                  const button = e.currentTarget;
+                                  const originalContent = button.innerHTML;
+                                  button.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div>';
+                                  button.disabled = true;
+
+                                  // Generate PDF
+                                  let pdfContent: string | undefined;
+                                  try {
+                                    pdfContent = await generateInvoicePDF(
+                                      emailClient,
+                                      invoice,
+                                      emailClient.printConfig?.invoicePrintSettings
+                                    );
+                                  } catch (error) {
+                                    console.error("Failed to generate PDF:", error);
+                                  }
+
+                                  // Send email only if email settings exist
+                                  if (!emailClient.printConfig?.emailSettings) {
+                                    button.innerHTML = originalContent;
+                                    button.disabled = false;
+                                    alert("Email settings not configured for this client");
+                                    return;
+                                  }
+
+                                  const success = await sendInvoiceEmail(
+                                    emailClient,
+                                    invoice,
+                                    emailClient.printConfig.emailSettings,
+                                    pdfContent
+                                  );
+
+                                  // Restore button
+                                  button.innerHTML = originalContent;
+                                  button.disabled = false;
+
+                                  if (success) {
+                                    // Update email status
+                                    await onUpdateInvoice(invoice.id, {
+                                      emailStatus: {
+                                        ...invoice.emailStatus,
+                                        manualEmailSent: true,
+                                        manualEmailSentAt: new Date().toISOString(),
+                                        lastEmailError: undefined,
+                                      },
+                                    });
+
+                                    // Show success message
+                                    alert(`📧 Invoice emailed successfully to ${emailClient.email}`);
+
+                                    // Log activity
+                                    await logActivity({
+                                      type: "Email",
+                                      message: `User ${user?.username} manually sent invoice #${invoice.invoiceNumber || invoice.id} to ${emailClient.name} (${emailClient.email})`,
+                                      user: user?.username,
+                                    });
+                                  } else {
+                                    alert("❌ Failed to send email. Please try again.");
+                                  }
+                                } catch (error) {
+                                  console.error("Email error:", error);
+                                  alert("❌ Email error. Please check configuration.");
+                                }
+                              }}
+                              title={`Send PDF invoice via email to ${emailClient.email}`}
+                            >
+                              <i
+                                className="bi bi-envelope"
+                                style={{
+                                  color: "#22c55e",
+                                  fontSize: 22,
+                                }}
+                              />
+                            </button>
+                          ) : null;
+                        })()}
+                        
                         {/* Schedule Delivery button - Step 0 - Only show when invoice is approved */}
                         {(invoice.verified || invoice.partiallyVerified) && (
                           <button
@@ -2566,7 +2942,7 @@ export default function ActiveInvoices({
                                 verifiedAt: "",
                               });
                               if (user?.username) {
-                                await                                logActivity({
+                                await logActivity({
                                   type: "Invoice",
                                   message: `User ${user.username} removed approval from laundry ticket #${invoice.invoiceNumber || invoice.id}`,
                                   user: user.username,
@@ -2946,6 +3322,35 @@ export default function ActiveInvoices({
           <table className="table table-hover">
             <thead className="table-dark">
               <tr>
+                <th style={{ width: '40px' }}>
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    checked={
+                      filteredInvoices.filter(inv => {
+                        const client = clients.find(c => c.id === inv.clientId);
+                        return client?.email && client?.printConfig?.emailSettings?.enabled;
+                      }).length > 0 &&
+                      filteredInvoices.filter(inv => {
+                        const client = clients.find(c => c.id === inv.clientId);
+                        return client?.email && client?.printConfig?.emailSettings?.enabled;
+                      }).every(inv => selectedInvoicesForEmail.includes(inv.id))
+                    }
+                    onChange={(e) => {
+                      const emailableInvoices = filteredInvoices.filter(inv => {
+                        const client = clients.find(c => c.id === inv.clientId);
+                        return client?.email && client?.printConfig?.emailSettings?.enabled;
+                      });
+                      
+                      if (e.target.checked) {
+                        setSelectedInvoicesForEmail(emailableInvoices.map(inv => inv.id));
+                      } else {
+                        setSelectedInvoicesForEmail([]);
+                      }
+                    }}
+                    title="Select all emailable invoices"
+                  />
+                </th>
                 <th>Client</th>
                 <th>Invoice #</th>
                 <th>Date</th>
@@ -2954,6 +3359,7 @@ export default function ActiveInvoices({
                 <th>Status</th>
                 <th>Notes</th>
                 <th>Delivery</th>
+                <th>Email Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -2965,6 +3371,7 @@ export default function ActiveInvoices({
                   const isVerified = invoice.verified;
                   const isPartiallyVerified = invoice.partiallyVerified || partialVerifiedInvoices[invoice.id];
                   const isReady = invoice.status === "ready" || readyInvoices[invoice.id];
+                  const isEmailable = client?.email && client?.printConfig?.emailSettings?.enabled;
                   
                   // Calculate total items across all carts
                   const totalItems = (invoice.carts || []).reduce((total, cart) => 
@@ -3014,6 +3421,22 @@ export default function ActiveInvoices({
                       style={{ cursor: 'pointer' }}
                       onClick={() => handleInvoiceClick(invoice.id)}
                     >
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={selectedInvoicesForEmail.includes(invoice.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedInvoicesForEmail(prev => [...prev, invoice.id]);
+                            } else {
+                              setSelectedInvoicesForEmail(prev => prev.filter(id => id !== invoice.id));
+                            }
+                          }}
+                          disabled={!isEmailable}
+                          title={isEmailable ? "Select for bulk email" : "Email not configured for this client"}
+                        />
+                      </td>
                       <td>
                         <div className="d-flex align-items-center">
                           <img
@@ -3145,6 +3568,57 @@ export default function ActiveInvoices({
                           </div>
                         ) : (
                           <span className="text-muted">Not scheduled</span>
+                        )}
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        {isEmailable ? (
+                          <div className="d-flex flex-column gap-1">
+                            {invoice.emailStatus?.approvalEmailSent && (
+                              <span 
+                                className="badge bg-success" 
+                                style={{ fontSize: "9px" }}
+                                title={`Sent: ${formatDateSafe(invoice.emailStatus.approvalEmailSentAt)}`}
+                              >
+                                ✓ Approval
+                              </span>
+                            )}
+                            {invoice.emailStatus?.manualEmailSent && (
+                              <span 
+                                className="badge bg-info" 
+                                style={{ fontSize: "9px" }}
+                                title={`Sent: ${formatDateSafe(invoice.emailStatus.manualEmailSentAt)}`}
+                              >
+                                📧 Manual
+                              </span>
+                            )}
+                            {invoice.emailStatus?.shippingEmailSent && (
+                              <span 
+                                className="badge bg-warning" 
+                                style={{ fontSize: "9px" }}
+                                title={`Sent: ${formatDateSafe(invoice.emailStatus.shippingEmailSentAt)}`}
+                              >
+                                🚛 Shipping
+                              </span>
+                            )}
+                            {invoice.emailStatus?.lastEmailError && (
+                              <span 
+                                className="badge bg-danger" 
+                                style={{ fontSize: "9px" }}
+                                title={invoice.emailStatus.lastEmailError}
+                              >
+                                ❌ Error
+                              </span>
+                            )}
+                            {!invoice.emailStatus?.approvalEmailSent && 
+                             !invoice.emailStatus?.manualEmailSent && 
+                             !invoice.emailStatus?.shippingEmailSent && (
+                              <span className="text-muted small">No emails sent</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted small">
+                            {!client?.email ? "No email" : "Email disabled"}
+                          </span>
                         )}
                       </td>
                       <td>
@@ -5439,6 +5913,104 @@ export default function ActiveInvoices({
             return { id: newCart.id, name: newCart.name, isActive: true };
           }}
         />
+      )}
+
+      {/* Bulk Email Modal */}
+      {showBulkEmailModal && (
+        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Send Bulk Invoice Emails</h5>
+                <button type="button" className="btn-close" onClick={() => setShowBulkEmailModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <strong>Selected Invoices:</strong>
+                  <ul>
+                    {selectedInvoicesForEmail.map(id => {
+                      const invoice = invoices.find(inv => inv.id === id);
+                      return invoice ? (
+                        <li key={id}>#{invoice.invoiceNumber || invoice.id} - {invoice.clientName}</li>
+                      ) : null;
+                    })}
+                  </ul>
+                </div>
+                <div className="mb-3">
+                  <button
+                    className="btn btn-success"
+                    disabled={bulkEmailLoading || selectedInvoicesForEmail.length === 0}
+                    onClick={async () => {
+                      setBulkEmailLoading(true);
+                      setBulkEmailStatus("");
+                      let successCount = 0;
+                      let failCount = 0;
+                      for (const id of selectedInvoicesForEmail) {
+                        const invoice = invoices.find(inv => inv.id === id);
+                        const client = clients.find(c => c.id === invoice?.clientId);
+                        if (!invoice || !client || !client.email || !client.printConfig?.emailSettings?.enabled) continue;
+                        try {
+                          let pdfContent: string | undefined;
+                          try {
+                            pdfContent = await generateInvoicePDF(
+                              client,
+                              invoice,
+                              client.printConfig.invoicePrintSettings
+                            );
+                          } catch (error) {
+                            console.error("PDF generation failed for invoice", id, error);
+                          }
+                          const success = await sendInvoiceEmail(
+                            client,
+                            invoice,
+                            client.printConfig.emailSettings,
+                            pdfContent
+                          );
+                          if (success) {
+                            successCount++;
+                            await onUpdateInvoice(invoice.id, {
+                              emailStatus: {
+                                ...invoice.emailStatus,
+                                manualEmailSent: true,
+                                manualEmailSentAt: new Date().toISOString(),
+                                lastEmailError: undefined,
+                              },
+                            });
+                            await logActivity({
+                              type: "Email",
+                              message: `Bulk email: Invoice #${invoice.invoiceNumber || invoice.id} sent to ${client.name} (${client.email})`,
+                              user: user?.username,
+                            });
+                          } else {
+                            failCount++;
+                            await onUpdateInvoice(invoice.id, {
+                              emailStatus: {
+                                ...invoice.emailStatus,
+                                lastEmailError: "Bulk email failed",
+                              },
+                            });
+                          }
+                        } catch (error) {
+                          failCount++;
+                        }
+                      }
+                      setBulkEmailStatus(`Bulk email complete: ${successCount} sent, ${failCount} failed.`);
+                      setBulkEmailLoading(false);
+                    }}
+                  >
+                    Send Emails
+                  </button>
+                  {bulkEmailStatus && <div className="mt-2 alert alert-info">{bulkEmailStatus}</div>}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowBulkEmailModal(false)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Invoice Details Modal */}
