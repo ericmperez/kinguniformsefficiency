@@ -116,6 +116,9 @@ export interface Invoice {
   lockedBy?: string; // User ID or username who closed the invoice
   lockedAt?: string; // Timestamp when invoice was closed
   note?: string; // Public note for all users to see
+  noteCompleted?: boolean; // Whether the note is marked completed
+  noteCompletedBy?: string; // Username of person who completed the note
+  noteCompletedAt?: string; // Timestamp when note was completed
   truckNumber?: string; // Add truck number for shipped invoices
   deliveryDate?: string; // Add delivery date for shipped invoices
   deliveryMethod?: "truck" | "client_pickup"; // Delivery method for the invoice

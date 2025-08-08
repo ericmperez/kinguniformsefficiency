@@ -157,9 +157,75 @@ export default function ActiveInvoices({
 }: ActiveInvoicesProps) {
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
+
+  // --- Invoice Note State ---
+  const [showNoteModal, setShowNoteModal] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteError, setNoteError] = useState("");
+
+  // Handler to open note modal
+  const handleOpenNoteModal = (invoiceId: string) => {
+    const invoice = invoicesState.find(inv => inv.id === invoiceId);
+    setShowNoteModal(invoiceId);
+    setNoteText(invoice?.note || "");
+    setIsEditingNote(!!invoice?.note);
+    setNoteError("");
+  };
+
+  // Handler to save note
+  const handleSaveNote = async () => {
+    if (!showNoteModal) return;
+    if (noteText.length > 300) {
+      setNoteError("Note must be 300 characters or less.");
+      return;
+    }
+    const invoiceBefore = invoicesState.find(inv => inv.id === showNoteModal);
+    const hadExisting = !!invoiceBefore?.note;
+    const isDelete = hadExisting && noteText.trim() === "";
+
+    await onUpdateInvoice(showNoteModal, { note: noteText });
+    setShowNoteModal(null);
+    setNoteText("");
+    setIsEditingNote(false);
+    setNoteError("");
+    if (user?.username) {
+      const action = isDelete ? "deleted" : hadExisting ? "updated" : "added";
+      await logActivity({
+        type: "Invoice",
+        message: `User ${user.username} ${action} a note on invoice #${showNoteModal}`,
+        user: user.username,
+      });
+    }
+    await refreshInvoices();
+  };
+
+  // Handler to toggle note completion
+  const handleToggleNoteCompleted = async (invoiceId: string) => {
+    const invoice = invoicesState.find(inv => inv.id === invoiceId);
+    if (!invoice) return;
+    const completed = !invoice.noteCompleted;
+    await onUpdateInvoice(invoiceId, {
+      noteCompleted: completed,
+      noteCompletedBy: completed ? user?.username : undefined,
+      noteCompletedAt: completed ? new Date().toISOString() : undefined,
+    });
+    if (user?.username) {
+      await logActivity({
+        type: "Invoice",
+        message: `User ${user.username} marked note as ${completed ? "completed" : "incomplete"} on invoice #${invoiceId}`,
+        user: user.username,
+      });
+    }
+    await refreshInvoices();
+  };
+  // Removed duplicate declarations of note system state and handlers
   const [selectedInvoiceIdLocal, setSelectedInvoiceIdLocal] = useState<
     string | null
   >(null);
+
+  // --- NOTE SYSTEM STATE ---
+  // Removed duplicate declarations of note system state
   const selectedInvoiceId =
     selectedInvoiceIdProp !== undefined
       ? selectedInvoiceIdProp
@@ -225,6 +291,8 @@ export default function ActiveInvoices({
   const [unlockInput, setUnlockInput] = useState("");
   const [unlockError, setUnlockError] = useState("");
   const { user } = useAuth();
+  const isSupervisorOrAbove = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
+  const isEmployee = user && user.role === "Employee";
   const [users, setUsers] = React.useState<UserRecord[]>([]);
 
   // View mode state - cards or list view
@@ -787,6 +855,9 @@ export default function ActiveInvoices({
       });
     }
   };
+
+  // --- NOTE HANDLERS ---
+  // Removed duplicate declarations of note handlers
 
   // --- Unship Recent Invoices Modal State ---
   const [showUnshipModal, setShowUnshipModal] = useState(false);
@@ -1791,6 +1862,7 @@ export default function ActiveInvoices({
               const avatarSrc = getClientAvatarUrl(client || {});
               const isReady =
                 invoice.status === "ready" || readyInvoices[invoice.id];
+
               const isVerified = invoice.verified;
               const isPartiallyVerified =
                 invoice.partiallyVerified ||
@@ -2229,6 +2301,42 @@ export default function ActiveInvoices({
                           })()}
                         </ul>
                       </div>
+                      
+                      {/* Note Display Section */}
+                      {invoice.note && (
+                        <div
+                          style={{
+                            margin: "16px 0 60px 0", // Bottom margin to avoid overlap with action buttons
+                            padding: "12px 16px",
+                            borderRadius: "12px",
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            background: invoice.noteCompleted ? "#dcfce7" : "#fef3c7",
+                            color: invoice.noteCompleted ? "#16a34a" : "#b45309",
+                            border: invoice.noteCompleted ? "2px solid #16a34a" : "2px solid #f59e0b",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                            wordBreak: "break-word",
+                            lineHeight: "1.4",
+                            cursor: "pointer"
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenNoteModal(invoice.id);
+                          }}
+                          title="Click to edit note"
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                            <i className="bi bi-sticky" style={{ fontSize: "16px" }}></i>
+                            <span style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                              {invoice.noteCompleted ? "✓ Completed Note" : "⚠ Pending Note"}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "14px", fontWeight: "500" }}>
+                            {invoice.note}
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Social-style action buttons */}
                       <div
                         style={{
@@ -2241,6 +2349,31 @@ export default function ActiveInvoices({
                           zIndex: 10,
                         }}
                       >
+                        {/* Sticky Note button - always visible */}
+                        <button
+                          className="btn btn-sm btn-outline-secondary"
+                          style={{
+                            fontSize: 16,
+                            width: 44,
+                            height: 44,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border: invoice.note ? (invoice.noteCompleted ? "2px solid #22c55e" : "2px solid #f59e0b") : "2px solid #888",
+                            color: invoice.note ? (invoice.noteCompleted ? "#22c55e" : "#f59e0b") : "#888",
+                            background: "#fff"
+                          }}
+                          onClick={e => {
+                            e.stopPropagation();
+                            handleOpenNoteModal(invoice.id);
+                          }}
+                          title={invoice.note ? (invoice.noteCompleted ? "Note completed" : "Note pending") : "Add note"}
+                        >
+                          <i className="bi bi-sticky"></i>
+                        </button>
                         {/* Schedule Delivery button - Step 0 - Only show when invoice is approved */}
                         {(invoice.verified || invoice.partiallyVerified) && (
                           <button
@@ -2615,6 +2748,28 @@ export default function ActiveInvoices({
                                   }
                                 }
                               } else {
+                                // Ship - Check all prerequisites before shipping
+                                if (!invoice.verified) {
+                                  alert("Invoice must be approved before shipping.");
+                                  return;
+                                }
+                                if (hasUnnamedCart(invoice)) {
+                                  alert(
+                                    'Cannot ship laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                  );
+                                  return;
+                                }
+                                
+                                // Check if there are incomplete notes
+                                if (invoice.note && !invoice.noteCompleted) {
+                                  alert(
+                                    'Cannot ship laundry ticket: There is an incomplete note that must be marked as done before shipping.\n\n' +
+                                    `Note: ${invoice.note}\n\n` +
+                                    'Please complete the note before shipping.'
+                                  );
+                                  return;
+                                }
+                                
                                 // Check if all carts are properly printed before shipping
                                 const areAllCartsPrinted = (invoice.carts || []).every(cart => {
                                   // Cart must be printed at least once
@@ -2662,12 +2817,13 @@ export default function ActiveInvoices({
                               }
                             }}
                             disabled={
-                              !invoice.verified || hasUnnamedCart(invoice)
+                              !invoice.verified || hasUnnamedCart(invoice) || Boolean(invoice.note && !invoice.noteCompleted)
                             }
                             title={(() => {
                               if (!invoice.verified) return "Must be approved first";
                               if (hasUnnamedCart(invoice)) return 'Cannot modify with "CARRO SIN NOMBRE" cart';
                               if (invoice.status === "done") return "Click to unship";
+                              if (invoice.note && !invoice.noteCompleted) return "Complete pending note before shipping";
                               
                               // Check cart print status
                               const areAllCartsPrinted = (invoice.carts || []).every(cart => {
@@ -2796,6 +2952,7 @@ export default function ActiveInvoices({
                 <th>Carts</th>
                 <th>Total Items</th>
                 <th>Status</th>
+                <th>Notes</th>
                 <th>Delivery</th>
                 <th>Actions</th>
               </tr>
@@ -2921,6 +3078,54 @@ export default function ActiveInvoices({
                             </small>
                           )}
                         </div>
+                      </td>
+                      <td>
+                        {invoice.note ? (
+                          <div 
+                            style={{ 
+                              maxWidth: "200px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              fontSize: "12px",
+                              background: invoice.noteCompleted ? "#dcfce7" : "#fef3c7",
+                              color: invoice.noteCompleted ? "#16a34a" : "#b45309",
+                              border: invoice.noteCompleted ? "1px solid #16a34a" : "1px solid #f59e0b",
+                              cursor: "pointer"
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenNoteModal(invoice.id);
+                            }}
+                            title="Click to edit note"
+                          >
+                            <div className="d-flex align-items-center gap-1 mb-1">
+                              <i className="bi bi-sticky" style={{ fontSize: "10px" }}></i>
+                              <span style={{ fontSize: "10px", fontWeight: "600" }}>
+                                {invoice.noteCompleted ? "✓ DONE" : "⚠ TODO"}
+                              </span>
+                            </div>
+                            <div style={{ 
+                              overflow: "hidden", 
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              fontWeight: "500"
+                            }}>
+                              {invoice.note}
+                            </div>
+                          </div>
+                        ) : (
+                          <button 
+                            className="btn btn-sm btn-outline-secondary"
+                            style={{ fontSize: "11px", padding: "2px 6px" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenNoteModal(invoice.id);
+                            }}
+                            title="Add note"
+                          >
+                            <i className="bi bi-sticky"></i>
+                          </button>
+                        )}
                       </td>
                       <td>
                         {invoice.deliveryDate ? (
@@ -3121,7 +3326,7 @@ export default function ActiveInvoices({
                                     }
                                   }
                                 } else {
-                                  // Ship
+                                  // Ship - Check all prerequisites before shipping
                                   if (!invoice.verified) {
                                     alert("Invoice must be approved before shipping.");
                                     return;
@@ -3129,6 +3334,16 @@ export default function ActiveInvoices({
                                   if (hasUnnamedCart(invoice)) {
                                     alert(
                                       'Cannot ship laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                    );
+                                    return;
+                                  }
+                                  
+                                  // Check if there are incomplete notes
+                                  if (invoice.note && !invoice.noteCompleted) {
+                                    alert(
+                                      'Cannot ship laundry ticket: There is an incomplete note that must be marked as done before shipping.\n\n' +
+                                      `Note: ${invoice.note}\n\n` +
+                                      'Please complete the note before shipping.'
                                     );
                                     return;
                                   }
@@ -3180,12 +3395,13 @@ export default function ActiveInvoices({
                                 }
                               }}
                               disabled={
-                                invoice.status !== "done" && (!invoice.verified || hasUnnamedCart(invoice))
+                                invoice.status !== "done" && (!invoice.verified || hasUnnamedCart(invoice) || Boolean(invoice.note && !invoice.noteCompleted))
                               }
                               title={(() => {
                                 if (invoice.status === "done") return "Click to unship";
                                 if (!invoice.verified) return "Must be approved first";
                                 if (hasUnnamedCart(invoice)) return 'Cannot ship with "CARRO SIN NOMBRE" cart';
+                                if (invoice.note && !invoice.noteCompleted) return "Complete pending note before shipping";
                                 
                                 // Check cart print status
                                 const areAllCartsPrinted = (invoice.carts || []).every(cart => {
@@ -3241,6 +3457,79 @@ export default function ActiveInvoices({
           </table>
         </div>
       )}
+
+      {/* Note Modal */}
+      {showNoteModal && (() => {
+        const invoice = invoicesState.find(inv => inv.id === showNoteModal);
+        return (
+          <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title"><i className="bi bi-sticky me-2"></i>{isEditingNote ? "Edit Note" : "Add Note"}</h5>
+                  <button type="button" className="btn-close" onClick={() => setShowNoteModal(null)}></button>
+                </div>
+                <div className="modal-body">
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    value={noteText}
+                    onChange={e => setNoteText(e.target.value)}
+                    placeholder={isSupervisorOrAbove ? "Enter note (todo, instructions, etc.)" : "Only supervisors and above can edit notes"}
+                    autoFocus={isSupervisorOrAbove}
+                    disabled={!isSupervisorOrAbove}
+                  />
+                  {!!noteError && <div className="text-danger mt-2">{noteError}</div>}
+                  {!!invoice?.note && (
+                    <div className="mt-2 small text-muted">
+                      Status: {invoice.noteCompleted ? "Completed" : "Pending"}
+                      {invoice.noteCompleted && invoice.noteCompletedBy && (
+                        <> by {invoice.noteCompletedBy}</>
+                      )}
+                      {invoice.noteCompleted && invoice.noteCompletedAt && (
+                        <> at {formatDateSpanish(invoice.noteCompletedAt)}</>
+                      )}
+                    </div>
+                  )}
+                  {!!invoice?.note && !invoice.noteCompleted && (
+                    <div className="alert alert-warning mt-3">
+                      <i className="bi bi-exclamation-triangle me-2"></i>
+                      Shipping is blocked until this note is marked completed.
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={() => setShowNoteModal(null)}>Cancel</button>
+                  {/* Delete only for supervisors and above */}
+                  {isSupervisorOrAbove && invoice?.note && (
+                    <button className="btn btn-danger" onClick={() => { setNoteText(""); handleSaveNote(); }}>
+                      Delete
+                    </button>
+                  )}
+                  {/* Mark as Done: Anyone can mark pending notes as done */}
+                  {invoice?.note && !invoice.noteCompleted && (
+                    <button className="btn btn-success" onClick={() => handleToggleNoteCompleted(invoice.id)}>
+                      <i className="bi bi-check-lg me-2" />Mark as Done
+                    </button>
+                  )}
+                  {/* Mark as Pending: Only supervisors and above can revert completed notes */}
+                  {invoice?.note && invoice.noteCompleted && isSupervisorOrAbove && (
+                    <button className="btn btn-warning" onClick={() => handleToggleNoteCompleted(invoice.id)}>
+                      <i className="bi bi-arrow-clockwise me-2" />Mark as Pending
+                    </button>
+                  )}
+                  {/* Save/Update only for supervisors and above */}
+                  {isSupervisorOrAbove && (
+                    <button className="btn btn-primary" onClick={handleSaveNote}>
+                      {isEditingNote ? "Update" : "Save"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Invoice Form */}
       {showInvoiceForm && (
@@ -3713,6 +4002,8 @@ export default function ActiveInvoices({
           </div>
         </div>
       )}
+
+      {/* Duplicate simplified Note Modal removed; only enhanced Note Modal remains */}
 
       {/* Delete Confirmation Modal */}
       {invoiceToDelete && (
