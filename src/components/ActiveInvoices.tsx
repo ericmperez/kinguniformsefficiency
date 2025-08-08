@@ -3476,7 +3476,7 @@ export default function ActiveInvoices({
                     value={noteText}
                     onChange={e => setNoteText(e.target.value)}
                     placeholder={isSupervisorOrAbove ? "Enter note (todo, instructions, etc.)" : "Only supervisors and above can edit notes"}
-                    autoFocus={isSupervisorOrAbove}
+                    autoFocus={!!isSupervisorOrAbove}
                     disabled={!isSupervisorOrAbove}
                   />
                   {!!noteError && <div className="text-danger mt-2">{noteError}</div>}
