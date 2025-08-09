@@ -8,6 +8,7 @@ interface LaundryTicketPreviewProps {
   pickupDate: string;
   items: { productName: string; quantity: number }[];
   pounds: number;
+  logoUrl?: string;
 }
 
 const LaundryTicketPreview: React.FC<LaundryTicketPreviewProps> = ({
@@ -17,11 +18,22 @@ const LaundryTicketPreview: React.FC<LaundryTicketPreviewProps> = ({
   pickupDate,
   items,
   pounds,
+  logoUrl,
 }) => {
   return (
     <div className="laundry-ticket-preview">
       <div className="ticket-header">
-        <img src="/images/King Uniforms Logo.png" alt="King Uniforms Logo" className="logo" />
+        <img 
+          src={logoUrl || "/images/King Uniforms Logo.png"} 
+          alt="Company Logo" 
+          className="logo" 
+          style={{
+            maxWidth: '200px',
+            maxHeight: '80px',
+            objectFit: 'contain',
+            imageRendering: 'crisp-edges'
+          }}
+        />
         <div className="ticket-info">
           <p>Ticket #: {ticketNumber}</p>
         </div>

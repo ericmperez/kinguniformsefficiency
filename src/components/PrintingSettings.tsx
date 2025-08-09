@@ -19,7 +19,9 @@ import {
 } from "../services/emailService";
 import LaundryTicketPreview from "./LaundryTicketPreview";
 import LaundryTicketFieldsModal from "./LaundryTicketFieldsModal";
+// import PrintConfigModal from "./PrintConfigModal"; // Temporarily disabled
 import PrintConfigModal from "./PrintConfigModal";
+import SignedDeliveryTicketPreview from "./SignedDeliveryTicketPreview";
 import "./LaundryTicketPreview.css";
 
 interface PrintingSettingsProps {}
@@ -50,6 +52,10 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = () => {
   const [emailTestResults, setEmailTestResults] = useState<{
     [clientId: string]: { success: boolean; message: string; timestamp: Date };
   }>({});
+
+  // Signed delivery ticket preview state
+  const [showSignedTicketPreview, setShowSignedTicketPreview] = useState(false);
+  const [signedTicketPreviewClient, setSignedTicketPreviewClient] = useState<Client | null>(null);
 
   // Notification system
   const [notification, setNotification] = useState<{
@@ -93,7 +99,6 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = () => {
         includeSignature: false,
         headerText: "",
         footerText: "",
-        logoUrl: "/images/King Uniforms Logo.png",
       },
       emailSettings: {
         enabled: false,
@@ -805,6 +810,16 @@ King Uniforms Team`;
                             title="Preview email template"
                           >
                             <i className="bi bi-eye-fill me-1"></i>Preview
+                          </button>
+                          <button
+                            className="btn btn-outline-danger btn-sm px-3"
+                            onClick={() => {
+                              setSignedTicketPreviewClient(client);
+                              setShowSignedTicketPreview(true);
+                            }}
+                            title="Preview signed delivery ticket PDF"
+                          >
+                            <i className="bi bi-file-earmark-pdf-fill me-1"></i>PDF Preview
                           </button>
                           <button
                             className="btn btn-outline-success btn-sm px-3"
@@ -1856,6 +1871,128 @@ King Uniforms Team`}
           client={printConfigClient}
           onSave={handlePrintConfigSave}
         />
+      )}
+
+      {/* Signed Delivery Ticket Preview Modal */}
+      {showSignedTicketPreview && signedTicketPreviewClient && (
+        <div 
+          className="modal show d-block signed-delivery-ticket-modal" 
+          tabIndex={-1} 
+          style={{ 
+            backgroundColor: "rgba(0, 0, 0, 0.8)", 
+            zIndex: 9999,
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
+          }}
+        >
+          <div 
+            className="modal-dialog signed-delivery-ticket-dialog" 
+            style={{ 
+              width: "85vw !important", 
+              height: "85vh !important",
+              maxWidth: "none !important",
+              minWidth: "1000px !important", 
+              margin: "0 !important",
+              position: "relative",
+              display: "flex",
+              flexDirection: "column"
+            }}
+          >
+            <div className="modal-content" style={{ 
+              height: "100%", 
+              display: "flex", 
+              flexDirection: "column",
+              borderRadius: "12px",
+              border: "none",
+              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)"
+            }}>
+              <div className="modal-header" style={{ 
+                background: '#0E62A0', 
+                color: 'white',
+                borderRadius: "12px 12px 0 0",
+                padding: "1.5rem"
+              }}>
+                <div className="d-flex align-items-center">
+                  <i className="bi bi-file-earmark-pdf-fill me-3" style={{ fontSize: '1.5rem' }}></i>
+                  <div>
+                    <h4 className="mb-0 fw-bold">Signed Delivery Ticket Preview - {signedTicketPreviewClient.name}</h4>
+                    <small className="text-light opacity-75">
+                      Preview how the signed delivery ticket PDF will appear when emailed to clients
+                    </small>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => {
+                    setShowSignedTicketPreview(false);
+                    setSignedTicketPreviewClient(null);
+                  }}
+                ></button>
+              </div>
+              <div 
+                className="modal-body p-0" 
+                style={{ 
+                  overflow: "auto", 
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column"
+                }}
+              >
+                <SignedDeliveryTicketPreview
+                  client={signedTicketPreviewClient}
+                  config={signedTicketPreviewClient.printConfig || {
+                    cartPrintSettings: {
+                      enabled: true,
+                      showProductDetails: true,
+                      showProductSummary: false,
+                      showQuantities: true,
+                      showPrices: false,
+                      showCartTotal: true,
+                      includeTimestamp: true,
+                      headerText: "Cart Contents",
+                      footerText: "",
+                      clientNameFontSize: "large",
+                    },
+                    invoicePrintSettings: {
+                      enabled: true,
+                      showClientInfo: true,
+                      showInvoiceNumber: true,
+                      showDate: true,
+                      showPickupDate: false,
+                      showCartBreakdown: true,
+                      showProductSummary: true,
+                      showTotalWeight: true,
+                      showSubtotal: true,
+                      showTaxes: false,
+                      showGrandTotal: true,
+                      includeSignature: false,
+                      headerText: "Invoice",
+                      footerText: "",
+                    },
+                    emailSettings: {
+                      enabled: false,
+                      autoSendOnApproval: false,
+                      autoSendOnShipping: false,
+                      autoSendOnSignature: false,
+                      ccEmails: [],
+                      subject: "",
+                      bodyTemplate: "",
+                      signatureEmailSubject: "",
+                      signatureEmailTemplate: "",
+                    },
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

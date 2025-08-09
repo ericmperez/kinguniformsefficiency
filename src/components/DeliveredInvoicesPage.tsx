@@ -130,7 +130,8 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
         pdfContent = await generateInvoicePDF(
           client,
           invoice,
-          client.printConfig.invoicePrintSettings
+          client.printConfig.invoicePrintSettings,
+          undefined // No driver name available in this context
         );
       } catch (error) {
         console.error('Failed to generate PDF:', error);
@@ -191,7 +192,8 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
           pdfContent = await generateInvoicePDF(
             client,
             invoice,
-            client.printConfig.invoicePrintSettings
+            client.printConfig.invoicePrintSettings,
+            undefined // No driver name available in this context
           );
         } catch (error) {
           console.error('PDF generation failed:', error);
@@ -246,7 +248,8 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
           const pdfContent = await generateInvoicePDF(
             client,
             invoice,
-            client.printConfig?.invoicePrintSettings
+            client.printConfig?.invoicePrintSettings,
+            undefined // No driver name available in this context
           );
           
           if (pdfContent) {
@@ -663,7 +666,8 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
                                   const pdfContent = await generateInvoicePDF(
                                     client,
                                     invoice,
-                                    client.printConfig?.invoicePrintSettings
+                                    client.printConfig?.invoicePrintSettings,
+                                    undefined // No driver name available in this context
                                   );
                                   
                                   if (pdfContent) {

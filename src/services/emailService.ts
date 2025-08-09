@@ -406,8 +406,8 @@ King Uniforms Team`
     try {
       console.log("🔄 Generating sample PDF for test email...");
       
-      // Import the simple PDF service (works better in email context)
-      const { generateSimpleLaundryTicketPDF } = await import('./simplePdfService');
+      // Import the proper PDF service for testing
+      const { generateLaundryTicketPDF } = await import('./pdfService');
       
       // Create a sample invoice for PDF generation
       const sampleInvoice: Invoice = {
@@ -447,7 +447,7 @@ King Uniforms Team`
         truckNumber: "TEST-TRUCK-01"
       };
 
-      pdfContent = await generateSimpleLaundryTicketPDF(sampleInvoice, client);
+      pdfContent = await generateLaundryTicketPDF(sampleInvoice, client);
       console.log("✅ Sample PDF generated successfully for test email");
       console.log("📄 PDF content length:", pdfContent?.length || 0);
       
@@ -528,28 +528,50 @@ King Uniforms Team`
 };
 
 /**
- * PDF generation function that uses the simple PDF service
- * This replaces the previous stub implementation and should work properly
+ * PDF generation function that uses the new signed delivery template
+ * This replaces the old simple PDF service and provides consistent template usage
  */
 export const generateInvoicePDF = async (
   client: Client,
   invoice: Invoice,
-  printConfig: any
+  printConfig: any,
+  driverName?: string
 ): Promise<string | undefined> => {
   try {
-    console.log("📄 Generating PDF using simple PDF service...");
+    console.log("📄 Generating PDF using new signed delivery template...");
     
-    // Import the simple PDF service (better compatibility)
-    const { generateLaundryTicketPDF } = await import('./simplePdfService');
+    // Import the new signed delivery PDF service
+    const { generateDeliveryTicketPDF } = await import('./signedDeliveryPdfService');
     
-    // Generate the PDF
-    const pdfContent = await generateLaundryTicketPDF(invoice, client);
+    // Use default PDF options if not provided in printConfig
+    const pdfOptions = {
+      paperSize: printConfig?.paperSize || 'letter',
+      orientation: printConfig?.orientation || 'portrait',
+      showSignatures: true,
+      showTimestamp: true,
+      showLocation: true,
+      ...printConfig?.pdfOptions
+    };
     
-    console.log("✅ PDF generated successfully");
+    // Generate the PDF using the new template
+    const pdfContent = await generateDeliveryTicketPDF(invoice, client, pdfOptions, driverName);
+    
+    console.log("✅ PDF generated successfully with new signed delivery template");
     return pdfContent;
   } catch (error) {
-    console.error("❌ Failed to generate PDF:", error);
-    return undefined;
+    console.error("❌ Failed to generate PDF with new template:", error);
+    
+    // Fallback to full PDF service if new template fails
+    try {
+      console.log("🔄 Falling back to full PDF service...");
+      const { generateLaundryTicketPDF } = await import('./pdfService');
+      const pdfContent = await generateLaundryTicketPDF(invoice, client);
+      console.log("✅ PDF generated successfully with fallback template");
+      return pdfContent;
+    } catch (fallbackError) {
+      console.error("❌ Fallback PDF generation also failed:", fallbackError);
+      return undefined;
+    }
   }
 };
 

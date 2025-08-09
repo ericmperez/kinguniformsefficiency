@@ -19,7 +19,6 @@ import {
   deleteManualConventionalProduct,
 } from "../services/firebaseService";
 import { updateDoc, doc, getDoc, setDoc } from "firebase/firestore";
-// Removed duplicate import of sendInvoiceEmail and generateInvoicePDF
 import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
@@ -34,7 +33,7 @@ import {
   sendInvoiceEmail,
   validateEmailSettings,
   generateInvoicePDF,
-} from "../services/emailService"; // Retained this import statement
+} from "../services/emailService";
 import { collection, onSnapshot } from "firebase/firestore";
 import { formatDateSpanish } from "../utils/dateFormatter";
 
@@ -158,75 +157,9 @@ export default function ActiveInvoices({
 }: ActiveInvoicesProps) {
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [showCartModal, setShowCartModal] = useState(false);
-
-  // --- Invoice Note State ---
-  const [showNoteModal, setShowNoteModal] = useState<string | null>(null);
-  const [noteText, setNoteText] = useState("");
-  const [isEditingNote, setIsEditingNote] = useState(false);
-  const [noteError, setNoteError] = useState("");
-
-  // Handler to open note modal
-  const handleOpenNoteModal = (invoiceId: string) => {
-    const invoice = invoicesState.find(inv => inv.id === invoiceId);
-    setShowNoteModal(invoiceId);
-    setNoteText(invoice?.note || "");
-    setIsEditingNote(!!invoice?.note);
-    setNoteError("");
-  };
-
-  // Handler to save note
-  const handleSaveNote = async () => {
-    if (!showNoteModal) return;
-    if (noteText.length > 300) {
-      setNoteError("Note must be 300 characters or less.");
-      return;
-    }
-    const invoiceBefore = invoicesState.find(inv => inv.id === showNoteModal);
-    const hadExisting = !!invoiceBefore?.note;
-    const isDelete = hadExisting && noteText.trim() === "";
-
-    await onUpdateInvoice(showNoteModal, { note: noteText });
-    setShowNoteModal(null);
-    setNoteText("");
-    setIsEditingNote(false);
-    setNoteError("");
-    if (user?.username) {
-      const action = isDelete ? "deleted" : hadExisting ? "updated" : "added";
-      await logActivity({
-        type: "Invoice",
-        message: `User ${user.username} ${action} a note on invoice #${showNoteModal}`,
-        user: user.username,
-      });
-    }
-    await refreshInvoices();
-  };
-
-  // Handler to toggle note completion
-  const handleToggleNoteCompleted = async (invoiceId: string) => {
-    const invoice = invoicesState.find(inv => inv.id === invoiceId);
-    if (!invoice) return;
-    const completed = !invoice.noteCompleted;
-    await onUpdateInvoice(invoiceId, {
-      noteCompleted: completed,
-      noteCompletedBy: completed ? user?.username : undefined,
-      noteCompletedAt: completed ? new Date().toISOString() : undefined,
-    });
-    if (user?.username) {
-      await logActivity({
-        type: "Invoice",
-        message: `User ${user.username} marked note as ${completed ? "completed" : "incomplete"} on invoice #${invoiceId}`,
-        user: user.username,
-      });
-    }
-    await refreshInvoices();
-  };
-  // Removed duplicate declarations of note system state and handlers
   const [selectedInvoiceIdLocal, setSelectedInvoiceIdLocal] = useState<
     string | null
   >(null);
-
-  // --- NOTE SYSTEM STATE ---
-  // Removed duplicate declarations of note system state
   const selectedInvoiceId =
     selectedInvoiceIdProp !== undefined
       ? selectedInvoiceIdProp
@@ -292,11 +225,7 @@ export default function ActiveInvoices({
   const [unlockInput, setUnlockInput] = useState("");
   const [unlockError, setUnlockError] = useState("");
   const { user } = useAuth();
-  const isSupervisorOrAbove = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
-  const isEmployee = user && user.role === "Employee";
   const [users, setUsers] = React.useState<UserRecord[]>([]);
-
-  // Removed duplicate bulk email state declarations
 
   // View mode state - cards or list view
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
@@ -330,11 +259,6 @@ export default function ActiveInvoices({
     mangles: boolean;
     doblado: boolean;
   }>({ mangles: false, doblado: false });
-  
-  // Helper to get completed option position for a client
-  function getCompletedOptionPosition(client: Client): 'top' | 'bottom' | 'both' | 'uniformes' {
-    return client.completedOptionPosition || 'both';
-  }
 
   // --- Print Options Modal State ---
   const [showPrintOptionsModal, setShowPrintOptionsModal] = useState<
@@ -499,10 +423,6 @@ export default function ActiveInvoices({
   const handleApplyCompletion = async () => {
     if (!completionInvoiceId) return;
     
-    const invoice = invoices.find((inv) => inv.id === completionInvoiceId);
-    const client = clients.find((c) => c.id === invoice?.clientId);
-    const completedPosition = getCompletedOptionPosition(client!);
-    
     const { mangles, doblado } = selectedCompletionParts;
     
     // Update invoice with completion parts
@@ -511,40 +431,25 @@ export default function ActiveInvoices({
       dobladoCompleted: doblado,
     };
     
-    // Determine completion status based on client setting
-    let isCompleted = false;
-    if (completedPosition === 'top') {
-      // For top-only clients, completed when mangles is done
-      isCompleted = mangles;
-    } else if (completedPosition === 'bottom') {
-      // For bottom-only clients, completed when doblado is done
-      isCompleted = doblado;
-    } else if (completedPosition === 'uniformes') {
-      // For uniformes clients, completed when either mangles or doblado is done
-      isCompleted = mangles || doblado;
-    } else {
-      // For 'both' clients, completed when both parts are done
-      isCompleted = mangles && doblado;
-    }
-    
-    // Update status based on completion
-    if (isCompleted) {
+    // Only mark as fully completed if both parts are done
+    if (mangles && doblado) {
       updateData.status = "completed";
     } else if (!mangles && !doblado) {
-      // If unchecking all available parts, revert to active
+      // If unchecking both, revert to active
       updateData.status = "active";
     }
-    // If only partially completed (for 'both' clients), keep current status
+    // If only one part is completed, don't change the status yet
     
     await onUpdateInvoice(completionInvoiceId, updateData);
     
     // Trigger animation based on completion state
-    if (isCompleted) {
+    if (mangles && doblado) {
       triggerApprovalAnimation(completionInvoiceId, "partial");
     }
     
     // Log activity
     if (user?.username) {
+      const invoice = invoices.find((inv) => inv.id === completionInvoiceId);
       const completedParts = [];
       if (mangles) completedParts.push("Mangles - Arriba");
       if (doblado) completedParts.push("Doblado - Abajo");
@@ -612,7 +517,7 @@ export default function ActiveInvoices({
     if (invoice) {
       // Log the approval activity
       if (user?.username) {
-        await logActivity({
+        await        logActivity({
           type: "Invoice",
           message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} laundry ticket #${invoice.invoiceNumber || invoice.id}`,
           user: user.username,
@@ -635,7 +540,8 @@ export default function ActiveInvoices({
               pdfContent = await generateInvoicePDF(
                 client,
                 invoice,
-                printConfig
+                printConfig,
+                undefined // No driver name available in this context
               );
             } catch (error) {
               console.error("Failed to generate PDF for auto-send:", error);
@@ -858,9 +764,6 @@ export default function ActiveInvoices({
       });
     }
   };
-
-  // --- NOTE HANDLERS ---
-  // Removed duplicate declarations of note handlers
 
   // --- Unship Recent Invoices Modal State ---
   const [showUnshipModal, setShowUnshipModal] = useState(false);
@@ -1328,9 +1231,6 @@ export default function ActiveInvoices({
       (mp) => mp.clientId === clientId && mp.washed && !mp.invoiceId
     );
 
-  // Helper to safely format dates
-  // Removed duplicate formatDateSafe function
-
   // When adding a manual product to an invoice, set its invoiceId in Firestore
   const handleAddManualProductToInvoice = async (
     manualProductId: string,
@@ -1461,33 +1361,12 @@ export default function ActiveInvoices({
   const [pickupSignatureInvoice, setPickupSignatureInvoice] = useState<Invoice | null>(null);
 
   // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
-  function formatDateSafe(date?: string | number | Date): string {
-    if (!date) return "unknown time";
-    try {
-      return new Date(date).toLocaleString();
-    } catch {
-      return String(date);
-    }
-  }
-  
-  // Replace usages like:
-  // formatDateSafe(emailStatus.approvalEmailSentAt)
-  // with:
-  // formatDateSafe(emailStatus.approvalEmailSentAt)
-  
   const hasOverdue = invoices.some((inv) => {
-          if (!inv.date) return false;
-          const createdDate = new Date(inv.date);
-          const now = new Date();
-          return now.getTime() - createdDate.getTime() > 24 * 60 * 60 * 1000;
-        });
-  
-  // Fix: Replace all remaining usages of new Date(emailStatus.approvalEmailSentAt).toLocaleString() with formatDateSafe(emailStatus.approvalEmailSentAt)
-  // Fix: Replace all remaining usages of new Date(emailStatus.manualEmailSentAt).toLocaleString() with formatDateSafe(emailStatus.manualEmailSentAt)
-  // Fix: Replace all remaining usages of new Date(emailStatus.shippingEmailSentAt).toLocaleString() with formatDateSafe(emailStatus.shippingEmailSentAt)
-  // Fix: Replace all remaining usages of new Date(invoice.emailStatus.approvalEmailSentAt).toLocaleString() with formatDateSafe(invoice.emailStatus.approvalEmailSentAt)
-  // Fix: Replace all remaining usages of new Date(invoice.emailStatus.manualEmailSentAt).toLocaleString() with formatDateSafe(invoice.emailStatus.manualEmailSentAt)
-  // Fix: Replace all remaining usages of new Date(invoice.emailStatus.shippingEmailSentAt).toLocaleString() with formatDateSafe(invoice.emailStatus.shippingEmailSentAt)
+    if (!inv.date) return false;
+    const created = new Date(inv.date);
+    const now = new Date();
+    return now.getTime() - created.getTime() > 24 * 60 * 60 * 1000;
+  });
   let demoInvoices = invoices;
   if (!hasOverdue && invoices.length > 0) {
     // Clone the first invoice and set its date to 2 days ago
@@ -1533,115 +1412,6 @@ export default function ActiveInvoices({
     // If both are unverified or both are verified, sort alphabetically by client name
     return (a.clientName || "").localeCompare(b.clientName || "");
   });
-
-  // Bulk email functionality state
-  const [selectedInvoicesForEmail, setSelectedInvoicesForEmail] = useState<string[]>([]);
-  const [showBulkEmailModal, setShowBulkEmailModal] = useState(false);
-  const [bulkEmailSubject, setBulkEmailSubject] = useState("");
-  const [bulkEmailBody, setBulkEmailBody] = useState("");
-  const [isSendingBulkEmail, setIsSendingBulkEmail] = useState(false);
-  const [bulkEmailStatus, setBulkEmailStatus] = useState("");
-  const [bulkEmailLoading, setBulkEmailLoading] = useState(false);
-
-  // Handler for bulk email
-  const handleBulkEmail = async () => {
-    if (selectedInvoicesForEmail.length === 0) {
-      alert("Please select at least one invoice to email.");
-      return;
-    }
-
-    setIsSendingBulkEmail(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    try {
-      for (const invoiceId of selectedInvoicesForEmail) {
-        const invoice = invoicesState.find(inv => inv.id === invoiceId);
-        const client = clients.find(c => c.id === invoice?.clientId);
-
-        if (!invoice || !client?.email || !client?.printConfig?.emailSettings?.enabled) {
-          errorCount++;
-          continue;
-        }
-
-        try {
-          // Generate PDF
-          let pdfContent: string | undefined;
-          try {
-            pdfContent = await generateInvoicePDF(
-              client,
-              invoice,
-              client.printConfig?.invoicePrintSettings
-            );
-          } catch (error) {
-            console.error("Failed to generate PDF for", invoice.id, error);
-          }
-
-          // Use custom subject/body if provided, otherwise use client settings
-          const emailSettings = {
-            ...client?.printConfig?.emailSettings,
-            subject: bulkEmailSubject || client?.printConfig?.emailSettings?.subject,
-            bodyTemplate: bulkEmailBody || client?.printConfig?.emailSettings?.bodyTemplate,
-          };
-          
-          // Fix emailClient.printConfig.emailSettings to use optional chaining: emailClient.printConfig?.emailSettings
-
-          const success = await sendInvoiceEmail(
-            client,
-            invoice,
-            emailSettings,
-            pdfContent
-          );
-
-          if (success) {
-            successCount++;
-            // Update email status
-            await onUpdateInvoice(invoice.id, {
-              emailStatus: {
-                ...invoice.emailStatus,
-                manualEmailSent: true,
-                manualEmailSentAt: new Date().toISOString(),
-                lastEmailError: undefined,
-              },
-            });
-          } else {
-            errorCount++;
-          }
-        } catch (error) {
-          console.error("Error sending email to", client.email, error);
-          errorCount++;
-        }
-      }
-
-      // Show results
-      alert(
-        `Bulk email completed!\n\n` +
-        `✅ Successfully sent: ${successCount}\n` +
-        `❌ Failed: ${errorCount}\n\n` +
-        `Total selected: ${selectedInvoicesForEmail.length}`
-      );
-
-      // Log activity
-      if (user?.username) {
-        await logActivity({
-          type: "Email",
-          message: `User ${user.username} sent bulk emails: ${successCount} successful, ${errorCount} failed`,
-          user: user.username,
-        });
-      }
-
-      // Reset state
-      setSelectedInvoicesForEmail([]);
-      setShowBulkEmailModal(false);
-      setBulkEmailSubject("");
-      setBulkEmailBody("");
-    } catch (error) {
-      console.error("Bulk email error:", error);
-      alert("Error during bulk email operation. Please try again.");
-    } finally {
-      setIsSendingBulkEmail(false);
-    }
-  };
 
   // Status filter options
   const STATUS_FILTERS = [
@@ -1982,34 +1752,6 @@ export default function ActiveInvoices({
               </button>
             </div>
           </div>
-          
-          {/* Bulk Actions for List View */}
-          {viewMode === 'list' && selectedInvoicesForEmail.length > 0 && (
-            <div className="col-12 mt-3">
-              <div className="alert alert-info d-flex justify-content-between align-items-center">
-                <span>
-                  <i className="bi bi-check-square me-2"></i>
-                  {selectedInvoicesForEmail.length} invoice{selectedInvoicesForEmail.length !== 1 ? 's' : ''} selected
-                </span>
-                <div>
-                  <button
-                    className="btn btn-outline-secondary btn-sm me-2"
-                    onClick={() => setSelectedInvoicesForEmail([])}
-                  >
-                    Clear Selection
-                  </button>
-                  <button
-                    className="btn btn-success btn-sm"
-                    onClick={() => setShowBulkEmailModal(true)}
-                    disabled={selectedInvoicesForEmail.length === 0}
-                  >
-                    <i className="bi bi-envelope me-1"></i>
-                    Email Selected ({selectedInvoicesForEmail.length})
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -2026,7 +1768,6 @@ export default function ActiveInvoices({
               const avatarSrc = getClientAvatarUrl(client || {});
               const isReady =
                 invoice.status === "ready" || readyInvoices[invoice.id];
-
               const isVerified = invoice.verified;
               const isPartiallyVerified =
                 invoice.partiallyVerified ||
@@ -2061,40 +1802,22 @@ export default function ActiveInvoices({
                   "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
                 cardBorderColor = "#eab308";
               } else if (invoice.manglesCompleted || invoice.dobladoCompleted) {
-                // Partial completion - Enhanced logic for client settings
-                const completedPosition = getCompletedOptionPosition(client!);
-                
+                // Partial completion - Split background
                 if (invoice.manglesCompleted && invoice.dobladoCompleted) {
                   // Both parts completed - should be status "completed", but fallback
                   cardBackground =
                     "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
                   cardBorderColor = "#eab308";
                 } else if (invoice.manglesCompleted) {
-                  // Top part completed
-                  if (completedPosition === 'top' || completedPosition === 'uniformes') {
-                    // Client only has top option or uniformes - full yellow card (partial completion)
-                    cardBackground =
-                      "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
-                    cardBorderColor = "#eab308";
-                  } else {
-                    // Client has both options - split background (yellow top, blue bottom)
-                    cardBackground =
-                      "linear-gradient(to bottom, #fef3c7 0%, #fef3c7 50%, #dbeafe 50%, #dbeafe 100%)";
-                    cardBorderColor = "#3b82f6";
-                  }
+                  // Only top part completed - Yellow top, blue bottom
+                  cardBackground =
+                    "linear-gradient(to bottom, #fef3c7 0%, #fef3c7 50%, #dbeafe 50%, #dbeafe 100%)";
+                  cardBorderColor = "#3b82f6";
                 } else if (invoice.dobladoCompleted) {
-                  // Bottom part completed
-                  if (completedPosition === 'bottom' || completedPosition === 'uniformes') {
-                    // Client only has bottom option or uniformes - full yellow card (partial completion)
-                    cardBackground =
-                      "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
-                    cardBorderColor = "#eab308";
-                  } else {
-                    // Client has both options - split background (blue top, yellow bottom)
-                    cardBackground =
-                      "linear-gradient(to bottom, #dbeafe 0%, #dbeafe 50%, #fef3c7 50%, #fef3c7 100%)";
-                    cardBorderColor = "#3b82f6";
-                  }
+                  // Only bottom part completed - Blue top, yellow bottom
+                  cardBackground =
+                    "linear-gradient(to bottom, #dbeafe 0%, #dbeafe 50%, #fef3c7 50%, #fef3c7 100%)";
+                  cardBorderColor = "#3b82f6";
                 }
               } else if (isReady) {
                 // Ready status - Light yellow
@@ -2403,119 +2126,6 @@ export default function ActiveInvoices({
                             )}
                           </div>
                         )}
-                        
-                        {/* Email Status Badges */}
-                        {(() => {
-                          const client = clients.find((c) => c.id === invoice.clientId);
-                          const emailStatus = invoice.emailStatus;
-                          const hasEmailConfig = client?.email && client?.printConfig?.emailSettings?.enabled;
-                          
-                          if (!hasEmailConfig) return null;
-                          
-                          const badges = [];
-                          
-                          // Approval email status
-                          if (emailStatus?.approvalEmailSent) {
-                            badges.push(
-                              <div
-                                key="approval"
-                                style={{
-                                  display: "inline-block",
-                                  padding: "2px 8px",
-                                  borderRadius: "8px",
-                                  fontSize: "10px",
-                                  fontWeight: "600",
-                                  marginTop: "4px",
-                                  marginRight: "4px",
-                                  background: "#22c55e",
-                                  color: "white",
-                                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                                }}
-                                title={`Approval email sent at ${formatDateSafe(emailStatus.approvalEmailSentAt)}`}
-                              >
-                                ✓ APPROVAL EMAIL
-                              </div>
-                            );
-                          }
-                          
-                          // Manual email status
-                          if (emailStatus?.manualEmailSent) {
-                            badges.push(
-                              <div
-                                key="manual"
-                                style={{
-                                  display: "inline-block",
-                                  padding: "2px 8px",
-                                  borderRadius: "8px",
-                                  fontSize: "10px",
-                                  fontWeight: "600",
-                                  marginTop: "4px",
-                                  marginRight: "4px",
-                                  background: "#0ea5e9",
-                                  color: "white",
-                                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                                }}
-                                title={`Manual email sent at ${formatDateSafe(emailStatus.manualEmailSentAt)}`}
-                              >
-                                📧 MANUAL EMAIL
-                              </div>
-                            );
-                          }
-                          
-                          // Shipping email status
-                          if (emailStatus?.shippingEmailSent) {
-                            badges.push(
-                              <div
-                                key="shipping"
-                                style={{
-                                  display: "inline-block",
-                                  padding: "2px 8px",
-                                  borderRadius: "8px",
-                                  fontSize: "10px",
-                                  fontWeight: "600",
-                                  marginTop: "4px",
-                                  marginRight: "4px",
-                                  background: "#f59e0b",
-                                  color: "white",
-                                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                                }}
-                                title={`Shipping email sent at ${formatDateSafe(emailStatus.shippingEmailSentAt)}`}
-                              >
-                                🚛 SHIPPING EMAIL
-                              </div>
-                            );
-                          }
-                          
-                          // Error status
-                          if (emailStatus?.lastEmailError) {
-                            badges.push(
-                              <div
-                                key="error"
-                                style={{
-                                  display: "inline-block",
-                                  padding: "2px 8px",
-                                  borderRadius: "8px",
-                                  fontSize: "10px",
-                                  fontWeight: "600",
-                                  marginTop: "4px",
-                                  marginRight: "4px",
-                                  background: "#ef4444",
-                                  color: "white",
-                                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                                }}
-                                title={`Email error: ${emailStatus.lastEmailError}`}
-                              >
-                                ❌ EMAIL ERROR
-                              </div>
-                            );
-                          }
-                          
-                          return badges.length > 0 ? (
-                            <div style={{ marginTop: "8px" }}>
-                              {badges}
-                            </div>
-                          ) : null;
-                        })()}
                       </div>
                       {/* Product summary (total qty per product) */}
                       <div style={{ margin: "12px 0 0 0", width: "100%" }}>
@@ -2578,42 +2188,6 @@ export default function ActiveInvoices({
                           })()}
                         </ul>
                       </div>
-                      
-                      {/* Note Display Section */}
-                      {invoice.note && (
-                        <div
-                          style={{
-                            margin: "16px 0 60px 0", // Bottom margin to avoid overlap with action buttons
-                            padding: "12px 16px",
-                            borderRadius: "12px",
-                            fontSize: "14px",
-                            fontWeight: "600",
-                            background: invoice.noteCompleted ? "#dcfce7" : "#fef3c7",
-                            color: invoice.noteCompleted ? "#16a34a" : "#b45309",
-                            border: invoice.noteCompleted ? "2px solid #16a34a" : "2px solid #f59e0b",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                            wordBreak: "break-word",
-                            lineHeight: "1.4",
-                            cursor: "pointer"
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenNoteModal(invoice.id);
-                          }}
-                          title="Click to edit note"
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                            <i className="bi bi-sticky" style={{ fontSize: "16px" }}></i>
-                            <span style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                              {invoice.noteCompleted ? "✓ Completed Note" : "⚠ Pending Note"}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: "14px", fontWeight: "500" }}>
-                            {invoice.note}
-                          </div>
-                        </div>
-                      )}
-                      
                       {/* Social-style action buttons */}
                       <div
                         style={{
@@ -2626,130 +2200,6 @@ export default function ActiveInvoices({
                           zIndex: 10,
                         }}
                       >
-                        {/* Sticky Note button - always visible */}
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          style={{
-                            fontSize: 16,
-                            width: 44,
-                            height: 44,
-                            borderRadius: "50%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: 0,
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: invoice.note ? (invoice.noteCompleted ? "2px solid #22c55e" : "2px solid #f59e0b") : "2px solid #888",
-                            color: invoice.note ? (invoice.noteCompleted ? "#22c55e" : "#f59e0b") : "#888",
-                            background: "#fff"
-                          }}
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleOpenNoteModal(invoice.id);
-                          }}
-                          title={invoice.note ? (invoice.noteCompleted ? "Note completed" : "Note pending") : "Add note"}
-                        >
-                          <i className="bi bi-sticky"></i>
-                        </button>
-                        {/* Quick Email button - Show for verified invoices with email configured */}
-                        {invoice.verified && (() => {
-                          const emailClient = clients.find((c) => c.id === invoice.clientId);
-                          return emailClient?.email && emailClient?.printConfig?.emailSettings?.enabled ? (
-                            <button
-                              className="btn btn-sm btn-outline-success"
-                              style={{
-                                fontSize: 16,
-                                width: 44,
-                                height: 44,
-                                borderRadius: "50%",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                padding: 0,
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                                border: "2px solid #22c55e",
-                              }}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                  // Show loading state
-                                  const button = e.currentTarget;
-                                  const originalContent = button.innerHTML;
-                                  button.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div>';
-                                  button.disabled = true;
-
-                                  // Generate PDF
-                                  let pdfContent: string | undefined;
-                                  try {
-                                    pdfContent = await generateInvoicePDF(
-                                      emailClient,
-                                      invoice,
-                                      emailClient.printConfig?.invoicePrintSettings
-                                    );
-                                  } catch (error) {
-                                    console.error("Failed to generate PDF:", error);
-                                  }
-
-                                  // Send email only if email settings exist
-                                  if (!emailClient.printConfig?.emailSettings) {
-                                    button.innerHTML = originalContent;
-                                    button.disabled = false;
-                                    alert("Email settings not configured for this client");
-                                    return;
-                                  }
-
-                                  const success = await sendInvoiceEmail(
-                                    emailClient,
-                                    invoice,
-                                    emailClient.printConfig.emailSettings,
-                                    pdfContent
-                                  );
-
-                                  // Restore button
-                                  button.innerHTML = originalContent;
-                                  button.disabled = false;
-
-                                  if (success) {
-                                    // Update email status
-                                    await onUpdateInvoice(invoice.id, {
-                                      emailStatus: {
-                                        ...invoice.emailStatus,
-                                        manualEmailSent: true,
-                                        manualEmailSentAt: new Date().toISOString(),
-                                        lastEmailError: undefined,
-                                      },
-                                    });
-
-                                    // Show success message
-                                    alert(`📧 Invoice emailed successfully to ${emailClient.email}`);
-
-                                    // Log activity
-                                    await logActivity({
-                                      type: "Email",
-                                      message: `User ${user?.username} manually sent invoice #${invoice.invoiceNumber || invoice.id} to ${emailClient.name} (${emailClient.email})`,
-                                      user: user?.username,
-                                    });
-                                  } else {
-                                    alert("❌ Failed to send email. Please try again.");
-                                  }
-                                } catch (error) {
-                                  console.error("Email error:", error);
-                                  alert("❌ Email error. Please check configuration.");
-                                }
-                              }}
-                              title={`Send PDF invoice via email to ${emailClient.email}`}
-                            >
-                              <i
-                                className="bi bi-envelope"
-                                style={{
-                                  color: "#22c55e",
-                                  fontSize: 22,
-                                }}
-                              />
-                            </button>
-                          ) : null;
-                        })()}
-                        
                         {/* Schedule Delivery button - Step 0 - Only show when invoice is approved */}
                         {(invoice.verified || invoice.partiallyVerified) && (
                           <button
@@ -2942,7 +2392,7 @@ export default function ActiveInvoices({
                                 verifiedAt: "",
                               });
                               if (user?.username) {
-                                await logActivity({
+                                await                                logActivity({
                                   type: "Invoice",
                                   message: `User ${user.username} removed approval from laundry ticket #${invoice.invoiceNumber || invoice.id}`,
                                   user: user.username,
@@ -3124,28 +2574,6 @@ export default function ActiveInvoices({
                                   }
                                 }
                               } else {
-                                // Ship - Check all prerequisites before shipping
-                                if (!invoice.verified) {
-                                  alert("Invoice must be approved before shipping.");
-                                  return;
-                                }
-                                if (hasUnnamedCart(invoice)) {
-                                  alert(
-                                    'Cannot ship laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                                  );
-                                  return;
-                                }
-                                
-                                // Check if there are incomplete notes
-                                if (invoice.note && !invoice.noteCompleted) {
-                                  alert(
-                                    'Cannot ship laundry ticket: There is an incomplete note that must be marked as done before shipping.\n\n' +
-                                    `Note: ${invoice.note}\n\n` +
-                                    'Please complete the note before shipping.'
-                                  );
-                                  return;
-                                }
-                                
                                 // Check if all carts are properly printed before shipping
                                 const areAllCartsPrinted = (invoice.carts || []).every(cart => {
                                   // Cart must be printed at least once
@@ -3193,13 +2621,12 @@ export default function ActiveInvoices({
                               }
                             }}
                             disabled={
-                              !invoice.verified || hasUnnamedCart(invoice) || Boolean(invoice.note && !invoice.noteCompleted)
+                              !invoice.verified || hasUnnamedCart(invoice)
                             }
                             title={(() => {
                               if (!invoice.verified) return "Must be approved first";
                               if (hasUnnamedCart(invoice)) return 'Cannot modify with "CARRO SIN NOMBRE" cart';
                               if (invoice.status === "done") return "Click to unship";
-                              if (invoice.note && !invoice.noteCompleted) return "Complete pending note before shipping";
                               
                               // Check cart print status
                               const areAllCartsPrinted = (invoice.carts || []).every(cart => {
@@ -3322,44 +2749,13 @@ export default function ActiveInvoices({
           <table className="table table-hover">
             <thead className="table-dark">
               <tr>
-                <th style={{ width: '40px' }}>
-                  <input
-                    type="checkbox"
-                    className="form-check-input"
-                    checked={
-                      filteredInvoices.filter(inv => {
-                        const client = clients.find(c => c.id === inv.clientId);
-                        return client?.email && client?.printConfig?.emailSettings?.enabled;
-                      }).length > 0 &&
-                      filteredInvoices.filter(inv => {
-                        const client = clients.find(c => c.id === inv.clientId);
-                        return client?.email && client?.printConfig?.emailSettings?.enabled;
-                      }).every(inv => selectedInvoicesForEmail.includes(inv.id))
-                    }
-                    onChange={(e) => {
-                      const emailableInvoices = filteredInvoices.filter(inv => {
-                        const client = clients.find(c => c.id === inv.clientId);
-                        return client?.email && client?.printConfig?.emailSettings?.enabled;
-                      });
-                      
-                      if (e.target.checked) {
-                        setSelectedInvoicesForEmail(emailableInvoices.map(inv => inv.id));
-                      } else {
-                        setSelectedInvoicesForEmail([]);
-                      }
-                    }}
-                    title="Select all emailable invoices"
-                  />
-                </th>
                 <th>Client</th>
                 <th>Invoice #</th>
                 <th>Date</th>
                 <th>Carts</th>
                 <th>Total Items</th>
                 <th>Status</th>
-                <th>Notes</th>
                 <th>Delivery</th>
-                <th>Email Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -3371,45 +2767,18 @@ export default function ActiveInvoices({
                   const isVerified = invoice.verified;
                   const isPartiallyVerified = invoice.partiallyVerified || partialVerifiedInvoices[invoice.id];
                   const isReady = invoice.status === "ready" || readyInvoices[invoice.id];
-                  const isEmailable = client?.email && client?.printConfig?.emailSettings?.enabled;
                   
                   // Calculate total items across all carts
                   const totalItems = (invoice.carts || []).reduce((total, cart) => 
                     total + cart.items.reduce((cartTotal, item) => cartTotal + item.quantity, 0), 0
                   );
 
-                  // Get row background color based on status - Enhanced logic for client settings
+                  // Get row background color based on status
                   let rowClass = "";
                   if (isVerified) {
                     rowClass = invoice.deliveryMethod === "client_pickup" ? "table-warning" : "table-success";
                   } else if (isPartiallyVerified || invoice.status === "completed") {
                     rowClass = "table-warning";
-                  } else if (invoice.manglesCompleted || invoice.dobladoCompleted) {
-                    // Enhanced logic for partial completion based on client settings
-                    const completedPosition = getCompletedOptionPosition(client!);
-                    
-                    if (invoice.manglesCompleted && invoice.dobladoCompleted) {
-                      // Both parts completed
-                      rowClass = "table-warning";
-                    } else if (invoice.manglesCompleted) {
-                      // Top part completed
-                      if (completedPosition === 'top' || completedPosition === 'uniformes') {
-                        // Client only has top option or uniformes - yellow row (partial completion)
-                        rowClass = "table-warning";
-                      } else {
-                        // Client has both options - default row
-                        rowClass = "";
-                      }
-                    } else if (invoice.dobladoCompleted) {
-                      // Bottom part completed
-                      if (completedPosition === 'bottom' || completedPosition === 'uniformes') {
-                        // Client only has bottom option or uniformes - yellow row (partial completion)
-                        rowClass = "table-warning";
-                      } else {
-                        // Client has both options - default row
-                        rowClass = "";
-                      }
-                    }
                   } else if (isReady) {
                     rowClass = "table-info";
                   }
@@ -3421,22 +2790,6 @@ export default function ActiveInvoices({
                       style={{ cursor: 'pointer' }}
                       onClick={() => handleInvoiceClick(invoice.id)}
                     >
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="form-check-input"
-                          checked={selectedInvoicesForEmail.includes(invoice.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedInvoicesForEmail(prev => [...prev, invoice.id]);
-                            } else {
-                              setSelectedInvoicesForEmail(prev => prev.filter(id => id !== invoice.id));
-                            }
-                          }}
-                          disabled={!isEmailable}
-                          title={isEmailable ? "Select for bulk email" : "Email not configured for this client"}
-                        />
-                      </td>
                       <td>
                         <div className="d-flex align-items-center">
                           <img
@@ -3503,54 +2856,6 @@ export default function ActiveInvoices({
                         </div>
                       </td>
                       <td>
-                        {invoice.note ? (
-                          <div 
-                            style={{ 
-                              maxWidth: "200px",
-                              padding: "4px 8px",
-                              borderRadius: "6px",
-                              fontSize: "12px",
-                              background: invoice.noteCompleted ? "#dcfce7" : "#fef3c7",
-                              color: invoice.noteCompleted ? "#16a34a" : "#b45309",
-                              border: invoice.noteCompleted ? "1px solid #16a34a" : "1px solid #f59e0b",
-                              cursor: "pointer"
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenNoteModal(invoice.id);
-                            }}
-                            title="Click to edit note"
-                          >
-                            <div className="d-flex align-items-center gap-1 mb-1">
-                              <i className="bi bi-sticky" style={{ fontSize: "10px" }}></i>
-                              <span style={{ fontSize: "10px", fontWeight: "600" }}>
-                                {invoice.noteCompleted ? "✓ DONE" : "⚠ TODO"}
-                              </span>
-                            </div>
-                            <div style={{ 
-                              overflow: "hidden", 
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              fontWeight: "500"
-                            }}>
-                              {invoice.note}
-                            </div>
-                          </div>
-                        ) : (
-                          <button 
-                            className="btn btn-sm btn-outline-secondary"
-                            style={{ fontSize: "11px", padding: "2px 6px" }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenNoteModal(invoice.id);
-                            }}
-                            title="Add note"
-                          >
-                            <i className="bi bi-sticky"></i>
-                          </button>
-                        )}
-                      </td>
-                      <td>
                         {invoice.deliveryDate ? (
                           <div>
                             <div className="small">
@@ -3568,57 +2873,6 @@ export default function ActiveInvoices({
                           </div>
                         ) : (
                           <span className="text-muted">Not scheduled</span>
-                        )}
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        {isEmailable ? (
-                          <div className="d-flex flex-column gap-1">
-                            {invoice.emailStatus?.approvalEmailSent && (
-                              <span 
-                                className="badge bg-success" 
-                                style={{ fontSize: "9px" }}
-                                title={`Sent: ${formatDateSafe(invoice.emailStatus.approvalEmailSentAt)}`}
-                              >
-                                ✓ Approval
-                              </span>
-                            )}
-                            {invoice.emailStatus?.manualEmailSent && (
-                              <span 
-                                className="badge bg-info" 
-                                style={{ fontSize: "9px" }}
-                                title={`Sent: ${formatDateSafe(invoice.emailStatus.manualEmailSentAt)}`}
-                              >
-                                📧 Manual
-                              </span>
-                            )}
-                            {invoice.emailStatus?.shippingEmailSent && (
-                              <span 
-                                className="badge bg-warning" 
-                                style={{ fontSize: "9px" }}
-                                title={`Sent: ${formatDateSafe(invoice.emailStatus.shippingEmailSentAt)}`}
-                              >
-                                🚛 Shipping
-                              </span>
-                            )}
-                            {invoice.emailStatus?.lastEmailError && (
-                              <span 
-                                className="badge bg-danger" 
-                                style={{ fontSize: "9px" }}
-                                title={invoice.emailStatus.lastEmailError}
-                              >
-                                ❌ Error
-                              </span>
-                            )}
-                            {!invoice.emailStatus?.approvalEmailSent && 
-                             !invoice.emailStatus?.manualEmailSent && 
-                             !invoice.emailStatus?.shippingEmailSent && (
-                              <span className="text-muted small">No emails sent</span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-muted small">
-                            {!client?.email ? "No email" : "Email disabled"}
-                          </span>
                         )}
                       </td>
                       <td>
@@ -3800,7 +3054,7 @@ export default function ActiveInvoices({
                                     }
                                   }
                                 } else {
-                                  // Ship - Check all prerequisites before shipping
+                                  // Ship
                                   if (!invoice.verified) {
                                     alert("Invoice must be approved before shipping.");
                                     return;
@@ -3808,16 +3062,6 @@ export default function ActiveInvoices({
                                   if (hasUnnamedCart(invoice)) {
                                     alert(
                                       'Cannot ship laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                                    );
-                                    return;
-                                  }
-                                  
-                                  // Check if there are incomplete notes
-                                  if (invoice.note && !invoice.noteCompleted) {
-                                    alert(
-                                      'Cannot ship laundry ticket: There is an incomplete note that must be marked as done before shipping.\n\n' +
-                                      `Note: ${invoice.note}\n\n` +
-                                      'Please complete the note before shipping.'
                                     );
                                     return;
                                   }
@@ -3869,13 +3113,12 @@ export default function ActiveInvoices({
                                 }
                               }}
                               disabled={
-                                invoice.status !== "done" && (!invoice.verified || hasUnnamedCart(invoice) || Boolean(invoice.note && !invoice.noteCompleted))
+                                invoice.status !== "done" && (!invoice.verified || hasUnnamedCart(invoice))
                               }
                               title={(() => {
                                 if (invoice.status === "done") return "Click to unship";
                                 if (!invoice.verified) return "Must be approved first";
                                 if (hasUnnamedCart(invoice)) return 'Cannot ship with "CARRO SIN NOMBRE" cart';
-                                if (invoice.note && !invoice.noteCompleted) return "Complete pending note before shipping";
                                 
                                 // Check cart print status
                                 const areAllCartsPrinted = (invoice.carts || []).every(cart => {
@@ -3931,79 +3174,6 @@ export default function ActiveInvoices({
           </table>
         </div>
       )}
-
-      {/* Note Modal */}
-      {showNoteModal && (() => {
-        const invoice = invoicesState.find(inv => inv.id === showNoteModal);
-        return (
-          <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
-            <div className="modal-dialog">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title"><i className="bi bi-sticky me-2"></i>{isEditingNote ? "Edit Note" : "Add Note"}</h5>
-                  <button type="button" className="btn-close" onClick={() => setShowNoteModal(null)}></button>
-                </div>
-                <div className="modal-body">
-                  <textarea
-                    className="form-control"
-                    rows={3}
-                    value={noteText}
-                    onChange={e => setNoteText(e.target.value)}
-                    placeholder={isSupervisorOrAbove ? "Enter note (todo, instructions, etc.)" : "Only supervisors and above can edit notes"}
-                    autoFocus={!!isSupervisorOrAbove}
-                    disabled={!isSupervisorOrAbove}
-                  />
-                  {!!noteError && <div className="text-danger mt-2">{noteError}</div>}
-                  {!!invoice?.note && (
-                    <div className="mt-2 small text-muted">
-                      Status: {invoice.noteCompleted ? "Completed" : "Pending"}
-                      {invoice.noteCompleted && invoice.noteCompletedBy && (
-                        <> by {invoice.noteCompletedBy}</>
-                      )}
-                      {invoice.noteCompleted && invoice.noteCompletedAt && (
-                        <> at {formatDateSpanish(invoice.noteCompletedAt)}</>
-                      )}
-                    </div>
-                  )}
-                  {!!invoice?.note && !invoice.noteCompleted && (
-                    <div className="alert alert-warning mt-3">
-                      <i className="bi bi-exclamation-triangle me-2"></i>
-                      Shipping is blocked until this note is marked completed.
-                    </div>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setShowNoteModal(null)}>Cancel</button>
-                  {/* Delete only for supervisors and above */}
-                  {isSupervisorOrAbove && invoice?.note && (
-                    <button className="btn btn-danger" onClick={() => { setNoteText(""); handleSaveNote(); }}>
-                      Delete
-                    </button>
-                  )}
-                  {/* Mark as Done: Anyone can mark pending notes as done */}
-                  {invoice?.note && !invoice.noteCompleted && (
-                    <button className="btn btn-success" onClick={() => handleToggleNoteCompleted(invoice.id)}>
-                      <i className="bi bi-check-lg me-2" />Mark as Done
-                    </button>
-                  )}
-                  {/* Mark as Pending: Only supervisors and above can revert completed notes */}
-                  {invoice?.note && invoice.noteCompleted && isSupervisorOrAbove && (
-                    <button className="btn btn-warning" onClick={() => handleToggleNoteCompleted(invoice.id)}>
-                      <i className="bi bi-arrow-clockwise me-2" />Mark as Pending
-                    </button>
-                  )}
-                  {/* Save/Update only for supervisors and above */}
-                  {isSupervisorOrAbove && (
-                    <button className="btn btn-primary" onClick={handleSaveNote}>
-                      {isEditingNote ? "Update" : "Save"}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Invoice Form */}
       {showInvoiceForm && (
@@ -4476,8 +3646,6 @@ export default function ActiveInvoices({
           </div>
         </div>
       )}
-
-      {/* Duplicate simplified Note Modal removed; only enhanced Note Modal remains */}
 
       {/* Delete Confirmation Modal */}
       {invoiceToDelete && (
@@ -5379,7 +4547,8 @@ export default function ActiveInvoices({
                           pdfContent = await generateInvoicePDF(
                             client,
                             invoice,
-                            printConfig
+                            printConfig,
+                            undefined // No driver name available in this context
                           );
                         } catch (error) {
                           console.error(
@@ -5915,104 +5084,6 @@ export default function ActiveInvoices({
         />
       )}
 
-      {/* Bulk Email Modal */}
-      {showBulkEmailModal && (
-        <div className="modal show" style={{ display: "block", background: "rgba(0,0,0,0.3)" }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Send Bulk Invoice Emails</h5>
-                <button type="button" className="btn-close" onClick={() => setShowBulkEmailModal(false)}></button>
-              </div>
-              <div className="modal-body">
-                <div className="mb-3">
-                  <strong>Selected Invoices:</strong>
-                  <ul>
-                    {selectedInvoicesForEmail.map(id => {
-                      const invoice = invoices.find(inv => inv.id === id);
-                      return invoice ? (
-                        <li key={id}>#{invoice.invoiceNumber || invoice.id} - {invoice.clientName}</li>
-                      ) : null;
-                    })}
-                  </ul>
-                </div>
-                <div className="mb-3">
-                  <button
-                    className="btn btn-success"
-                    disabled={bulkEmailLoading || selectedInvoicesForEmail.length === 0}
-                    onClick={async () => {
-                      setBulkEmailLoading(true);
-                      setBulkEmailStatus("");
-                      let successCount = 0;
-                      let failCount = 0;
-                      for (const id of selectedInvoicesForEmail) {
-                        const invoice = invoices.find(inv => inv.id === id);
-                        const client = clients.find(c => c.id === invoice?.clientId);
-                        if (!invoice || !client || !client.email || !client.printConfig?.emailSettings?.enabled) continue;
-                        try {
-                          let pdfContent: string | undefined;
-                          try {
-                            pdfContent = await generateInvoicePDF(
-                              client,
-                              invoice,
-                              client.printConfig.invoicePrintSettings
-                            );
-                          } catch (error) {
-                            console.error("PDF generation failed for invoice", id, error);
-                          }
-                          const success = await sendInvoiceEmail(
-                            client,
-                            invoice,
-                            client.printConfig.emailSettings,
-                            pdfContent
-                          );
-                          if (success) {
-                            successCount++;
-                            await onUpdateInvoice(invoice.id, {
-                              emailStatus: {
-                                ...invoice.emailStatus,
-                                manualEmailSent: true,
-                                manualEmailSentAt: new Date().toISOString(),
-                                lastEmailError: undefined,
-                              },
-                            });
-                            await logActivity({
-                              type: "Email",
-                              message: `Bulk email: Invoice #${invoice.invoiceNumber || invoice.id} sent to ${client.name} (${client.email})`,
-                              user: user?.username,
-                            });
-                          } else {
-                            failCount++;
-                            await onUpdateInvoice(invoice.id, {
-                              emailStatus: {
-                                ...invoice.emailStatus,
-                                lastEmailError: "Bulk email failed",
-                              },
-                            });
-                          }
-                        } catch (error) {
-                          failCount++;
-                        }
-                      }
-                      setBulkEmailStatus(`Bulk email complete: ${successCount} sent, ${failCount} failed.`);
-                      setBulkEmailLoading(false);
-                    }}
-                  >
-                    Send Emails
-                  </button>
-                  {bulkEmailStatus && <div className="mt-2 alert alert-info">{bulkEmailStatus}</div>}
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowBulkEmailModal(false)}>
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Invoice Details Modal */}
       {showInvoiceDetailsModal && selectedInvoice && (
         <InvoiceDetailsModal
@@ -6311,212 +5382,133 @@ export default function ActiveInvoices({
       )}
 
       {/* Two-Step Completion Modal */}
-      {showCompletionModal && completionInvoiceId && (() => {
-        const invoice = invoices.find(inv => inv.id === completionInvoiceId);
-        const client = clients.find(c => c.id === invoice?.clientId);
-        const completedPosition = getCompletedOptionPosition(client!);
-        
-        return (
-          <div
-            className="modal show"
-            style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
-          >
-            <div className="modal-dialog">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    <i className="bi bi-clipboard-check me-2"></i>
-                    Select Completion Parts
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowCompletionModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <p className="text-muted mb-3">
-                    Select which parts of the work are completed for this laundry ticket:
-                  </p>
-                  
-                  <div className={`row g-3 ${completedPosition === 'both' ? '' : 'justify-content-center'}`}>
-                    {/* Uniformes section - single option */}
-                    {completedPosition === 'uniformes' && (
-                      <div className="col-md-8">
-                        <div className="card h-100">
-                          <div className="card-body text-center">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="uniformesCheckbox"
-                                checked={selectedCompletionParts.mangles || selectedCompletionParts.doblado}
-                                onChange={(e) =>
-                                  setSelectedCompletionParts(prev => ({
-                                    ...prev,
-                                    mangles: e.target.checked,
-                                    doblado: false // Only one option for uniformes
-                                  }))
-                                }
-                              />
-                              <label className="form-check-label fs-5 fw-bold" htmlFor="uniformesCheckbox">
-                                Uniformes
-                              </label>
-                            </div>
-                            <p className="text-muted mt-2 small">Uniform processing completed</p>
-                            <div className="mt-3">
-                              <div 
-                                className="border rounded p-2"
-                                style={{ 
-                                  backgroundColor: (selectedCompletionParts.mangles || selectedCompletionParts.doblado) ? '#fef3c7' : '#f8f9fa',
-                                  borderColor: (selectedCompletionParts.mangles || selectedCompletionParts.doblado) ? '#f59e0b' : '#dee2e6',
-                                  height: '40px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '12px',
-                                  fontWeight: '600'
-                                }}
-                              >
-                                {(selectedCompletionParts.mangles || selectedCompletionParts.doblado) ? 'UNIFORMES COMPLETED' : 'UNIFORMES SECTION'}
-                              </div>
-                            </div>
+      {showCompletionModal && completionInvoiceId && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-clipboard-check me-2"></i>
+                  Select Completion Parts
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowCompletionModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <p className="text-muted mb-3">
+                  Select which parts of the work are completed for this laundry ticket:
+                </p>
+                
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <div className="card h-100">
+                      <div className="card-body text-center">
+                        <div className="form-check">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="manglesCheckbox"
+                            checked={selectedCompletionParts.mangles}
+                            onChange={(e) =>
+                              setSelectedCompletionParts(prev => ({
+                                ...prev,
+                                mangles: e.target.checked
+                              }))
+                            }
+                          />
+                          <label className="form-check-label fs-5 fw-bold" htmlFor="manglesCheckbox">
+                            Mangles - Arriba
+                          </label>
+                        </div>
+                        <p className="text-muted mt-2 small">Top part of the invoice</p>
+                        <div className="mt-3">
+                          <div 
+                            className="border rounded p-2"
+                            style={{ 
+                              backgroundColor: selectedCompletionParts.mangles ? '#fef3c7' : '#f8f9fa',
+                              borderColor: selectedCompletionParts.mangles ? '#f59e0b' : '#dee2e6',
+                              height: '40px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {selectedCompletionParts.mangles ? 'TOP COMPLETED' : 'TOP SECTION'}
                           </div>
                         </div>
                       </div>
-                    )}
-                    
-                    {/* Mangles - Arriba (Top) section */}
-                    {(completedPosition === 'top' || completedPosition === 'both') && (
-                      <div className={completedPosition === 'both' ? 'col-md-6' : 'col-md-8'}>
-                        <div className="card h-100">
-                          <div className="card-body text-center">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="manglesCheckbox"
-                                checked={selectedCompletionParts.mangles}
-                                onChange={(e) =>
-                                  setSelectedCompletionParts(prev => ({
-                                    ...prev,
-                                    mangles: e.target.checked
-                                  }))
-                                }
-                              />
-                              <label className="form-check-label fs-5 fw-bold" htmlFor="manglesCheckbox">
-                                Mangles - Arriba
-                              </label>
-                            </div>
-                            <p className="text-muted mt-2 small">Top part of the invoice</p>
-                            <div className="mt-3">
-                              <div 
-                                className="border rounded p-2"
-                                style={{ 
-                                  backgroundColor: selectedCompletionParts.mangles ? '#fef3c7' : '#f8f9fa',
-                                  borderColor: selectedCompletionParts.mangles ? '#f59e0b' : '#dee2e6',
-                                  height: '40px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '12px',
-                                  fontWeight: '600'
-                                }}
-                              >
-                                {selectedCompletionParts.mangles ? 'TOP COMPLETED' : 'TOP SECTION'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Doblado - Abajo (Bottom) section */}
-                    {(completedPosition === 'bottom' || completedPosition === 'both') && (
-                      <div className={completedPosition === 'both' ? 'col-md-6' : 'col-md-8'}>
-                        <div className="card h-100">
-                          <div className="card-body text-center">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="dobladoCheckbox"
-                                checked={selectedCompletionParts.doblado}
-                                onChange={(e) =>
-                                  setSelectedCompletionParts(prev => ({
-                                    ...prev,
-                                    doblado: e.target.checked
-                                  }))
-                                }
-                              />
-                              <label className="form-check-label fs-5 fw-bold" htmlFor="dobladoCheckbox">
-                                Doblado - Abajo
-                              </label>
-                            </div>
-                            <p className="text-muted mt-2 small">Bottom part of the invoice</p>
-                            <div className="mt-3">
-                              <div 
-                                className="border rounded p-2"
-                                style={{ 
-                                  backgroundColor: selectedCompletionParts.doblado ? '#fef3c7' : '#f8f9fa',
-                                  borderColor: selectedCompletionParts.doblado ? '#f59e0b' : '#dee2e6',
-                                  height: '40px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '12px',
-                                  fontWeight: '600'
-                                }}
-                              >
-                                {selectedCompletionParts.doblado ? 'BOTTOM COMPLETED' : 'BOTTOM SECTION'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
+                  
+                  <div className="col-md-6">
+                    <div className="card h-100">
+                      <div className="card-body text-center">
+                        <div className="form-check">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="dobladoCheckbox"
+                            checked={selectedCompletionParts.doblado}
+                            onChange={(e) =>
+                              setSelectedCompletionParts(prev => ({
+                                ...prev,
+                                doblado: e.target.checked
+                              }))
+                            }
+                          />
+                          <label className="form-check-label fs-5 fw-bold" htmlFor="dobladoCheckbox">
+                            Doblado - Abajo
+                          </label>
+                        </div>
+                        <p className="text-muted mt-2 small">Bottom part of the invoice</p>
+                        <div className="mt-3">
+                          <div 
+                            className="border rounded p-2"
+                            style={{ 
+                              backgroundColor: selectedCompletionParts.doblado ? '#fef3c7' : '#f8f9fa',
+                              borderColor: selectedCompletionParts.doblado ? '#f59e0b' : '#dee2e6',
+                              height: '40px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '12px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {selectedCompletionParts.doblado ? 'BOTTOM COMPLETED' : 'BOTTOM SECTION'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 
                 <div className="mt-4">
-                  {/* Dynamic alerts based on client setting and selections */}
-                  {completedPosition === 'both' && selectedCompletionParts.mangles && selectedCompletionParts.doblado && (
+                  {selectedCompletionParts.mangles && selectedCompletionParts.doblado && (
                     <div className="alert alert-success" role="alert">
                       <i className="bi bi-check-circle-fill me-2"></i>
                       Both parts completed! This invoice will be marked as fully completed.
                     </div>
                   )}
-                  {completedPosition === 'uniformes' && (selectedCompletionParts.mangles || selectedCompletionParts.doblado) && (
-                    <div className="alert alert-success" role="alert">
-                      <i className="bi bi-check-circle-fill me-2"></i>
-                      Uniformes completed! This invoice will be marked as completed.
-                    </div>
-                  )}
-                  {completedPosition === 'top' && selectedCompletionParts.mangles && (
-                    <div className="alert alert-success" role="alert">
-                      <i className="bi bi-check-circle-fill me-2"></i>
-                      Top part completed! This invoice will be marked as completed.
-                    </div>
-                  )}
-                  {completedPosition === 'bottom' && selectedCompletionParts.doblado && (
-                    <div className="alert alert-success" role="alert">
-                      <i className="bi bi-check-circle-fill me-2"></i>
-                      Bottom part completed! This invoice will be marked as completed.
-                    </div>
-                  )}
-                  {completedPosition === 'both' && (selectedCompletionParts.mangles || selectedCompletionParts.doblado) && 
+                  {(selectedCompletionParts.mangles || selectedCompletionParts.doblado) && 
                    !(selectedCompletionParts.mangles && selectedCompletionParts.doblado) && (
                     <div className="alert alert-warning" role="alert">
                       <i className="bi bi-exclamation-triangle-fill me-2"></i>
                       Partial completion. The invoice will not be available for approval until both parts are completed.
                     </div>
                   )}
-                  {((completedPosition === 'top' && !selectedCompletionParts.mangles) ||
-                    (completedPosition === 'bottom' && !selectedCompletionParts.doblado) ||
-                    (completedPosition === 'uniformes' && !selectedCompletionParts.mangles && !selectedCompletionParts.doblado) ||
-                    (completedPosition === 'both' && !selectedCompletionParts.mangles && !selectedCompletionParts.doblado)) && (
+                  {!selectedCompletionParts.mangles && !selectedCompletionParts.doblado && (
                     <div className="alert alert-info" role="alert">
                       <i className="bi bi-info-circle-fill me-2"></i>
-                      Select {completedPosition === 'both' ? 'at least one part' : completedPosition === 'uniformes' ? 'uniformes' : 'the available part'} to mark as completed.
+                      Select at least one part to mark as completed.
                     </div>
                   )}
                 </div>
@@ -6538,8 +5530,7 @@ export default function ActiveInvoices({
             </div>
           </div>
         </div>
-        );
-      })()}
+      )}
 
       {/* Print Options Modal */}
       {showPrintOptionsModal &&
@@ -6895,7 +5886,13 @@ export default function ActiveInvoices({
                                 <img
                                   src={(printConfig as any).logoUrl}
                                   alt="Logo"
-                                  style={{ maxHeight: 80 }}
+                                  style={{ 
+                                    maxHeight: 80, 
+                                    maxWidth: 200, 
+                                    width: 'auto', 
+                                    height: 'auto',
+                                    objectFit: 'contain'
+                                  }}
                                 />
                               ) : (
                                 <div
@@ -7214,7 +6211,13 @@ export default function ActiveInvoices({
                             <img
                               src={printConfig.logoUrl}
                               alt="Logo"
-                              style={{ maxHeight: 80 }}
+                              style={{ 
+                                maxHeight: 80, 
+                                maxWidth: 200, 
+                                width: 'auto', 
+                                height: 'auto',
+                                objectFit: 'contain'
+                              }}
                             />
                           ) : (
                             <div
@@ -7512,7 +6515,8 @@ export default function ActiveInvoices({
                               pdfContent = await generateInvoicePDF(
                                 client,
                                 invoice,
-                                printConfig
+                                printConfig,
+                                undefined // No driver name available in this context
                               );
                             } catch (error) {
                               console.error("Failed to generate PDF:", error);

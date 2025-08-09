@@ -1,5 +1,5 @@
 import React from "react";
-import { Invoice, Product, Client, Cart, CartItem, LaundryCart } from "../types";
+import { Invoice, Product, Client, Cart, CartItem, LaundryCart, PrintConfiguration } from "../types";
 import { getUsers, UserRecord, logActivity } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
 import { formatDateSpanish, formatDateOnlySpanish } from "../utils/dateFormatter";
@@ -444,7 +444,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
     }
 
     // Get client print configuration with defaults
-    const printConfig = client?.printConfig?.cartPrintSettings || {
+    const defaultCartPrintSettings: PrintConfiguration['cartPrintSettings'] = {
       enabled: true,
       showProductDetails: true,
       showProductSummary: false,
@@ -456,6 +456,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       footerText: "",
       clientNameFontSize: "large",
     };
+    const printConfig = client?.printConfig?.cartPrintSettings || defaultCartPrintSettings;
 
     // Helper function to get client name font size
     const getClientNameFontSize = () => {
@@ -547,16 +548,17 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 <div style="
                   text-align: center;
                   margin-top: 35px;
-                ">                    <div style="
-                      font-size: ${getClientNameFontSize()};
-                      font-weight: bold;
-                      color: #0E62A0;
-                      text-transform: uppercase;
-                      letter-spacing: 1px;
-                      margin-bottom: 4px;
-                    ">
-                      ${transformClientNameForDisplay(localInvoice.clientName)}
-                    </div>
+                ">
+                  <div style="
+                    font-size: ${getClientNameFontSize()};
+                    font-weight: bold;
+                    color: #0E62A0;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    margin-bottom: 4px;
+                  ">
+                    ${transformClientNameForDisplay(localInvoice.clientName)}
+                  </div>
                   <div style="
                     font-size: 14px;
                     font-weight: bold;
@@ -2045,7 +2047,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           if (!cart) return null;
 
           // Get client print configuration with defaults (same as Print All Carts)
-          const printConfig = client?.printConfig?.cartPrintSettings || {
+          const printConfig: PrintConfiguration['cartPrintSettings'] = client?.printConfig?.cartPrintSettings || ({
             enabled: true,
             showProductDetails: true,
             showProductSummary: false,
@@ -2056,7 +2058,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             headerText: "Cart Contents",
             footerText: "",
             clientNameFontSize: "large",
-          };
+          } as PrintConfiguration['cartPrintSettings']);
 
           // Helper function to get client name font size
           const getClientNameFontSize = () => {

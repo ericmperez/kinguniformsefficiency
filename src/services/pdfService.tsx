@@ -28,6 +28,7 @@ export async function generateLaundryTicketPDF(
       pickupDate={invoice.date}
       items={items}
       pounds={invoice.totalWeight || 0}
+      logoUrl={client.printConfig?.invoicePrintSettings?.logoUrl}
     />
   );
 
