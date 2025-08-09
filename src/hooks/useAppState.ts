@@ -20,7 +20,7 @@ export interface AppState {
   drivers: { id: string; name: string }[];
   
   // UI state
-  activePage: "home" | "entradas" | "washing" | "segregation" | "settings" | "reports" | "analytics" | "comprehensiveAnalytics" | "dailyProductAnalytics" | "billing" | "activityLog" | "realTimeActivity" | "shipping" | "deliveredInvoices";
+  activePage: "home" | "entradas" | "washing" | "segregation" | "settings" | "reports" | "analytics" | "comprehensiveAnalytics" | "dailyProductAnalytics" | "billing" | "activityLog" | "realTimeActivity" | "shipping" | "deliveredInvoices" | "realTimeOperations";
   showClientForm: boolean;
   showWelcome: boolean;
   selectedInvoiceId: string | null;

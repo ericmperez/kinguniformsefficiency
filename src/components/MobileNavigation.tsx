@@ -103,6 +103,12 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
       visible: canSee('BillingPage')
     },
     {
+      label: 'Operations Dashboard',
+      value: 'realTimeOperations',
+      icon: <span style={{ fontSize: 20 }}>📊</span>,
+      visible: canSee('RealTimeActivityDashboard')
+    },
+    {
       label: 'Settings',
       value: 'settings',
       icon: <SettingsIcon />,

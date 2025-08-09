@@ -75,6 +75,48 @@ const DailyProductAnalytics: React.FC = () => {
     new Date().toISOString().slice(0, 10)
   );
 
+  // Product selection state
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [showProductSelector, setShowProductSelector] = useState(false);
+
+  // Get all unique product names from invoices
+  const allProductNames = useMemo(() => {
+    const productNames = new Set<string>();
+    invoices.forEach(invoice => {
+      if (invoice.carts) {
+        invoice.carts.forEach(cart => {
+          if (cart.items) {
+            cart.items.forEach(item => {
+              if (item.productName) {
+                productNames.add(item.productName);
+              }
+            });
+          }
+        });
+      }
+    });
+    return Array.from(productNames).sort();
+  }, [invoices]);
+
+  // Handle product selection
+  const handleProductToggle = (productName: string) => {
+    setSelectedProducts(prev => {
+      if (prev.includes(productName)) {
+        return prev.filter(p => p !== productName);
+      } else {
+        return [...prev, productName];
+      }
+    });
+  };
+
+  const handleSelectAllProducts = () => {
+    setSelectedProducts(allProductNames);
+  };
+
+  const handleClearAllProducts = () => {
+    setSelectedProducts([]);
+  };
+
   // Load data from Firebase
   useEffect(() => {
     const loadData = async () => {
@@ -162,23 +204,28 @@ const DailyProductAnalytics: React.FC = () => {
               const quantity = item.quantity || 0;
               const revenue = quantity * (item.price || 0);
 
-              // Update totals
-              dayStats.totalQuantity += quantity;
-              dayStats.totalRevenue += revenue;
+              // Only include selected products (if any selected) or all products (if none selected)
+              const shouldIncludeProduct = selectedProducts.length === 0 || selectedProducts.includes(productName);
+              
+              if (shouldIncludeProduct) {
+                // Update totals
+                dayStats.totalQuantity += quantity;
+                dayStats.totalRevenue += revenue;
 
-              // Update product breakdown
-              if (!dayStats.products[productName]) {
-                dayStats.products[productName] = {
-                  quantity: 0,
-                  revenue: 0,
-                  invoiceCount: 0,
-                  percentage: 0
-                };
+                // Update product breakdown
+                if (!dayStats.products[productName]) {
+                  dayStats.products[productName] = {
+                    quantity: 0,
+                    revenue: 0,
+                    invoiceCount: 0,
+                    percentage: 0
+                  };
+                }
+
+                dayStats.products[productName].quantity += quantity;
+                dayStats.products[productName].revenue += revenue;
+                dayStats.products[productName].invoiceCount++;
               }
-
-              dayStats.products[productName].quantity += quantity;
-              dayStats.products[productName].revenue += revenue;
-              dayStats.products[productName].invoiceCount++;
             });
           }
         });
@@ -203,7 +250,7 @@ const DailyProductAnalytics: React.FC = () => {
     });
 
     return Object.values(stats).sort((a, b) => a.date.localeCompare(b.date));
-  }, [invoices, dateRange]);
+  }, [invoices, dateRange, selectedProducts]);
 
   // Get data for selected date
   const selectedDateData = useMemo(() => {
@@ -291,7 +338,7 @@ const DailyProductAnalytics: React.FC = () => {
       },
       title: {
         display: true,
-        text: 'Daily Product Processing Trends'
+        text: `Daily Product Processing Trends${selectedProducts.length > 0 ? ` (${selectedProducts.length} selected products)` : ''}`
       }
     },
     scales: {
@@ -327,7 +374,7 @@ const DailyProductAnalytics: React.FC = () => {
       },
       title: {
         display: true,
-        text: 'Daily Revenue Trends'
+        text: `Daily Revenue Trends${selectedProducts.length > 0 ? ` (${selectedProducts.length} selected products)` : ''}`
       }
     },
     scales: {
@@ -349,7 +396,7 @@ const DailyProductAnalytics: React.FC = () => {
       },
       title: {
         display: true,
-        text: `Top Products - ${new Date(selectedDate).toLocaleDateString()}`
+        text: `Top Products - ${new Date(selectedDate).toLocaleDateString()}${selectedProducts.length > 0 ? ` (${selectedProducts.length} selected)` : ''}`
       }
     }
   };
@@ -372,9 +419,23 @@ const DailyProductAnalytics: React.FC = () => {
       {/* Header */}
       <div className="row mb-4">
         <div className="col-12">
-          <h2 className="mb-3">📊 Daily Product Processing Analytics</h2>
+          <h2 className="mb-3">
+            📊 Daily Product Processing Analytics
+            {selectedProducts.length > 0 && (
+              <span className="badge bg-info ms-3">
+                {selectedProducts.length} Products Selected
+              </span>
+            )}
+          </h2>
           <p className="text-muted">
             Comprehensive analytics showing daily product processing volumes, trends, and breakdowns
+            {selectedProducts.length > 0 && (
+              <span className="text-info">
+                <br />
+                <i className="bi bi-funnel me-1"></i>
+                Currently showing data for selected products only. Use the "Filter Products" button to modify selection.
+              </span>
+            )}
           </p>
         </div>
       </div>
@@ -424,11 +485,136 @@ const DailyProductAnalytics: React.FC = () => {
                     Today
                   </button>
                 </div>
+                <div className="col-md-3">
+                  <button 
+                    className="btn btn-outline-secondary"
+                    onClick={() => setShowProductSelector(!showProductSelector)}
+                  >
+                    <i className="bi bi-funnel me-2"></i>
+                    Filter Products ({selectedProducts.length > 0 ? selectedProducts.length : 'All'})
+                  </button>
+                </div>
+              </div>
+
+              {/* Product Selector */}
+              <div className="row mt-3">
+                <div className="col-12">
+                  <div className="form-check">
+                    <input 
+                      type="checkbox" 
+                      className="form-check-input"
+                      id="selectAllProducts"
+                      checked={selectedProducts.length === allProductNames.length}
+                      onChange={handleSelectAllProducts}
+                    />
+                    <label className="form-check-label" htmlFor="selectAllProducts">
+                      Select All Products
+                    </label>
+                  </div>
+                  {allProductNames.map(productName => (
+                    <div className="form-check" key={productName}>
+                      <input 
+                        type="checkbox" 
+                        className="form-check-input"
+                        id={`product-${productName}`}
+                        checked={selectedProducts.includes(productName)}
+                        onChange={() => handleProductToggle(productName)}
+                      />
+                      <label className="form-check-label" htmlFor={`product-${productName}`}>
+                        {productName}
+                      </label>
+                    </div>
+                  ))}
+                  <div className="mt-2">
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={handleClearAllProducts}
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Product Selection Panel */}
+      {showProductSelector && (
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="card border-info">
+              <div className="card-header bg-light">
+                <div className="d-flex justify-content-between align-items-center">
+                  <h6 className="mb-0">
+                    <i className="bi bi-funnel me-2"></i>
+                    Select Products to Include in Analytics
+                  </h6>
+                  <div>
+                    <button 
+                      className="btn btn-sm btn-outline-primary me-2"
+                      onClick={handleSelectAllProducts}
+                    >
+                      Select All ({allProductNames.length})
+                    </button>
+                    <button 
+                      className="btn btn-sm btn-outline-secondary me-2"
+                      onClick={handleClearAllProducts}
+                    >
+                      Clear All
+                    </button>
+                    <button 
+                      className="btn btn-sm btn-light"
+                      onClick={() => setShowProductSelector(false)}
+                    >
+                      <i className="bi bi-x"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="card-body">
+                <div className="row">
+                  {allProductNames.length === 0 ? (
+                    <div className="col-12 text-center text-muted">
+                      No products found in the selected date range
+                    </div>
+                  ) : (
+                    allProductNames.map((productName, index) => (
+                      <div key={productName} className="col-md-4 col-lg-3 mb-2">
+                        <div className="form-check">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id={`product-${index}`}
+                            checked={selectedProducts.includes(productName)}
+                            onChange={() => handleProductToggle(productName)}
+                          />
+                          <label 
+                            className="form-check-label text-truncate" 
+                            htmlFor={`product-${index}`}
+                            title={productName}
+                            style={{ maxWidth: '200px' }}
+                          >
+                            {productName}
+                          </label>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {selectedProducts.length > 0 && (
+                  <div className="mt-3 pt-3 border-top">
+                    <small className="text-muted">
+                      <strong>Selected ({selectedProducts.length}):</strong> {selectedProducts.join(', ')}
+                    </small>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Stats */}
       <div className="row mb-4">
@@ -439,7 +625,12 @@ const DailyProductAnalytics: React.FC = () => {
                 {calculateDailyStats.reduce((sum, stat) => sum + stat.totalQuantity, 0).toLocaleString()}
               </h3>
               <p className="mb-0">Total Products Processed</p>
-              <small>Last {calculateDailyStats.length} days</small>
+              <small>
+                Last {calculateDailyStats.length} days
+                {selectedProducts.length > 0 && (
+                  <><br />({selectedProducts.length} selected products)</>
+                )}
+              </small>
             </div>
           </div>
         </div>
@@ -486,7 +677,12 @@ const DailyProductAnalytics: React.FC = () => {
         <div className="col-md-8">
           <div className="card">
             <div className="card-header">
-              <h5 className="mb-0">📈 Daily Processing Trends</h5>
+              <h5 className="mb-0">
+                📈 Daily Processing Trends
+                {selectedProducts.length > 0 && (
+                  <small className="text-muted ms-2">({selectedProducts.length} selected products)</small>
+                )}
+              </h5>
             </div>
             <div className="card-body">
               <Line data={trendChartData} options={chartOptions} />
@@ -496,7 +692,12 @@ const DailyProductAnalytics: React.FC = () => {
         <div className="col-md-4">
           <div className="card">
             <div className="card-header">
-              <h5 className="mb-0">💰 Revenue Trends</h5>
+              <h5 className="mb-0">
+                💰 Revenue Trends
+                {selectedProducts.length > 0 && (
+                  <small className="text-muted ms-2">({selectedProducts.length} selected products)</small>
+                )}
+              </h5>
             </div>
             <div className="card-body">
               <Bar data={revenueChartData} options={barChartOptions} />
@@ -511,7 +712,12 @@ const DailyProductAnalytics: React.FC = () => {
           <div className="col-md-6">
             <div className="card">
               <div className="card-header">
-                <h5 className="mb-0">🥧 Product Breakdown - {new Date(selectedDate).toLocaleDateString()}</h5>
+                <h5 className="mb-0">
+                  🥧 Product Breakdown - {new Date(selectedDate).toLocaleDateString()}
+                  {selectedProducts.length > 0 && (
+                    <small className="text-muted ms-2">({selectedProducts.length} selected products)</small>
+                  )}
+                </h5>
               </div>
               <div className="card-body">
                 {productBreakdownData ? (
@@ -525,7 +731,12 @@ const DailyProductAnalytics: React.FC = () => {
           <div className="col-md-6">
             <div className="card">
               <div className="card-header">
-                <h5 className="mb-0">📋 Daily Summary - {new Date(selectedDate).toLocaleDateString()}</h5>
+                <h5 className="mb-0">
+                  📋 Daily Summary - {new Date(selectedDate).toLocaleDateString()}
+                  {selectedProducts.length > 0 && (
+                    <small className="text-muted ms-2">({selectedProducts.length} selected products)</small>
+                  )}
+                </h5>
               </div>
               <div className="card-body">
                 <div className="row">
@@ -565,7 +776,12 @@ const DailyProductAnalytics: React.FC = () => {
         <div className="col-12">
           <div className="card">
             <div className="card-header">
-              <h5 className="mb-0">📅 Daily Breakdown Table</h5>
+              <h5 className="mb-0">
+                📅 Daily Breakdown Table
+                {selectedProducts.length > 0 && (
+                  <small className="text-muted ms-2">({selectedProducts.length} selected products)</small>
+                )}
+              </h5>
             </div>
             <div className="card-body">
               <div className="table-responsive">
@@ -648,6 +864,9 @@ const DailyProductAnalytics: React.FC = () => {
               <div className="card-header">
                 <h5 className="mb-0">
                   🔍 Product Details - {new Date(selectedDate).toLocaleDateString()}
+                  {selectedProducts.length > 0 && (
+                    <small className="text-muted ms-2">({selectedProducts.length} selected products)</small>
+                  )}
                 </h5>
               </div>
               <div className="card-body">

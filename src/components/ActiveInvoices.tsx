@@ -2200,6 +2200,29 @@ export default function ActiveInvoices({
                           zIndex: 10,
                         }}
                       >
+                        {/* Sticky Note Button */}
+                        <button
+                          className="btn btn-sm btn-warning"
+                          style={{
+                            fontSize: 16,
+                            width: 44,
+                            height: 44,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border: "2px solid #fbbf24",
+                          }}
+                          title={invoice.note ? "View/Edit Note" : "Add Note"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowNoteInput(prev => ({ ...prev, [invoice.id]: true }));
+                          }}
+                        >
+                          <i className="bi bi-sticky" style={{ fontSize: 22, color: "#fff" }} />
+                        </button>
                         {/* Schedule Delivery button - Step 0 - Only show when invoice is approved */}
                         {(invoice.verified || invoice.partiallyVerified) && (
                           <button
@@ -6646,6 +6669,78 @@ export default function ActiveInvoices({
             </div>
           );
         })()}
+
+      {/* Note Input Modal */}
+      {Object.entries(showNoteInput).map(([invoiceId, show]) => {
+        if (!show) return null;
+        const invoice = invoicesState.find(inv => inv.id === invoiceId);
+        if (!invoice) return null;
+        
+        return (
+          <div
+            key={invoiceId}
+            className="modal show"
+            style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+          >
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    Note for Invoice #{invoice.invoiceNumber || invoice.id.substring(0, 8)}
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => {
+                      setShowNoteInput(prev => ({ ...prev, [invoiceId]: false }));
+                    }}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <textarea
+                    className="form-control"
+                    rows={4}
+                    placeholder="Enter note for this invoice..."
+                    defaultValue={invoice.note || ""}
+                    onChange={(e) => {
+                      // Update the note immediately in local state
+                      setInvoicesState(prev => 
+                        prev.map(inv => 
+                          inv.id === invoiceId 
+                            ? { ...inv, note: e.target.value }
+                            : inv
+                        )
+                      );
+                    }}
+                  />
+                </div>
+                <div className="modal-footer">
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowNoteInput(prev => ({ ...prev, [invoiceId]: false }));
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={async () => {
+                      const updatedInvoice = invoicesState.find(inv => inv.id === invoiceId);
+                      if (updatedInvoice) {
+                        await onUpdateInvoice(invoiceId, { note: updatedInvoice.note || "" });
+                        setShowNoteInput(prev => ({ ...prev, [invoiceId]: false }));
+                      }
+                    }}
+                  >
+                    Save Note
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
 
       {/* Footer with new color */}
       <footer

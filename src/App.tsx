@@ -67,6 +67,7 @@ const ComprehensiveAnalyticsDashboard = lazy(() => import("./components/Comprehe
 const DailyProductAnalytics = lazy(() => import("./components/DailyProductAnalytics"));
 const GlobalActivityLog = lazy(() => import("./components/GlobalActivityLog"));
 const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivityDashboard"));
+const RealTimeOperationsDashboard = lazy(() => import("./components/RealTimeOperationsDashboard"));
 const DeliveredInvoicesPage = lazy(() => import("./components/DeliveredInvoicesPage"));
 const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
 import AppBar from "@mui/material/AppBar";
@@ -732,6 +733,12 @@ function App() {
       visible: canSee("RealTimeActivityDashboard"),
     },
     {
+      label: "Operations Dashboard",
+      page: "realTimeOperations" as const,
+      icon: <span style={{ fontSize: 38, color: "#28a745" }}>📊</span>,
+      visible: canSee("RealTimeActivityDashboard"), // Using same permission as Live Monitor
+    },
+    {
       label: "Shipping",
       page: "shipping" as const,
       icon: <LocalShippingIcon style={{ fontSize: 38, color: "#0E62A0" }} />,
@@ -779,6 +786,12 @@ function App() {
       page: "realTimeActivity",
       color: "#dc3545",
       icon: <span style={{ fontSize: 38, color: "#dc3545" }}>🔴</span>,
+    },
+    {
+      label: "Operations Dashboard",
+      page: "realTimeOperations",
+      color: "#28a745",
+      icon: <span style={{ fontSize: 38, color: "#28a745" }}>📊</span>,
     },
     {
       label: "Settings",
@@ -1856,6 +1869,17 @@ function App() {
             <div className="col-12">
               <Suspense fallback={<LoadingSpinner />}>
                 <RealTimeActivityDashboard />
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      )}
+      {activePage === "realTimeOperations" && canSee("RealTimeActivityDashboard") && (
+        <div className="container py-5">
+          <div className="row justify-content-center">
+            <div className="col-12">
+              <Suspense fallback={<LoadingSpinner />}>
+                <RealTimeOperationsDashboard />
               </Suspense>
             </div>
           </div>

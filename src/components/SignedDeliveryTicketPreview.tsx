@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Client, PrintConfiguration, Invoice } from '../types';
 import SignedDeliveryTicket from './SignedDeliveryTicket';
 import { downloadSignedDeliveryPDF } from '../services/signedDeliveryPdfService';
@@ -6,14 +6,17 @@ import { downloadSignedDeliveryPDF } from '../services/signedDeliveryPdfService'
 interface SignedDeliveryTicketPreviewProps {
   client: Client | null;
   config: PrintConfiguration;
+  onConfigUpdate?: (clientId: string, updatedConfig: PrintConfiguration) => void;
 }
 
 const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = ({
   client,
-  config
+  config,
+  onConfigUpdate
 }) => {
   const [showPreview, setShowPreview] = useState(true);
   const [sampleSignature, setSampleSignature] = useState('');
+  const hasLoadedInitially = useRef(false);
   
   // PDF Customization Options
   const [pdfOptions, setPdfOptions] = useState({
@@ -97,21 +100,81 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
   useEffect(() => {
     setSampleSignature(generateSampleSignature());
     
-    // Load saved PDF options from localStorage
+    // Load saved PDF options from localStorage only on initial mount
     const savedOptions = localStorage.getItem('pdfOptions');
     if (savedOptions) {
       try {
         const parsedOptions = JSON.parse(savedOptions);
-        setPdfOptions(parsedOptions);
+        setPdfOptions(prevOptions => ({ ...prevOptions, ...parsedOptions }));
+        console.log('📄 Loaded PDF options from localStorage:', parsedOptions);
       } catch (error) {
         console.log('Could not load saved PDF options:', error);
       }
     }
+    hasLoadedInitially.current = true;
   }, []);
 
+  // Auto-save PDF options to localStorage whenever they change (but skip initial load)
+  useEffect(() => {
+    // Skip saving on the initial load
+    if (!hasLoadedInitially.current) {
+      return;
+    }
+    
+    try {
+      localStorage.setItem('pdfOptions', JSON.stringify(pdfOptions));
+      console.log('📄 PDF options auto-saved:', pdfOptions);
+    } catch (error) {
+      console.error('Failed to auto-save PDF options:', error);
+    }
+  }, [pdfOptions]);
+
+  // Generate sample data - this will update when options change
   const sampleData = getSampleData();
 
+  // Handle configuration updates
+  const handleConfigToggle = async (section: 'cart' | 'invoice', setting: string, currentValue: boolean) => {
+    if (!client || !onConfigUpdate) {
+      console.log('Cannot update config: missing client or update handler');
+      return;
+    }
+
+    try {
+      const updatedConfig = { ...config };
+      
+      if (section === 'cart') {
+        updatedConfig.cartPrintSettings = {
+          ...updatedConfig.cartPrintSettings,
+          [setting]: !currentValue
+        };
+      } else if (section === 'invoice') {
+        updatedConfig.invoicePrintSettings = {
+          ...updatedConfig.invoicePrintSettings,
+          [setting]: !currentValue
+        };
+      }
+
+      await onConfigUpdate(client.id, updatedConfig);
+      console.log(`✅ Updated ${section} setting: ${setting} = ${!currentValue}`);
+    } catch (error) {
+      console.error('❌ Failed to update configuration:', error);
+    }
+  };
+
   return (
+    <>
+      {/* Add styles for clickable badges */}
+      <style>{`
+        .clickable-badge:hover {
+          transform: scale(1.05) !important;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+          opacity: 0.9;
+        }
+        .clickable-badge:active {
+          transform: scale(0.95) !important;
+        }
+      `}</style>
+      
     <div className="row mt-4">
       <div className="col-12">
         <div className="card h-100" style={{ 
@@ -185,23 +248,58 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                       <h6 className="fw-bold text-primary mb-2">
                         <i className="bi bi-gear-fill me-2"></i>
                         Current Settings Impact
+                        {onConfigUpdate && (
+                          <small className="text-muted ms-2" style={{ fontSize: '10px', fontWeight: 'normal' }}>
+                            (click to toggle)
+                          </small>
+                        )}
                       </h6>
                       <div className="small">
                         <div className="d-flex justify-content-between mb-1">
                           <span>Show Items:</span>
-                          <span className={`badge ${config.cartPrintSettings.showProductDetails ? 'bg-success' : 'bg-secondary'}`}>
+                          <span 
+                            className={`badge ${config.cartPrintSettings.showProductDetails ? 'bg-success' : 'bg-secondary'} ${onConfigUpdate ? 'clickable-badge' : ''}`}
+                            onClick={() => onConfigUpdate && handleConfigToggle('cart', 'showProductDetails', config.cartPrintSettings.showProductDetails)}
+                            style={{ 
+                              cursor: onConfigUpdate ? 'pointer' : 'default',
+                              transition: 'all 0.2s ease',
+                              ...(onConfigUpdate && {
+                                ':hover': {
+                                  transform: 'scale(1.05)',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                }
+                              })
+                            }}
+                            title={onConfigUpdate ? 'Click to toggle Show Items setting' : undefined}
+                          >
                             {config.cartPrintSettings.showProductDetails ? 'ON' : 'OFF'}
                           </span>
                         </div>
                         <div className="d-flex justify-content-between mb-1">
                           <span>Show Quantities:</span>
-                          <span className={`badge ${config.cartPrintSettings.showQuantities ? 'bg-success' : 'bg-secondary'}`}>
+                          <span 
+                            className={`badge ${config.cartPrintSettings.showQuantities ? 'bg-success' : 'bg-secondary'} ${onConfigUpdate ? 'clickable-badge' : ''}`}
+                            onClick={() => onConfigUpdate && handleConfigToggle('cart', 'showQuantities', config.cartPrintSettings.showQuantities)}
+                            style={{ 
+                              cursor: onConfigUpdate ? 'pointer' : 'default',
+                              transition: 'all 0.2s ease'
+                            }}
+                            title={onConfigUpdate ? 'Click to toggle Show Quantities setting' : undefined}
+                          >
                             {config.cartPrintSettings.showQuantities ? 'ON' : 'OFF'}
                           </span>
                         </div>
                         <div className="d-flex justify-content-between mb-1">
                           <span>Show Total Weight:</span>
-                          <span className={`badge ${config.invoicePrintSettings.showTotalWeight ? 'bg-success' : 'bg-secondary'}`}>
+                          <span 
+                            className={`badge ${config.invoicePrintSettings.showTotalWeight ? 'bg-success' : 'bg-secondary'} ${onConfigUpdate ? 'clickable-badge' : ''}`}
+                            onClick={() => onConfigUpdate && handleConfigToggle('invoice', 'showTotalWeight', config.invoicePrintSettings.showTotalWeight)}
+                            style={{ 
+                              cursor: onConfigUpdate ? 'pointer' : 'default',
+                              transition: 'all 0.2s ease'
+                            }}
+                            title={onConfigUpdate ? 'Click to toggle Show Total Weight setting' : undefined}
+                          >
                             {config.invoicePrintSettings.showTotalWeight ? 'ON' : 'OFF'}
                           </span>
                         </div>
@@ -654,6 +752,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                   aspectRatio: pdfOptions.orientation === 'landscape' ? '1.3' : '1.3'
                 }}>
                   <SignedDeliveryTicket
+                    key={JSON.stringify(pdfOptions)}
                     ticketNumber={String(sampleData.sampleInvoice.invoiceNumber || 'LT-2024-001')}
                     clientName={client?.name || 'Sample Client'}
                     driverName={sampleData.signatureData.driverName}
@@ -711,6 +810,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
         </div>
       </div>
     </div>
+    </>
   );
 };
 

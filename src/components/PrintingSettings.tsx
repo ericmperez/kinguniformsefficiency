@@ -1988,6 +1988,39 @@ King Uniforms Team`}
                       signatureEmailTemplate: "",
                     },
                   }}
+                  onConfigUpdate={async (clientId: string, updatedConfig: PrintConfiguration) => {
+                    try {
+                      // Update the client configuration
+                      await updateClient(clientId, { printConfig: updatedConfig });
+
+                      // Log the activity
+                      await logActivity({
+                        type: "Client",
+                        message: `Print configuration updated for client '${signedTicketPreviewClient?.name || clientId}' via PDF preview`,
+                      });
+
+                      // Update local state to reflect changes immediately
+                      setClients((prev) =>
+                        prev.map((c) =>
+                          c.id === clientId ? { ...c, printConfig: updatedConfig } : c
+                        )
+                      );
+
+                      // Update the preview client state to reflect changes immediately
+                      setSignedTicketPreviewClient(prev => 
+                        prev ? { ...prev, printConfig: updatedConfig } : null
+                      );
+
+                      // Show success notification
+                      showNotification(
+                        "success",
+                        "Print configuration updated successfully"
+                      );
+                    } catch (error) {
+                      console.error("Failed to update print configuration:", error);
+                      showNotification("error", "Failed to update print configuration");
+                    }
+                  }}
                 />
               </div>
             </div>
