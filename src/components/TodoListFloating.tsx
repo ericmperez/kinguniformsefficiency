@@ -12,7 +12,8 @@ import {
   orderBy,
   deleteDoc,
   doc,
-  updateDoc
+  updateDoc,
+  arrayUnion
 } from 'firebase/firestore';
 
 interface TodoItem {
@@ -21,6 +22,8 @@ interface TodoItem {
   done: boolean;
   readBy?: string[]; // user IDs who have read this todo
   createdAt: number;
+  createdBy?: string; // User ID who created the todo
+  createdByUsername?: string; // Username who created the todo
 }
 
 const TODOS_COLLECTION = 'todos';
@@ -100,7 +103,9 @@ const TodoListFloating: React.FC = () => {
     await addDoc(collection(db, TODOS_COLLECTION), {
       text: input.trim(),
       done: false,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      createdBy: user?.id,
+      createdByUsername: user?.username
     });
     setInput('');
   };
@@ -120,7 +125,7 @@ const TodoListFloating: React.FC = () => {
     if (!userId) return;
     if (todo.readBy && todo.readBy.includes(userId)) return;
     await updateDoc(doc(db, TODOS_COLLECTION, todo.id), {
-      readBy: [...(todo.readBy || []), userId]
+      readBy: arrayUnion(userId)
     });
   };
 
@@ -312,18 +317,23 @@ const TodoListFloating: React.FC = () => {
                   onChange={() => toggleDone(todo.id, todo.done)}
                   style={{ marginRight: 10 }}
                 />
-                <span style={{ flex: 1, textDecoration: todo.done ? 'line-through' : 'none', color: todo.done ? '#aaa' : isTagged ? '#b45309' : isUnread ? '#0369a1' : '#222' }}>
-                  {todo.text}
-                  {isTagged && <span style={{ marginLeft: 10, background: '#fde047', color: '#b45309', borderRadius: 5, padding: '0 8px', fontWeight: 900 }}>For you!</span>}
-                  {!isTagged && isUnread && (
-                    <button
-                      onClick={() => markAsRead(todo)}
-                      style={{ marginLeft: 14, background: '#fbbf24', color: '#78350f', border: 'none', borderRadius: 5, padding: '3px 10px', fontWeight: 800, cursor: 'pointer', fontSize: 15 }}
-                    >
-                      Mark as read
-                    </button>
-                  )}
-                </span>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ textDecoration: todo.done ? 'line-through' : 'none', color: todo.done ? '#aaa' : isTagged ? '#b45309' : isUnread ? '#0369a1' : '#222' }}>
+                    {todo.text}
+                    {isTagged && <span style={{ marginLeft: 10, background: '#fde047', color: '#b45309', borderRadius: 5, padding: '0 8px', fontWeight: 900 }}>For you!</span>}
+                    {!isTagged && isUnread && (
+                      <button
+                        onClick={() => markAsRead(todo)}
+                        style={{ marginLeft: 14, background: '#fbbf24', color: '#78350f', border: 'none', borderRadius: 5, padding: '3px 10px', fontWeight: 800, cursor: 'pointer', fontSize: 15 }}
+                      >
+                        Mark as read
+                      </button>
+                    )}
+                  </span>
+                  <small style={{ color: '#666', fontSize: '12px', marginTop: '4px' }}>
+                    👤 {todo.createdByUsername || 'Unknown'} • 📅 {new Date(todo.createdAt).toLocaleString()}
+                  </small>
+                </div>
                 {canWrite && (
                   <button
                     onClick={() => removeTodo(todo.id)}

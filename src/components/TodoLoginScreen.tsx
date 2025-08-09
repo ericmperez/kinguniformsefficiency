@@ -7,7 +7,8 @@ import {
   query,
   orderBy,
   doc,
-  updateDoc
+  updateDoc,
+  arrayUnion
 } from 'firebase/firestore';
 
 interface TodoItem {
@@ -16,6 +17,8 @@ interface TodoItem {
   done: boolean;
   readBy?: string[];
   createdAt: number;
+  createdBy?: string; // User ID who created the todo
+  createdByUsername?: string; // Username who created the todo  
 }
 
 interface TodoLoginScreenProps {
@@ -41,17 +44,23 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
       const pendingTodos = allTodos.filter(todo => {
         if (todo.done) return false; // Skip completed todos
         
-        // Check if user has already read this todo
-        const hasRead = todo.readBy && todo.readBy.includes(user.id);
-        if (hasRead) return false;
-        
-        // Include todos that are either:
-        // 1. Tagged specifically for this user, or
-        // 2. General todos for everyone
+        // Check if this todo is relevant to the user
         const isTaggedForUser = todo.text.includes(`@${user.username}`);
         const isGeneralTodo = !todo.text.includes('@'); // No @ mentions means it's for everyone
         
-        return isTaggedForUser || isGeneralTodo;
+        // If not relevant to this user, skip it
+        if (!isTaggedForUser && !isGeneralTodo) return false;
+        
+        // For tagged todos (@username), always show until marked as done
+        if (isTaggedForUser) return true;
+        
+        // For general todos, only show if user hasn't read them yet
+        if (isGeneralTodo) {
+          const hasRead = todo.readBy && todo.readBy.includes(user.id);
+          return !hasRead;
+        }
+        
+        return false;
       });
       
       setTodos(pendingTodos);
@@ -71,7 +80,7 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
     try {
       // Mark todo as read by this user
       await updateDoc(doc(db, 'todos', currentTodo.id), {
-        readBy: [...(currentTodo.readBy || []), user.id]
+        readBy: arrayUnion(user.id)
       });
       
       // Move to next todo or complete if this was the last one
@@ -99,7 +108,7 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
       // Mark todo as done (completed)
       await updateDoc(doc(db, 'todos', currentTodo.id), {
         done: true,
-        readBy: [...(currentTodo.readBy || []), user.id]
+        readBy: arrayUnion(user.id)
       });
       
       // Move to next todo or complete if this was the last one
@@ -126,7 +135,7 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
       // Mark all remaining todos as read by this user
       const promises = todos.slice(currentTodoIndex).map(todo =>
         updateDoc(doc(db, 'todos', todo.id), {
-          readBy: [...(todo.readBy || []), user.id]
+          readBy: arrayUnion(user.id)
         })
       );
       
@@ -240,6 +249,12 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
 
   const currentTodo = todos[currentTodoIndex];
   const isTaggedForUser = user ? currentTodo.text.includes(`@${user.username}`) : false;
+  const isGeneralTodo = !currentTodo.text.includes('@'); // No @ mentions means it's for everyone
+  const isAdminUser = user && ['Supervisor', 'Admin', 'Owner'].includes(user.role);
+  
+  // User can mark as done if: 1) They are tagged, 2) It's a general todo, or 3) They are admin
+  const canMarkAsDone = isTaggedForUser || isGeneralTodo || isAdminUser;
+  
   const progress = ((currentTodoIndex + 1) / todos.length) * 100;
 
   return (
@@ -310,6 +325,21 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
             lineHeight: "1.6"
           }}
         >
+          {/* Author and timestamp info */}
+          <div className="mb-3 pb-3" style={{ borderBottom: "1px solid #ddd" }}>
+            <div className="d-flex justify-content-between align-items-center">
+              <div className="d-flex align-items-center">
+                <span className="badge bg-secondary me-2">
+                  👤 {currentTodo.createdByUsername || 'Unknown'}
+                </span>
+                <small className="text-muted">
+                  📅 {new Date(currentTodo.createdAt).toLocaleString()}
+                </small>
+              </div>
+            </div>
+          </div>
+          
+          {/* Todo message */}
           <div style={{ whiteSpace: "pre-wrap", color: "#333" }}>
             {currentTodo.text}
           </div>
@@ -340,28 +370,31 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
             )}
           </button>
 
-          <button
-            className="btn btn-primary px-4 py-2"
-            onClick={handleMarkAsDone}
-            disabled={acknowledging}
-            style={{ 
-              borderRadius: "10px",
-              fontWeight: 600,
-              fontSize: "16px",
-              minWidth: "140px"
-            }}
-          >
-            {acknowledging ? (
-              <>
-                <span className="spinner-border spinner-border-sm me-2" />
-                Processing...
-              </>
-            ) : (
-              <>
-                ✅ Mark as Done
-              </>
-            )}
-          </button>
+          {/* Only show "Mark as Done" button for users who can complete the task */}
+          {canMarkAsDone && (
+            <button
+              className="btn btn-primary px-4 py-2"
+              onClick={handleMarkAsDone}
+              disabled={acknowledging}
+              style={{ 
+                borderRadius: "10px",
+                fontWeight: 600,
+                fontSize: "16px",
+                minWidth: "140px"
+              }}
+            >
+              {acknowledging ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  ✅ Mark as Done
+                </>
+              )}
+            </button>
+          )}
           
           {todos.length > 1 && (
             <button
@@ -384,7 +417,16 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
         <div className="mt-4 pt-3" style={{ borderTop: "1px solid #eee" }}>
           <small className="text-muted">
             <strong>Acknowledge:</strong> Mark as read (message stays active for others)<br/>
-            <strong>Mark as Done:</strong> Complete the task (removes message for everyone)<br/>
+            {canMarkAsDone && (
+              <>
+                <strong>Mark as Done:</strong> Complete the task (removes message for everyone)<br/>
+              </>
+            )}
+            {!canMarkAsDone && (
+              <>
+                <em>Note: Only tagged users, admins, or general message recipients can mark todos as done</em><br/>
+              </>
+            )}
             {todos.length > 1 && `${todos.length - currentTodoIndex - 1} more message${todos.length - currentTodoIndex - 1 !== 1 ? 's' : ''} remaining.`}
           </small>
         </div>
