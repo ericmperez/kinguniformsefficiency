@@ -165,8 +165,88 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
     );
   }
 
-  // No pending todos, show "no messages" screen
+  // Get a random motivational message in Spanish
+  const getRandomMotivationalMessage = () => {
+    const messages = [
+      {
+        emoji: "🌟",
+        title: "¡Excelente día para trabajar!",
+        message: "Cada día es una nueva oportunidad para brillar y hacer un excelente trabajo.",
+        color: "#fff3cd",
+        borderColor: "#ffeaa7"
+      },
+      {
+        emoji: "💪",
+        title: "¡Eres increíble!",
+        message: "Tu dedicación y esfuerzo hacen la diferencia. ¡Sigue adelante con esa energía positiva!",
+        color: "#d1ecf1",
+        borderColor: "#bee5eb"
+      },
+      {
+        emoji: "🚀",
+        title: "¡Hoy será un gran día!",
+        message: "Con tu actitud positiva y profesionalismo, todo lo que te propongas será posible.",
+        color: "#d4edda",
+        borderColor: "#c3e6cb"
+      },
+      {
+        emoji: "⭐",
+        title: "¡Eres parte importante del equipo!",
+        message: "Tu trabajo contribuye al éxito de todos. Gracias por tu compromiso y dedicación.",
+        color: "#f8d7da",
+        borderColor: "#f5c6cb"
+      },
+      {
+        emoji: "🎯",
+        title: "¡Enfócate en tus logros!",
+        message: "Cada tarea que completas nos acerca más a nuestros objetivos. ¡Excelente trabajo!",
+        color: "#e2e3e5",
+        borderColor: "#d6d8db"
+      },
+      {
+        emoji: "🌈",
+        title: "¡Tu sonrisa ilumina el día!",
+        message: "Una actitud positiva es contagiosa. Comparte tu energía con el equipo.",
+        color: "#fff3cd",
+        borderColor: "#ffeaa7"
+      },
+      {
+        emoji: "🏆",
+        title: "¡Eres un campeón!",
+        message: "Tu esfuerzo y dedicación no pasan desapercibidos. ¡Sigue siendo extraordinario!",
+        color: "#d1ecf1",
+        borderColor: "#bee5eb"
+      },
+      {
+        emoji: "💎",
+        title: "¡Eres valioso para nosotros!",
+        message: "Tu contribución hace que King Uniforms sea un mejor lugar para trabajar.",
+        color: "#d4edda",
+        borderColor: "#c3e6cb"
+      },
+      {
+        emoji: "🌺",
+        title: "¡Que tengas un día lleno de éxitos!",
+        message: "Cada momento es una oportunidad para aprender, crecer y destacar.",
+        color: "#f8d7da",
+        borderColor: "#f5c6cb"
+      },
+      {
+        emoji: "⚡",
+        title: "¡Tu energía es inspiradora!",
+        message: "Con tu determinación y entusiasmo, cualquier desafío se vuelve una oportunidad.",
+        color: "#e2e3e5",
+        borderColor: "#d6d8db"
+      }
+    ];
+    
+    return messages[Math.floor(Math.random() * messages.length)];
+  };
+
+  // No pending todos, show motivational message in Spanish
   if (todos.length === 0) {
+    const motivationalMessage = getRandomMotivationalMessage();
+    
     return (
       <div
         className="d-flex flex-column justify-content-center align-items-center"
@@ -193,30 +273,29 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
               className="badge bg-success fs-6 px-3 py-2 mb-3"
               style={{ borderRadius: "20px" }}
             >
-              ✅ All Caught Up!
+              {motivationalMessage.emoji} ¡Hola, {user?.username || 'Compañero'}!
             </div>
             <h2 className="mb-2" style={{ color: "#333", fontWeight: 700 }}>
-              No New Messages
+              {motivationalMessage.title}
             </h2>
             <p className="text-muted mb-0">
-              You're all caught up! No pending messages or tasks.
+              No tienes mensajes pendientes. ¡Perfecto para comenzar el día!
             </p>
           </div>
 
-          {/* Content */}
+          {/* Motivational Content */}
           <div 
             className="p-4 mb-4" 
             style={{ 
-              background: "#d4edda",
+              background: motivationalMessage.color,
               borderRadius: "15px",
-              border: "2px solid #c3e6cb",
+              border: `2px solid ${motivationalMessage.borderColor}`,
               fontSize: "18px",
               lineHeight: "1.6"
             }}
           >
-            <div style={{ color: "#155724", fontWeight: 500 }}>
-              🎉 Great! You have no pending messages or tasks.<br/>
-              You can proceed directly to the main application.
+            <div style={{ color: "#333", fontWeight: 500 }}>
+              {motivationalMessage.message}
             </div>
           </div>
 
@@ -232,14 +311,14 @@ const TodoLoginScreen: React.FC<TodoLoginScreenProps> = ({ onComplete }) => {
                 minWidth: "140px"
               }}
             >
-              Continue to App
+              ¡Continuar al Sistema!
             </button>
           </div>
 
           {/* Footer info */}
           <div className="mt-4 pt-3" style={{ borderTop: "1px solid #eee" }}>
             <small className="text-muted">
-              This screen appears every time you log in to check for new messages and tasks.
+              Esta pantalla aparece cada vez que inicias sesión para verificar mensajes y tareas nuevas.
             </small>
           </div>
         </div>
