@@ -34,7 +34,7 @@ const TodoListFloating: React.FC = () => {
   const userId = user?.id;
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [input, setInput] = useState('');
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false); // Start closed by default
   const [position, setPosition] = useState({ x: 40, y: 80 });
   const [dragging, setDragging] = useState(false);
   const [allUsers, setAllUsers] = useState<UserRecord[]>([]);
@@ -129,7 +129,7 @@ const TodoListFloating: React.FC = () => {
     });
   };
 
-  // Show notification if tagged or unread
+  // Show notification for assigned todos (but don't auto-open window anymore)
   useEffect(() => {
     if (!userId) return;
     const unreadTodos = todos.filter(todo => {
@@ -137,6 +137,8 @@ const TodoListFloating: React.FC = () => {
       const isUnread = !todo.readBy || !todo.readBy.includes(userId);
       return (isTagged && isUnread) || (!isTagged && isUnread);
     });
+    
+    // Only show notifications, don't auto-open (TodoManager handles login screen)
     if (unreadTodos.length > 0) {
       const first = unreadTodos[0];
       if (first.text.includes(`@${user.username}`)) {
@@ -155,7 +157,7 @@ const TodoListFloating: React.FC = () => {
         style={{
           position: 'fixed',
           bottom: 24,
-          right: 24,
+          left: 24,
           zIndex: 9999,
           background: '#0ea5e9',
           color: '#fff',

@@ -47,7 +47,7 @@ import Report from "./components/Report";
 import React, { Suspense, lazy } from "react";
 import { canUserSeeComponent, AppComponentKey } from "./permissions";
 import TodoListFloating from "./components/TodoListFloating";
-import TodoLoginScreen from "./components/TodoLoginScreen";
+import TodoManager from "./components/TodoManager";
 
 // Lazy load large components for better performance
 const ProductForm = lazy(() => import("./components/ProductForm").then(module => ({ default: module.ProductForm })));
@@ -181,8 +181,8 @@ function App() {
   const appState = useAppState();
   const businessLogic = useBusinessLogic();
   
-  // State for todo-based login flow
-  const [showTodoLogin, setShowTodoLogin] = React.useState(false);
+  // State for todo-based login flow - no longer needed as TodoManager handles this automatically
+  // const [showTodoLogin, setShowTodoLogin] = React.useState(false);
   
   // Extract state and actions for easier access
   const {
@@ -321,16 +321,50 @@ function App() {
     }
   }, [user]);
 
-  // Handle completion of todo login screen
-  const handleTodoLoginComplete = () => {
-    setShowTodoLogin(false);
-    
+  // Handle completion of todo login screen - no longer needed as TodoManager handles this automatically
+  // const handleTodoLoginComplete = () => {
+  //   if (user) {
+  //     // For drivers, auto-redirect to shipping
+  //     if (user.role === "Driver") {
+  //       setActivePage("shipping");
+  //     } else if (user.defaultPage) {
+  //       // User has a default page set, go there directly
+  //       setActivePage(
+  //         user.defaultPage === "ActiveLaundryTickets"
+  //           ? "home"
+  //           : user.defaultPage === "PickupWashing"
+  //           ? "entradas"
+  //           : user.defaultPage === "Washing"
+  //           ? "washing"
+  //           : user.defaultPage === "Segregation"
+  //           ? "segregation"
+  //           : user.defaultPage === "Report"
+  //           ? "reports"
+  //           : user.defaultPage === "UserManagement"
+  //           ? "settings"
+  //           : user.defaultPage === "GlobalActivityLog"
+  //           ? "activityLog"
+  //           : user.defaultPage === "RealTimeActivityDashboard"
+  //           ? "realTimeActivity"
+  //           : "home"
+  //       );
+  //       setShowWelcome(false);
+  //     } else {
+  //       // Show traditional welcome screen for a brief moment
+  //       setShowWelcome(true);
+  //       const timer = setTimeout(() => setShowWelcome(false), 2000);
+  //       return () => clearTimeout(timer);
+  //     }
+  //   }
+  // };
+
+  // Modified login flow - TodoManager will handle todos automatically
+  useEffect(() => {
     if (user) {
-      // For drivers, auto-redirect to shipping
-      if (user.role === "Driver") {
-        setActivePage("shipping");
-      } else if (user.defaultPage) {
-        // User has a default page set, go there directly
+      setShowWelcome(false);
+      
+      // Set default page based on user preferences immediately
+      if (user.defaultPage) {
         setActivePage(
           user.defaultPage === "ActiveLaundryTickets"
             ? "home"
@@ -350,26 +384,9 @@ function App() {
             ? "realTimeActivity"
             : "home"
         );
-        setShowWelcome(false);
       } else {
-        // Show traditional welcome screen for a brief moment
-        setShowWelcome(true);
-        const timer = setTimeout(() => setShowWelcome(false), 2000);
-        return () => clearTimeout(timer);
-      }
-    }
-  };
-
-  // Modified login flow to check for todos first
-  useEffect(() => {
-    if (user) {
-      // Check for pending todos first instead of showing welcome screen immediately
-      setShowTodoLogin(true);
-      setShowWelcome(false);
-      
-      // Set default page based on user preferences (will be applied after todo completion)
-      if (user.defaultPage) {
-        // Page will be set in handleTodoLoginComplete when todos are done
+        // Default to home page if no default page is set
+        setActivePage("home");
       }
     }
   }, [user]);
@@ -647,14 +664,6 @@ function App() {
   if (!user) {
     // Use the new LocalLoginForm as the login page
     return <LocalLoginForm />;
-  }
-
-  if (showTodoLogin) {
-    return (
-      <TodoLoginScreen
-        onComplete={handleTodoLoginComplete}
-      />
-    );
   }
 
   if (showWelcome) {
@@ -1986,6 +1995,8 @@ function App() {
       )}
       {/* Floating Todo List - always visible */}
       <TodoListFloating />
+      {/* Todo Manager - shows modal when there are pending todos */}
+      <TodoManager />
     </Router>
   );
 }
