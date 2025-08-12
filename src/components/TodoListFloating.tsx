@@ -35,7 +35,7 @@ const TodoListFloating: React.FC = () => {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [input, setInput] = useState('');
   const [isOpen, setIsOpen] = useState(false); // Start closed by default
-  const [position, setPosition] = useState({ x: 40, y: 80 });
+  const [position, setPosition] = useState({ x: 40, y: 120 });
   const [dragging, setDragging] = useState(false);
   const [allUsers, setAllUsers] = useState<UserRecord[]>([]);
   const [notification, setNotification] = useState<string | null>(null);
@@ -152,28 +152,27 @@ const TodoListFloating: React.FC = () => {
   }, [todos, userId, user?.username]);
 
   if (!isOpen) {
-    return (
-      <button
-        style={{
-          position: 'fixed',
-          bottom: 24,
-          left: 24,
-          zIndex: 9999,
-          background: '#0ea5e9',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '50%',
-          width: 56,
-          height: 56,
-          fontSize: 28,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          cursor: 'pointer',
-        }}
-        onClick={() => setIsOpen(true)}
-        title="Show Todo List"
-      >
-        ✓
-      </button>
+    return (        <button
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            left: 24,
+            zIndex: 99999,
+            background: '#0ea5e9',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '50%',
+            width: 56,
+            height: 56,
+            fontSize: 28,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            cursor: 'pointer',
+          }}
+          onClick={() => setIsOpen(true)}
+          title="Show Todo List"
+        >
+          ✓
+        </button>
     );
   }
 
@@ -190,7 +189,7 @@ const TodoListFloating: React.FC = () => {
         border: '4px solid #0ea5e9',
         borderRadius: 22,
         boxShadow: '0 12px 40px 0 rgba(14,165,233,0.35), 0 2px 12px #fbbf24',
-        zIndex: 9999,
+        zIndex: 99999,
         userSelect: dragging ? 'none' : 'auto',
         transition: 'box-shadow 0.2s',
         fontSize: 18,
@@ -229,7 +228,7 @@ const TodoListFloating: React.FC = () => {
         .todo-header-sticky {
           position: sticky;
           top: 0;
-          z-index: 2;
+          z-index: 99998;
         }
       `}</style>
       <div
@@ -355,7 +354,7 @@ const TodoListFloating: React.FC = () => {
           position: 'fixed',
           top: 24,
           right: 24,
-          zIndex: 10000,
+          zIndex: 99999,
           background: '#fbbf24',
           color: '#78350f',
           padding: '18px 36px',

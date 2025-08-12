@@ -146,7 +146,7 @@ export default function SuggestionsPanel({ isVisible, onClose }: SuggestionsPane
         height: '100vh',
         backgroundColor: '#ffffff',
         boxShadow: '2px 0 8px rgba(0,0,0,0.1)',
-        zIndex: 1000,
+        zIndex: 99999,
         display: 'flex',
         flexDirection: 'column',
         borderRight: '3px solid #0E62A0',
@@ -163,7 +163,7 @@ export default function SuggestionsPanel({ isVisible, onClose }: SuggestionsPane
           alignItems: 'center',
           position: 'sticky',
           top: 0,
-          zIndex: 10,
+          zIndex: 99998,
         }}
       >
         <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
