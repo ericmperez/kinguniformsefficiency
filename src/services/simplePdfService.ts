@@ -216,8 +216,6 @@ export async function generateLaundryTicketPDF(
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'italic');
     pdf.text('Thank you for choosing King Uniforms', 105, yPos, { align: 'center' });
-    yPos += 10;
-    pdf.text(`Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 105, yPos, { align: 'center' });
 
     // Generate and return PDF
     const pdfAsString = pdf.output('datauristring');

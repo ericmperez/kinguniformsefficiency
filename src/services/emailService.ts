@@ -543,15 +543,37 @@ export const generateInvoicePDF = async (
     // Import the new signed delivery PDF service
     const { generateDeliveryTicketPDF } = await import('./signedDeliveryPdfService');
     
-    // Use default PDF options if not provided in printConfig
-    const pdfOptions = {
+    // Use client-specific PDF options if available, otherwise use defaults
+    const clientPdfOptions = client.printConfig?.pdfOptions;
+    const pdfOptions = clientPdfOptions ? {
+      // Use all client-specific PDF options
+      ...clientPdfOptions,
+      // Always show signatures for signed delivery tickets
+      showSignatures: true,
+      showTimestamp: true
+      // Don't override showLocation - respect client's preference
+    } : {
+      // Fallback defaults if no client PDF options
       paperSize: printConfig?.paperSize || 'letter',
       orientation: printConfig?.orientation || 'portrait',
       showSignatures: true,
       showTimestamp: true,
       showLocation: true,
+      scale: 1.0,
+      showQuantities: true,
+      contentDisplay: 'detailed' as const,
+      margins: 'normal' as const,
+      fontSize: 'medium' as const,
+      showWatermark: false,
+      headerText: '',
+      footerText: '',
+      logoSize: 'medium' as const,
+      showBorder: true,
+      pagination: 'single' as const,
       ...printConfig?.pdfOptions
     };
+    
+    console.log("📄 Using PDF options for client:", client.name, pdfOptions);
     
     // Generate the PDF using the new template
     const pdfContent = await generateDeliveryTicketPDF(invoice, client, pdfOptions, driverName);

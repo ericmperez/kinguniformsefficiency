@@ -20,6 +20,7 @@ export interface SignedDeliveryPdfOptions {
   footerText?: string;
   logoSize?: string;
   showBorder?: boolean;
+  pagination?: string;
 }
 
 export async function generateSignedDeliveryPDF(
@@ -117,22 +118,70 @@ export async function generateSignedDeliveryPDF(
       format: [pdfWidth, pdfHeight],
     });
 
-    // Calculate image dimensions to fit the page
-    const aspectRatio = canvas.width / canvas.height;
-    let imgWidth = pdfWidth;
-    let imgHeight = pdfWidth / aspectRatio;
-    
-    // If image is too tall, scale by height instead
-    if (imgHeight > pdfHeight) {
-      imgHeight = pdfHeight;
-      imgWidth = pdfHeight * aspectRatio;
+    // Handle pagination based on user preference
+    if (pdfOptions.pagination === 'multiple') {
+      // Multiple pages mode - allow content to flow naturally across pages
+      const contentHeight = canvas.height * (canvas.width > 0 ? pdfWidth / canvas.width : 1);
+      const pageHeight = pdfHeight;
+      
+      if (contentHeight > pageHeight) {
+        // Content is taller than one page, split into multiple pages
+        const totalPages = Math.ceil(contentHeight / pageHeight);
+        
+        for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+          if (pageIndex > 0) {
+            pdf.addPage();
+          }
+          
+          // Calculate the portion of the image for this page
+          const yOffset = pageIndex * pageHeight;
+          const remainingHeight = Math.min(pageHeight, contentHeight - yOffset);
+          
+          // Create a temporary canvas for this page's content
+          const pageCanvas = document.createElement('canvas');
+          const pageCtx = pageCanvas.getContext('2d');
+          
+          if (pageCtx) {
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = (remainingHeight / contentHeight) * canvas.height;
+            
+            // Draw the portion of the original canvas for this page
+            pageCtx.drawImage(
+              canvas,
+              0, (yOffset / contentHeight) * canvas.height, // Source x, y
+              canvas.width, pageCanvas.height, // Source width, height
+              0, 0, // Destination x, y
+              pageCanvas.width, pageCanvas.height // Destination width, height
+            );
+            
+            const pageImgData = pageCanvas.toDataURL("image/png");
+            pdf.addImage(pageImgData, "PNG", 0, 0, pdfWidth, remainingHeight);
+          }
+        }
+      } else {
+        // Content fits on one page
+        const imgWidth = pdfWidth;
+        const imgHeight = contentHeight;
+        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      }
+    } else {
+      // Single page mode - compress all content to fit on one page (original behavior)
+      const aspectRatio = canvas.width / canvas.height;
+      let imgWidth = pdfWidth;
+      let imgHeight = pdfWidth / aspectRatio;
+      
+      // If image is too tall, scale by height instead
+      if (imgHeight > pdfHeight) {
+        imgHeight = pdfHeight;
+        imgWidth = pdfHeight * aspectRatio;
+      }
+      
+      // Center the image on the page
+      const x = (pdfWidth - imgWidth) / 2;
+      const y = (pdfHeight - imgHeight) / 2;
+      
+      pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
     }
-    
-    // Center the image on the page
-    const x = (pdfWidth - imgWidth) / 2;
-    const y = (pdfHeight - imgHeight) / 2;
-    
-    pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
     
     const pdfAsString = pdf.output("datauristring");
     

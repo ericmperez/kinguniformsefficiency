@@ -15,6 +15,8 @@ interface SignatureModalProps {
   clientId: string;
   invoice?: Invoice;
   onSignatureSaved?: () => void;
+  driverName?: string;
+  deliveryDate?: string;
 }
 
 const SignatureModal: React.FC<SignatureModalProps> = ({
@@ -26,6 +28,8 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   clientId,
   invoice,
   onSignatureSaved,
+  driverName,
+  deliveryDate,
 }) => {
   const sigCanvas = useRef<SignatureCanvas | null>(null);
   const [sigName, setSigName] = useState("");
@@ -121,6 +125,8 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         receivedBy: receivedByName,
         signatureDate: now.toLocaleDateString(),
         signatureTime: now.toLocaleTimeString(),
+        driverName: driverName || "Not Assigned",
+        deliveryDate: deliveryDate || now.toLocaleDateString(),
       };
 
       // Send signature email using the new service
@@ -468,6 +474,37 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                     <small>Total Items</small>
                   </div>
                 </div>
+                
+                {/* Driver and Delivery Date Information */}
+                {(driverName || deliveryDate) && (
+                  <div className="mt-3 pt-2 border-top">
+                    <div className="row">
+                      {driverName && (
+                        <div className="col-6">
+                          <div className="d-flex align-items-center">
+                            <i className="bi bi-person-badge me-2 text-primary"></i>
+                            <div>
+                              <small className="text-muted d-block">Driver:</small>
+                              <strong className="text-primary">{driverName}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {deliveryDate && (
+                        <div className="col-6">
+                          <div className="d-flex align-items-center">
+                            <i className="bi bi-calendar-check me-2 text-info"></i>
+                            <div>
+                              <small className="text-muted d-block">Delivery Date:</small>
+                              <strong className="text-info">{deliveryDate}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="mt-2 small text-muted">
                   <strong>Cart breakdown:</strong>{" "}
                   {invoice.carts

@@ -55,10 +55,42 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
       signatureEmailSubject: "",
       signatureEmailTemplate: "",
     },
+    pdfOptions: {
+      scale: 1.0,
+      showSignatures: true,
+      showTimestamp: true,
+      showLocation: false,
+      showQuantities: true,
+      contentDisplay: 'detailed',
+      paperSize: 'letter',
+      orientation: 'portrait',
+      margins: 'normal',
+      fontSize: 'medium',
+      showWatermark: false,
+      headerText: '',
+      footerText: '',
+      logoSize: 'medium',
+      showBorder: true,
+      pagination: 'single'
+    },
   });
 
   const [config, setConfig] = useState<PrintConfiguration>(getDefaultConfig());
   const [saving, setSaving] = useState(false);
+
+  // Helper function to update PDF options with proper defaults
+  const updatePdfOptions = (updates: Partial<PrintConfiguration['pdfOptions']>) => {
+    const defaultPdfOptions = getDefaultConfig().pdfOptions;
+    const currentPdfOptions = config.pdfOptions || defaultPdfOptions;
+    setConfig({
+      ...config,
+      pdfOptions: {
+        ...defaultPdfOptions,
+        ...currentPdfOptions,
+        ...updates
+      } as PrintConfiguration['pdfOptions']
+    });
+  };
 
   useEffect(() => {
     if (client) {
@@ -282,6 +314,126 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
                       <label className="form-check-label" htmlFor="showTotalWeight">
                         Show total weight
                       </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* PDF Options Section */}
+            <div className="row mt-4">
+              <div className="col-12">
+                <div className="card">
+                  <div className="card-header">
+                    <h6 className="mb-0">
+                      <i className="bi bi-file-earmark-pdf me-2"></i>
+                      PDF Generation Options
+                    </h6>
+                    <small className="text-muted">Customize how delivery ticket PDFs are generated for this client</small>
+                  </div>
+                  <div className="card-body">
+                    <div className="row">
+                      <div className="col-md-4">
+                        <h6 className="fw-bold text-primary mb-3">Layout & Size</h6>
+                        
+                        <div className="mb-3">
+                          <label className="form-label small">Paper Size</label>
+                          <select 
+                            className="form-select form-select-sm"
+                            value={config.pdfOptions?.paperSize || 'letter'}
+                            onChange={(e) => updatePdfOptions({ paperSize: e.target.value as 'letter' | 'a4' | 'legal' })}
+                          >
+                            <option value="letter">Letter (8.5" × 11")</option>
+                            <option value="a4">A4 (210 × 297 mm)</option>
+                            <option value="legal">Legal (8.5" × 14")</option>
+                          </select>
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="form-label small">Orientation</label>
+                          <select 
+                            className="form-select form-select-sm"
+                            value={config.pdfOptions?.orientation || 'portrait'}
+                            onChange={(e) => updatePdfOptions({ orientation: e.target.value as 'portrait' | 'landscape' })}
+                          >
+                            <option value="portrait">Portrait</option>
+                            <option value="landscape">Landscape</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="col-md-4">
+                        <h6 className="fw-bold text-primary mb-3">Display Options</h6>
+                        
+                        <div className="form-check mb-2">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="pdfShowTimestamp"
+                            checked={config.pdfOptions?.showTimestamp !== false}
+                            onChange={(e) => updatePdfOptions({ showTimestamp: e.target.checked })}
+                          />
+                          <label className="form-check-label small" htmlFor="pdfShowTimestamp">
+                            Show Timestamp
+                          </label>
+                        </div>
+
+                        <div className="form-check mb-2">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="pdfShowLocation"
+                            checked={config.pdfOptions?.showLocation === true}
+                            onChange={(e) => updatePdfOptions({ showLocation: e.target.checked })}
+                          />
+                          <label className="form-check-label small" htmlFor="pdfShowLocation">
+                            Show Location Info
+                          </label>
+                        </div>
+
+                        <div className="form-check mb-2">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="pdfShowQuantities"
+                            checked={config.pdfOptions?.showQuantities !== false}
+                            onChange={(e) => updatePdfOptions({ showQuantities: e.target.checked })}
+                          />
+                          <label className="form-check-label small" htmlFor="pdfShowQuantities">
+                            Show Quantities
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="col-md-4">
+                        <h6 className="fw-bold text-primary mb-3">Content & Style</h6>
+                        
+                        <div className="mb-3">
+                          <label className="form-label small">Content Display</label>
+                          <select 
+                            className="form-select form-select-sm"
+                            value={config.pdfOptions?.contentDisplay || 'detailed'}
+                            onChange={(e) => updatePdfOptions({ contentDisplay: e.target.value as 'detailed' | 'summary' | 'weight-only' })}
+                          >
+                            <option value="detailed">Detailed Items List</option>
+                            <option value="summary">Summary with Total Weight</option>
+                            <option value="weight-only">Weight Only</option>
+                          </select>
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="form-label small">Font Size</label>
+                          <select 
+                            className="form-select form-select-sm"
+                            value={config.pdfOptions?.fontSize || 'medium'}
+                            onChange={(e) => updatePdfOptions({ fontSize: e.target.value as 'small' | 'medium' | 'large' })}
+                          >
+                            <option value="small">Small</option>
+                            <option value="medium">Medium</option>
+                            <option value="large">Large</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

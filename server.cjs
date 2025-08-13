@@ -1,5 +1,9 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
+
+// Load environment variables from .env.local
+require('dotenv').config({ path: '.env.local' });
+
 const app = express();
 
 // Add CORS support to allow requests from our frontend
@@ -19,8 +23,8 @@ app.use(express.json({ limit: '10mb' }));
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER || 'emperez@kinguniforms.net',
-    pass: process.env.EMAIL_PASSWORD || 'jbqp sxah ctff glku'
+    user: process.env.EMAIL_USER || 'notifications@kinguniforms.net',
+    pass: process.env.EMAIL_PASSWORD || 'lvra prfc osfy lavc'
   }
 });
 
@@ -29,7 +33,7 @@ app.post('/api/send-invoice', async (req, res) => {
   if (!to || !pdfBase64) return res.status(400).json({ error: 'Missing data' });
   try {
     await transporter.sendMail({
-      from: 'emperez@kinguniforms.net',
+      from: 'notifications@kinguniforms.net',
       to,
       subject,
       text,
@@ -55,7 +59,7 @@ app.post('/api/send-test-email', async (req, res) => {
   
   try {
     const mailOptions = {
-      from: 'emperez@kinguniforms.net',
+      from: 'notifications@kinguniforms.net',
       to,
       cc: cc || [],
       subject,

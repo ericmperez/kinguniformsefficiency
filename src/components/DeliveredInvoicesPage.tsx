@@ -127,10 +127,15 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
       // Generate PDF
       let pdfContent: string | undefined;
       try {
+        // Reload client data to get the latest PDF options
+        const freshClients = await getClients();
+        const freshClient = freshClients.find(c => c.id === client.id);
+        const clientToUse = freshClient || client;
+        
         pdfContent = await generateInvoicePDF(
-          client,
+          clientToUse,
           invoice,
-          client.printConfig.invoicePrintSettings,
+          clientToUse.printConfig?.invoicePrintSettings,
           undefined // No driver name available in this context
         );
       } catch (error) {
@@ -176,8 +181,11 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
     let successCount = 0;
     let failCount = 0;
     
+    // Reload client data to get the latest PDF options
+    const freshClients = await getClients();
+    
     for (const invoice of invoicesToEmail) {
-      const client = clients.find(c => c.id === invoice.clientId);
+      const client = freshClients.find(c => c.id === invoice.clientId);
       
       if (!client?.email || !client.printConfig?.emailSettings?.enabled) {
         failCount++;
@@ -192,7 +200,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
           pdfContent = await generateInvoicePDF(
             client,
             invoice,
-            client.printConfig.invoicePrintSettings,
+            client.printConfig?.invoicePrintSettings,
             undefined // No driver name available in this context
           );
         } catch (error) {
@@ -202,7 +210,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
         const success = await sendInvoiceEmail(
           client,
           invoice,
-          client.printConfig.emailSettings,
+          client.printConfig?.emailSettings,
           pdfContent
         );
         
@@ -240,8 +248,11 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
     try {
       const invoicesToDownload = filteredInvoices.filter(inv => selectedInvoices.includes(inv.id));
       
+      // Reload client data to get the latest PDF options
+      const freshClients = await getClients();
+      
       for (const invoice of invoicesToDownload) {
-        const client = clients.find(c => c.id === invoice.clientId);
+        const client = freshClients.find(c => c.id === invoice.clientId);
         if (!client) continue;
         
         try {
@@ -663,10 +674,15 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
                                 if (!client) return;
                                 
                                 try {
+                                  // Reload client data to get the latest PDF options
+                                  const freshClients = await getClients();
+                                  const freshClient = freshClients.find(c => c.id === client.id);
+                                  const clientToUse = freshClient || client;
+                                  
                                   const pdfContent = await generateInvoicePDF(
-                                    client,
+                                    clientToUse,
                                     invoice,
-                                    client.printConfig?.invoicePrintSettings,
+                                    clientToUse.printConfig?.invoicePrintSettings,
                                     undefined // No driver name available in this context
                                   );
                                   

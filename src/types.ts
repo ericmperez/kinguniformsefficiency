@@ -66,6 +66,25 @@ export interface PrintConfiguration {
     signatureEmailSubject?: string;
     signatureEmailTemplate?: string;
   };
+  // PDF generation options
+  pdfOptions?: {
+    scale: number;
+    showSignatures: boolean;
+    showTimestamp: boolean;
+    showLocation: boolean;
+    showQuantities: boolean;
+    contentDisplay: 'detailed' | 'summary' | 'weight-only';
+    paperSize: 'letter' | 'a4' | 'legal';
+    orientation: 'portrait' | 'landscape';
+    margins: 'narrow' | 'normal' | 'wide';
+    fontSize: 'small' | 'medium' | 'large';
+    showWatermark: boolean;
+    headerText: string;
+    footerText: string;
+    logoSize: 'small' | 'medium' | 'large';
+    showBorder: boolean;
+    pagination: 'single' | 'multiple';
+  };
 }
 
 export interface CartItem {

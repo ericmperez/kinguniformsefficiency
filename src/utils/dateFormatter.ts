@@ -42,6 +42,26 @@ export function formatDateOnlySpanish(dateString: string | Date): string {
   return `${month} ${day}, ${year}`;
 }
 
+// English date formatter - formats as "Month Day, Year" (e.g., "August 13, 2025")
+export function formatDateEnglish(dateString: string | Date): string {
+  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  
+  if (isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+
+  return `${month} ${day}, ${year}`;
+}
+
 // Timezone-aware date utilities
 export function getCurrentLocalDate(): string {
   // Returns YYYY-MM-DD in local timezone

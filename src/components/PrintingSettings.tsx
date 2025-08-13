@@ -127,6 +127,24 @@ King Uniforms Team`,
         signatureEmailSubject: "",
         signatureEmailTemplate: "",
       },
+      pdfOptions: {
+        scale: 1.0,
+        showSignatures: true,
+        showTimestamp: true,
+        showLocation: false,
+        showQuantities: true,
+        contentDisplay: 'detailed',
+        paperSize: 'letter',
+        orientation: 'portrait',
+        margins: 'normal',
+        fontSize: 'medium',
+        showWatermark: false,
+        headerText: '',
+        footerText: '',
+        logoSize: 'medium',
+        showBorder: true,
+        pagination: 'single'
+      },
     });
 
   useEffect(() => {
@@ -1986,6 +2004,24 @@ King Uniforms Team`}
                       bodyTemplate: "",
                       signatureEmailSubject: "",
                       signatureEmailTemplate: "",
+                    },
+                    pdfOptions: {
+                      scale: 1.0,
+                      showSignatures: true,
+                      showTimestamp: true,
+                      showLocation: false,
+                      showQuantities: true,
+                      contentDisplay: 'detailed',
+                      paperSize: 'letter',
+                      orientation: 'portrait',
+                      margins: 'normal',
+                      fontSize: 'medium',
+                      showWatermark: false,
+                      headerText: '',
+                      footerText: '',
+                      logoSize: 'medium',
+                      showBorder: true,
+                      pagination: 'single'
                     },
                   }}
                   onConfigUpdate={async (clientId: string, updatedConfig: PrintConfiguration) => {

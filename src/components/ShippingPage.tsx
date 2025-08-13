@@ -6,7 +6,7 @@ import "./ShippingPage.css";
 import InvoiceDetailsPopup from "./InvoiceDetailsPopup";
 import SignatureModal from "./SignatureModal";
 import { useAuth } from "./AuthContext";
-import { formatDateForInput, dateStringToLocalISOString } from "../utils/dateFormatter";
+import { formatDateForInput, dateStringToLocalISOString, formatDateEnglish } from "../utils/dateFormatter";
 
 interface ShippingTruckData {
   truckNumber: string;
@@ -91,6 +91,8 @@ const ShippingPage: React.FC = () => {
     clientName: string;
     clientId: string;
     fullInvoiceData?: any; // Add full invoice data for cart count display
+    driverName?: string; // Add driver name
+    deliveryDate?: string; // Add delivery date
   } | null>(null);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [truckAssignments, setTruckAssignments] = useState<{[key: string]: TruckAssignment}>({});
@@ -207,12 +209,23 @@ const ShippingPage: React.FC = () => {
       const fullInvoiceData = await getDoc(doc(db, "invoices", invoice.id));
       const invoiceData = fullInvoiceData.exists() ? fullInvoiceData.data() : null;
 
+      // Extract driver name from truck assignments
+      const assignment = truckAssignments[invoice.truckNumber];
+      const driverName = assignment ? assignment.driverName : undefined;
+      
+      // Format delivery date
+      const deliveryDate = invoice.deliveryDate ? 
+        formatDateEnglish(invoice.deliveryDate) : 
+        selectedDate ? formatDateEnglish(selectedDate) : undefined;
+
       setSignatureInvoice({
         id: invoice.id,
         number: invoice.invoiceNumber,
         clientName: invoice.clientName,
         clientId: invoice.clientId,
         fullInvoiceData: invoiceData, // Include full invoice data with carts
+        driverName: driverName, // Add driver name
+        deliveryDate: deliveryDate, // Add delivery date
       });
     } catch (error) {
       console.error("Error fetching invoice data for signature:", error);
@@ -2790,6 +2803,8 @@ const ShippingPage: React.FC = () => {
           clientId={signatureInvoice.clientId}
           invoice={signatureInvoice.fullInvoiceData} // Pass full invoice data for cart display
           onSignatureSaved={fetchShippingData}
+          driverName={signatureInvoice.driverName}
+          deliveryDate={signatureInvoice.deliveryDate}
         />
       )}
 

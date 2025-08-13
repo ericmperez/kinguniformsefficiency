@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>King Uniforms Logo Proportion Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .logo-test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .logo-size-test {
+            border: 2px solid #e0e0e0;
+            padding: 20px;
+            text-align: center;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .logo-current {
+            border: 1px solid #ccc;
+            padding: 10px;
+            background: white;
+            object-fit: contain;
+            object-position: center;
+        }
+        .size-label {
+            font-weight: bold;
+            margin: 10px 0;
+            color: #0E62A0;
+        }
+        .dimensions {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .info-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .current-logo-box {
+            background: #fff3cd;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .steps {
+            background: #f8f9fa;
+            padding: 20px;
+            border-left: 4px solid #0E62A0;
+            margin: 20px 0;
+        }
+        .steps ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .aspect-ratio-demo {
+            border: 2px solid #dee2e6;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏰 King Uniforms Logo Proportion Fix</h1>
+        
+        <div class="info-box">
+            <h3>✅ Issue Fixed!</h3>
+            <p>Updated the logo sizing to better match your King Uniforms logo proportions:</p>
+            <ul>
+                <li><strong>New base dimensions:</strong> 180px × 110px (approximately 1.64:1 ratio)</li>
+                <li><strong>Previous dimensions:</strong> 150px × 100px (forced 1.5:1 ratio)</li>
+                <li><strong>Improvement:</strong> Better accommodation for crown, shield, and company text</li>
+            </ul>
+        </div>
+
+        <div class="current-logo-box">
+            <h3>Current Logo in Application</h3>
+            <p><em>This is what currently displays in your PDF delivery tickets</em></p>
+            <img src="/images/King Uniforms Logo.png" alt="Current Logo" style="max-width: 300px; max-height: 150px; border: 1px solid #ccc; padding: 10px; background: white;" />
+        </div>
+
+        <h2>📐 Logo Size Testing (New Proportions)</h2>
+        <div class="logo-test-grid">
+            <div class="logo-size-test">
+                <div class="size-label">Small (70%)</div>
+                <img src="/images/King Uniforms Logo.png" alt="Logo Small" 
+                     class="logo-current" 
+                     style="width: 126px; height: 77px;" />
+                <div class="dimensions">126px × 77px</div>
+            </div>
+            
+            <div class="logo-size-test">
+                <div class="size-label">Medium (100%) - Default</div>
+                <img src="/images/King Uniforms Logo.png" alt="Logo Medium" 
+                     class="logo-current" 
+                     style="width: 180px; height: 110px;" />
+                <div class="dimensions">180px × 110px</div>
+            </div>
+            
+            <div class="logo-size-test">
+                <div class="size-label">Large (130%)</div>
+                <img src="/images/King Uniforms Logo.png" alt="Logo Large" 
+                     class="logo-current" 
+                     style="width: 234px; height: 143px;" />
+                <div class="dimensions">234px × 143px</div>
+            </div>
+        </div>
+
+        <div class="comparison">
+            <div class="aspect-ratio-demo">
+                <h4>❌ Old Ratio (1.5:1)</h4>
+                <div style="width: 150px; height: 100px; border: 2px dashed #dc3545; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #dc3545;">
+                    150×100px<br/>Too Squished
+                </div>
+            </div>
+            
+            <div class="aspect-ratio-demo">
+                <h4>✅ New Ratio (1.64:1)</h4>
+                <div style="width: 180px; height: 110px; border: 2px solid #28a745; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #28a745;">
+                    180×110px<br/>Better Proportions
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🔄 How to Replace with Your New Logo</h2>
+        
+        <div class="steps">
+            <h3>📋 Step-by-Step Instructions</h3>
+            <ol>
+                <li><strong>Save your new logo image</strong> as PNG format</li>
+                <li><strong>Optimal dimensions:</strong> 600px × 366px (maintains 1.64:1 ratio)</li>
+                <li><strong>Replace the file:</strong> 
+                    <code>/Users/ericperez/Desktop/react-app/public/images/King Uniforms Logo.png</code>
+                </li>
+                <li><strong>Refresh the application</strong> (Ctrl+F5 or Cmd+R)</li>
+                <li><strong>Test immediately</strong> in Settings → Printing → PDF Preview</li>
+            </ol>
+        </div>
+
+        <div class="info-box">
+            <h3>🎯 Logo Specifications for Best Quality</h3>
+            <ul>
+                <li><strong>Format:</strong> PNG with transparent background</li>
+                <li><strong>Recommended size:</strong> 600px wide × 366px tall</li>
+                <li><strong>Minimum size:</strong> 360px wide × 220px tall</li>
+                <li><strong>Maximum file size:</strong> 500KB</li>
+                <li><strong>Resolution:</strong> 72-150 DPI for screen display</li>
+            </ul>
+        </div>
+
+        <div class="steps">
+            <h3>🧪 Quick Test After Replacement</h3>
+            <ol>
+                <li>Navigate to: <strong>Settings → 🖨️ Printing</strong></li>
+                <li>Click <strong>"PDF Preview"</strong> for any client</li>
+                <li>Click <strong>"Show Preview"</strong></li>
+                <li>Check the logo appears correctly in top-left</li>
+                <li>Try different logo sizes: small, medium, large</li>
+                <li>Download a PDF to verify final quality</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        console.log('🏰 King Uniforms Logo Proportion Test');
+        console.log('='.repeat(50));
+        console.log('✅ Logo sizing updated to better proportions');
+        console.log('📐 New base dimensions: 180px × 110px');
+        console.log('📊 Aspect ratio: 1.64:1 (better for crown + shield + text)');
+        console.log('');
+        console.log('🔄 Next steps:');
+        console.log('1. Replace /public/images/King Uniforms Logo.png with your new logo');
+        console.log('2. Maintain the 1.64:1 aspect ratio for best results');
+        console.log('3. Test in PDF Preview to verify appearance');
+        
+        // Test current logo loading
+        const testImg = new Image();
+        testImg.onload = function() {
+            console.log('');
+            console.log('📸 Current logo analysis:');
+            console.log(`   Actual dimensions: ${this.naturalWidth}x${this.naturalHeight}`);
+            console.log(`   Actual aspect ratio: ${(this.naturalWidth / this.naturalHeight).toFixed(2)}:1`);
+            console.log(`   Recommended dimensions: 600x366px`);
+            
+            if (Math.abs((this.naturalWidth / this.naturalHeight) - 1.64) < 0.1) {
+                console.log('✅ Current logo has good proportions');
+            } else {
+                console.log('⚠️ Current logo could benefit from 1.64:1 aspect ratio');
+            }
+        };
+        testImg.onerror = function() {
+            console.log('❌ Could not load current logo for analysis');
+        };
+        testImg.src = '/images/King Uniforms Logo.png';
+    </script>
+</body>
+</html>

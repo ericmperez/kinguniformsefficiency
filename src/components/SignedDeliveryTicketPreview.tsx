@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Client, PrintConfiguration, Invoice } from '../types';
 import SignedDeliveryTicket from './SignedDeliveryTicket';
 import { downloadSignedDeliveryPDF } from '../services/signedDeliveryPdfService';
+import { formatDateEnglish } from '../utils/dateFormatter';
 
 interface SignedDeliveryTicketPreviewProps {
   client: Client | null;
@@ -17,24 +18,26 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
   const [showPreview, setShowPreview] = useState(true);
   const [sampleSignature, setSampleSignature] = useState('');
   const hasLoadedInitially = useRef(false);
+  const lastLoadedClientOptions = useRef<any>(null);
   
-  // PDF Customization Options
-  const [pdfOptions, setPdfOptions] = useState({
+  // PDF Customization Options - properly typed
+  const [pdfOptions, setPdfOptions] = useState<NonNullable<PrintConfiguration['pdfOptions']>>({
     scale: 1.0,
     showSignatures: true,
-    showTimestamp: true,
+    showTimestamp: false,
     showLocation: false,
     showQuantities: true,
-    contentDisplay: 'detailed', // 'detailed', 'summary', 'weight-only'
-    paperSize: 'letter', // 'letter', 'a4', 'legal'
-    orientation: 'portrait', // 'portrait', 'landscape'
-    margins: 'normal', // 'normal', 'narrow', 'wide'
-    fontSize: 'medium', // 'small', 'medium', 'large'
+    contentDisplay: 'detailed',
+    paperSize: 'letter',
+    orientation: 'portrait',
+    margins: 'normal',
+    fontSize: 'medium',
     showWatermark: false,
     headerText: '',
     footerText: '',
-    logoSize: 'medium', // 'small', 'medium', 'large'
-    showBorder: true
+    logoSize: 'medium',
+    showBorder: true,
+    pagination: 'single'
   });
   
   const [showCustomizationPanel, setShowCustomizationPanel] = useState(false);
@@ -60,8 +63,54 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
     return '';
   };
 
-  // Create sample data
-  const getSampleData = () => {
+  // Generate initial signature and load client-specific PDF options
+  useEffect(() => {
+    setSampleSignature(generateSampleSignature());
+    
+    // Only load client options if they've actually changed (not from our own updates)
+    const currentClientOptions = client?.printConfig?.pdfOptions;
+    const currentClientOptionsString = JSON.stringify(currentClientOptions);
+    const lastLoadedString = JSON.stringify(lastLoadedClientOptions.current);
+    
+    // Load client-specific PDF options if available and different from what we last loaded
+    if (currentClientOptions && currentClientOptionsString !== lastLoadedString) {
+      setPdfOptions(currentClientOptions);
+      lastLoadedClientOptions.current = currentClientOptions;
+      console.log('📄 Loaded client-specific PDF options:', currentClientOptions);
+    } else if (!currentClientOptions && !hasLoadedInitially.current) {
+      console.log('📄 Using default PDF options for client:', client?.name);
+    }
+    hasLoadedInitially.current = true;
+  }, [client?.id]);
+
+  // Auto-save PDF options to client configuration whenever they change (but skip initial load)
+  useEffect(() => {
+    // Skip saving on the initial load or if no client/update handler
+    if (!hasLoadedInitially.current || !client || !onConfigUpdate) {
+      return;
+    }
+    
+    // Update the client's configuration with new PDF options
+    const handlePdfOptionsUpdate = async () => {
+      try {
+        const updatedConfig = {
+          ...config,
+          pdfOptions: pdfOptions
+        };
+        
+        await onConfigUpdate(client.id, updatedConfig);
+        console.log('📄 PDF options auto-saved to client configuration:', pdfOptions);
+        console.log('🔄 PDF preview should update now with new options');
+      } catch (error) {
+        console.error('Failed to auto-save PDF options to client:', error);
+      }
+    };
+
+    handlePdfOptionsUpdate();
+  }, [pdfOptions, client?.id, onConfigUpdate]); // Removed config from dependencies to prevent circular updates
+
+  // Generate sample data - this will update when options or signature changes
+  const sampleData = useMemo(() => {
     const names = ['John Smith', 'Maria Garcia', 'Robert Johnson', 'Lisa Chen'];
     
     return {
@@ -69,7 +118,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
         signatureDataUrl: sampleSignature,
         signedByName: names[Math.floor(Math.random() * names.length)],
         driverName: 'Mike Johnson',
-        deliveryDate: new Date().toLocaleDateString()
+        deliveryDate: formatDateEnglish(new Date())
       },
       sampleInvoice: {
         id: 'preview-001',
@@ -94,43 +143,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
         }]
       } as Invoice
     };
-  };
-
-  // Generate initial signature and load saved PDF options
-  useEffect(() => {
-    setSampleSignature(generateSampleSignature());
-    
-    // Load saved PDF options from localStorage only on initial mount
-    const savedOptions = localStorage.getItem('pdfOptions');
-    if (savedOptions) {
-      try {
-        const parsedOptions = JSON.parse(savedOptions);
-        setPdfOptions(prevOptions => ({ ...prevOptions, ...parsedOptions }));
-        console.log('📄 Loaded PDF options from localStorage:', parsedOptions);
-      } catch (error) {
-        console.log('Could not load saved PDF options:', error);
-      }
-    }
-    hasLoadedInitially.current = true;
-  }, []);
-
-  // Auto-save PDF options to localStorage whenever they change (but skip initial load)
-  useEffect(() => {
-    // Skip saving on the initial load
-    if (!hasLoadedInitially.current) {
-      return;
-    }
-    
-    try {
-      localStorage.setItem('pdfOptions', JSON.stringify(pdfOptions));
-      console.log('📄 PDF options auto-saved:', pdfOptions);
-    } catch (error) {
-      console.error('Failed to auto-save PDF options:', error);
-    }
-  }, [pdfOptions]);
-
-  // Generate sample data - this will update when options change
-  const sampleData = getSampleData();
+  }, [sampleSignature, client?.id, client?.name, pdfOptions]);
 
   // Handle configuration updates
   const handleConfigToggle = async (section: 'cart' | 'invoice', setting: string, currentValue: boolean) => {
@@ -355,23 +368,27 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                           <button
                             type="button"
                             className="btn btn-sm btn-outline-light"
-                            onClick={() => setPdfOptions({
-                              scale: 1.0,
-                              showSignatures: true,
-                              showTimestamp: true,
-                              showLocation: false,
-                              showQuantities: true,
-                              contentDisplay: 'detailed',
-                              paperSize: 'letter',
-                              orientation: 'portrait',
-                              margins: 'normal',
-                              fontSize: 'medium',
-                              showWatermark: false,
-                              headerText: '',
-                              footerText: '',
-                              logoSize: 'medium',
-                              showBorder: true
-                            })}
+                            onClick={() => {
+                              const resetOptions: NonNullable<PrintConfiguration['pdfOptions']> = {
+                                scale: 1.0,
+                                showSignatures: true,
+                                showTimestamp: false,
+                                showLocation: false,
+                                showQuantities: true,
+                                contentDisplay: 'detailed',
+                                paperSize: 'letter',
+                                orientation: 'portrait',
+                                margins: 'normal',
+                                fontSize: 'medium',
+                                showWatermark: false,
+                                headerText: '',
+                                footerText: '',
+                                logoSize: 'medium',
+                                showBorder: true,
+                                pagination: 'single'
+                              };
+                              setPdfOptions(resetOptions);
+                            }}
                           >
                             <i className="bi bi-arrow-counterclockwise me-1"></i>
                             Reset
@@ -392,7 +409,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                               <select 
                                 className="form-select form-select-sm"
                                 value={pdfOptions.paperSize}
-                                onChange={(e) => setPdfOptions({...pdfOptions, paperSize: e.target.value})}
+                                onChange={(e) => setPdfOptions({...pdfOptions, paperSize: e.target.value as 'letter' | 'a4' | 'legal'})}
                               >
                                 <option value="letter">Letter (8.5" × 11")</option>
                                 <option value="a4">A4 (210 × 297 mm)</option>
@@ -405,7 +422,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                               <select 
                                 className="form-select form-select-sm"
                                 value={pdfOptions.orientation}
-                                onChange={(e) => setPdfOptions({...pdfOptions, orientation: e.target.value})}
+                                onChange={(e) => setPdfOptions({...pdfOptions, orientation: e.target.value as 'portrait' | 'landscape'})}
                               >
                                 <option value="portrait">Portrait</option>
                                 <option value="landscape">Landscape</option>
@@ -417,7 +434,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                               <select 
                                 className="form-select form-select-sm"
                                 value={pdfOptions.margins}
-                                onChange={(e) => setPdfOptions({...pdfOptions, margins: e.target.value})}
+                                onChange={(e) => setPdfOptions({...pdfOptions, margins: e.target.value as 'narrow' | 'normal' | 'wide'})}
                               >
                                 <option value="narrow">Narrow</option>
                                 <option value="normal">Normal</option>
@@ -437,6 +454,18 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                                 onChange={(e) => setPdfOptions({...pdfOptions, scale: parseFloat(e.target.value)})}
                               />
                             </div>
+
+                            <div className="mb-3">
+                              <label className="form-label small fw-bold">Pagination</label>
+                              <select 
+                                className="form-select form-select-sm"
+                                value={pdfOptions.pagination}
+                                onChange={(e) => setPdfOptions({...pdfOptions, pagination: e.target.value as 'single' | 'multiple'})}
+                              >
+                                <option value="single">Single Page (compressed)</option>
+                                <option value="multiple">Multiple Pages (natural flow)</option>
+                              </select>
+                            </div>
                           </div>
 
                           {/* Content Options */}
@@ -451,7 +480,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                               <select 
                                 className="form-select form-select-sm"
                                 value={pdfOptions.fontSize}
-                                onChange={(e) => setPdfOptions({...pdfOptions, fontSize: e.target.value})}
+                                onChange={(e) => setPdfOptions({...pdfOptions, fontSize: e.target.value as 'small' | 'medium' | 'large'})}
                               >
                                 <option value="small">Small</option>
                                 <option value="medium">Medium</option>
@@ -464,7 +493,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                               <select 
                                 className="form-select form-select-sm"
                                 value={pdfOptions.logoSize}
-                                onChange={(e) => setPdfOptions({...pdfOptions, logoSize: e.target.value})}
+                                onChange={(e) => setPdfOptions({...pdfOptions, logoSize: e.target.value as 'small' | 'medium' | 'large'})}
                               >
                                 <option value="small">Small</option>
                                 <option value="medium">Medium</option>
@@ -593,7 +622,7 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                               <select 
                                 className="form-select form-select-sm"
                                 value={pdfOptions.contentDisplay}
-                                onChange={(e) => setPdfOptions({...pdfOptions, contentDisplay: e.target.value})}
+                                onChange={(e) => setPdfOptions({...pdfOptions, contentDisplay: e.target.value as 'detailed' | 'summary' | 'weight-only'})}
                               >
                                 <option value="detailed">Detailed Items List</option>
                                 <option value="summary">Summary with Total Weight</option>
@@ -619,7 +648,6 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                                 className="btn btn-outline-primary btn-sm"
                                 onClick={async () => {
                                   try {
-                                    const sampleData = getSampleData();
                                     await downloadSignedDeliveryPDF(
                                       sampleData.sampleInvoice,
                                       client || sampleData.sampleInvoice as any,
@@ -650,10 +678,20 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                               
                               <button 
                                 className="btn btn-outline-info btn-sm"
-                                onClick={() => {
+                                onClick={async () => {
+                                  if (!client || !onConfigUpdate) {
+                                    alert('❌ Cannot save: No client selected or save function not available.');
+                                    return;
+                                  }
+                                  
                                   try {
-                                    localStorage.setItem('pdfOptions', JSON.stringify(pdfOptions));
-                                    alert('✅ PDF options saved as default! They will be restored next time you open this preview.');
+                                    const updatedConfig = {
+                                      ...config,
+                                      pdfOptions: pdfOptions
+                                    };
+                                    
+                                    await onConfigUpdate(client.id, updatedConfig);
+                                    alert('✅ PDF options saved as default for this client! All future delivery tickets will use these settings.');
                                   } catch (error) {
                                     console.error('Error saving PDF options:', error);
                                     alert('❌ Error saving preferences. Please try again.');
@@ -668,10 +706,10 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                                 className="btn btn-outline-warning btn-sm"
                                 onClick={() => {
                                   // Reset to default options
-                                  const defaultOptions = {
+                                  const defaultOptions: NonNullable<PrintConfiguration['pdfOptions']> = {
                                     scale: 1.0,
                                     showSignatures: true,
-                                    showTimestamp: true,
+                                    showTimestamp: false,
                                     showLocation: false,
                                     showQuantities: true,
                                     contentDisplay: 'detailed',
@@ -683,7 +721,8 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                                     headerText: '',
                                     footerText: '',
                                     logoSize: 'medium',
-                                    showBorder: true
+                                    showBorder: true,
+                                    pagination: 'single'
                                   };
                                   setPdfOptions(defaultOptions);
                                   console.log('🔄 PDF options reset to defaults');
