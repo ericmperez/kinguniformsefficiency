@@ -1,13 +1,7 @@
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
-// Configure Nodemailer transporter with Gmail SMTP
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  }
-});
+// Configure SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export default async function handler(req, res) {
   // Add CORS headers
@@ -37,13 +31,15 @@ export default async function handler(req, res) {
      try {
        console.log(`Sending simple email to: ${to}`);
        
-       await transporter.sendMail({
-         from: process.env.EMAIL_USER,
+       const msg = {
          to,
          cc,
+         from: process.env.EMAIL_USER,
          subject,
          text
-       });
+       };
+       
+       await sgMail.send(msg);
        
        console.log('Simple email sent successfully');
        return res.status(200).json({ success: true, simple: true });
@@ -68,13 +64,15 @@ export default async function handler(req, res) {
     try {
       const fallbackText = `${text}\n\nNote: The PDF attachment was too large to include in this email (${pdfSizeInMB.toFixed(2)}MB). Please contact us for an alternative delivery method.`;
       
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
+      const msg = {
         to,
         cc,
+        from: process.env.EMAIL_USER,
         subject: `${subject} (No Attachment)`,
         text: fallbackText
-      });
+      };
+      
+      await sgMail.send(msg);
       
       return res.status(200).json({ 
         success: true, 
@@ -92,20 +90,24 @@ export default async function handler(req, res) {
 
   try {
     console.log(`Sending email to: ${to}`);
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    
+    const msg = {
       to,
       cc,
+      from: process.env.EMAIL_USER,
       subject,
       text,
       attachments: [
         {
           filename: invoiceNumber ? `deliveryticket#${invoiceNumber}.pdf` : 'deliveryticket.pdf',
-          content: Buffer.from(pdfBase64, 'base64'),
-          contentType: 'application/pdf'
+          content: pdfBase64,
+          type: 'application/pdf',
+          disposition: 'attachment'
         }
       ]
-    });
+    };
+    
+    await sgMail.send(msg);
     
     console.log('Email sent successfully');
     return res.status(200).json({ success: true });

@@ -1,13 +1,7 @@
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
-// Configure Nodemailer transporter with Gmail SMTP
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  }
-});
+// Configure SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export default async function handler(req, res) {
   // Add CORS headers
@@ -48,23 +42,24 @@ export default async function handler(req, res) {
       console.log(`📄 PDF attachment size: ${pdfSizeInMB.toFixed(2)}MB`);
       
       if (pdfSizeInMB > 25) {
-        // Gmail limit is 25MB, refuse PDFs larger than that
-        console.log(`⚠️ PDF too large for Gmail (${pdfSizeInMB.toFixed(2)}MB), sending without attachment`);
+        // SendGrid limit is 30MB, but keeping 25MB for safety
+        console.log(`⚠️ PDF too large (${pdfSizeInMB.toFixed(2)}MB), sending without attachment`);
         emailOptions.text = `${body}\n\nNote: The PDF attachment was too large to include in this email (${pdfSizeInMB.toFixed(2)}MB). Please contact us for alternative delivery options.`;
       } else {
         // Add PDF attachment
         emailOptions.attachments = [
           {
             filename: invoiceNumber ? `deliveryticket#${invoiceNumber}.pdf` : 'deliveryticket-test.pdf',
-            content: Buffer.from(pdfBase64, 'base64'),
-            contentType: 'application/pdf'
+            content: pdfBase64,
+            type: 'application/pdf',
+            disposition: 'attachment'
           }
         ];
         console.log(`📎 PDF attachment added (${pdfSizeInMB.toFixed(2)}MB)`);
       }
     }
 
-    await transporter.sendMail(emailOptions);
+    await sgMail.send(emailOptions);
     
     console.log(`Test email sent successfully to ${to}${pdfBase64 ? ' with PDF attachment' : ''}`);
     return res.status(200).json({ 

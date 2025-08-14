@@ -1,13 +1,7 @@
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
-// Configure Nodemailer transporter with Gmail SMTP
-const transporter = nodemailer.createTransporter({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  }
-});
+// Configure SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export default async function handler(req, res) {
   // Add CORS headers
@@ -37,12 +31,14 @@ export default async function handler(req, res) {
     
     const fallbackText = `${text}\n\nNote: The PDF attachment was too large to include in this email. Please contact us for an alternative delivery method.`;
     
-    await transporter.sendMail({
+    const msg = {
       from: process.env.EMAIL_USER,
       to,
       subject: `${subject} (No Attachment)`,
       text: fallbackText
-    });
+    };
+    
+    await sgMail.send(msg);
     
     console.log('Fallback email sent successfully');
     return res.status(200).json({ 
