@@ -26,30 +26,100 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { to, subject, text, pdfBase64 } = req.body;
+  const { to, cc, subject, text, pdfBase64, invoiceNumber } = req.body;
+   
+   if (!to) {
+     return res.status(400).json({ error: 'Missing recipient email' });
+   }
+
+   // If no PDF provided or empty PDF, send simple email
+   if (!pdfBase64 || pdfBase64.trim() === '') {
+     try {
+       console.log(`Sending simple email to: ${to}`);
+       
+       await transporter.sendMail({
+         from: process.env.EMAIL_USER,
+         to,
+         cc,
+         subject,
+         text
+       });
+       
+       console.log('Simple email sent successfully');
+       return res.status(200).json({ success: true, simple: true });
+     } catch (err) {
+       console.error('Simple email error:', err);
+       return res.status(500).json({ error: 'Failed to send simple email', details: err.message });
+     }
+   }
+
+  // Log request size for debugging
+  const requestSize = JSON.stringify(req.body).length;
+  console.log(`Request body size: ${(requestSize / (1024 * 1024)).toFixed(2)}MB`);
+
+  // Check PDF size (Vercel has payload limits)
+  const pdfSizeInMB = (pdfBase64.length * 0.75) / (1024 * 1024); // Rough base64 to binary size
+  console.log(`PDF size: ${pdfSizeInMB.toFixed(2)}MB`);
   
-  if (!to || !pdfBase64) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  // If PDF is too large, try to send without attachment
+  if (pdfSizeInMB > 3) {
+    console.log('PDF too large, sending fallback email without attachment');
+    
+    try {
+      const fallbackText = `${text}\n\nNote: The PDF attachment was too large to include in this email (${pdfSizeInMB.toFixed(2)}MB). Please contact us for an alternative delivery method.`;
+      
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to,
+        cc,
+        subject: `${subject} (No Attachment)`,
+        text: fallbackText
+      });
+      
+      return res.status(200).json({ 
+        success: true, 
+        fallback: true,
+        message: `Email sent without PDF attachment. PDF size (${pdfSizeInMB.toFixed(2)}MB) exceeded limit.`
+      });
+    } catch (fallbackErr) {
+      console.error('Fallback email error:', fallbackErr);
+      return res.status(500).json({ 
+        error: 'Failed to send email', 
+        details: `PDF too large (${pdfSizeInMB.toFixed(2)}MB) and fallback email failed: ${fallbackErr.message}` 
+      });
+    }
   }
 
   try {
+    console.log(`Sending email to: ${to}`);
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to,
+      cc,
       subject,
       text,
       attachments: [
         {
-          filename: 'laundry-ticket.pdf',
+          filename: invoiceNumber ? `deliveryticket#${invoiceNumber}.pdf` : 'deliveryticket.pdf',
           content: Buffer.from(pdfBase64, 'base64'),
           contentType: 'application/pdf'
         }
       ]
     });
     
+    console.log('Email sent successfully');
     return res.status(200).json({ success: true });
   } catch (err) {
     console.error('Email send error:', err);
+    
+    // Check if it's a 413 error from the provider
+    if (err.responseCode === 413 || err.message.includes('too large')) {
+      return res.status(413).json({ 
+        error: 'Email content too large', 
+        details: `PDF size: ${pdfSizeInMB.toFixed(2)}MB. Try reducing PDF size.`
+      });
+    }
+    
     return res.status(500).json({ error: 'Failed to send email', details: err.message });
   }
 }

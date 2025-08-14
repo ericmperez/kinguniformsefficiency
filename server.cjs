@@ -29,7 +29,7 @@ const transporter = nodemailer.createTransport({
 });
 
 app.post('/api/send-invoice', async (req, res) => {
-  const { to, subject, text, pdfBase64 } = req.body;
+  const { to, subject, text, pdfBase64, invoiceNumber } = req.body;
   if (!to || !pdfBase64) return res.status(400).json({ error: 'Missing data' });
   try {
     await transporter.sendMail({
@@ -39,7 +39,7 @@ app.post('/api/send-invoice', async (req, res) => {
       text,
       attachments: [
         {
-          filename: 'invoice.pdf',
+          filename: invoiceNumber ? `deliveryticket#${invoiceNumber}.pdf` : 'deliveryticket.pdf',
           content: Buffer.from(pdfBase64, 'base64'),
           contentType: 'application/pdf'
         }
@@ -54,7 +54,7 @@ app.post('/api/send-invoice', async (req, res) => {
 
 // New endpoint for sending test emails (now supports PDF attachments)
 app.post('/api/send-test-email', async (req, res) => {
-  const { to, cc, subject, body, pdfBase64 } = req.body;
+  const { to, cc, subject, body, pdfBase64, invoiceNumber } = req.body;
   if (!to) return res.status(400).json({ error: 'Recipient email is required' });
   
   try {
@@ -70,7 +70,7 @@ app.post('/api/send-test-email', async (req, res) => {
     if (pdfBase64) {
       mailOptions.attachments = [
         {
-          filename: 'test-laundry-ticket.pdf',
+          filename: invoiceNumber ? `deliveryticket#${invoiceNumber}.pdf` : 'deliveryticket-test.pdf',
           content: Buffer.from(pdfBase64, 'base64'),
           contentType: 'application/pdf'
         }
@@ -86,4 +86,4 @@ app.post('/api/send-test-email', async (req, res) => {
   }
 });
 
-app.listen(5173, () => console.log('Backend listening on port 5173'));
+app.listen(3001, () => console.log('Backend listening on port 3001'));

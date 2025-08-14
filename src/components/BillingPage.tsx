@@ -425,6 +425,7 @@ const BillingPage: React.FC = () => {
           subject: `Boleta de Lavandería #${invoiceToPrint?.invoiceNumber}`,
           text: "Adjunto su boleta de lavandería.",
           pdfBase64: pdfBase64.split(",")[1], // remove data:...base64,
+          invoiceNumber: invoiceToPrint?.invoiceNumber || invoiceToPrint?.id, // Add invoice number for filename
         }),
       });
       if (res.ok) {

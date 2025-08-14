@@ -38,63 +38,145 @@ export const sendInvoiceEmail = async (
       bodyPreview: emailData.body.substring(0, 100) + "..."
     });
     
-    if (pdfContent) {
-      // Use the API endpoint that supports PDF attachments
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/send-invoice`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: emailData.to,
-            subject: emailData.subject,
-            text: emailData.body,
-            pdfBase64: pdfContent.split(',')[1] || pdfContent
-          }),
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          console.error("❌ Email server error:", data.error);
-          return false;
-        }
-        
-        return true;
-      } catch (fetchError) {
-        console.error("❌ Failed to connect to email server:", fetchError);
-        return false;
-      }
-    } else {
-      // Use the test email endpoint for emails without attachments
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: emailData.to,
-            cc: emailData.cc,
-            subject: emailData.subject,
-            body: emailData.body
-          }),
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          console.error("❌ Email server error:", data.error);
-          return false;
-        }
-        
-        return true;
-      } catch (fetchError) {
-        console.error("❌ Failed to connect to email server:", fetchError);
-        return false;
-      }
+    
+    // Build list of all email recipients (main email + CC emails)
+    const allRecipients = [emailData.to].filter(email => email && email.trim() !== "");
+    const ccEmails = emailData.cc || [];
+    allRecipients.push(...ccEmails);
+
+    if (allRecipients.length === 0) {
+      console.error("❌ No email recipients found");
+      return false;
     }
+
+    console.log(`📧 Sending individual emails to ${allRecipients.length} recipients in parallel: ${allRecipients.join(', ')}`);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    // Send individual emails to each recipient IN PARALLEL for faster delivery
+    const emailPromises = allRecipients.map(async (recipient) => {
+      try {
+        let emailSent = false;
+
+        // If PDF content is available, send it using the standard attachment endpoint.
+        if (pdfContent) {
+          try {
+            console.log(`📧 Sending email with PDF attachment to: ${recipient}`);
+
+            const response = await fetch(`${API_BASE_URL}/api/send-invoice`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to: recipient,
+                cc: [], // No CC since we're sending individual emails
+                subject: emailData.subject,
+                text: emailData.body,
+                pdfBase64: pdfContent.split(',')[1] || pdfContent,
+                invoiceNumber: invoice.invoiceNumber || invoice.id, // Add invoice number for filename
+              }),
+            });
+
+            // Try to parse error payload safely but do not throw on parse failure
+            let data = null;
+            try { data = await response.json(); } catch (e) { /* ignore parse errors */ }
+
+            if (response.ok) {
+              console.log(`✅ Email with PDF sent successfully to: ${recipient}`);
+              emailSent = true;
+            } else {
+              console.error(`❌ Email server returned error for ${recipient}:`, data?.error || response.status);
+            }
+          } catch (fetchError) {
+            console.error(`❌ Failed to send email with attachment to ${recipient}:`, fetchError);
+          }
+
+          // Fallback: send a text-only email if attachment sending fails
+          if (!emailSent) {
+            try {
+              console.log(`📧 Falling back to text-only email for: ${recipient}`);
+              const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: recipient,
+                  cc: [], // No CC since we're sending individual emails
+                  subject: emailData.subject,
+                  body: emailData.body,
+                }),
+              });
+
+              let data = null;
+              try { data = await response.json(); } catch (e) { /* ignore parse errors */ }
+
+              if (response.ok) {
+                console.log(`✅ Text-only fallback email sent successfully to: ${recipient}`);
+                emailSent = true;
+              } else {
+                console.error(`❌ Text-only fallback email failed for ${recipient}:`, data?.error || response.status);
+              }
+            } catch (fallbackError) {
+              console.error(`❌ Failed to send text-only fallback email to ${recipient}:`, fallbackError);
+            }
+          }
+        } else {
+          // No PDF was provided — send a plain text email
+          try {
+            console.log(`📧 Sending text-only email to: ${recipient}`);
+            const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: recipient,
+                cc: [], // No CC since we're sending individual emails
+                subject: emailData.subject,
+                body: emailData.body,
+              }),
+            });
+
+            let data = null;
+            try { data = await response.json(); } catch (e) { /* ignore parse errors */ }
+
+            if (response.ok) {
+              console.log(`✅ Text-only email sent successfully to: ${recipient}`);
+              emailSent = true;
+            } else {
+              console.error(`❌ Text-only email failed for ${recipient}:`, data?.error || response.status);
+            }
+          } catch (err) {
+            console.error(`❌ Failed to send text-only email to ${recipient}:`, err);
+          }
+        }
+
+        return { recipient, success: emailSent };
+      } catch (error) {
+        console.error(`❌ Error sending email to ${recipient}:`, error);
+        return { recipient, success: false };
+      }
+    });
+
+    // Wait for all emails to complete and count results
+    const results = await Promise.allSettled(emailPromises);
+    
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        if (result.value.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } else {
+        console.error(`❌ Email promise failed for ${allRecipients[index]}:`, result.reason);
+        failCount++;
+      }
+    });
+
+    console.log(`📊 Email sending complete: ${successCount} sent, ${failCount} failed out of ${allRecipients.length} recipients`);
+
+    // Return true if at least one email was sent successfully
+    return successCount > 0;
   } catch (error) {
     console.error("Failed to send email:", error);
     return false;
@@ -148,9 +230,11 @@ export const sendSignatureEmail = async (
           },
           body: JSON.stringify({
             to: emailData.to,
+            cc: emailData.cc,
             subject: emailData.subject,
             text: emailData.body,
-            pdfBase64: pdfContent.split(',')[1] || pdfContent
+            pdfBase64: pdfContent.split(',')[1] || pdfContent,
+            invoiceNumber: invoice.invoiceNumber || invoice.id, // Add invoice number for filename
           }),
         });
         
@@ -206,24 +290,6 @@ const generateEmailBody = (
   invoice: Invoice,
   template?: string
 ): string => {
-  // Get processing summary based on client billing type
-  const getProcessingSummary = (): string => {
-    if (client.billingCalculation === "byWeight" && invoice.totalWeight) {
-      return `Total Pounds Processed: ${invoice.totalWeight.toFixed(2)} lbs`;
-    } else {
-      // Piece-based calculation
-      const summary = invoice.carts.map((cart, index) => {
-        const items = cart.items || [];
-        const itemSummary = items.map(item => 
-          `${item.quantity} ${item.productName}`
-        ).join(', ');
-        return `${cart.name}: ${itemSummary}`;
-      }).join('\n');
-      
-      return `Items Processed:\n${summary}`;
-    }
-  };
-
   // Default template
   const defaultTemplate = `
 Dear ${client.name},
@@ -234,8 +300,6 @@ Invoice Details:
 - Client: ${client.name}
 - Date: ${invoice.date}
 - Total Amount: $${invoice.total.toFixed(2)}
-
-${getProcessingSummary()}
 
 If you have any questions regarding this invoice, please don't hesitate to contact us.
 
@@ -258,11 +322,9 @@ King Uniforms Team
     .replace(/\{cartCount\}/g, String(invoice.carts.length))
     .replace(/\{clientEmail\}/g, client.email || "");
   
-  // Add processing summary if {processingSummary} is in the template, otherwise append it
+  // Remove processing summary placeholder if it exists in the template
   if (body.includes('{processingSummary}')) {
-    body = body.replace(/\{processingSummary\}/g, getProcessingSummary());
-  } else {
-    body += `\n\n${getProcessingSummary()}`;
+    body = body.replace(/\{processingSummary\}/g, '');
   }
 
   return body;
@@ -278,24 +340,6 @@ const generateSignatureEmailBody = (
   },
   template?: string
 ): string => {
-  // Get processing summary based on client billing type
-  const getProcessingSummary = (): string => {
-    if (client.billingCalculation === "byWeight" && invoice.totalWeight) {
-      return `Total Pounds Processed: ${invoice.totalWeight.toFixed(2)} lbs`;
-    } else {
-      // Piece-based calculation
-      const summary = invoice.carts.map((cart, index) => {
-        const items = cart.items || [];
-        const itemSummary = items.map(item => 
-          `${item.quantity} ${item.productName}`
-        ).join(', ');
-        return `${cart.name}: ${itemSummary}`;
-      }).join('\n');
-      
-      return `Items Processed:\n${summary}`;
-    }
-  };
-
   // Default signature template
   const defaultTemplate = `
 Dear ${client.name},
@@ -309,8 +353,6 @@ Delivery Confirmation Details:
 - Received By: ${signatureData.receivedBy}
 - Client: ${client.name}
 - Total Amount: $${invoice.total.toFixed(2)}
-
-${getProcessingSummary()}
 
 Thank you for choosing King Uniforms for your laundry services. If you have any questions or concerns about this delivery, please don't hesitate to contact us.
 
@@ -334,11 +376,9 @@ King Uniforms Team
     .replace(/\{signatureDate\}/g, signatureData.signatureDate)
     .replace(/\{signatureTime\}/g, signatureData.signatureTime);
   
-  // Add processing summary if {processingSummary} is in the template, otherwise append it
+  // Remove processing summary placeholder if it exists in the template
   if (body.includes('{processingSummary}')) {
-    body = body.replace(/\{processingSummary\}/g, getProcessingSummary());
-  } else {
-    body += `\n\n${getProcessingSummary()}`;
+    body = body.replace(/\{processingSummary\}/g, '');
   }
 
   return body;
@@ -535,7 +575,8 @@ export const generateInvoicePDF = async (
   client: Client,
   invoice: Invoice,
   printConfig: any,
-  driverName?: string
+  driverName?: string,
+  optimizeForEmail: boolean = true // when false, generate full-page PDF instead of email-optimized smaller version
 ): Promise<string | undefined> => {
   try {
     console.log("📄 Generating PDF using new signed delivery template...");
@@ -545,33 +586,78 @@ export const generateInvoicePDF = async (
     
     // Use client-specific PDF options if available, otherwise use defaults
     const clientPdfOptions = client.printConfig?.pdfOptions;
-    const pdfOptions = clientPdfOptions ? {
-      // Use all client-specific PDF options
-      ...clientPdfOptions,
-      // Always show signatures for signed delivery tickets
-      showSignatures: true,
-      showTimestamp: true
-      // Don't override showLocation - respect client's preference
-    } : {
-      // Fallback defaults if no client PDF options
-      paperSize: printConfig?.paperSize || 'letter',
-      orientation: printConfig?.orientation || 'portrait',
-      showSignatures: true,
-      showTimestamp: true,
-      showLocation: true,
-      scale: 1.0,
-      showQuantities: true,
-      contentDisplay: 'detailed' as const,
-      margins: 'normal' as const,
-      fontSize: 'medium' as const,
-      showWatermark: false,
-      headerText: '',
-      footerText: '',
-      logoSize: 'medium' as const,
-      showBorder: true,
-      pagination: 'single' as const,
-      ...printConfig?.pdfOptions
-    };
+
+    let pdfOptions: any;
+    if (optimizeForEmail) {
+      // Auto-optimize PDF options for email to reduce file size but maintain quality
+      pdfOptions = clientPdfOptions ? {
+        // Use client-specific PDF options but optimize for email
+        ...clientPdfOptions,
+        // Moderate optimizations for email delivery
+        scale: Math.min(clientPdfOptions.scale || 1.0, 0.9), // Cap scale at 90% for emails (less aggressive)
+        paperSize: clientPdfOptions.paperSize === 'letter' ? 'a4' : clientPdfOptions.paperSize, // Prefer A4 over Letter
+        margins: 'narrow', // Force narrow margins for emails
+        fontSize: clientPdfOptions.fontSize || 'medium', // Keep medium font size
+        logoSize: clientPdfOptions.logoSize || 'medium', // Keep medium logo size
+        showBorder: false, // Remove border for emails
+        showWatermark: false, // Never show watermark in emails
+        // Always show signatures for signed delivery tickets
+        showSignatures: true,
+        showTimestamp: true
+        // Don't override showLocation - respect client's preference
+      } : {
+        // Fallback defaults optimized for email size but with good quality
+        paperSize: 'a4', // Smaller than letter
+        orientation: printConfig?.orientation || 'portrait',
+        scale: 0.9, // Reduced scale for smaller files but not too aggressive
+        showSignatures: true,
+        showTimestamp: true,
+        showLocation: false, // Reduced content
+        showQuantities: true,
+        contentDisplay: 'detailed' as const, // Keep detailed for better quality
+        margins: 'narrow' as const, // Compact layout
+        fontSize: 'medium' as const, // Keep medium text for readability
+        showWatermark: false,
+        headerText: '',
+        footerText: '',
+        logoSize: 'medium' as const, // Keep medium logo
+        showBorder: false, // No border for smaller size
+        pagination: 'single' as const,
+        ...printConfig?.pdfOptions
+      };
+    } else {
+      // Generate full-page PDF options (occupy whole page)
+      pdfOptions = clientPdfOptions ? {
+        ...clientPdfOptions,
+        // Prefer full scale and default margins so the ticket fills the page
+        scale: clientPdfOptions.scale ?? 1.0,
+        paperSize: clientPdfOptions.paperSize || (printConfig?.paperSize || 'letter'),
+        margins: clientPdfOptions.margins ?? (printConfig?.margins || 'normal'),
+        fontSize: clientPdfOptions.fontSize ?? (printConfig?.fontSize || 'medium'),
+        logoSize: clientPdfOptions.logoSize ?? (printConfig?.logoSize || 'normal'),
+        showWatermark: clientPdfOptions.showWatermark ?? false,
+        showBorder: clientPdfOptions.showBorder ?? true
+      } : {
+        // Defaults for full-page printable PDF
+        paperSize: printConfig?.paperSize || 'letter',
+        orientation: printConfig?.orientation || 'portrait',
+        scale: 1.0,
+        showSignatures: true,
+        showTimestamp: true,
+        showLocation: true,
+        showQuantities: true,
+        contentDisplay: 'full' as const,
+        margins: printConfig?.margins || 'normal',
+        fontSize: printConfig?.fontSize || 'medium',
+        showWatermark: false,
+        headerText: printConfig?.headerText || '',
+        footerText: printConfig?.footerText || '',
+        logoSize: printConfig?.logoSize || 'normal',
+        showBorder: true,
+        pagination: 'single' as const,
+        ...printConfig?.pdfOptions
+      };
+    }
     
     console.log("📄 Using PDF options for client:", client.name, pdfOptions);
     

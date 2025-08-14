@@ -20,7 +20,7 @@ const transporter = nodemailer.createTransport({
 });
 
 app.post('/api/send-invoice', async (req, res) => {
-  const { to, subject, text, pdfBase64 } = req.body;
+  const { to, subject, text, pdfBase64, invoiceNumber } = req.body;
   if (!to || !pdfBase64) return res.status(400).json({ error: 'Missing data' });
   try {
     await transporter.sendMail({
@@ -30,7 +30,7 @@ app.post('/api/send-invoice', async (req, res) => {
       text,
       attachments: [
         {
-          filename: 'invoice.pdf',
+          filename: invoiceNumber ? `deliveryticket#${invoiceNumber}.pdf` : 'deliveryticket.pdf',
           content: Buffer.from(pdfBase64, 'base64'),
           contentType: 'application/pdf'
         }

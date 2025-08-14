@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Invoice, Client } from '../types';
-import { getInvoices, getClients, logActivity } from '../services/firebaseService';
+import { getInvoices, getClients, logActivity, updateInvoice } from '../services/firebaseService';
 import { sendInvoiceEmail, generateInvoicePDF } from '../services/emailService';
 import InvoiceDetailsPopup from './InvoiceDetailsPopup';
 
@@ -26,6 +26,9 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
   // Email operations
   const [emailingInvoices, setEmailingInvoices] = useState<Set<string>>(new Set());
   const [downloadingPDFs, setDownloadingPDFs] = useState(false);
+
+  // State for tracking PDF sizes during compression
+  const [compressionPreview, setCompressionPreview] = useState<{[invoiceId: string]: {originalSize: number, estimatedSizes: {normal: number, high: number, aggressive: number, ultra: number}}}>({});
 
   useEffect(() => {
     loadData();
@@ -107,7 +110,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
     });
   }, [invoices, clientFilter, emailStatusFilter, startDate, endDate, searchTerm]);
 
-  // Handle individual email resend
+  // Handle individual email resend with optimized format
   const handleResendEmail = async (invoice: Invoice) => {
     const client = clients.find(c => c.id === invoice.clientId);
     
@@ -124,7 +127,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
     setEmailingInvoices(prev => new Set(prev).add(invoice.id));
     
     try {
-      // Generate PDF
+      // Generate PDF with optimized email settings
       let pdfContent: string | undefined;
       try {
         // Reload client data to get the latest PDF options
@@ -142,7 +145,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
         console.error('Failed to generate PDF:', error);
       }
       
-      // Send email
+      // Send email with optimized settings automatically applied by emailService
       const success = await sendInvoiceEmail(
         client,
         invoice,
@@ -151,10 +154,35 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
       );
       
       if (success) {
-        // Update email status (in a real app, you'd call onUpdateInvoice)
-        alert(`✅ Email sent successfully to ${client.email}`);
-        // Refresh data to show updated email status
-        await loadData();
+        // Build list of recipients (TO + CC)
+        const recipients = [client.email];
+        if (client.printConfig.emailSettings.ccEmails) {
+          recipients.push(...client.printConfig.emailSettings.ccEmails.filter(cc => cc && cc.trim() !== ""));
+        }
+        const recipientList = recipients.join(', ');
+        
+        // Update email status in the database
+        const emailStatusUpdate = {
+          emailStatus: {
+            ...invoice.emailStatus,
+            manualEmailSent: true,
+            manualEmailSentAt: new Date().toISOString(),
+            lastEmailError: undefined,
+          },
+        };
+        
+        // Update the invoice in the database with new email status
+        try {
+          await updateInvoice(invoice.id, emailStatusUpdate);
+          
+          alert(`✅ Email sent successfully to: ${recipientList}\nSent at: ${new Date().toLocaleString()}`);
+          
+          // Refresh data to show updated email status
+          await loadData();
+        } catch (updateError) {
+          console.error('Failed to update email status:', updateError);
+          alert(`✅ Email sent successfully to: ${recipientList}\n⚠️ Status update failed - please refresh the page`);
+        }
       } else {
         alert('❌ Failed to send email. Please try again.');
       }
@@ -170,7 +198,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
     }
   };
 
-  // Handle bulk email resend
+  // Handle bulk email resend with optimized format
   const handleBulkEmailResend = async () => {
     if (selectedInvoices.length === 0) {
       alert('Please select invoices to email');
@@ -180,6 +208,8 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
     const invoicesToEmail = filteredInvoices.filter(inv => selectedInvoices.includes(inv.id));
     let successCount = 0;
     let failCount = 0;
+    
+    console.log(`📧 Starting optimized bulk email resend for ${invoicesToEmail.length} invoices...`);
     
     // Reload client data to get the latest PDF options
     const freshClients = await getClients();
@@ -215,6 +245,20 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
         );
         
         if (success) {
+          // Update email status in the database for successful sends
+          try {
+            const emailStatusUpdate = {
+              emailStatus: {
+                ...invoice.emailStatus,
+                manualEmailSent: true,
+                manualEmailSentAt: new Date().toISOString(),
+                lastEmailError: undefined,
+              },
+            };
+            await updateInvoice(invoice.id, emailStatusUpdate);
+          } catch (updateError) {
+            console.error(`Failed to update email status for invoice ${invoice.id}:`, updateError);
+          }
           successCount++;
         } else {
           failCount++;
@@ -278,7 +322,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `Invoice-${invoice.invoiceNumber || invoice.id}-${client.name}.pdf`;
+            link.download = `deliveryticket#${invoice.invoiceNumber || invoice.id}.pdf`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -358,6 +402,16 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
       text: 'Not Sent',
       className: 'badge bg-secondary',
       title: 'No emails have been sent'
+    };
+  };
+
+  // Function to estimate compression ratios for preview
+  const getCompressionEstimate = (originalSizeMB: number) => {
+    return {
+      normal: originalSizeMB,
+      high: originalSizeMB * 0.6, // ~40% reduction
+      aggressive: originalSizeMB * 0.4, // ~60% reduction  
+      ultra: originalSizeMB * 0.25 // ~75% reduction
     };
   };
 
@@ -477,8 +531,8 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
               Clear Selection
             </button>
             <button 
-              className="btn btn-success btn-sm me-2"
-              onClick={handleBulkEmailResend}
+              className="btn btn-success btn-sm"
+              onClick={() => handleBulkEmailResend()}
               disabled={emailingInvoices.size > 0}
             >
               <i className="bi bi-envelope me-1"></i>
@@ -701,7 +755,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
                                       const url = URL.createObjectURL(blob);
                                       const link = document.createElement('a');
                                       link.href = url;
-                                      link.download = `Invoice-${invoice.invoiceNumber || invoice.id}.pdf`;
+                                      link.download = `deliveryticket#${invoice.invoiceNumber || invoice.id}.pdf`;
                                       document.body.appendChild(link);
                                       link.click();
                                       document.body.removeChild(link);

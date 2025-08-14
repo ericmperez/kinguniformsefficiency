@@ -149,6 +149,7 @@ const InvoiceDetailsPopup: React.FC<InvoiceDetailsPopupProps> = ({
           }`,
           text: "Please see the attached delivery confirmation.",
           html: htmlContent,
+          invoiceNumber: invoice?.invoiceNumber || invoice?.id, // Add invoice number for filename
         }),
       });
 

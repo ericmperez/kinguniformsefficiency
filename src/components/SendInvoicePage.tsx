@@ -74,6 +74,9 @@ const SendInvoicePage: React.FC = () => {
           subject,
           text: message,
           pdfBase64: pdfBase64.split(",")[1],
+          invoiceNumber: selectedInvoices.length === 1 ? 
+            invoices.find(inv => inv.id === selectedInvoices[0])?.invoiceNumber || selectedInvoices[0] :
+            "custom", // Use "custom" for multi-invoice emails
         }),
       });
       if (res.ok) {

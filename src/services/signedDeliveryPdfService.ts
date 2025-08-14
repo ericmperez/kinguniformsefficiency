@@ -84,12 +84,18 @@ export async function generateSignedDeliveryPDF(
       ticketElement.style.transformOrigin = 'top left';
     }
 
-    // Generate canvas and PDF with higher quality
+    // Generate canvas and PDF with optimized settings for smaller file size
     const canvas = await html2canvas(ticketElement, { 
-      scale: 2,
+      scale: 1.5, // Reduced from 2 to 1.5 for smaller files while maintaining quality
       useCORS: true,
       allowTaint: true,
-      backgroundColor: '#ffffff'
+      backgroundColor: '#ffffff',
+      width: ticketElement.scrollWidth,
+      height: ticketElement.scrollHeight,
+      // Additional optimization settings
+      logging: false,
+      imageTimeout: 0,
+      removeContainer: true
     });
     
     const imgData = canvas.toDataURL("image/png");

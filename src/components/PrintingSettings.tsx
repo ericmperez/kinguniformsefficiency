@@ -116,8 +116,6 @@ Invoice Details:
 - Date: {invoiceDate}
 - Total Amount: ${"{totalAmount}"}
 
-{processingSummary}
-
 If you have any questions regarding this invoice, please don't hesitate to contact us.
 
 Thank you for your business!
@@ -128,21 +126,21 @@ King Uniforms Team`,
         signatureEmailTemplate: "",
       },
       pdfOptions: {
-        scale: 1.0,
+        scale: 0.8, // Reduced from 1.0 to 0.8 for smaller files
         showSignatures: true,
-        showTimestamp: true,
-        showLocation: false,
+        showTimestamp: false, // Disabled to reduce content
+        showLocation: false, // Disabled to reduce content
         showQuantities: true,
-        contentDisplay: 'detailed',
-        paperSize: 'letter',
+        contentDisplay: 'summary', // Changed from 'detailed' to 'summary' for less content
+        paperSize: 'a4', // Changed from 'letter' to 'a4' for smaller size
         orientation: 'portrait',
-        margins: 'normal',
-        fontSize: 'medium',
+        margins: 'narrow', // Changed from 'normal' to 'narrow' for more compact layout
+        fontSize: 'small', // Changed from 'medium' to 'small' for smaller text
         showWatermark: false,
         headerText: '',
         footerText: '',
-        logoSize: 'medium',
-        showBorder: true,
+        logoSize: 'small', // Changed from 'medium' to 'small' for smaller logo
+        showBorder: false, // Disabled to reduce content
         pagination: 'single'
       },
     });
@@ -509,20 +507,6 @@ King Uniforms Team`,
       emailSettings.subject ||
       `Invoice #${mockInvoice.invoiceNumber} - ${client.name}`;
 
-    // Generate body with processing summary
-    const getProcessingSummary = () => {
-      if (client.billingCalculation === "byWeight" && mockInvoice.totalWeight) {
-        return `Total Pounds Processed: ${mockInvoice.totalWeight.toFixed(
-          2
-        )} lbs`;
-      } else {
-        let result = "Items Processed:\n";
-        result += "- Scrub Shirts: 10 pieces\n";
-        result += "- Scrub Pants: 8 pieces\n";
-        return result;
-      }
-    };
-
     const defaultTemplate = `Dear ${client.name},
 
 Here is your invoice summary #${mockInvoice.invoiceNumber} dated ${
@@ -533,8 +517,6 @@ Invoice Details:
 - Client: ${client.name}
 - Date: ${mockInvoice.date}
 - Total Amount: $${mockInvoice.total.toFixed(2)}
-
-${getProcessingSummary()}
 
 If you have any questions regarding this invoice, please don't hesitate to contact us.
 
@@ -553,12 +535,8 @@ King Uniforms Team`;
         .replace(/\{cartCount\}/g, String(mockInvoice.carts.length))
         .replace(/\{clientEmail\}/g, client.email || "");
 
-      // Add processing summary if {processingSummary} is in the template, otherwise append it
-      if (body.includes("{processingSummary}")) {
-        body = body.replace(/\{processingSummary\}/g, getProcessingSummary());
-      } else {
-        body += `\n\n${getProcessingSummary()}`;
-      }
+      // Remove any processing summary placeholders from the template
+      body = body.replace(/\{processingSummary\}/g, '');
     }
 
     return { subject, body };
@@ -1081,7 +1059,6 @@ King Uniforms Team`;
                               <li>{"{totalAmount}"} - Total amount</li>
                               <li>{"{cartCount}"} - Number of carts</li>
                               <li>{"{clientEmail}"} - Client email</li>
-                              <li>{"{processingSummary}"} - Processing summary (weight or items)</li>
                             </ul>
                           </small>
                         </div>
@@ -1251,16 +1228,6 @@ King Uniforms Team`;
                         <div className="col-6">
                           <code className="d-block p-2 bg-white rounded small">{"{cartCount}"}</code>
                           <small className="text-muted">Number of carts</small>
-                        </div>
-                      </div>
-
-                      <h6 className="fw-bold mb-3">
-                        <i className="bi bi-gear-fill me-2"></i>Processing Data
-                      </h6>
-                      <div className="row g-2">
-                        <div className="col-12">
-                          <code className="d-block p-2 bg-white rounded small">{"{processingSummary}"}</code>
-                          <small className="text-muted">Automatically includes weight totals or itemized breakdown based on client billing type</small>
                         </div>
                       </div>
                     </div>
@@ -1702,8 +1669,6 @@ Invoice Details:
                       "{totalAmount}"
                     }
 
-{processingSummary}
-
 If you have any questions regarding this invoice, please don't hesitate to contact us.
 
 Thank you for your business!
@@ -1714,12 +1679,7 @@ King Uniforms Team`}
                   <div className="form-text">
                     Available variables: {"{clientName}"}, {"{invoiceNumber}"},{" "}
                     {"{invoiceDate}"},{"{totalAmount}"}, {"{cartCount}"},{" "}
-                    {"{clientEmail}"}, {"{processingSummary}"}
-                  </div>
-                  <div className="form-text text-primary">
-                    Note: {"{processingSummary}"} will automatically show pounds
-                    processed for weight-based clients or item counts for
-                    piece-based clients.
+                    {"{clientEmail}"}
                   </div>
                 </div>
 
@@ -2006,21 +1966,21 @@ King Uniforms Team`}
                       signatureEmailTemplate: "",
                     },
                     pdfOptions: {
-                      scale: 1.0,
+                      scale: 0.8, // Reduced for smaller files
                       showSignatures: true,
-                      showTimestamp: true,
-                      showLocation: false,
+                      showTimestamp: false, // Disabled to reduce content
+                      showLocation: false, // Disabled to reduce content
                       showQuantities: true,
-                      contentDisplay: 'detailed',
-                      paperSize: 'letter',
+                      contentDisplay: 'summary', // Less detailed content
+                      paperSize: 'a4', // Smaller than letter
                       orientation: 'portrait',
-                      margins: 'normal',
-                      fontSize: 'medium',
+                      margins: 'narrow', // Compact layout
+                      fontSize: 'small', // Smaller text
                       showWatermark: false,
                       headerText: '',
                       footerText: '',
-                      logoSize: 'medium',
-                      showBorder: true,
+                      logoSize: 'small', // Smaller logo
+                      showBorder: false, // Remove border
                       pagination: 'single'
                     },
                   }}
