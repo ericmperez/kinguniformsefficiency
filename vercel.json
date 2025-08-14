@@ -9,8 +9,7 @@
   "functions": {
     "api/*.js": {
       "maxDuration": 60,
-      "memory": 2048,
-      "maxRequestBodySize": "50mb"
+      "memory": 2048
     }
   },
   "headers": [
