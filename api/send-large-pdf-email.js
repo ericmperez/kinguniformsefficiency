@@ -34,7 +34,7 @@ export default async function handler(req, res) {
       console.log('📧 Sending simple text email (no attachment)');
       
       const msg = {
-        from: process.env.EMAIL_USER,
+        from: 'notifications@kinguniforms.net',
         to,
         subject,
         text
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
       const notificationText = `${text}\n\n📎 LARGE DELIVERY CONFIRMATION NOTICE:\nYour delivery confirmation PDF (${pdfSizeInMB.toFixed(2)}MB) is too large to include as an email attachment due to email system limitations.\n\nPlease contact King Uniforms to receive your delivery confirmation document through an alternative method:\n- Phone: [Your Phone Number]\n- Email: notifications@kinguniforms.net\n- Visit us in person for a printed copy\n\nYour delivery has been completed successfully. This email serves as confirmation of delivery.\n\nWe apologize for any inconvenience and appreciate your understanding.\n\nBest regards,\nKing Uniforms Team`;
       
       const msg = {
-        from: process.env.EMAIL_USER,
+        from: 'notifications@kinguniforms.net',
         to,
         subject: `${subject} (Large Document - Contact for PDF)`,
         text: notificationText
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
       
       try {
         const msg = {
-          from: process.env.EMAIL_USER,
+          from: 'notifications@kinguniforms.net',
           to,
           subject: `${subject} (Compressed PDF - ${pdfSizeInMB.toFixed(1)}MB)`,
           text: warningText,
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
     console.log(`📧 Sending email with PDF attachment (${pdfSizeInMB.toFixed(2)}MB)`);
     
     const msg = {
-      from: process.env.EMAIL_USER,
+      from: 'notifications@kinguniforms.net',
       to,
       subject,
       text,
@@ -143,7 +143,7 @@ export default async function handler(req, res) {
         const errorNotificationText = `${text}\n\n📎 DELIVERY CONFIRMATION NOTICE:\nWe encountered an issue sending your delivery confirmation PDF due to file size limitations.\n\nPlease contact King Uniforms to receive your delivery confirmation document:\n- Phone: [Your Phone Number]\n- Email: notifications@kinguniforms.net\n\nYour delivery has been completed successfully. This email serves as confirmation.\n\nBest regards,\nKing Uniforms Team`;
         
         const recoveryMsg = {
-          from: process.env.EMAIL_USER,
+          from: 'notifications@kinguniforms.net',
           to,
           subject: `${subject} (Delivery Confirmed - PDF Available on Request)`,
           text: errorNotificationText

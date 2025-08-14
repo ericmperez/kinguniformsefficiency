@@ -31,7 +31,7 @@ export default async function handler(req, res) {
 
   try {
     const emailOptions = {
-      from: process.env.EMAIL_USER,
+      from: 'notifications@kinguniforms.net',
       to,
       cc: cc || [],
       subject,

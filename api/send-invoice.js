@@ -37,7 +37,7 @@ export default async function handler(req, res) {
        const msg = {
          to,
          cc,
-         from: process.env.EMAIL_USER,
+         from: 'notifications@kinguniforms.net',
          subject,
          text
        };
@@ -70,7 +70,7 @@ export default async function handler(req, res) {
       const msg = {
         to,
         cc,
-        from: process.env.EMAIL_USER,
+        from: 'notifications@kinguniforms.net',
         subject: `${subject} (No Attachment)`,
         text: fallbackText
       };
@@ -97,7 +97,7 @@ export default async function handler(req, res) {
     const msg = {
       to,
       cc,
-      from: process.env.EMAIL_USER,
+      from: 'notifications@kinguniforms.net',
       subject,
       text,
       attachments: [

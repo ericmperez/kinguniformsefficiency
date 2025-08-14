@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     const fallbackText = `${text}\n\nNote: The PDF attachment was too large to include in this email. Please contact us for an alternative delivery method.`;
     
     const msg = {
-      from: process.env.EMAIL_USER,
+      from: 'notifications@kinguniforms.net',
       to,
       subject: `${subject} (No Attachment)`,
       text: fallbackText
