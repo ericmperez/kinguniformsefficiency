@@ -56,16 +56,16 @@ const PrintConfigModal: React.FC<PrintConfigModalProps> = ({
       signatureEmailTemplate: "",
     },
     pdfOptions: {
-      scale: 1.0,
+      scale: 0.75, // Reduced scale for smaller file sizes
       showSignatures: true,
-      showTimestamp: true,
+      showTimestamp: false, // Reduced for smaller files
       showLocation: false,
       showQuantities: true,
-      contentDisplay: 'detailed',
-      paperSize: 'letter',
+      contentDisplay: 'summary', // Changed from detailed to summary
+      paperSize: 'a4', // Changed from letter to a4
       orientation: 'portrait',
-      margins: 'normal',
-      fontSize: 'medium',
+      margins: 'narrow', // Changed from normal to narrow
+      fontSize: 'small', // Changed from medium to small
       showWatermark: false,
       headerText: '',
       footerText: '',

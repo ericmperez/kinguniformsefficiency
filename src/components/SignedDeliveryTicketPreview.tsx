@@ -22,21 +22,21 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
   
   // PDF Customization Options - properly typed
   const [pdfOptions, setPdfOptions] = useState<NonNullable<PrintConfiguration['pdfOptions']>>({
-    scale: 1.0,
+    scale: 0.75, // Reduced scale for smaller file sizes
     showSignatures: true,
     showTimestamp: false,
     showLocation: false,
     showQuantities: true,
-    contentDisplay: 'detailed',
-    paperSize: 'letter',
+    contentDisplay: 'summary', // Changed from detailed to summary for smaller files
+    paperSize: 'a4', // Changed from letter to a4 for smaller size
     orientation: 'portrait',
-    margins: 'normal',
-    fontSize: 'medium',
+    margins: 'narrow', // Changed from normal to narrow
+    fontSize: 'small', // Changed from medium to small
     showWatermark: false,
     headerText: '',
     footerText: '',
-    logoSize: 'medium',
-    showBorder: true,
+    logoSize: 'small', // Changed from medium to small
+    showBorder: false, // Changed from true to false
     pagination: 'single'
   });
   
@@ -370,15 +370,15 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                             className="btn btn-sm btn-outline-light"
                             onClick={() => {
                               const resetOptions: NonNullable<PrintConfiguration['pdfOptions']> = {
-                                scale: 1.0,
+                                scale: 0.75, // Reduced scale for smaller file sizes
                                 showSignatures: true,
                                 showTimestamp: false,
                                 showLocation: false,
                                 showQuantities: true,
-                                contentDisplay: 'detailed',
-                                paperSize: 'letter',
+                                contentDisplay: 'summary', // Changed from detailed to summary
+                                paperSize: 'a4', // Changed from letter to a4
                                 orientation: 'portrait',
-                                margins: 'normal',
+                                margins: 'narrow', // Changed from normal to narrow
                                 fontSize: 'medium',
                                 showWatermark: false,
                                 headerText: '',
@@ -707,16 +707,16 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                                 onClick={() => {
                                   // Reset to default options
                                   const defaultOptions: NonNullable<PrintConfiguration['pdfOptions']> = {
-                                    scale: 1.0,
+                                    scale: 0.75, // Reduced scale for smaller file sizes
                                     showSignatures: true,
                                     showTimestamp: false,
                                     showLocation: false,
                                     showQuantities: true,
-                                    contentDisplay: 'detailed',
-                                    paperSize: 'letter',
+                                    contentDisplay: 'summary', // Changed from detailed to summary
+                                    paperSize: 'a4', // Changed from letter to a4
                                     orientation: 'portrait',
-                                    margins: 'normal',
-                                    fontSize: 'medium',
+                                    margins: 'narrow', // Changed from normal to narrow
+                                    fontSize: 'small', // Changed from medium to small
                                     showWatermark: false,
                                     headerText: '',
                                     footerText: '',

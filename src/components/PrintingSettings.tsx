@@ -126,21 +126,21 @@ King Uniforms Team`,
         signatureEmailTemplate: "",
       },
       pdfOptions: {
-        scale: 1.0, // Full scale for maximum quality
+        scale: 0.75, // Reduced scale for smaller file sizes
         showSignatures: true,
-        showTimestamp: true, // Show all relevant content
-        showLocation: true, // Show location information
+        showTimestamp: false, // Reduced for smaller files
+        showLocation: false, // Reduced for smaller files
         showQuantities: true,
-        contentDisplay: 'detailed', // Show detailed content
-        paperSize: 'letter', // Using letter size format
+        contentDisplay: 'summary', // Changed from detailed to summary
+        paperSize: 'a4', // Changed from letter to a4 for smaller size
         orientation: 'portrait',
-        margins: 'normal', // Normal margins for full page use
-        fontSize: 'medium', // Medium font size for readability
+        margins: 'narrow', // Changed from normal to narrow
+        fontSize: 'small', // Changed from medium to small
         showWatermark: false,
         headerText: '',
         footerText: '',
-        logoSize: 'medium', // Medium logo size
-        showBorder: true, // Show border for professional appearance
+        logoSize: 'small', // Changed from medium to small
+        showBorder: false, // Changed from true to false
         pagination: 'single'
       },
     });
@@ -1966,21 +1966,21 @@ King Uniforms Team`}
                       signatureEmailTemplate: "",
                     },
                     pdfOptions: {
-                      scale: 1.0, // Full scale for maximum quality
+                      scale: 0.75, // Reduced scale for smaller file sizes
                       showSignatures: true,
-                      showTimestamp: true, // Show all relevant content
-                      showLocation: true, // Show location information
+                      showTimestamp: false, // Reduced for smaller files
+                      showLocation: false, // Reduced for smaller files
                       showQuantities: true,
-                      contentDisplay: 'detailed', // Show detailed content
-                      paperSize: 'letter', // Letter size format
+                      contentDisplay: 'summary', // Changed from detailed to summary
+                      paperSize: 'a4', // Changed from letter to a4 for smaller size
                       orientation: 'portrait',
-                      margins: 'normal', // Normal margins for full page use
-                      fontSize: 'medium', // Medium font size for readability
+                      margins: 'narrow', // Changed from normal to narrow
+                      fontSize: 'small', // Changed from medium to small
                       showWatermark: false,
                       headerText: '',
                       footerText: '',
-                      logoSize: 'medium', // Medium logo size
-                      showBorder: true, // Show border for professional appearance
+                      logoSize: 'small', // Changed from medium to small
+                      showBorder: false, // Changed from true to false
                       pagination: 'single'
                     },
                   }}

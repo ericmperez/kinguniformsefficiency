@@ -1,6 +1,9 @@
 import sgMail from '@sendgrid/mail';
 
 // Configure SendGrid
+if (!process.env.SENDGRID_API_KEY) {
+  console.error('❌ SENDGRID_API_KEY environment variable is not set');
+}
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export default async function handler(req, res) {
@@ -68,6 +71,26 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error('Test email send error:', err);
-    return res.status(500).json({ error: 'Failed to send test email', details: err.message });
+    console.error('SendGrid error details:', err.response?.body || err.message);
+    
+    // Check for SendGrid specific errors
+    if (err.code === 401) {
+      return res.status(500).json({ 
+        error: 'SendGrid authentication failed', 
+        details: 'Invalid API key or unauthorized access' 
+      });
+    }
+    
+    if (err.code === 413 || err.message?.includes('too large')) {
+      return res.status(413).json({ 
+        error: 'Email content too large', 
+        details: 'Please reduce PDF size or use alternative delivery method' 
+      });
+    }
+    
+    return res.status(500).json({ 
+      error: 'Failed to send test email', 
+      details: err.message || 'Unknown SendGrid error' 
+    });
   }
 }

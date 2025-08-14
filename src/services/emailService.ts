@@ -586,34 +586,34 @@ export const generateInvoicePDF = async (
     
     // Use full letter-size page without compression for maximum quality
     const pdfOptions = {
-      paperSize: 'letter',
+      paperSize: 'a4',  // Changed from letter to a4 for smaller size
       orientation: printConfig?.orientation || 'portrait',
-      scale: 1.0, // Full scale for maximum quality
+      scale: 0.75, // Reduced from 1.0 to 0.75 for smaller file size
       showSignatures: true,
-      showTimestamp: true,
-      showLocation: true,
+      showTimestamp: false, // Reduced content for smaller files
+      showLocation: false,  // Reduced content for smaller files
       showQuantities: true,
-      contentDisplay: 'detailed',
-      margins: 'normal',
-      fontSize: 'medium',
+      contentDisplay: 'summary', // Changed from 'detailed' to 'summary' for smaller files
+      margins: 'narrow', // Reduced margins for compact layout
+      fontSize: 'small', // Smaller font for reduced size
       showWatermark: false,
       headerText: '',
       footerText: '',
-      logoSize: 'medium',
-      showBorder: true,
+      logoSize: 'small', // Smaller logo for reduced size
+      showBorder: false, // Remove border for smaller file
       pagination: 'single',
-      compressImages: false,
-      imageQuality: 1.0, // Maximum quality
-      removeMetadata: false,
+      compressImages: true, // Enable compression
+      imageQuality: 0.7, // Reduced image quality for smaller files
+      removeMetadata: true, // Remove metadata for smaller files
       ...printConfig?.pdfOptions
     };
     
-    console.log("📄 Using PDF options for client (full letter-size, no compression):", client.name, pdfOptions);
+    console.log("📄 Using optimized PDF options for email delivery (smaller file size):", client.name, pdfOptions);
     
     // Generate the PDF using the new template
     const pdfContent = await generateDeliveryTicketPDF(invoice, client, pdfOptions, driverName);
     
-    console.log("✅ PDF generated successfully with full letter-size quality");
+    console.log("✅ PDF generated successfully with optimized size for email delivery");
     return pdfContent;
   } catch (error) {
     console.error("❌ Failed to generate PDF with full letter-size quality:", error);
