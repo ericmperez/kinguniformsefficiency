@@ -110,6 +110,52 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
     });
   }, [invoices, clientFilter, emailStatusFilter, startDate, endDate, searchTerm]);
 
+  // Handle marking email as sent manually (without sending)
+  const handleMarkAsSent = async (invoice: Invoice) => {
+    const client = clients.find(c => c.id === invoice.clientId);
+    
+    if (!client?.email) {
+      alert('Client email not configured');
+      return;
+    }
+    
+    const confirmed = confirm(
+      `Mark email as sent for Invoice #${invoice.invoiceNumber || invoice.id}?\n\n` +
+      `This will update the status without sending an actual email.\n` +
+      `Client: ${client.name} (${client.email})`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      // Update email status in the database
+      const emailStatusUpdate = {
+        emailStatus: {
+          ...invoice.emailStatus,
+          manualEmailSent: true,
+          manualEmailSentAt: new Date().toISOString(),
+          lastEmailError: undefined,
+        },
+      };
+      
+      await updateInvoice(invoice.id, emailStatusUpdate);
+      
+      // Log the manual marking activity
+      await logActivity({
+        type: "Invoice",
+        message: `Invoice #${invoice.invoiceNumber || invoice.id} manually marked as sent for ${client.name} (${client.email})`,
+      });
+      
+      alert(`✅ Email status updated successfully!\n\nInvoice #${invoice.invoiceNumber || invoice.id} is now marked as sent.`);
+      
+      // Refresh data to show updated email status
+      await loadData();
+    } catch (error) {
+      console.error('Failed to mark email as sent:', error);
+      alert('❌ Failed to update email status. Please try again.');
+    }
+  };
+
   // Handle individual email resend with optimized format
   const handleResendEmail = async (invoice: Invoice) => {
     const client = clients.find(c => c.id === invoice.clientId);
@@ -196,6 +242,74 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
         return newSet;
       });
     }
+  };
+
+  // Handle bulk mark as sent (without sending)
+  const handleBulkMarkAsSent = async () => {
+    if (selectedInvoices.length === 0) {
+      alert('Please select invoices to mark as sent');
+      return;
+    }
+    
+    const invoicesToMark = filteredInvoices.filter(inv => selectedInvoices.includes(inv.id));
+    const eligibleInvoices = invoicesToMark.filter(inv => {
+      const client = clients.find(c => c.id === inv.clientId);
+      return client?.email && client?.printConfig?.emailSettings?.enabled;
+    });
+    
+    if (eligibleInvoices.length === 0) {
+      alert('No eligible invoices selected (must have email configured and enabled)');
+      return;
+    }
+    
+    const confirmed = confirm(
+      `Mark ${eligibleInvoices.length} invoice${eligibleInvoices.length !== 1 ? 's' : ''} as sent?\n\n` +
+      `This will update the email status without sending actual emails.\n\n` +
+      `Invoices:\n${eligibleInvoices.map(inv => `• #${inv.invoiceNumber || inv.id}`).join('\n')}`
+    );
+    
+    if (!confirmed) return;
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const invoice of eligibleInvoices) {
+      const client = clients.find(c => c.id === invoice.clientId);
+      if (!client) {
+        failCount++;
+        continue;
+      }
+      
+      try {
+        // Update email status in the database
+        const emailStatusUpdate = {
+          emailStatus: {
+            ...invoice.emailStatus,
+            manualEmailSent: true,
+            manualEmailSentAt: new Date().toISOString(),
+            lastEmailError: undefined,
+          },
+        };
+        
+        await updateInvoice(invoice.id, emailStatusUpdate);
+        
+        // Log the manual marking activity
+        await logActivity({
+          type: "Invoice",
+          message: `Invoice #${invoice.invoiceNumber || invoice.id} manually marked as sent for ${client.name} (${client.email}) - bulk operation`,
+        });
+        
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to mark invoice ${invoice.id} as sent:`, error);
+        failCount++;
+      }
+    }
+    
+    alert(`Bulk mark as sent completed!\n✅ Marked: ${successCount}\n❌ Failed: ${failCount}`);
+    setSelectedInvoices([]);
+    setSelectAll(false);
+    await loadData();
   };
 
   // Handle bulk email resend with optimized format
@@ -531,12 +645,20 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
               Clear Selection
             </button>
             <button 
-              className="btn btn-success btn-sm"
+              className="btn btn-success btn-sm me-2"
               onClick={() => handleBulkEmailResend()}
               disabled={emailingInvoices.size > 0}
             >
               <i className="bi bi-envelope me-1"></i>
               Resend Emails ({selectedInvoices.length})
+            </button>
+            <button 
+              className="btn btn-info btn-sm"
+              onClick={() => handleBulkMarkAsSent()}
+              title="Mark selected invoices as sent without sending actual emails"
+            >
+              <i className="bi bi-check2-circle me-1"></i>
+              Mark as Sent ({selectedInvoices.length})
             </button>
             <button 
               className="btn btn-primary btn-sm"
@@ -720,6 +842,15 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
                                 ) : (
                                   <i className="bi bi-envelope"></i>
                                 )}
+                              </button>
+                            )}
+                            {isEmailEnabled && emailDisplay.status === 'not_sent' && (
+                              <button
+                                className="btn btn-outline-info btn-sm"
+                                onClick={() => handleMarkAsSent(invoice)}
+                                title={`Mark as sent for ${client?.email} (without sending actual email)`}
+                              >
+                                <i className="bi bi-check2-circle"></i>
                               </button>
                             )}
                             <button

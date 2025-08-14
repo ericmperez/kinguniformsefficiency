@@ -1,5 +1,5 @@
 const express = require('express');
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
 // Load environment variables from .env.local
 require('dotenv').config({ path: '.env.local' });
@@ -17,38 +17,34 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '30mb' })); // Increased limit to 30mb for large PDF attachments
 
-// Configure Nodemailer transporter with Gmail SMTP
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER || 'notifications@kinguniforms.net',
-    pass: process.env.EMAIL_PASSWORD || 'lvra prfc osfy lavc'
-  }
-});
+// Configure SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 app.post('/api/send-invoice', async (req, res) => {
   const { to, subject, text, pdfBase64, invoiceNumber } = req.body;
   if (!to || !pdfBase64) return res.status(400).json({ error: 'Missing data' });
+  const msg = {
+    to,
+    from: 'notifications@kinguniforms.net',
+    subject,
+    text,
+    attachments: [
+      {
+        content: pdfBase64,
+        filename: invoiceNumber ? `deliveryticket#${invoiceNumber}.pdf` : 'deliveryticket.pdf',
+        type: 'application/pdf',
+        disposition: 'attachment'
+      }
+    ]
+  };
   try {
-    await transporter.sendMail({
-      from: 'notifications@kinguniforms.net',
-      to,
-      subject,
-      text,
-      attachments: [
-        {
-          filename: invoiceNumber ? `deliveryticket#${invoiceNumber}.pdf` : 'deliveryticket.pdf',
-          content: Buffer.from(pdfBase64, 'base64'),
-          contentType: 'application/pdf'
-        }
-      ]
-    });
+    await sgMail.send(msg);
     res.json({ success: true });
   } catch (err) {
-    console.error('Email send error:', err);
-    res.status(500).json({ error: 'Failed to send email', details: err.message, full: err });
+    console.error('SendGrid email error:', err);
+    res.status(500).json({ error: 'Failed to send email', details: err.message });
   }
 });
 
@@ -58,9 +54,9 @@ app.post('/api/send-test-email', async (req, res) => {
   if (!to) return res.status(400).json({ error: 'Recipient email is required' });
   
   try {
-    const mailOptions = {
-      from: 'notifications@kinguniforms.net',
+    const msg = {
       to,
+      from: 'notifications@kinguniforms.net',
       cc: cc || [],
       subject,
       text: body
@@ -68,16 +64,17 @@ app.post('/api/send-test-email', async (req, res) => {
 
     // Add PDF attachment if provided
     if (pdfBase64) {
-      mailOptions.attachments = [
+      msg.attachments = [
         {
+          content: pdfBase64,
           filename: invoiceNumber ? `deliveryticket#${invoiceNumber}.pdf` : 'deliveryticket-test.pdf',
-          content: Buffer.from(pdfBase64, 'base64'),
-          contentType: 'application/pdf'
+          type: 'application/pdf',
+          disposition: 'attachment'
         }
       ];
     }
 
-    await transporter.sendMail(mailOptions);
+    await sgMail.send(msg);
     console.log(`Test email sent successfully to ${to}${pdfBase64 ? ' with PDF attachment' : ''}`);
     res.json({ success: true });
   } catch (err) {

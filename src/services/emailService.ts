@@ -584,90 +584,39 @@ export const generateInvoicePDF = async (
     // Import the new signed delivery PDF service
     const { generateDeliveryTicketPDF } = await import('./signedDeliveryPdfService');
     
-    // Use client-specific PDF options if available, otherwise use defaults
-    const clientPdfOptions = client.printConfig?.pdfOptions;
-
-    let pdfOptions: any;
-    if (optimizeForEmail) {
-      // Auto-optimize PDF options for email to reduce file size but maintain quality
-      pdfOptions = clientPdfOptions ? {
-        // Use client-specific PDF options but optimize for email
-        ...clientPdfOptions,
-        // Moderate optimizations for email delivery
-        scale: Math.min(clientPdfOptions.scale || 1.0, 0.9), // Cap scale at 90% for emails (less aggressive)
-        paperSize: clientPdfOptions.paperSize === 'letter' ? 'a4' : clientPdfOptions.paperSize, // Prefer A4 over Letter
-        margins: 'narrow', // Force narrow margins for emails
-        fontSize: clientPdfOptions.fontSize || 'medium', // Keep medium font size
-        logoSize: clientPdfOptions.logoSize || 'medium', // Keep medium logo size
-        showBorder: false, // Remove border for emails
-        showWatermark: false, // Never show watermark in emails
-        // Always show signatures for signed delivery tickets
-        showSignatures: true,
-        showTimestamp: true
-        // Don't override showLocation - respect client's preference
-      } : {
-        // Fallback defaults optimized for email size but with good quality
-        paperSize: 'a4', // Smaller than letter
-        orientation: printConfig?.orientation || 'portrait',
-        scale: 0.9, // Reduced scale for smaller files but not too aggressive
-        showSignatures: true,
-        showTimestamp: true,
-        showLocation: false, // Reduced content
-        showQuantities: true,
-        contentDisplay: 'detailed' as const, // Keep detailed for better quality
-        margins: 'narrow' as const, // Compact layout
-        fontSize: 'medium' as const, // Keep medium text for readability
-        showWatermark: false,
-        headerText: '',
-        footerText: '',
-        logoSize: 'medium' as const, // Keep medium logo
-        showBorder: false, // No border for smaller size
-        pagination: 'single' as const,
-        ...printConfig?.pdfOptions
-      };
-    } else {
-      // Generate full-page PDF options (occupy whole page)
-      pdfOptions = clientPdfOptions ? {
-        ...clientPdfOptions,
-        // Prefer full scale and default margins so the ticket fills the page
-        scale: clientPdfOptions.scale ?? 1.0,
-        paperSize: clientPdfOptions.paperSize || (printConfig?.paperSize || 'letter'),
-        margins: clientPdfOptions.margins ?? (printConfig?.margins || 'normal'),
-        fontSize: clientPdfOptions.fontSize ?? (printConfig?.fontSize || 'medium'),
-        logoSize: clientPdfOptions.logoSize ?? (printConfig?.logoSize || 'normal'),
-        showWatermark: clientPdfOptions.showWatermark ?? false,
-        showBorder: clientPdfOptions.showBorder ?? true
-      } : {
-        // Defaults for full-page printable PDF
-        paperSize: printConfig?.paperSize || 'letter',
-        orientation: printConfig?.orientation || 'portrait',
-        scale: 1.0,
-        showSignatures: true,
-        showTimestamp: true,
-        showLocation: true,
-        showQuantities: true,
-        contentDisplay: 'full' as const,
-        margins: printConfig?.margins || 'normal',
-        fontSize: printConfig?.fontSize || 'medium',
-        showWatermark: false,
-        headerText: printConfig?.headerText || '',
-        footerText: printConfig?.footerText || '',
-        logoSize: printConfig?.logoSize || 'normal',
-        showBorder: true,
-        pagination: 'single' as const,
-        ...printConfig?.pdfOptions
-      };
-    }
+    // Use full letter-size page without compression for maximum quality
+    const pdfOptions = {
+      paperSize: 'letter',
+      orientation: printConfig?.orientation || 'portrait',
+      scale: 1.0, // Full scale for maximum quality
+      showSignatures: true,
+      showTimestamp: true,
+      showLocation: true,
+      showQuantities: true,
+      contentDisplay: 'detailed',
+      margins: 'normal',
+      fontSize: 'medium',
+      showWatermark: false,
+      headerText: '',
+      footerText: '',
+      logoSize: 'medium',
+      showBorder: true,
+      pagination: 'single',
+      compressImages: false,
+      imageQuality: 1.0, // Maximum quality
+      removeMetadata: false,
+      ...printConfig?.pdfOptions
+    };
     
-    console.log("📄 Using PDF options for client:", client.name, pdfOptions);
+    console.log("📄 Using PDF options for client (full letter-size, no compression):", client.name, pdfOptions);
     
     // Generate the PDF using the new template
     const pdfContent = await generateDeliveryTicketPDF(invoice, client, pdfOptions, driverName);
     
-    console.log("✅ PDF generated successfully with new signed delivery template");
+    console.log("✅ PDF generated successfully with full letter-size quality");
     return pdfContent;
   } catch (error) {
-    console.error("❌ Failed to generate PDF with new template:", error);
+    console.error("❌ Failed to generate PDF with full letter-size quality:", error);
     
     // Fallback to full PDF service if new template fails
     try {
