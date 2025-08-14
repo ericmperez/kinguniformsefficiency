@@ -36,10 +36,5 @@
       "path": "/api/cron/truck-assignment-check",
       "schedule": "0 20 * * *"
     }
-  ],
-  "env": {
-    "EMAIL_USER": "$EMAIL_USER",
-    "EMAIL_PASSWORD": "$EMAIL_PASSWORD",
-    "CRON_SECRET": "$CRON_SECRET"
-  }
+  ]
 }
