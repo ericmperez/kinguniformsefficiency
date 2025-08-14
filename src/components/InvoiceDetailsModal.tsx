@@ -96,6 +96,9 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [showCartMergeModal, setShowCartMergeModal] = React.useState(false);
   const [cartsToMerge, setCartsToMerge] = React.useState<Cart[]>([]);
 
+  // Checklist modal state
+  const [showChecklistModal, setShowChecklistModal] = React.useState(false);
+
   // Helper function to get current user safely
   const getCurrentUser = () => {
     try {
@@ -1182,6 +1185,16 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     >
                       <i className="bi bi-printer-fill me-1" />
                       Print All Carts ({localCarts.length})
+                    </button>
+                  )}
+                  {localCarts.length > 0 && (
+                    <button
+                      className="btn btn-info me-2"
+                      onClick={() => setShowChecklistModal(true)}
+                      title="Print loading checklist for this invoice"
+                    >
+                      <i className="bi bi-list-check me-1" />
+                      Print Loading Checklist
                     </button>
                   )}
                   {localCarts.length > 0 && (
@@ -2507,6 +2520,268 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             </div>
           );
         })()}
+
+      {/* Loading Checklist Modal */}
+      {showChecklistModal && (
+        <div 
+          className="modal show d-block" 
+          tabIndex={-1} 
+          style={{ background: "rgba(0,0,0,0.5)", zIndex: 2100 }}
+        >
+          <div className="modal-dialog" style={{ maxWidth: 600, margin: "60px auto" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">🚛 Loading Checklist</h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowChecklistModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body" id="print-checklist-content">
+                <div style={{ textAlign: "center", marginBottom: 20 }}>
+                  <h2 style={{ 
+                    color: "#0E62A0", 
+                    fontWeight: 800, 
+                    textTransform: "uppercase", 
+                    letterSpacing: 1,
+                    marginBottom: 8,
+                    fontSize: 20
+                  }}>
+                    {transformClientNameForDisplay(localInvoice.clientName)}
+                  </h2>
+                  <div style={{ fontSize: 14, color: "#333", marginBottom: 4 }}>
+                    Ticket #{localInvoice.invoiceNumber || localInvoice.id.substring(0, 8)}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#666" }}>
+                    {formatDateOnlySpanish(localInvoice.date)}
+                    {localInvoice.deliveryDate && ` | Delivery: ${formatDateOnlySpanish(localInvoice.deliveryDate)}`}
+                  </div>
+                </div>
+                
+                <div style={{ margin: "0 auto", maxWidth: 450 }}>
+                  <h4 style={{ 
+                    color: "#0E62A0", 
+                    marginBottom: 15, 
+                    textAlign: "center",
+                    borderBottom: "1px solid #0E62A0",
+                    paddingBottom: 5,
+                    fontSize: 16
+                  }}>
+                    Carts to Load ({localCarts.length})
+                  </h4>
+                  
+                  {localCarts.map((cart, idx) => (
+                    <div 
+                      key={cart.id} 
+                      style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        marginBottom: 12,
+                        padding: "5px 0"
+                      }}
+                    >
+                      {/* Smaller checkbox for A5 format */}
+                      <div 
+                        style={{ 
+                          width: 25, 
+                          height: 25, 
+                          border: "2px solid #0E62A0", 
+                          borderRadius: 4, 
+                          marginRight: 15, 
+                          background: "#fff",
+                          flexShrink: 0
+                        }}
+                      ></div>
+                      
+                      {/* Cart name and details */}
+                      <div style={{ flex: 1 }}>
+                        <span style={{ 
+                          fontSize: 18, 
+                          fontWeight: 700, 
+                          color: "#0E62A0", 
+                          textTransform: "uppercase", 
+                          letterSpacing: 0.5 
+                        }}>
+                          {cart.name}
+                        </span>
+                        {cart.items.length > 0 && (
+                          <div style={{ 
+                            fontSize: 11, 
+                            color: "#666", 
+                            marginTop: 2 
+                          }}>
+                            {cart.items.length} item{cart.items.length !== 1 ? 's' : ''}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <div style={{ 
+                    marginTop: 20, 
+                    padding: 10, 
+                    background: "#f8f9fa", 
+                    borderRadius: 6,
+                    textAlign: "center",
+                    fontSize: 12
+                  }}>
+                    <strong style={{ color: "#0E62A0" }}>
+                      ✓ Check off each cart as loaded
+                    </strong>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer d-print-none">
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowChecklistModal(false)}
+                >
+                  Close
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => {
+                    const printWindow = window.open("", "", "height=800,width=600");
+                    if (!printWindow) {
+                      alert("Please allow popups to print the loading checklist");
+                      return;
+                    }
+
+                    printWindow.document.write(`
+                      <!DOCTYPE html>
+                      <html>
+                        <head>
+                          <title>Loading Checklist - ${transformClientNameForDisplay(localInvoice.clientName)}</title>
+                          <style>
+                            @page { 
+                              size: A5; 
+                              margin: 0.4in; 
+                            }
+                            body { 
+                              font-family: Arial, sans-serif; 
+                              color: #333; 
+                              line-height: 1.2;
+                              margin: 0;
+                              padding: 0;
+                              font-size: 11px;
+                            }
+                            h1 { 
+                              color: #0E62A0; 
+                              text-align: center; 
+                              font-size: 16px; 
+                              margin: 0 0 8px 0;
+                              text-transform: uppercase;
+                              letter-spacing: 1px;
+                              font-weight: 800;
+                            }
+                            .header-info { 
+                              text-align: center; 
+                              margin-bottom: 15px; 
+                              font-size: 10px;
+                            }
+                            .section-title {
+                              color: #0E62A0; 
+                              margin: 10px 0 8px 0; 
+                              text-align: center; 
+                              border-bottom: 1px solid #0E62A0; 
+                              padding-bottom: 3px;
+                              font-size: 12px;
+                              font-weight: bold;
+                            }
+                            .cart-item { 
+                              display: flex; 
+                              align-items: center; 
+                              margin-bottom: 8px; 
+                              padding: 3px 0;
+                            }
+                            .checkbox { 
+                              width: 20px; 
+                              height: 20px; 
+                              border: 2px solid #0E62A0; 
+                              border-radius: 3px; 
+                              margin-right: 10px; 
+                              background: #fff;
+                              flex-shrink: 0;
+                            }
+                            .cart-name { 
+                              font-size: 13px; 
+                              font-weight: bold; 
+                              color: #0E62A0; 
+                              text-transform: uppercase;
+                              letter-spacing: 0.5px;
+                            }
+                            .item-count { 
+                              font-size: 9px; 
+                              color: #666; 
+                              margin-top: 1px; 
+                            }
+                            .instructions { 
+                              margin-top: 12px; 
+                              padding: 6px; 
+                              background: #f8f9fa; 
+                              border-radius: 4px;
+                              text-align: center;
+                              font-weight: bold;
+                              color: #0E62A0;
+                              font-size: 10px;
+                            }
+                            .compact-layout {
+                              max-height: 7in; /* Ensure it fits A5 height */
+                              overflow: hidden;
+                            }
+                          </style>
+                        </head>
+                        <body>
+                          <div class="compact-layout">
+                            <h1>${transformClientNameForDisplay(localInvoice.clientName)}</h1>
+                            <div class="header-info">
+                              <div style="margin-bottom: 3px;">
+                                Ticket #${localInvoice.invoiceNumber || localInvoice.id.substring(0, 8)}
+                              </div>
+                              <div style="color: #666;">
+                                ${formatDateOnlySpanish(localInvoice.date)}
+                                ${localInvoice.deliveryDate ? ` | Delivery: ${formatDateOnlySpanish(localInvoice.deliveryDate)}` : ''}
+                              </div>
+                            </div>
+                            
+                            <div class="section-title">
+                              Carts to Load (${localCarts.length})
+                            </div>
+                            
+                            ${localCarts.map((cart) => `
+                              <div class="cart-item">
+                                <div class="checkbox"></div>
+                                <div>
+                                  <div class="cart-name">${cart.name}</div>
+                                  ${cart.items.length > 0 ? `
+                                    <div class="item-count">${cart.items.length} item${cart.items.length !== 1 ? 's' : ''}</div>
+                                  ` : ''}
+                                </div>
+                              </div>
+                            `).join('')}
+                            
+                            <div class="instructions">
+                              ✓ Check off each cart as loaded
+                            </div>
+                          </div>
+                        </body>
+                      </html>
+                    `);
+                    
+                    printWindow.document.close();
+                    printWindow.focus();
+                    printWindow.print();
+                    printWindow.close();
+                  }}
+                >
+                  🖨️ Print Checklist
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
