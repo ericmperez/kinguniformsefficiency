@@ -1954,6 +1954,7 @@ function App() {
       )}
       <Routes>
         <Route path="/send-invoice" element={<SendInvoicePage />} />
+        <Route path="/*" element={<div />} />
       </Routes>
       
       {/* Floating Suggestions Button (for supervisors and up, and Eric 1991) */}
