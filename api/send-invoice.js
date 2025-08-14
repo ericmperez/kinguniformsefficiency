@@ -60,37 +60,7 @@ export default async function handler(req, res) {
   const pdfSizeInMB = (pdfBase64.length * 0.75) / (1024 * 1024); // Rough base64 to binary size
   console.log(`PDF size: ${pdfSizeInMB.toFixed(2)}MB`);
   
-  // If PDF is too large, try to send without attachment
-  if (pdfSizeInMB > 3) {
-    console.log('PDF too large, sending fallback email without attachment');
-    
-    try {
-      const fallbackText = `${text}\n\nNote: The PDF attachment was too large to include in this email (${pdfSizeInMB.toFixed(2)}MB). Please contact us for an alternative delivery method.`;
-      
-      const msg = {
-        to,
-        cc,
-        from: 'notifications@kinguniforms.net',
-        subject: `${subject} (No Attachment)`,
-        text: fallbackText
-      };
-      
-      await sgMail.send(msg);
-      
-      return res.status(200).json({ 
-        success: true, 
-        fallback: true,
-        message: `Email sent without PDF attachment. PDF size (${pdfSizeInMB.toFixed(2)}MB) exceeded limit.`
-      });
-    } catch (fallbackErr) {
-      console.error('Fallback email error:', fallbackErr);
-      return res.status(500).json({ 
-        error: 'Failed to send email', 
-        details: `PDF too large (${pdfSizeInMB.toFixed(2)}MB) and fallback email failed: ${fallbackErr.message}` 
-      });
-    }
-  }
-
+  // Attempt to send PDF directly with SendGrid
   try {
     console.log(`Sending email to: ${to}`);
     
@@ -117,7 +87,38 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Email send error:', err);
     
-    // Check if it's a 413 error from the provider
+    // If SendGrid rejects due to size, try fallback without attachment
+    if (err.responseCode === 413 || err.message.includes('too large') || err.message.includes('file size')) {
+      console.log('PDF attachment failed due to size, sending fallback email without attachment');
+      
+      try {
+        const fallbackText = `${text}\n\nNote: The PDF attachment was too large to include in this email (${pdfSizeInMB.toFixed(2)}MB). Please contact us for an alternative delivery method.`;
+        
+        const msg = {
+          to,
+          cc,
+          from: 'notifications@kinguniforms.net',
+          subject: `${subject} (No Attachment)`,
+          text: fallbackText
+        };
+        
+        await sgMail.send(msg);
+        
+        return res.status(200).json({ 
+          success: true, 
+          fallback: true,
+          message: `Email sent without PDF attachment. PDF size (${pdfSizeInMB.toFixed(2)}MB) exceeded SendGrid limits.`
+        });
+      } catch (fallbackErr) {
+        console.error('Fallback email error:', fallbackErr);
+        return res.status(500).json({ 
+          error: 'Failed to send email', 
+          details: `PDF too large (${pdfSizeInMB.toFixed(2)}MB) and fallback email failed: ${fallbackErr.message}` 
+        });
+      }
+    }
+    
+    // For other errors, return the original error
     if (err.responseCode === 413 || err.message.includes('too large')) {
       return res.status(413).json({ 
         error: 'Email content too large', 

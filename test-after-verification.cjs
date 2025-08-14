@@ -11,9 +11,9 @@ console.log('🧪 Testing SendGrid After Sender Verification');
 console.log('=' .repeat(50));
 
 const testData = {
-  to: 'test@example.com', // Change this to a real email for testing
-  subject: 'SendGrid Verification Test',
-  body: 'This email tests if SendGrid sender verification is working.'
+  to: 'eric.perez.pr@gmail.com', // Using real email for testing
+  subject: 'SendGrid Verification Test - PDF Email Fixed',
+  body: 'This email tests if SendGrid sender verification is working with the updated verified sender notifications@kinguniforms.net.'
 };
 
 const postData = JSON.stringify(testData);
