@@ -71,6 +71,7 @@ const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivi
 const RealTimeOperationsDashboard = lazy(() => import("./components/RealTimeOperationsDashboard"));
 const DeliveredInvoicesPage = lazy(() => import("./components/DeliveredInvoicesPage"));
 const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
+const SpecialItemsReminder = lazy(() => import("./components/SpecialItemsReminder"));
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
@@ -1894,6 +1895,16 @@ function App() {
       {/* Removed rendering for activePage === "rutasPorCamion" */}
       {activePage === "home" && (
         <div className="home-page">
+          {/* Special Items Reminder Dashboard */}
+          <div className="container-fluid py-4">
+            <div className="row justify-content-center">
+              <div className="col-12 col-lg-10">
+                <Suspense fallback={<div className="text-center">Loading special items...</div>}>
+                  <SpecialItemsReminder />
+                </Suspense>
+              </div>
+            </div>
+          </div>
           {/* Removed 'Welcome to the App' and instructions text */}
         </div>
       )}

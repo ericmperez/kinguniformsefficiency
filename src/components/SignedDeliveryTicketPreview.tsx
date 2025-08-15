@@ -136,7 +136,10 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
           items: [
             { productId: '1', productName: 'Scrub Shirts - Blue', quantity: 12, price: 15.0 },
             { productId: '2', productName: 'Scrub Pants - Blue', quantity: 8, price: 12.5 },
-            { productId: '3', productName: 'Lab Coats - White', quantity: 5, price: 10.0 }
+            { productId: '3', productName: 'Lab Coats - White', quantity: 5, price: 10.0 },
+            { productId: '4', productName: 'Servilletas Blancas', quantity: 150, price: 0.25 },
+            { productId: '5', productName: 'Servilletas de Papel', quantity: 200, price: 0.20 },
+            { productId: '6', productName: 'Napkins - Brown', quantity: 75, price: 0.30 }
           ],
           total: 250.0, // Add total to cart as well
           createdAt: new Date().toISOString()
@@ -622,16 +625,18 @@ const SignedDeliveryTicketPreview: React.FC<SignedDeliveryTicketPreviewProps> = 
                               <select 
                                 className="form-select form-select-sm"
                                 value={pdfOptions.contentDisplay}
-                                onChange={(e) => setPdfOptions({...pdfOptions, contentDisplay: e.target.value as 'detailed' | 'summary' | 'weight-only'})}
+                                onChange={(e) => setPdfOptions({...pdfOptions, contentDisplay: e.target.value as 'detailed' | 'summary' | 'weight-only' | 'servilletas-summary'})}
                               >
                                 <option value="detailed">Detailed Items List</option>
                                 <option value="summary">Summary with Total Weight</option>
                                 <option value="weight-only">Weight Only</option>
+                                <option value="servilletas-summary">Servilletas by Product & Qty + Weight</option>
                               </select>
                               <div className="form-text small text-muted mt-1">
                                 {pdfOptions.contentDisplay === 'detailed' && 'Shows each item with quantities and details'}
                                 {pdfOptions.contentDisplay === 'summary' && 'Shows summary with total weight and item count'}
                                 {pdfOptions.contentDisplay === 'weight-only' && 'Shows only total weight delivered'}
+                                {pdfOptions.contentDisplay === 'servilletas-summary' && 'Shows Servilletas grouped by Product & Qty + Client total weight'}
                               </div>
                             </div>
                           </div>

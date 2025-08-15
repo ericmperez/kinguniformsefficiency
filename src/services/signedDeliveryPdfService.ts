@@ -25,7 +25,7 @@ export interface SignedDeliveryPdfOptions {
   optimizeLightweight?: boolean;
   compressImages?: boolean;
   imageQuality?: number;
-  contentDisplay?: 'detailed' | 'summary' | 'weight-only';
+  contentDisplay?: 'detailed' | 'summary' | 'weight-only' | 'servilletas-summary';
   showQuantities?: boolean;
 }
 

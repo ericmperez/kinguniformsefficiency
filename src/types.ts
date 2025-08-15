@@ -73,7 +73,7 @@ export interface PrintConfiguration {
     showTimestamp: boolean;
     showLocation: boolean;
     showQuantities: boolean;
-    contentDisplay: 'detailed' | 'summary' | 'weight-only';
+    contentDisplay: 'detailed' | 'summary' | 'weight-only' | 'servilletas-summary';
     paperSize: 'letter' | 'a4' | 'legal';
     orientation: 'portrait' | 'landscape';
     margins: 'narrow' | 'normal' | 'wide';
@@ -239,4 +239,41 @@ export interface Suggestion {
   reviewedBy?: string; // User ID who reviewed
   reviewedByName?: string; // User name for display
   reviewNotes?: string;
+}
+
+// Enhanced Manual Conventional Product interface for special item tracking
+export interface ManualConventionalProduct {
+  id: string;
+  clientId: string;
+  clientName: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  type: 'lbs' | 'qty' | 'cart';
+  createdAt: Date | string;
+  washed?: boolean;
+  invoiceId?: string;
+  delivered?: boolean;
+  order?: number;
+  
+  // Special item tracking
+  isSpecialItem?: boolean;
+  category?: 'blanket' | 'colcha' | 'uniform' | 'other';
+  requiresConfirmation?: boolean;
+  confirmationStatus?: 'pending' | 'confirmed' | 'skipped';
+  
+  // Skip tracking
+  skipReason?: string;
+  skippedBy?: string;
+  skippedAt?: Date | string;
+  
+  // Confirmation tracking
+  confirmedBy?: string;
+  confirmedAt?: Date | string;
+  
+  // Employee reminders
+  reminderSent?: boolean;
+  reminderSentAt?: Date | string;
+  reminderCount?: number;
+  nextReminderAt?: Date | string;
 }

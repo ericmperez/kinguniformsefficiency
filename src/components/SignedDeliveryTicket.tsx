@@ -69,11 +69,29 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
   const showDetailedItems = contentDisplay === 'detailed';
   const showSummaryOnly = contentDisplay === 'summary';
   const showWeightOnly = contentDisplay === 'weight-only';
+  const showServilletasSummary = contentDisplay === 'servilletas-summary';
   
   const items = invoice.carts.flatMap((cart) => cart.items || []);
   const totalWeight = invoice.totalWeight || 0;
   const totalItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalCartCount = invoice.carts.length; // Total number of carts delivered
+  
+  // Filter and group Servilletas items for the new display mode
+  const servilletasItems = items.filter(item => 
+    item.productName.toLowerCase().includes('servilleta') || 
+    item.productName.toLowerCase().includes('napkin')
+  );
+  
+  // Group servilletas by product name and sum quantities
+  const groupedServilletas = servilletasItems.reduce((acc, item) => {
+    const existingItem = acc.find(grouped => grouped.productName === item.productName);
+    if (existingItem) {
+      existingItem.quantity += item.quantity;
+    } else {
+      acc.push({ ...item });
+    }
+    return acc;
+  }, [] as typeof servilletasItems);
   
   // Font size mapping - increased by 6pt for better readability
   const getFontSize = (baseSize: string) => {
@@ -283,6 +301,67 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
             <p style={{ margin: '0', fontSize: getFontSize('20px'), fontWeight: 'bold', color: '#0E62A0' }}>
               Total Weight Delivered: {totalWeight.toFixed(2)} lbs
             </p>
+          </div>
+        )}
+
+        {/* Servilletas Summary display mode - shows servilletas grouped by product & quantity + client total weight */}
+        {showServilletasSummary && (
+          <div>
+            {/* Servilletas Table */}
+            {groupedServilletas.length > 0 && (
+              <div style={{ marginBottom: '15px' }}>
+                <h4 style={{ color: '#0E62A0', marginBottom: '10px', fontSize: getFontSize('16px'), textAlign: 'center' }}>
+                  Servilletas / Napkins
+                </h4>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <th style={{ border: '1px solid #dee2e6', padding: '10px', textAlign: 'left', fontWeight: 'bold', fontSize: getFontSize('14px') }}>
+                        PRODUCT
+                      </th>
+                      <th style={{ border: '1px solid #dee2e6', padding: '10px', textAlign: 'center', fontWeight: 'bold', width: '120px', fontSize: getFontSize('14px') }}>
+                        QUANTITY
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedServilletas.map((item, index) => (
+                      <tr key={index}>
+                        <td style={{ border: '1px solid #dee2e6', padding: '8px', fontSize: getFontSize('13px') }}>
+                          {item.productName}
+                        </td>
+                        <td style={{ border: '1px solid #dee2e6', padding: '8px', textAlign: 'center', fontSize: getFontSize('13px') }}>
+                          {item.quantity}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            
+            {/* Client Total Weight */}
+            {totalWeight > 0 && (
+              <div style={{ backgroundColor: '#e8f5e8', padding: '15px', borderRadius: '5px', marginBottom: '15px', textAlign: 'center' }}>
+                <p style={{ margin: '0', fontSize: getFontSize('18px'), fontWeight: 'bold', color: '#0E62A0' }}>
+                  Client Total Weight: {totalWeight.toFixed(2)} lbs
+                </p>
+              </div>
+            )}
+            
+            {/* Message if no servilletas found */}
+            {groupedServilletas.length === 0 && (
+              <div style={{ backgroundColor: '#fff3cd', padding: '15px', borderRadius: '5px', marginBottom: '15px', textAlign: 'center' }}>
+                <p style={{ margin: '0', fontSize: getFontSize('14px'), color: '#856404' }}>
+                  No Servilletas/Napkins found in this delivery
+                </p>
+                {totalWeight > 0 && (
+                  <p style={{ margin: '5px 0 0 0', fontSize: getFontSize('16px'), fontWeight: 'bold', color: '#0E62A0' }}>
+                    Client Total Weight: {totalWeight.toFixed(2)} lbs
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 

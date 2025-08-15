@@ -6,6 +6,7 @@ import {
   CartItem,
   Cart,
   LaundryCart,
+  ManualConventionalProduct,
 } from "../types";
 import InvoiceForm from "./InvoiceForm";
 import { DeleteConfirmationModal } from "./DeleteConfirmationModal";
@@ -17,6 +18,7 @@ import {
   updatePickupGroupStatus,
   getManualConventionalProductsForDate,
   deleteManualConventionalProduct,
+  getPendingSpecialItems,
 } from "../services/firebaseService";
 import { updateDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import Slider from "react-slick";
@@ -875,6 +877,31 @@ export default function ActiveInvoices({
     if (!pickupSignatureInvoice || !user) return;
 
     try {
+      // Check for unconfirmed special items before marking as picked up
+      try {
+        const pendingSpecialItems = await getPendingSpecialItems() as ManualConventionalProduct[];
+        const invoiceSpecialItems = pendingSpecialItems.filter(item => 
+          item.invoiceId === pickupSignatureInvoice.id
+        );
+        
+        if (invoiceSpecialItems.length > 0) {
+          const itemNames = invoiceSpecialItems.map(item => 
+            `${item.productName} (${item.category})`
+          ).join(', ');
+          
+          alert(
+            `Cannot complete pickup: ${invoiceSpecialItems.length} special item(s) require confirmation before pickup.\n\n` +
+            `Unconfirmed items: ${itemNames}\n\n` +
+            `Please confirm or skip these items in the Washing section before allowing pickup.`
+          );
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking special items:', error);
+        alert('Error checking special items. Please try again.');
+        return;
+      }
+
       // Mark the invoice as done (picked up)
       await onUpdateInvoice(pickupSignatureInvoice.id, {
         status: "done",
@@ -2597,6 +2624,31 @@ export default function ActiveInvoices({
                                   }
                                 }
                               } else {
+                                // Check for unconfirmed special items before shipping
+                                try {
+                                  const pendingSpecialItems = await getPendingSpecialItems() as ManualConventionalProduct[];
+                                  const invoiceSpecialItems = pendingSpecialItems.filter(item => 
+                                    item.invoiceId === invoice.id
+                                  );
+                                  
+                                  if (invoiceSpecialItems.length > 0) {
+                                    const itemNames = invoiceSpecialItems.map(item => 
+                                      `${item.productName} (${item.category})`
+                                    ).join(', ');
+                                    
+                                    alert(
+                                      `Cannot ship laundry ticket: ${invoiceSpecialItems.length} special item(s) require confirmation before shipping.\n\n` +
+                                      `Unconfirmed items: ${itemNames}\n\n` +
+                                      `Please confirm or skip these items in the Washing section before shipping.`
+                                    );
+                                    return;
+                                  }
+                                } catch (error) {
+                                  console.error('Error checking special items:', error);
+                                  alert('Error checking special items. Please try again.');
+                                  return;
+                                }
+                                
                                 // Check if all carts are properly printed before shipping
                                 const areAllCartsPrinted = (invoice.carts || []).every(cart => {
                                   // Cart must be printed at least once
@@ -3086,6 +3138,31 @@ export default function ActiveInvoices({
                                     alert(
                                       'Cannot ship laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                                     );
+                                    return;
+                                  }
+                                  
+                                  // Check for unconfirmed special items before shipping
+                                  try {
+                                    const pendingSpecialItems = await getPendingSpecialItems() as ManualConventionalProduct[];
+                                    const invoiceSpecialItems = pendingSpecialItems.filter(item => 
+                                      item.invoiceId === invoice.id
+                                    );
+                                    
+                                    if (invoiceSpecialItems.length > 0) {
+                                      const itemNames = invoiceSpecialItems.map(item => 
+                                        `${item.productName} (${item.category})`
+                                      ).join(', ');
+                                      
+                                      alert(
+                                        `Cannot ship laundry ticket: ${invoiceSpecialItems.length} special item(s) require confirmation before shipping.\n\n` +
+                                        `Unconfirmed items: ${itemNames}\n\n` +
+                                        `Please confirm or skip these items in the Washing section before shipping.`
+                                      );
+                                      return;
+                                    }
+                                  } catch (error) {
+                                    console.error('Error checking special items:', error);
+                                    alert('Error checking special items. Please try again.');
                                     return;
                                   }
                                   
@@ -4502,6 +4579,31 @@ export default function ActiveInvoices({
                       (inv) => inv.id === showShippedModal
                     );
                     if (!invoice) return;
+                    
+                    // Check for unconfirmed special items before shipping
+                    try {
+                      const pendingSpecialItems = await getPendingSpecialItems() as ManualConventionalProduct[];
+                      const invoiceSpecialItems = pendingSpecialItems.filter(item => 
+                        item.invoiceId === invoice.id
+                      );
+                      
+                      if (invoiceSpecialItems.length > 0) {
+                        const itemNames = invoiceSpecialItems.map(item => 
+                          `${item.productName} (${item.category})`
+                        ).join(', ');
+                        
+                        alert(
+                          `Cannot ship laundry ticket: ${invoiceSpecialItems.length} special item(s) require confirmation before shipping.\n\n` +
+                          `Unconfirmed items: ${itemNames}\n\n` +
+                          `Please confirm or skip these items in the Washing section before shipping.`
+                        );
+                        return;
+                      }
+                    } catch (error) {
+                      console.error('Error checking special items:', error);
+                      alert('Error checking special items. Please try again.');
+                      return;
+                    }
                     
                     // Check if all carts are properly printed before shipping
                     const areAllCartsPrinted = (invoice.carts || []).every(cart => {

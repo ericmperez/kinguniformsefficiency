@@ -1018,7 +1018,7 @@ export const getAllPickupGroups = async () => {
   });
 };
 
-// Add a manual conventional product entry
+// Add a manual conventional product entry with enhanced special item tracking
 export const addManualConventionalProduct = async (entry: {
   clientId: string;
   clientName: string;
@@ -1027,8 +1027,23 @@ export const addManualConventionalProduct = async (entry: {
   quantity: number;
   type: 'lbs' | 'qty' | 'cart';
   createdAt?: Date;
+  isSpecialItem?: boolean;
+  category?: 'blanket' | 'colcha' | 'uniform' | 'other';
+  requiresConfirmation?: boolean;
 }) => {
-  const { clientId, clientName, productId, productName, quantity, type, createdAt } = entry;
+  const { 
+    clientId, 
+    clientName, 
+    productId, 
+    productName, 
+    quantity, 
+    type, 
+    createdAt,
+    isSpecialItem = false,
+    category = 'other',
+    requiresConfirmation = false
+  } = entry;
+  
   const docData = {
     clientId,
     clientName,
@@ -1037,7 +1052,16 @@ export const addManualConventionalProduct = async (entry: {
     quantity,
     type,
     createdAt: createdAt instanceof Timestamp ? createdAt : Timestamp.fromDate(createdAt ? new Date(createdAt) : new Date()),
+    isSpecialItem,
+    category,
+    requiresConfirmation,
+    confirmationStatus: requiresConfirmation ? 'pending' : 'confirmed',
+    washed: false,
+    delivered: false,
+    reminderSent: false,
+    reminderCount: 0
   };
+  
   return await addDoc(collection(db, 'manual_conventional_products'), docData);
 };
 
@@ -1059,4 +1083,86 @@ export const getManualConventionalProductsForDate = async (date: Date = new Date
 // Delete a manual conventional product by ID
 export const deleteManualConventionalProduct = async (manualProductId: string) => {
   await deleteDoc(doc(db, 'manual_conventional_products', manualProductId));
+};
+
+// Special Item Confirmation and Skip Tracking Functions
+
+// Confirm a special item for invoice inclusion
+export const confirmSpecialItem = async (manualProductId: string, confirmedBy: string) => {
+  const productRef = doc(db, 'manual_conventional_products', manualProductId);
+  await updateDoc(productRef, {
+    confirmationStatus: 'confirmed',
+    confirmedBy,
+    confirmedAt: Timestamp.now(),
+    requiresConfirmation: false
+  });
+};
+
+// Skip a special item with reason
+export const skipSpecialItem = async (manualProductId: string, skipReason: string, skippedBy: string) => {
+  const productRef = doc(db, 'manual_conventional_products', manualProductId);
+  await updateDoc(productRef, {
+    confirmationStatus: 'skipped',
+    skipReason,
+    skippedBy,
+    skippedAt: Timestamp.now(),
+    requiresConfirmation: false
+  });
+};
+
+// Get pending special items requiring confirmation
+export const getPendingSpecialItems = async () => {
+  const q = query(
+    collection(db, 'manual_conventional_products'),
+    where('isSpecialItem', '==', true),
+    where('confirmationStatus', '==', 'pending'),
+    where('washed', '==', true),
+    where('delivered', '==', false)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+// Get skipped special items for reminder tracking
+export const getSkippedSpecialItems = async () => {
+  const q = query(
+    collection(db, 'manual_conventional_products'),
+    where('confirmationStatus', '==', 'skipped'),
+    where('delivered', '==', false)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+// Update reminder status for a special item
+export const updateSpecialItemReminder = async (manualProductId: string) => {
+  const productRef = doc(db, 'manual_conventional_products', manualProductId);
+  const productDoc = await getDoc(productRef);
+  
+  if (productDoc.exists()) {
+    const currentData = productDoc.data();
+    const reminderCount = (currentData.reminderCount || 0) + 1;
+    const nextReminderAt = new Date();
+    nextReminderAt.setHours(nextReminderAt.getHours() + 24); // Next reminder in 24 hours
+    
+    await updateDoc(productRef, {
+      reminderSent: true,
+      reminderSentAt: Timestamp.now(),
+      reminderCount,
+      nextReminderAt: Timestamp.fromDate(nextReminderAt)
+    });
+  }
+};
+
+// Get items needing reminders (skipped items where nextReminderAt has passed)
+export const getItemsNeedingReminders = async () => {
+  const now = Timestamp.now();
+  const q = query(
+    collection(db, 'manual_conventional_products'),
+    where('confirmationStatus', '==', 'skipped'),
+    where('delivered', '==', false),
+    where('nextReminderAt', '<=', now)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };

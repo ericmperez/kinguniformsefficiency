@@ -75,6 +75,14 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   >([]);
   const [manualProductsLoading, setManualProductsLoading] = useState(true);
 
+  // Special item confirmation state
+  const [showSpecialItemModal, setShowSpecialItemModal] = useState(false);
+  const [selectedSpecialItem, setSelectedSpecialItem] = useState<any>(null);
+  const [specialItemCategory, setSpecialItemCategory] = useState<'blanket' | 'colcha' | 'uniform' | 'other'>('other');
+  const [skipReason, setSkipReason] = useState("");
+  const [pendingSpecialItems, setPendingSpecialItems] = useState<any[]>([]);
+  const [skippedSpecialItems, setSkippedSpecialItems] = useState<any[]>([]);
+
   // Red alert overlay state for tunnel cart count mismatch
   const [showTunnelRedAlert, setShowTunnelRedAlert] = useState(false);
   const tunnelRedAlertTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -421,6 +429,45 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       );
       if (!client) throw new Error("Client not found");
       if (!product) throw new Error("Product not found");
+      
+      // Check if this is a special item that requires confirmation
+      const isSpecial = isSpecialItem(product.name);
+      const category = getSpecialItemCategory(product.name);
+      
+      // If it's a special item, create a manual conventional product entry
+      if (isSpecial) {
+        const { addManualConventionalProduct } = await import("../services/firebaseService");
+        
+        await addManualConventionalProduct({
+          clientId: client.id,
+          clientName: client.name,
+          productId: product.id,
+          productName: product.name,
+          quantity: conventionalProductQty,
+          type: conventionalAddMode === "cart" ? "cart" : conventionalAddMode === "quantity" ? "qty" : "lbs",
+          isSpecialItem: true,
+          category,
+          requiresConfirmation: true
+        });
+        
+        await logActivity({
+          type: "Special Item",
+          message: `Special item '${product.name}' (${category}) added for client '${client.name}' by ${getCurrentUser()} - requires confirmation`,
+          user: getCurrentUser(),
+        });
+        
+        // Reset form
+        setShowAddConventionalModal(false);
+        setSelectedConventionalClientId("");
+        setSelectedConventionalCartId("");
+        setSelectedConventionalProductId("");
+        setConventionalProductQty(1);
+        setConventionalModalError("");
+        setConventionalModalLoading(false);
+        
+        alert(`Special item "${product.name}" has been added and will require confirmation before being included in invoices.`);
+        return;
+      }
       // Instead of manual product, create a new group for this client
       const { collection, addDoc, Timestamp } = await import(
         "firebase/firestore"
@@ -864,6 +911,103 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       mounted = false;
     };
   }, []);
+
+  // Fetch pending special items that need confirmation
+  useEffect(() => {
+    let mounted = true;
+    
+    const fetchSpecialItems = async () => {
+      try {
+        const { getPendingSpecialItems, getSkippedSpecialItems } = await import("../services/firebaseService");
+        const [pending, skipped] = await Promise.all([
+          getPendingSpecialItems(),
+          getSkippedSpecialItems()
+        ]);
+        
+        if (mounted) {
+          setPendingSpecialItems(pending);
+          setSkippedSpecialItems(skipped);
+        }
+      } catch (error) {
+        console.error("Error fetching special items:", error);
+      }
+    };
+
+    fetchSpecialItems();
+    
+    // Refresh every 30 seconds to check for new special items
+    const interval = setInterval(fetchSpecialItems, 30000);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Handler to confirm a special item for invoice inclusion
+  const handleConfirmSpecialItem = async (item: any) => {
+    try {
+      const { confirmSpecialItem } = await import("../services/firebaseService");
+      
+      await confirmSpecialItem(item.id, getCurrentUser());
+      
+      // Update local state
+      setPendingSpecialItems(prev => prev.filter(p => p.id !== item.id));
+      
+      await logActivity({
+        type: "Special Item",
+        message: `Special item "${item.productName}" for ${item.clientName} confirmed for invoice inclusion by ${getCurrentUser()}`,
+        user: getCurrentUser(),
+      });
+      
+      alert(`Special item "${item.productName}" confirmed for invoice inclusion.`);
+    } catch (error) {
+      console.error("Error confirming special item:", error);
+      alert("Error confirming special item. Please try again.");
+    }
+  };
+
+  // Handler to skip a special item with reason
+  const handleSkipSpecialItem = async (item: any, reason: string) => {
+    try {
+      const { skipSpecialItem } = await import("../services/firebaseService");
+      
+      await skipSpecialItem(item.id, reason, getCurrentUser());
+      
+      // Update local state
+      setPendingSpecialItems(prev => prev.filter(p => p.id !== item.id));
+      setSkippedSpecialItems(prev => [...prev, { ...item, skipReason: reason, skippedBy: getCurrentUser() }]);
+      
+      await logActivity({
+        type: "Special Item",
+        message: `Special item "${item.productName}" for ${item.clientName} skipped by ${getCurrentUser()}. Reason: ${reason}`,
+        user: getCurrentUser(),
+      });
+      
+      alert(`Special item "${item.productName}" has been skipped.`);
+    } catch (error) {
+      console.error("Error skipping special item:", error);
+      alert("Error skipping special item. Please try again.");
+    }
+  };
+
+  // Check if a product is a special item that requires confirmation
+  const isSpecialItem = (productName: string): boolean => {
+    const name = productName.toLowerCase();
+    return name.includes('blanket') || 
+           name.includes('colcha') || 
+           name.includes('manta') ||
+           name.includes('frazada');
+  };
+
+  // Get special item category
+  const getSpecialItemCategory = (productName: string): 'blanket' | 'colcha' | 'uniform' | 'other' => {
+    const name = productName.toLowerCase();
+    if (name.includes('blanket') || name.includes('manta') || name.includes('frazada')) return 'blanket';
+    if (name.includes('colcha')) return 'colcha';
+    if (name.includes('uniform') || name.includes('scrub')) return 'uniform';
+    return 'other';
+  };
 
   // Handler to mark manual product as washed (but keep in list until invoiced)
   const handleMarkManualProductWashed = async (id: string) => {
@@ -2742,6 +2886,192 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             con el número de carros segregados.
             <br />
             (El mensaje desaparecerá en 5 segundos)
+          </div>
+        </div>
+      )}
+
+      {/* Special Item Confirmation and Reminders Section */}
+      {(pendingSpecialItems.length > 0 || skippedSpecialItems.length > 0) && (
+        <div className="mt-4">
+          <div className="card">
+            <div className="card-header bg-warning text-dark">
+              <h5 className="mb-0">🔔 Special Items Requiring Attention</h5>
+            </div>
+            <div className="card-body">
+              {/* Pending Confirmations */}
+              {pendingSpecialItems.length > 0 && (
+                <div className="mb-4">
+                  <h6 className="text-warning mb-3">
+                    ⚠️ Items Awaiting Confirmation ({pendingSpecialItems.length})
+                  </h6>
+                  <div className="list-group">
+                    {pendingSpecialItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="list-group-item d-flex justify-content-between align-items-center"
+                      >
+                        <div>
+                          <strong className="text-primary">{item.clientName}</strong>
+                          <br />
+                          <span className="badge bg-info me-2">{item.category}</span>
+                          <strong>{item.productName}</strong> x{item.quantity} ({item.type})
+                          <br />
+                          <small className="text-muted">
+                            Added: {new Date(item.createdAt.seconds * 1000).toLocaleDateString()}
+                          </small>
+                        </div>
+                        <div className="btn-group">
+                          <button
+                            className="btn btn-success btn-sm"
+                            onClick={() => handleConfirmSpecialItem(item)}
+                            title="Confirm for invoice inclusion"
+                          >
+                            ✅ Confirm
+                          </button>
+                          <button
+                            className="btn btn-warning btn-sm"
+                            onClick={() => {
+                              setSelectedSpecialItem(item);
+                              setShowSpecialItemModal(true);
+                            }}
+                            title="Skip with reason"
+                          >
+                            ⏭️ Skip
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Skipped Items Reminders */}
+              {skippedSpecialItems.length > 0 && (
+                <div>
+                  <h6 className="text-info mb-3">
+                    📋 Skipped Items Reminder ({skippedSpecialItems.length})
+                  </h6>
+                  <div className="list-group">
+                    {skippedSpecialItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="list-group-item d-flex justify-content-between align-items-center bg-light"
+                      >
+                        <div>
+                          <strong className="text-secondary">{item.clientName}</strong>
+                          <br />
+                          <span className="badge bg-secondary me-2">{item.category}</span>
+                          <strong>{item.productName}</strong> x{item.quantity} ({item.type})
+                          <br />
+                          <small className="text-muted">
+                            Skipped: {item.skipReason}
+                            <br />
+                            By: {item.skippedBy} on {item.skippedAt ? new Date(item.skippedAt.seconds * 1000).toLocaleDateString() : 'Unknown'}
+                          </small>
+                        </div>
+                        <div className="btn-group">
+                          <button
+                            className="btn btn-outline-success btn-sm"
+                            onClick={() => handleConfirmSpecialItem(item)}
+                            title="Ready to include in invoice"
+                          >
+                            ✅ Ready Now
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Special Item Skip Reason Modal */}
+      {showSpecialItemModal && selectedSpecialItem && (
+        <div
+          className="modal show"
+          style={{ display: "block", background: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Skip Special Item</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => {
+                    setShowSpecialItemModal(false);
+                    setSelectedSpecialItem(null);
+                    setSkipReason("");
+                  }}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="alert alert-warning">
+                  <strong>⚠️ Skipping Special Item</strong>
+                  <br />
+                  <strong>{selectedSpecialItem.productName}</strong> for <strong>{selectedSpecialItem.clientName}</strong>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Reason for skipping *</label>
+                  <select
+                    className="form-select"
+                    value={skipReason}
+                    onChange={(e) => setSkipReason(e.target.value)}
+                    required
+                  >
+                    <option value="">-- Select a reason --</option>
+                    <option value="Item not ready">Item not ready</option>
+                    <option value="Still being washed">Still being washed</option>
+                    <option value="Quality issue">Quality issue</option>
+                    <option value="Customer requested delay">Customer requested delay</option>
+                    <option value="Waiting for matching items">Waiting for matching items</option>
+                    <option value="Item needs repair">Item needs repair</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                {skipReason === "Other" && (
+                  <div className="mb-3">
+                    <label className="form-label">Please specify</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={skipReason}
+                      onChange={(e) => setSkipReason(e.target.value)}
+                      placeholder="Enter custom reason..."
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowSpecialItemModal(false);
+                    setSelectedSpecialItem(null);
+                    setSkipReason("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-warning"
+                  disabled={!skipReason}
+                  onClick={() => {
+                    handleSkipSpecialItem(selectedSpecialItem, skipReason);
+                    setShowSpecialItemModal(false);
+                    setSelectedSpecialItem(null);
+                    setSkipReason("");
+                  }}
+                >
+                  Skip Item
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
