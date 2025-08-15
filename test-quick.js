@@ -1,0 +1,1 @@
+console.log("Testing full-width implementation"); const pageWidth = 612; const padding = 40 * (72/96); console.log("Page width:", pageWidth, "pts"); console.log("Content width:", pageWidth - (padding * 2), "pts"); console.log("Utilization:", ((pageWidth - (padding * 2))/pageWidth*100).toFixed(1) + "%");

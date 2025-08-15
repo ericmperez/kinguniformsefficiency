@@ -54,6 +54,68 @@ export const BALANCED_PDF_OPTIONS = {
   footerText: ''
 };
 
+// Small card size preset for ultra-lightweight PDFs
+export const SMALL_CARD_PDF_OPTIONS = {
+  paperSize: 'custom',
+  customWidth: 6.46, // inches
+  customHeight: 4.25, // inches
+  orientation: 'landscape',
+  scale: 0.6, // Very small scale for tight fit
+  
+  // Absolute minimal content
+  contentDisplay: 'weight-only',
+  showSignatures: false,
+  showTimestamp: false,
+  showLocation: false,
+  showWatermark: false,
+  showBorder: false,
+  showQuantities: false,
+  
+  // Ultra-compact layout
+  margins: 'narrow',
+  fontSize: 'small',
+  logoSize: 'small',
+  pagination: 'single',
+  
+  // Lightweight optimization flags
+  optimizeLightweight: true,
+  compressImages: true,
+  imageQuality: 0.6,
+  
+  headerText: '',
+  footerText: ''
+};
+
+// Minimal letter size preset that preserves letter format but optimizes everything else
+export const MINIMAL_LETTER_PDF_OPTIONS = {
+  paperSize: 'letter',
+  orientation: 'portrait',
+  scale: 0.75, // Reduced scale for smaller output
+  
+  // Minimal content but at letter size
+  contentDisplay: 'weight-only',
+  showSignatures: false,
+  showTimestamp: false,
+  showLocation: false,
+  showWatermark: false,
+  showBorder: false,
+  showQuantities: false,
+  
+  // Compact layout
+  margins: 'narrow',
+  fontSize: 'small',
+  logoSize: 'small',
+  pagination: 'single',
+  
+  // Lightweight optimization flags
+  optimizeLightweight: true,
+  compressImages: true,
+  imageQuality: 0.88, // Increased from 0.68 for better quality
+  
+  headerText: '',
+  footerText: ''
+};
+
 // Usage instructions
 console.log('🎯 PDF SIZE OPTIMIZATION PRESETS');
 console.log('=' .repeat(40));

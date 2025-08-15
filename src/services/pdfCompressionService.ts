@@ -6,23 +6,23 @@
 // PDF compression options - UPDATED FOR BETTER QUALITY
 const COMPRESSION_LEVELS = {
   high: {
-    imageQuality: 0.6,  // Increased from 0.3 for better quality
-    imageMaxWidth: 1600, // Increased from 1200 for higher resolution
-    imageMaxHeight: 2000, // Increased from 1600 for higher resolution
+    imageQuality: 0.70,  // Increased from 0.6 for better quality
+    imageMaxWidth: 1800, // Increased from 1600 for higher resolution
+    imageMaxHeight: 2200, // Increased from 2000 for higher resolution
     removeMetadata: false, // Keep metadata for better compatibility
     optimizeForSize: false // Reduce optimization for better quality
   },
   medium: {
-    imageQuality: 0.75,  // Increased from 0.5 for better quality
-    imageMaxWidth: 2000, // Increased from 1600 for higher resolution
-    imageMaxHeight: 2400, // Increased from 2000 for higher resolution
+    imageQuality: 0.80,  // Increased from 0.75 for better quality
+    imageMaxWidth: 2200, // Increased from 2000 for higher resolution
+    imageMaxHeight: 2600, // Increased from 2400 for higher resolution
     removeMetadata: false,
     optimizeForSize: false
   },
   low: {
-    imageQuality: 0.85,  // Increased from 0.7 for better quality
-    imageMaxWidth: 2400, // Increased from 2000 for higher resolution
-    imageMaxHeight: 2800, // Increased from 2400 for higher resolution
+    imageQuality: 0.90,  // Increased from 0.85 for better quality
+    imageMaxWidth: 2600, // Increased from 2400 for higher resolution
+    imageMaxHeight: 3000, // Increased from 2800 for higher resolution
     removeMetadata: false,
     optimizeForSize: false
   }

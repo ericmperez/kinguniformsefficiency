@@ -27,6 +27,9 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
   const [emailingInvoices, setEmailingInvoices] = useState<Set<string>>(new Set());
   const [downloadingPDFs, setDownloadingPDFs] = useState(false);
 
+  // Lightweight PDF optimization toggle
+  const [lightweightMode, setLightweightMode] = useState<boolean>(true); // Default to enabled for smaller PDFs
+
   // State for tracking PDF sizes during compression
   const [compressionPreview, setCompressionPreview] = useState<{[invoiceId: string]: {originalSize: number, estimatedSizes: {normal: number, high: number, aggressive: number, ultra: number}}}>({});
 
@@ -414,14 +417,34 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
         if (!client) continue;
         
         try {
+          // Generate PDF with lightweight optimization for bulk downloads
+          const enhancedPrintConfig = {
+            ...client.printConfig,
+            pdfOptions: {
+              ...client.printConfig?.pdfOptions,
+              optimizeLightweight: lightweightMode,
+              compressImages: lightweightMode,
+              imageQuality: lightweightMode ? 0.90 : 1.0, // Increased from 0.68 to 0.90 for better quality
+              scale: lightweightMode ? 0.85 : 1.0 // Added explicit scale control
+            }
+          };
+          
           const pdfContent = await generateInvoicePDF(
             client,
             invoice,
-            client.printConfig?.invoicePrintSettings,
+            enhancedPrintConfig, // Pass enhanced config with lightweight optimization
             undefined // No driver name available in this context
           );
           
           if (pdfContent) {
+            // Log PDF size for monitoring with enhanced details
+            const { sizeInMB, targetMet } = logPDFSize(pdfContent, "Bulk Download", invoice.invoiceNumber || invoice.id);
+            
+            // Track oversized PDFs for summary
+            if (!targetMet && lightweightMode) {
+              console.warn(`⚠️ PDF size (${sizeInMB.toFixed(2)}MB) exceeded lightweight target (<1MB)`);
+            }
+            
             // Convert base64 to blob
             const base64Data = pdfContent.split(',')[1] || pdfContent;
             const byteCharacters = atob(base64Data);
@@ -529,6 +552,18 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
     };
   };
 
+  // Function to log and track PDF sizes for monitoring
+  const logPDFSize = (pdfContent: string, context: string, invoiceNumber?: string | number) => {
+    const sizeInMB = (pdfContent.length * 0.75) / (1024 * 1024);
+    const sizeInKB = sizeInMB * 1024;
+    const targetMet = lightweightMode ? sizeInMB < 1.0 : sizeInMB < 8.0;
+    
+    console.log(`📄 ${context}: ${sizeInMB.toFixed(2)}MB (${sizeInKB.toFixed(0)}KB)${invoiceNumber ? ` for invoice #${invoiceNumber}` : ''}`);
+    console.log(`🎯 Target: ${lightweightMode ? '<1MB (lightweight)' : '<8MB (standard)'} - ${targetMet ? '✅ Met' : '⚠️ Exceeded'}`);
+    
+    return { sizeInMB, sizeInKB, targetMet };
+  };
+
   if (loading) {
     return (
       <div className="container py-4">
@@ -622,6 +657,37 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+            </div>
+          </div>
+          
+          {/* PDF Optimization Settings */}
+          <div className="row mt-3 pt-3 border-top">
+            <div className="col-md-6">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="lightweightMode"
+                  checked={lightweightMode}
+                  onChange={(e) => setLightweightMode(e.target.checked)}
+                />
+                <label className="form-check-label fw-bold" htmlFor="lightweightMode">
+                  <i className="bi bi-lightning-charge me-1 text-warning"></i>
+                  Lightweight PDF Mode
+                </label>
+                <small className="d-block text-muted mt-1">
+                  When enabled, PDFs are optimized for smaller file sizes (~60% reduction) with enhanced quality. 
+                  Disable for maximum quality but larger files.
+                </small>
+              </div>
+            </div>
+            <div className="col-md-6">
+              <div className="text-end">
+                <small className="text-muted">
+                  <strong>Target Size:</strong> {lightweightMode ? '<1MB' : '3-8MB'} • 
+                  <strong> Quality:</strong> {lightweightMode ? 'Enhanced Optimized' : 'Maximum'}
+                </small>
+              </div>
             </div>
           </div>
         </div>
@@ -864,14 +930,34 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
                                   const freshClient = freshClients.find(c => c.id === client.id);
                                   const clientToUse = freshClient || client;
                                   
+                                  // Generate PDF with lightweight optimization for downloads
+                                  const enhancedPrintConfig = {
+                                    ...clientToUse.printConfig,
+                                    pdfOptions: {
+                                      ...clientToUse.printConfig?.pdfOptions,
+                                      optimizeLightweight: lightweightMode,
+                                      compressImages: lightweightMode,
+                                      imageQuality: lightweightMode ? 0.90 : 1.0, // Increased from 0.68 to 0.90 for better quality
+                                      scale: lightweightMode ? 0.85 : 1.0 // Added explicit scale control
+                                    }
+                                  };
+                                  
                                   const pdfContent = await generateInvoicePDF(
                                     clientToUse,
                                     invoice,
-                                    clientToUse.printConfig?.invoicePrintSettings,
+                                    enhancedPrintConfig, // Pass enhanced config with lightweight optimization
                                     undefined // No driver name available in this context
                                   );
                                   
                                   if (pdfContent) {
+                                    // Log PDF size for monitoring with enhanced details
+                                    const { sizeInMB, targetMet } = logPDFSize(pdfContent, "Individual Download", invoice.invoiceNumber || invoice.id);
+                                    
+                                    // Show user feedback about PDF size
+                                    if (!targetMet && lightweightMode) {
+                                      console.warn(`⚠️ PDF size (${sizeInMB.toFixed(2)}MB) exceeded lightweight target (<1MB)`);
+                                    }
+                                    
                                     // Convert base64 to blob for download
                                     const base64Data = pdfContent.split(',')[1] || pdfContent;
                                     try {

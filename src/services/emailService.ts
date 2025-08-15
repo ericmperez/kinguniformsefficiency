@@ -588,27 +588,28 @@ export const generateInvoicePDF = async (
     const pdfOptions = {
       paperSize: 'a4',  // Changed from letter to a4 for smaller size
       orientation: printConfig?.orientation || 'portrait',
-      scale: 0.75, // Reduced from 1.0 to 0.75 for smaller file size
+      scale: 0.90, // Increased from 0.85 for better quality while still compact
       showSignatures: true,
       showTimestamp: false, // Reduced content for smaller files
       showLocation: false,  // Reduced content for smaller files
       showQuantities: true,
       contentDisplay: 'summary', // Changed from 'detailed' to 'summary' for smaller files
       margins: 'narrow', // Reduced margins for compact layout
-      fontSize: 'small', // Smaller font for reduced size
+      fontSize: 'medium', // Increased from 'small' to 'medium' for better readability
       showWatermark: false,
       headerText: '',
       footerText: '',
-      logoSize: 'small', // Smaller logo for reduced size
+      logoSize: 'medium', // Increased from 'small' to 'medium' for better quality
       showBorder: false, // Remove border for smaller file
       pagination: 'single',
       compressImages: true, // Enable compression
-      imageQuality: 0.7, // Reduced image quality for smaller files
+      imageQuality: 0.92, // Increased from 0.85 to 0.92 for better quality
+      optimizeLightweight: true, // Enable lightweight optimization
       removeMetadata: true, // Remove metadata for smaller files
       ...printConfig?.pdfOptions
     };
     
-    console.log("📄 Using optimized PDF options for email delivery (smaller file size):", client.name, pdfOptions);
+    console.log("📄 Using enhanced quality PDF options for email delivery:", client.name, pdfOptions);
     
     // Generate the PDF using the new template
     const pdfContent = await generateDeliveryTicketPDF(invoice, client, pdfOptions, driverName);

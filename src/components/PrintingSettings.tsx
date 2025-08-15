@@ -126,7 +126,7 @@ King Uniforms Team`,
         signatureEmailTemplate: "",
       },
       pdfOptions: {
-        scale: 0.75, // Reduced scale for smaller file sizes
+        scale: 0.80, // Increased from 0.75 for better quality
         showSignatures: true,
         showTimestamp: false, // Reduced for smaller files
         showLocation: false, // Reduced for smaller files
@@ -135,11 +135,11 @@ King Uniforms Team`,
         paperSize: 'a4', // Changed from letter to a4 for smaller size
         orientation: 'portrait',
         margins: 'narrow', // Changed from normal to narrow
-        fontSize: 'small', // Changed from medium to small
+        fontSize: 'medium', // Increased from small to medium for better readability
         showWatermark: false,
         headerText: '',
         footerText: '',
-        logoSize: 'small', // Changed from medium to small
+        logoSize: 'medium', // Increased from small to medium for better quality
         showBorder: false, // Changed from true to false
         pagination: 'single'
       },

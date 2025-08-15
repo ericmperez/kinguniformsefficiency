@@ -49,26 +49,23 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
     showLocation: false,
     showQuantities: true,
     contentDisplay: 'detailed',
-    paperSize: 'letter',
+    paperSize: 'content', // Changed to 'content' for no empty space by default
     orientation: 'portrait',
-    margins: 'normal',
+    margins: 'content', // Changed to 'content' for minimal margins
     fontSize: 'medium',
     showWatermark: false,
     headerText: '',
     footerText: '',
     logoSize: 'medium',
-    showBorder: true
+    showBorder: true,
+    pagination: 'single' // Explicitly set to ensure centering
   };
   
   const options = { ...defaultOptions, ...pdfOptions };
-  const printConfig = client.printConfig?.invoicePrintSettings;
-  const showWeights = printConfig?.showTotalWeight !== false;
+
+  // All display flags now use only pdfOptions
   const showQuantities = options.showQuantities !== false;
-  const showItems = printConfig?.showProductSummary !== false;
-  
   const contentDisplay = options.contentDisplay || 'detailed';
-  // Fix: PDF contentDisplay setting should override invoicePrintSettings.showProductSummary
-  // When contentDisplay is explicitly set to 'detailed', show detailed items regardless of showProductSummary
   const showDetailedItems = contentDisplay === 'detailed';
   const showSummaryOnly = contentDisplay === 'summary';
   const showWeightOnly = contentDisplay === 'weight-only';
@@ -78,20 +75,21 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
   const totalItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalCartCount = invoice.carts.length; // Total number of carts delivered
   
-  // Font size mapping
+  // Font size mapping - increased by 6pt for better readability
   const getFontSize = (baseSize: string) => {
     const multiplier = options.fontSize === 'small' ? 0.85 : 
                      options.fontSize === 'large' ? 1.15 : 1.0;
     const numericSize = parseFloat(baseSize.replace('px', ''));
-    return `${Math.round(numericSize * multiplier)}px`;
+    const adjustedSize = numericSize + 6; // Add 6pt (6px) to all font sizes
+    return `${Math.round(adjustedSize * multiplier)}px`;
   };
   
-  // Logo size mapping - maintain proper aspect ratio for King Uniforms logo
+  // Logo size mapping - optimized for King Uniforms crown and shield design
   const getLogoSize = () => {
-    // King Uniforms logo dimensions based on actual logo proportions
-    // Approximately 4:2.5 aspect ratio to accommodate crown, shield and text
-    const baseWidth = 180;
-    const baseHeight = 110;
+    // King Uniforms logo with crown, shield, and text - optimized proportions
+    // Based on the actual logo dimensions: wider format with vertical elements
+    const baseWidth = 240;  // Increased width to accommodate full company text
+    const baseHeight = 140; // Increased height for crown, shield, and banner text
     const multiplier = options.logoSize === 'small' ? 0.7 : 
                      options.logoSize === 'large' ? 1.3 : 1.0;
     return {
@@ -107,11 +105,14 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
       fontFamily: 'Arial, sans-serif',
       padding: '20px',
       backgroundColor: 'white',
+      color: 'black', // Ensure text is black
       width: '8.5in',
       minHeight: '11in',
       margin: '0 auto',
       boxSizing: 'border-box',
-      fontSize: getFontSize('14px')
+      fontSize: getFontSize('14px'),
+      position: 'relative',
+      zIndex: 1
     }}>
       {/* Custom Header */}
       {options.headerText && (
@@ -134,20 +135,29 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
         justifyContent: 'space-between',
         alignItems: 'center',
         borderBottom: '3px solid #0E62A0',
-        paddingBottom: '15px',
-        marginBottom: '20px'
+        paddingBottom: '25px', // Increased padding for larger logo
+        marginBottom: '30px',   // Increased margin for better separation
+        minHeight: '150px'      // Increased height to accommodate larger logo
       }}>
         <img 
           src="/images/King Uniforms Logo.png" 
-          alt="Company Logo" 
+          alt="King Uniforms Logo" 
           style={{ 
             width: logoSize.width, 
             height: logoSize.height,
-            objectFit: 'contain',
-            objectPosition: 'left center',
+            objectFit: 'contain', // Maintain aspect ratio while fitting within bounds
+            objectPosition: 'left center', // Align to left side of header
             maxWidth: logoSize.width,
             maxHeight: logoSize.height,
-            display: 'block'
+            display: 'block',
+            // Enhanced styling for King Uniforms crown and shield logo
+            imageRendering: 'auto',
+            filter: 'contrast(1.08) brightness(1.03)', // Enhanced clarity for crown details
+            border: 'none',
+            borderRadius: '3px', // Subtle rounding for professional appearance
+            backgroundColor: 'transparent',
+            // Ensure logo maintains proper spacing and doesn't overflow
+            flexShrink: 0
           }}
         />
         <div style={{ textAlign: 'right' }}>
@@ -256,7 +266,7 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
                   Total Items: {totalItemCount}
                 </p>
               </div>
-              {showWeights && totalWeight > 0 && (
+              {totalWeight > 0 && (
                 <div>
                   <p style={{ margin: '0', fontSize: getFontSize('16px'), fontWeight: 'bold', color: '#0E62A0' }}>
                     Total Weight: {totalWeight.toFixed(2)} lbs
@@ -268,7 +278,7 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
         )}
 
         {/* Weight-only display mode - shows only total weight */}
-        {showWeightOnly && showWeights && totalWeight > 0 && (
+        {showWeightOnly && totalWeight > 0 && (
           <div style={{ backgroundColor: '#e3f2fd', padding: '20px', borderRadius: '5px', marginBottom: '15px', textAlign: 'center' }}>
             <p style={{ margin: '0', fontSize: getFontSize('20px'), fontWeight: 'bold', color: '#0E62A0' }}>
               Total Weight Delivered: {totalWeight.toFixed(2)} lbs
@@ -277,7 +287,7 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
         )}
 
         {/* Total weight section for detailed and summary modes */}
-        {(showDetailedItems || showSummaryOnly) && showWeights && totalWeight > 0 && !showSummaryOnly && (
+        {(showDetailedItems || showSummaryOnly) && totalWeight > 0 && !showSummaryOnly && (
           <div style={{ backgroundColor: '#e3f2fd', padding: '15px', borderRadius: '5px', marginTop: '10px' }}>
             <p style={{ margin: '0', fontSize: getFontSize('18px'), fontWeight: 'bold', color: '#0E62A0' }}>
               Total Weight: {totalWeight.toFixed(2)} lbs

@@ -1,0 +1,1 @@
+console.log("King Uniforms Logo Test"); const baseWidth = 240; const baseHeight = 140; console.log("Base dimensions:", baseWidth + "x" + baseHeight); console.log("Aspect ratio:", (baseWidth/baseHeight).toFixed(2) + ":1");
