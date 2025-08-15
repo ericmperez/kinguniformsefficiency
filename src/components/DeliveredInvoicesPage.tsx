@@ -64,9 +64,9 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
     }
   };
 
-  // Filtered invoices based on all criteria
+  // Filtered and sorted invoices based on all criteria
   const filteredInvoices = useMemo(() => {
-    return invoices.filter(invoice => {
+    const filtered = invoices.filter(invoice => {
       // Client filter
       if (clientFilter && invoice.clientId !== clientFilter) return false;
       
@@ -75,10 +75,10 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
         const emailStatus = invoice.emailStatus;
         switch (emailStatusFilter) {
           case 'sent':
-            if (!emailStatus?.manualEmailSent && !emailStatus?.approvalEmailSent && !emailStatus?.shippingEmailSent) return false;
+            if (!emailStatus?.manualEmailSent && !emailStatus?.approvalEmailSent && !emailStatus?.shippingEmailSent && !emailStatus?.signatureEmailSent) return false;
             break;
           case 'not_sent':
-            if (emailStatus?.manualEmailSent || emailStatus?.approvalEmailSent || emailStatus?.shippingEmailSent) return false;
+            if (emailStatus?.manualEmailSent || emailStatus?.approvalEmailSent || emailStatus?.shippingEmailSent || emailStatus?.signatureEmailSent) return false;
             break;
           case 'failed':
             if (!emailStatus?.lastEmailError) return false;
@@ -110,6 +110,13 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
       }
       
       return true;
+    });
+
+    // Sort by date - most recent first (delivery date or invoice date)
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.deliveryDate || a.date || 0);
+      const dateB = new Date(b.deliveryDate || b.date || 0);
+      return dateB.getTime() - dateA.getTime(); // Most recent first
     });
   }, [invoices, clientFilter, emailStatusFilter, startDate, endDate, searchTerm]);
 
@@ -516,6 +523,15 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
       };
     }
     
+    if (emailStatus?.signatureEmailSent) {
+      return {
+        status: 'sent',
+        text: 'Signature Email',
+        className: 'badge bg-warning',
+        title: `Sent: ${new Date(emailStatus.signatureEmailSentAt || '').toLocaleString()}`
+      };
+    }
+    
     if (emailStatus?.manualEmailSent) {
       return {
         status: 'sent',
@@ -763,7 +779,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
               <h5 className="card-title text-success">
                 {filteredInvoices.filter(inv => {
                   const status = inv.emailStatus;
-                  return status?.manualEmailSent || status?.approvalEmailSent || status?.shippingEmailSent;
+                  return status?.manualEmailSent || status?.approvalEmailSent || status?.shippingEmailSent || status?.signatureEmailSent;
                 }).length}
               </h5>
               <small className="text-muted">Emails Sent</small>
@@ -775,7 +791,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
             <div className="card-body text-center">
               <h5 className="card-title text-warning">
                 {filteredInvoices.filter(inv => !inv.emailStatus || 
-                  (!inv.emailStatus.manualEmailSent && !inv.emailStatus.approvalEmailSent && !inv.emailStatus.shippingEmailSent)
+                  (!inv.emailStatus.manualEmailSent && !inv.emailStatus.approvalEmailSent && !inv.emailStatus.shippingEmailSent && !inv.emailStatus.signatureEmailSent)
                 ).length}
               </h5>
               <small className="text-muted">No Email Sent</small>
@@ -798,7 +814,7 @@ const DeliveredInvoicesPage: React.FC<DeliveredInvoicesPageProps> = () => {
       <div className="card">
         <div className="card-body">
           <div className="table-responsive">
-            <table className="table table-hover">
+            <table className="table">
               <thead>
                 <tr>
                   <th>

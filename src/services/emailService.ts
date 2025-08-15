@@ -570,6 +570,7 @@ King Uniforms Team`
 /**
  * PDF generation function that uses the new signed delivery template
  * This replaces the old simple PDF service and provides consistent template usage
+ * ✅ FIXED: Now generates identical content to download PDF (detailed item breakdown)
  */
 export const generateInvoicePDF = async (
   client: Client,
@@ -584,37 +585,26 @@ export const generateInvoicePDF = async (
     // Import the new signed delivery PDF service
     const { generateDeliveryTicketPDF } = await import('./signedDeliveryPdfService');
     
-    // Use full letter-size page without compression for maximum quality
-    const pdfOptions = {
-      paperSize: 'a4',  // Changed from letter to a4 for smaller size
-      orientation: printConfig?.orientation || 'portrait',
-      scale: 0.90, // Increased from 0.85 for better quality while still compact
-      showSignatures: true,
-      showTimestamp: false, // Reduced content for smaller files
-      showLocation: false,  // Reduced content for smaller files
-      showQuantities: true,
-      contentDisplay: 'summary', // Changed from 'detailed' to 'summary' for smaller files
-      margins: 'narrow', // Reduced margins for compact layout
-      fontSize: 'medium', // Increased from 'small' to 'medium' for better readability
-      showWatermark: false,
-      headerText: '',
-      footerText: '',
-      logoSize: 'medium', // Increased from 'small' to 'medium' for better quality
-      showBorder: false, // Remove border for smaller file
-      pagination: 'single',
-      compressImages: true, // Enable compression
-      imageQuality: 0.92, // Increased from 0.85 to 0.92 for better quality
-      optimizeLightweight: true, // Enable lightweight optimization
-      removeMetadata: true, // Remove metadata for smaller files
-      ...printConfig?.pdfOptions
+    // Create enhanced config exactly like download PDF does
+    const enhancedPrintConfig = {
+      ...printConfig,
+      pdfOptions: {
+        ...printConfig?.pdfOptions,
+        // Email-specific optimizations (same pattern as download PDF)
+        compressImages: true, // Enable compression for email optimization
+        imageQuality: 0.92, // High quality but compressed for email
+        optimizeLightweight: true, // Enable lightweight optimization for email
+        removeMetadata: true, // Remove metadata for smaller email files
+        scale: 0.90 // Slightly smaller for email optimization
+      }
     };
     
-    console.log("📄 Using enhanced quality PDF options for email delivery:", client.name, pdfOptions);
+    console.log("📄 Using same config pattern as download PDF:", client.name, enhancedPrintConfig);
     
-    // Generate the PDF using the new template
-    const pdfContent = await generateDeliveryTicketPDF(invoice, client, pdfOptions, driverName);
+    // Generate the PDF using the new template with same config as download PDF
+    const pdfContent = await generateDeliveryTicketPDF(invoice, client, enhancedPrintConfig.pdfOptions, driverName);
     
-    console.log("✅ PDF generated successfully with optimized size for email delivery");
+    console.log("✅ PDF generated successfully with same content as download PDF");
     return pdfContent;
   } catch (error) {
     console.error("❌ Failed to generate PDF with full letter-size quality:", error);

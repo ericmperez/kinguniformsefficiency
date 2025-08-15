@@ -1,15 +1,16 @@
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Client, Invoice } from '../types';
 import { sendSignatureEmail } from './emailService';
-import { generateLaundryTicketPDF } from './pdfService';
-import { generateSimpleLaundryTicketPDF } from './simplePdfService';
+import { generateDeliveryTicketPDF } from './signedDeliveryPdfService';
 import { logActivity } from './firebaseService';
 
 export interface SignatureEmailData {
   receivedBy: string;
   signatureDate: string;
   signatureTime: string;
+  driverName?: string;
+  deliveryDate?: string;
   location?: {
     latitude: number;
     longitude: number;
@@ -85,18 +86,22 @@ export class SignatureEmailService {
       // Generate PDF for attachment
       let pdfContent: string | undefined;
       try {
-        console.log('📄 Generating PDF for signature email...');
+        console.log('📄 Generating PDF for signature email using unified delivery ticket template...');
         
-        // Try the simple PDF service first (more reliable for email context)
-        try {
-          pdfContent = await generateSimpleLaundryTicketPDF(invoiceData, client);
-          console.log('✅ PDF generated successfully using simple PDF service');
-        } catch (simpleError) {
-          console.log('⚠️ Simple PDF service failed, trying standard PDF service...');
-          // Fallback to the standard PDF service
-          pdfContent = await generateLaundryTicketPDF(invoiceData, client);
-          console.log('✅ PDF generated successfully using standard PDF service');
-        }
+        // Use the unified delivery ticket PDF generation that matches download and resend emails
+        pdfContent = await generateDeliveryTicketPDF(
+          invoiceData, 
+          client,
+          {
+            // Email-specific optimizations (same as resend email configuration)
+            optimizeLightweight: true,
+            compressImages: true,
+            imageQuality: 0.92,
+            scale: 0.90
+          },
+          signatureData.driverName || 'Driver' // Pass driver name from signature data
+        );
+        console.log('✅ PDF generated successfully using unified delivery ticket template');
       } catch (err) {
         console.error("❌ Failed to generate PDF for signature email:", err);
         // Continue without PDF attachment - email will be sent as text only
@@ -117,6 +122,25 @@ export class SignatureEmailService {
       );
 
       if (success) {
+        // Update email status in the invoice
+        try {
+          const invoiceRef = doc(db, "invoices", invoiceId);
+          const emailStatusUpdate = {
+            emailStatus: {
+              ...invoiceData.emailStatus,
+              signatureEmailSent: true,
+              signatureEmailSentAt: new Date().toISOString(),
+              lastEmailError: undefined,
+            },
+          };
+          
+          await updateDoc(invoiceRef, emailStatusUpdate);
+          console.log("✅ Email status updated in database for signature email");
+        } catch (updateError) {
+          console.error("❌ Failed to update email status for signature email:", updateError);
+          // Don't fail the entire operation if status update fails
+        }
+
         // Log the email activity
         await logActivity({
           type: "Email",
@@ -126,6 +150,22 @@ export class SignatureEmailService {
         console.log("✅ Signature email sent successfully to:", client.email);
         return true;
       } else {
+        // Update email status with error information
+        try {
+          const invoiceRef = doc(db, "invoices", invoiceId);
+          const emailStatusUpdate = {
+            emailStatus: {
+              ...invoiceData.emailStatus,
+              lastEmailError: "Failed to send signature email",
+            },
+          };
+          
+          await updateDoc(invoiceRef, emailStatusUpdate);
+          console.log("📝 Email error status updated in database");
+        } catch (updateError) {
+          console.error("❌ Failed to update email error status:", updateError);
+        }
+
         console.log("❌ Failed to send signature email to:", client.email);
         return false;
       }

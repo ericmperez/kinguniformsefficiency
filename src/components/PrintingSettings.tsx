@@ -109,19 +109,11 @@ const PrintingSettings: React.FC<PrintingSettingsProps> = () => {
         subject: "Invoice #{invoiceNumber} for {clientName}",
         bodyTemplate: `Dear {clientName},
 
-Here is your invoice summary #{invoiceNumber} dated {invoiceDate}.
+Here is your Laundry Ticket Summary #{invoiceNumber}.
 
-Invoice Details:
-- Client: {clientName}
-- Date: {invoiceDate}
-- Total Amount: ${"{totalAmount}"}
+If you have any questions regarding this Laundry Ticket, please don't hesitate to contact us.
 
-If you have any questions regarding this invoice, please don't hesitate to contact us.
-
-Thank you for your business!
-
-Best regards,
-King Uniforms Team`,
+Thank you for your business!`,
         signatureEmailSubject: "",
         signatureEmailTemplate: "",
       },
@@ -509,21 +501,11 @@ King Uniforms Team`,
 
     const defaultTemplate = `Dear ${client.name},
 
-Here is your invoice summary #${mockInvoice.invoiceNumber} dated ${
-      mockInvoice.date
-    }.
+Here is your Laundry Ticket Summary #${mockInvoice.invoiceNumber}.
 
-Invoice Details:
-- Client: ${client.name}
-- Date: ${mockInvoice.date}
-- Total Amount: $${mockInvoice.total.toFixed(2)}
+If you have any questions regarding this Laundry Ticket, please don't hesitate to contact us.
 
-If you have any questions regarding this invoice, please don't hesitate to contact us.
-
-Thank you for your business!
-
-Best regards,
-King Uniforms Team`;
+Thank you for your business!`;
 
     let body = defaultTemplate;
     if (emailSettings.bodyTemplate) {
@@ -1659,22 +1641,11 @@ King Uniforms Team`;
                     }}
                     placeholder={`Dear {clientName},
 
-Here is your invoice summary #{invoiceNumber} dated {invoiceDate}.
+Here is your Laundry Ticket Summary #{invoiceNumber}.
 
-Invoice Details:
-- Client: {clientName}
-- Date: {invoiceDate}
-- Total Amount: ${
-                      selectedClient.printConfig?.emailSettings?.bodyTemplate ||
-                      "{totalAmount}"
-                    }
+If you have any questions regarding this Laundry Ticket, please don't hesitate to contact us.
 
-If you have any questions regarding this invoice, please don't hesitate to contact us.
-
-Thank you for your business!
-
-Best regards,
-King Uniforms Team`}
+Thank you for your business!`}
                   />
                   <div className="form-text">
                     Available variables: {"{clientName}"}, {"{invoiceNumber}"},{" "}

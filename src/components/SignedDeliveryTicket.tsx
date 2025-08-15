@@ -286,14 +286,7 @@ const SignedDeliveryTicket: React.FC<SignedDeliveryTicketProps> = ({
           </div>
         )}
 
-        {/* Total weight section for detailed and summary modes */}
-        {(showDetailedItems || showSummaryOnly) && totalWeight > 0 && !showSummaryOnly && (
-          <div style={{ backgroundColor: '#e3f2fd', padding: '15px', borderRadius: '5px', marginTop: '10px' }}>
-            <p style={{ margin: '0', fontSize: getFontSize('18px'), fontWeight: 'bold', color: '#0E62A0' }}>
-              Total Weight: {totalWeight.toFixed(2)} lbs
-            </p>
-          </div>
-        )}
+        {/* Total weight section - not shown for detailed items or summary (summary already includes weight inline) */}
       </div>
 
       {options.showSignatures && (
