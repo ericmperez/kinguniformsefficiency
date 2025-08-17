@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import ProductionTrackingService, { ProductionSummary, ProductionEntry } from "../services/ProductionTrackingService";
+// Add segregation-related imports
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "../firebase";
 
 interface ClassifiedEntry extends ProductionEntry {
   classification: 'Mangle' | 'Doblado';
@@ -29,6 +32,20 @@ const ProductionClassificationDashboard: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<string>('');
   const [loading, setLoading] = useState(true);
+
+  // State for all products added today (for Edit Classifications modal)
+  const [allProductsToday, setAllProductsToday] = useState<string[]>([]);
+
+  // Add segregation data state
+  const [segregatedClientsToday, setSegregatedClientsToday] = useState<Array<{
+    clientId: string;
+    clientName: string;
+    weight: number;
+    timestamp: string;
+    user?: string;
+  }>>([]);
+  const [totalSegregatedWeight, setTotalSegregatedWeight] = useState(0);
+  const [segregationLoading, setSegregationLoading] = useState(true);
 
   // Default classification rules
   const getDefaultClassification = (productName: string): 'Mangle' | 'Doblado' => {
@@ -98,6 +115,153 @@ const ProductionClassificationDashboard: React.FC = () => {
     localStorage.setItem('productClassifications', JSON.stringify(classifications));
   };
 
+  // Direct Firebase query to get ALL products added today (bypassing service filters)
+  useEffect(() => {
+    const fetchAllProductsToday = async () => {
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Get all invoices to find ALL products added today
+        const invoicesSnapshot = await getDocs(collection(db, 'invoices'));
+        const allProductsSet = new Set<string>();
+
+        invoicesSnapshot.docs.forEach(doc => {
+          const invoice = doc.data();
+          const carts = invoice.carts || [];
+          
+          carts.forEach((cart: any) => {
+            const items = cart.items || [];
+            
+            items.forEach((item: any) => {
+              if (item.addedAt && item.productName) {
+                const itemDate = new Date(item.addedAt);
+                
+                // Include ALL items added today, regardless of quantity or other filters
+                if (itemDate >= today && itemDate < tomorrow) {
+                  allProductsSet.add(item.productName);
+                }
+              }
+            });
+          });
+        });
+
+        const sortedProducts = Array.from(allProductsSet).sort();
+        setAllProductsToday(sortedProducts);
+        console.log(`🏭 [Classification] Found ${sortedProducts.length} unique products added today`);
+        
+      } catch (error) {
+        console.error('Error fetching all products for today:', error);
+      }
+    };
+
+    fetchAllProductsToday();
+  }, []);
+
+  // State for segregation hourly rates
+  const [segregationHourlyData, setSegregationHourlyData] = useState<Array<{
+    hour: number;
+    clients: number;
+    weight: number;
+    rate: number;
+  }>>([]);
+
+  // Fetch segregation data for today
+  useEffect(() => {
+    const fetchSegregationData = async () => {
+      try {
+        setSegregationLoading(true);
+        
+        // Get today's date string (YYYY-MM-DD format)
+        const today = new Date();
+        const todayStr = today.toISOString().slice(0, 10);
+        
+        // Query segregation_done_logs for today
+        const segregationQuery = query(
+          collection(db, 'segregation_done_logs'),
+          where('date', '==', todayStr)
+        );
+        
+        const segregationSnapshot = await getDocs(segregationQuery);
+        const segregatedClients: typeof segregatedClientsToday = [];
+        let totalWeight = 0;
+        
+        // Hourly breakdown data
+        const hourlyBreakdown: { [hour: number]: { clients: number; weight: number } } = {};
+        
+        segregationSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          const weight = Number(data.weight) || 0;
+          const timestamp = data.timestamp || new Date().toISOString();
+          
+          segregatedClients.push({
+            clientId: data.clientId || 'unknown',
+            clientName: data.clientName || 'Unknown Client',
+            weight: weight,
+            timestamp: timestamp,
+            user: data.user || 'Unknown'
+          });
+          
+          totalWeight += weight;
+          
+          // Calculate hourly breakdown
+          const hour = new Date(timestamp).getHours();
+          if (!hourlyBreakdown[hour]) {
+            hourlyBreakdown[hour] = { clients: 0, weight: 0 };
+          }
+          hourlyBreakdown[hour].clients += 1;
+          hourlyBreakdown[hour].weight += weight;
+        });
+        
+        // Convert hourly breakdown to array with rates
+        const hourlyData = Object.entries(hourlyBreakdown)
+          .map(([hourStr, data]) => {
+            const hour = parseInt(hourStr);
+            return {
+              hour,
+              clients: data.clients,
+              weight: data.weight,
+              rate: data.weight // Weight per hour (since it's already per hour)
+            };
+          })
+          .sort((a, b) => a.hour - b.hour);
+        
+        // Sort by timestamp (most recent first)
+        segregatedClients.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        
+        setSegregatedClientsToday(segregatedClients);
+        setTotalSegregatedWeight(totalWeight);
+        setSegregationHourlyData(hourlyData);
+        
+        console.log('🏭 [Segregation Data] Loaded segregation data for today:', {
+          totalClients: segregatedClients.length,
+          totalWeight: totalWeight,
+          hourlyBreakdown: hourlyData,
+          clientsProcessed: segregatedClients.map(c => c.clientName)
+        });
+        
+      } catch (error) {
+        console.error('Error fetching segregation data:', error);
+      } finally {
+        setSegregationLoading(false);
+      }
+    };
+
+    fetchSegregationData();
+  }, []);
+
+  // Calculate current hour segregation rate
+  const currentHourSegregationRate = useMemo(() => {
+    if (!segregationHourlyData.length) return 0;
+    
+    const currentHour = new Date().getHours();
+    const currentHourData = segregationHourlyData.find(h => h.hour === currentHour);
+    
+    return currentHourData ? currentHourData.rate : 0;
+  }, [segregationHourlyData]);
+
   // Process production entries into classified groups
   const classifiedGroups = useMemo((): { mangle: ProductionGroup; doblado: ProductionGroup } => {
     if (!productionSummary) {
@@ -131,8 +295,16 @@ const ProductionClassificationDashboard: React.FC = () => {
     currentHourStart.setHours(currentHour, 0, 0, 0);
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
-    // Classify all entries
-    const classifiedEntries: ClassifiedEntry[] = productionSummary.recentEntries.map(entry => ({
+    // Classify all entries - use ALL entries for today, not just recent ones
+    const allEntriesForClassification = productionSummary.allEntriesToday || productionSummary.recentEntries;
+    console.log('🔍 [Production Logs] Using entries for classification:', {
+      allEntriesTodayCount: productionSummary.allEntriesToday?.length || 0,
+      recentEntriesCount: productionSummary.recentEntries?.length || 0,
+      usingAllEntries: !!(productionSummary.allEntriesToday),
+      totalEntriesForLogs: allEntriesForClassification.length
+    });
+    
+    const classifiedEntries: ClassifiedEntry[] = allEntriesForClassification.map(entry => ({
       ...entry,
       classification: getClassification(entry.productName),
       hourMinute: entry.addedAt.toLocaleTimeString('en-US', { 
@@ -145,6 +317,14 @@ const ProductionClassificationDashboard: React.FC = () => {
     // Group by classification
     const mangleEntries = classifiedEntries.filter(e => e.classification === 'Mangle');
     const dobladoEntries = classifiedEntries.filter(e => e.classification === 'Doblado');
+    
+    console.log('🔍 [Production Logs] Classification results:', {
+      totalEntries: classifiedEntries.length,
+      mangleEntries: mangleEntries.length,
+      dobladoEntries: dobladoEntries.length,
+      mangleUnits: mangleEntries.reduce((sum, e) => sum + e.quantity, 0),
+      dobladoUnits: dobladoEntries.reduce((sum, e) => sum + e.quantity, 0)
+    });
 
     // Calculate statistics for each group
     const calculateGroupStats = (entries: ClassifiedEntry[]): ProductionGroup => {
@@ -254,15 +434,23 @@ const ProductionClassificationDashboard: React.FC = () => {
     saveClassifications(updated);
   };
 
-  // Get all unique products for editing
+  // Get all unique products for editing - Enhanced to show ALL products added today
   const allProducts = useMemo(() => {
     if (!productionSummary) return [];
+    
+    // Start with products from recent entries (filtered data)
     const products = new Set<string>();
     productionSummary.recentEntries.forEach(entry => {
       products.add(entry.productName);
     });
+    
+    // Add products from Firebase query
+    allProductsToday.forEach(product => {
+      products.add(product);
+    });
+
     return Array.from(products).sort();
-  }, [productionSummary]);
+  }, [productionSummary, allProductsToday]);
 
   const formatRate = (rate: number) => {
     if (rate < 1) return `${(rate * 60).toFixed(1)}/min`;
@@ -427,7 +615,7 @@ const ProductionClassificationDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Hourly Breakdown Table */}
+      {/* Hourly Breakdown Table - Enhanced to show ALL hours */}
       {timingSummary && productionSummary && productionSummary.recentEntries.length > 0 && (
         <div className="row mb-4">
           <div className="col-12">
@@ -435,16 +623,21 @@ const ProductionClassificationDashboard: React.FC = () => {
               <div className="card-header bg-secondary text-white">
                 <h5 className="mb-0">
                   <i className="fas fa-chart-bar me-2"></i>
-                  Hourly Production Breakdown
+                  Complete Hourly Production Breakdown - All Hours Today
                 </h5>
               </div>
               <div className="card-body">
+                <div className="alert alert-info">
+                  <i className="fas fa-info-circle me-2"></i>
+                  This shows ALL production activity for today by hour, matching the Daily Live Production Dashboard
+                </div>
+                
                 <div className="table-responsive">
                   <table className="table table-striped table-hover">
                     <thead>
                       <tr>
                         <th>Hour</th>
-                        <th className="text-center">Items Added</th>
+                        <th className="text-center">Mangle/Doblado Split</th>
                         <th className="text-center">Units Processed</th>
                         <th className="text-center">Clients</th>
                         <th>Top Products</th>
@@ -452,24 +645,69 @@ const ProductionClassificationDashboard: React.FC = () => {
                     </thead>
                     <tbody>
                       {(() => {
-                        // Group entries by hour
+                        console.log('🔍 [Hourly Table] Building table with:', {
+                          hourlyBreakdownKeys: Object.keys(productionSummary.hourlyBreakdown || {}),
+                          hourlyBreakdownData: productionSummary.hourlyBreakdown,
+                          recentEntriesCount: productionSummary.recentEntries.length,
+                          allEntriesTodayCount: productionSummary.allEntriesToday?.length || 0,
+                          totalItemsAdded: productionSummary.totalItemsAdded,
+                          allEntriesHours: (productionSummary.allEntriesToday || productionSummary.recentEntries).map(e => e.addedAt.getHours()),
+                          firstEntries: (productionSummary.allEntriesToday || productionSummary.recentEntries).slice(0, 5).map(e => ({
+                            hour: e.addedAt.getHours(),
+                            product: e.productName,
+                            client: e.clientName,
+                            quantity: e.quantity,
+                            time: e.addedAt.toLocaleTimeString()
+                          }))
+                        });                        // Get hourly data from service
+                        const hourlyFromService = productionSummary.hourlyBreakdown || {};
+                        
+                        // Build detailed hourly data from ALL entries for today (not just recent 50)
+                        const allEntries = productionSummary.allEntriesToday || productionSummary.recentEntries;
+                        
+                        // Check if we have service data but no entries (common issue)
+                        const hasServiceData = Object.keys(hourlyFromService).length > 0;
+                        const hasEntryData = allEntries.length > 0;
+                        
+                        console.log('🔍 [Hourly Table] Data availability:', {
+                          hasServiceData,
+                          hasEntryData,
+                          usingAllEntriesToday: !!(productionSummary.allEntriesToday),
+                          serviceUnitsTotal: Object.values(hourlyFromService).reduce((sum, units) => sum + units, 0),
+                          allEntriesTotal: allEntries.length,
+                          recentEntriesTotal: productionSummary.recentEntries.length
+                        });
+                        
+                        if (hasServiceData && !hasEntryData) {
+                          console.warn('🔍 [Hourly Table] Warning: Service has hourly data but no entries - this is likely a data sync issue');
+                        }
                         const hourlyData: { [hour: number]: {
                           items: number;
                           units: number;
                           clients: Set<string>;
                           products: { [product: string]: number };
+                          mangleItems: number;
+                          dobladoItems: number;
+                          mangleUnits: number;
+                          dobladoUnits: number;
                         } } = {};
                         
-                        productionSummary.recentEntries.forEach(entry => {
+                        // Process ALL entries to build complete hourly breakdown
+                        allEntries.forEach(entry => {
                           const hour = entry.addedAt.getHours();
                           if (!hourlyData[hour]) {
                             hourlyData[hour] = {
                               items: 0,
                               units: 0,
                               clients: new Set(),
-                              products: {}
+                              products: {},
+                              mangleItems: 0,
+                              dobladoItems: 0,
+                              mangleUnits: 0,
+                              dobladoUnits: 0
                             };
                           }
+                          
                           hourlyData[hour].items++;
                           hourlyData[hour].units += entry.quantity;
                           hourlyData[hour].clients.add(entry.clientName);
@@ -478,51 +716,346 @@ const ProductionClassificationDashboard: React.FC = () => {
                             hourlyData[hour].products[entry.productName] = 0;
                           }
                           hourlyData[hour].products[entry.productName] += entry.quantity;
+                          
+                          // Classify the entry and add to appropriate category
+                          const classification = getClassification(entry.productName);
+                          if (classification === 'Mangle') {
+                            hourlyData[hour].mangleItems++;
+                            hourlyData[hour].mangleUnits += entry.quantity;
+                          } else {
+                            hourlyData[hour].dobladoItems++;
+                            hourlyData[hour].dobladoUnits += entry.quantity;
+                          }
                         });
 
-                        // Sort hours and render
-                        return Object.keys(hourlyData)
-                          .map(Number)
+                        console.log('🔍 [Hourly Table] Processed hourly data:', {
+                          hoursWithData: Object.keys(hourlyData),
+                          totalEntriesProcessed: Object.values(hourlyData).reduce((sum, data) => sum + data.items, 0),
+                          entriesSource: productionSummary.allEntriesToday ? 'allEntriesToday' : 'recentEntries',
+                          hourlyStats: Object.fromEntries(
+                            Object.entries(hourlyData).map(([hour, data]) => [
+                              hour, 
+                              {
+                                items: data.items,
+                                units: data.units,
+                                clients: data.clients.size,
+                                mangleItems: data.mangleItems,
+                                dobladoItems: data.dobladoItems,
+                                mangleUnits: data.mangleUnits,
+                                dobladoUnits: data.dobladoUnits,
+                                manglePercent: data.items > 0 ? Math.round((data.mangleItems / data.items) * 100) : 0,
+                                dobladoPercent: data.items > 0 ? Math.round((data.dobladoItems / data.items) * 100) : 0,
+                                clientNames: Array.from(data.clients).slice(0, 3),
+                                topProduct: Object.entries(data.products)
+                                  .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'None'
+                              }
+                            ])
+                          )
+                        });
+
+                        // Collect all hours that have data
+                        const allHours = new Set<number>();
+                        
+                        // Add hours from service breakdown
+                        Object.keys(hourlyFromService).forEach(hourStr => {
+                          const hourMatch = hourStr.match(/(\d+):00/);
+                          if (hourMatch) {
+                            const hour = parseInt(hourMatch[1]);
+                            if (!isNaN(hour)) allHours.add(hour);
+                          }
+                        });
+                        
+                        // Add hours from detailed analysis
+                        Object.keys(hourlyData).forEach(hourStr => {
+                          const hour = parseInt(hourStr);
+                          if (!isNaN(hour)) allHours.add(hour);
+                        });
+
+                        console.log('🔍 [Hourly Table] All hours found:', Array.from(allHours).sort());
+
+                        // Generate table rows for all hours
+                        const hourlyRows = Array.from(allHours)
                           .sort((a, b) => a - b)
                           .map(hour => {
-                            const data = hourlyData[hour];
+                            const data = hourlyData[hour] || {
+                              items: 0,
+                              units: 0,
+                              clients: new Set(),
+                              products: {},
+                              mangleItems: 0,
+                              dobladoItems: 0,
+                              mangleUnits: 0,
+                              dobladoUnits: 0
+                            };
+                            
+                            // Get units from service data first, then fall back to computed data
+                            const hourKey = `${hour}:00`;
+                            const serviceUnits = hourlyFromService[hourKey] || 0;
+                            const computedUnits = data.units;
+                            const finalUnits = Math.max(serviceUnits, computedUnits);
+                            
                             const hourStr = hour.toString().padStart(2, '0') + ':00';
                             
                             // Get top 3 products for this hour
-                            const topProducts = Object.entries(data.products)
+                            const productEntries = Object.entries(data.products);
+                            const topProducts = productEntries
                               .sort(([,a], [,b]) => (b as number) - (a as number))
                               .slice(0, 3)
                               .map(([product, qty]) => `${product} (${qty})`)
                               .join(', ');
 
                             const isCurrentHour = new Date().getHours() === hour;
+                            const hasActivity = finalUnits > 0 || data.items > 0;
                             
+                            console.log(`🔍 [Hourly Table] Hour ${hour}:`, {
+                              serviceUnits,
+                              computedUnits,
+                              finalUnits,
+                              items: data.items,
+                              clients: data.clients.size,
+                              topProducts: topProducts || 'No activity',
+                              hasActivity,
+                              fallbackMode: hasServiceData && !hasEntryData
+                            });
+                            
+                            // Show all hours that have any activity
                             return (
-                              <tr key={hour} className={isCurrentHour ? 'table-warning' : ''}>
+                              <tr key={hour} className={
+                                isCurrentHour ? 'table-warning' : 
+                                hasActivity ? '' : 'table-light text-muted'
+                              }>
                                 <td>
-                                  <span className={`fw-bold ${isCurrentHour ? 'text-warning' : ''}`}>
+                                  <span className={`fw-bold ${isCurrentHour ? 'text-warning' : hasActivity ? '' : 'text-muted'}`}>
                                     {hourStr}
                                     {isCurrentHour && <small className="ms-1">(Current)</small>}
                                   </span>
                                 </td>
                                 <td className="text-center">
-                                  <span className="badge bg-primary">{data.items}</span>
+                                  {data.items > 0 ? (
+                                    <div>
+                                      <div className="mb-1" style={{ width: '120px', margin: '0 auto' }}>
+                                        <div 
+                                          className="progress" 
+                                          style={{ height: '20px', borderRadius: '10px', border: '1px solid #dee2e6' }}
+                                          title={`${data.mangleUnits.toLocaleString()} Mangle pieces, ${data.dobladoUnits.toLocaleString()} Doblado pieces`}
+                                        >
+                                          <div 
+                                            className="progress-bar bg-success"
+                                            style={{ 
+                                              width: `${Math.round((data.mangleUnits / data.units) * 100)}%`,
+                                              fontSize: '11px',
+                                              fontWeight: 'bold',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              color: 'white'
+                                            }}
+                                          >
+                                            M {Math.round((data.mangleUnits / data.units) * 100)}%
+                                          </div>
+                                          <div 
+                                            className="progress-bar bg-warning"
+                                            style={{ 
+                                              width: `${Math.round((data.dobladoUnits / data.units) * 100)}%`,
+                                              fontSize: '11px',
+                                              fontWeight: 'bold',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              color: '#856404'
+                                            }}
+                                          >
+                                            D {Math.round((data.dobladoUnits / data.units) * 100)}%
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <small className="text-muted">
+                                        {data.mangleUnits.toLocaleString()} / {data.dobladoUnits.toLocaleString()}
+                                      </small>
+                                    </div>
+                                  ) : finalUnits > 0 && hasServiceData && !hasEntryData ? (
+                                    <span className="badge bg-warning text-dark" title="Service has data but entries are missing">?</span>
+                                  ) : (
+                                    <span className="text-muted">-</span>
+                                  )}
                                 </td>
                                 <td className="text-center">
-                                  <span className="fw-bold">{data.units.toLocaleString()}</span>
+                                  {finalUnits > 0 ? (
+                                    <span className="fw-bold">{finalUnits.toLocaleString()}</span>
+                                  ) : (
+                                    <span className="text-muted">-</span>
+                                  )}
                                 </td>
                                 <td className="text-center">
-                                  <span className="badge bg-info">{data.clients.size}</span>
+                                  {data.clients.size > 0 ? (
+                                    <span className="badge bg-info">{data.clients.size}</span>
+                                  ) : finalUnits > 0 && hasServiceData && !hasEntryData ? (
+                                    <span className="badge bg-warning text-dark" title="Service has data but entries are missing">?</span>
+                                  ) : (
+                                    <span className="text-muted">-</span>
+                                  )}
                                 </td>
                                 <td>
-                                  <small className="text-muted">{topProducts}</small>
+                                  {topProducts ? (
+                                    <small className="text-muted">{topProducts}</small>
+                                  ) : finalUnits > 0 && hasServiceData && !hasEntryData ? (
+                                    <small className="text-warning">Data sync issue - check console</small>
+                                  ) : (
+                                    <small className="text-muted">No activity</small>
+                                  )}
                                 </td>
                               </tr>
                             );
                           });
+                          
+                        // Calculate totals for the daily summary row
+                        const totalSummary = (() => {
+                          let totalMangleItems = 0;
+                          let totalDobladoItems = 0;
+                          let totalMangleUnits = 0;
+                          let totalDobladoUnits = 0;
+                          let totalUnits = 0;
+                          let totalItems = 0;
+                          const allDayClients = new Set<string>();
+                          
+                          Object.values(hourlyData).forEach(data => {
+                            totalMangleItems += data.mangleItems;
+                            totalDobladoItems += data.dobladoItems;
+                            totalMangleUnits += data.mangleUnits;
+                            totalDobladoUnits += data.dobladoUnits;
+                            totalUnits += data.units;
+                            totalItems += data.items;
+                            data.clients.forEach(client => allDayClients.add(client));
+                          });
+                          
+                          return {
+                            totalMangleItems,
+                            totalDobladoItems,
+                            totalMangleUnits,
+                            totalDobladoUnits,
+                            totalUnits,
+                            totalItems,
+                            totalClients: allDayClients.size
+                          };
+                        })();
+                        
+                        // Add total row to the hourly rows
+                        const totalRow = (
+                          <tr key="daily-total" className="table-dark border-top border-3 border-primary">
+                            <th className="fw-bold text-light">
+                              <i className="fas fa-calculator me-2"></i>
+                              DAILY TOTAL
+                            </th>
+                            <th className="text-center">
+                              {totalSummary.totalItems > 0 ? (
+                                <div>
+                                  <div className="mb-1" style={{ width: '140px', margin: '0 auto' }}>
+                                    <div 
+                                      className="progress" 
+                                      style={{ height: '24px', borderRadius: '12px', border: '2px solid #ffffff' }}
+                                      title={`${totalSummary.totalMangleUnits.toLocaleString()} Mangle pieces, ${totalSummary.totalDobladoUnits.toLocaleString()} Doblado pieces`}
+                                    >
+                                      <div 
+                                        className="progress-bar bg-success"
+                                        style={{ 
+                                          width: `${Math.round((totalSummary.totalMangleUnits / totalSummary.totalUnits) * 100)}%`,
+                                          fontSize: '12px',
+                                          fontWeight: 'bold',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: 'white'
+                                        }}
+                                      >
+                                        M {Math.round((totalSummary.totalMangleUnits / totalSummary.totalUnits) * 100)}%
+                                      </div>
+                                      <div 
+                                        className="progress-bar bg-warning"
+                                        style={{ 
+                                          width: `${Math.round((totalSummary.totalDobladoUnits / totalSummary.totalUnits) * 100)}%`,
+                                          fontSize: '12px',
+                                          fontWeight: 'bold',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: '#856404'
+                                        }}
+                                      >
+                                        D {Math.round((totalSummary.totalDobladoUnits / totalSummary.totalUnits) * 100)}%
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <small className="text-light">
+                                    {totalSummary.totalMangleUnits.toLocaleString()} / {totalSummary.totalDobladoUnits.toLocaleString()}
+                                  </small>
+                                </div>
+                              ) : (
+                                <span className="text-muted">-</span>
+                              )}
+                            </th>
+                            <th className="text-center">
+                              <span className="badge bg-primary fs-6">
+                                {totalSummary.totalUnits.toLocaleString()}
+                              </span>
+                            </th>
+                            <th className="text-center">
+                              <span className="badge bg-info fs-6">
+                                {totalSummary.totalClients}
+                              </span>
+                            </th>
+                            <th>
+                              <strong className="text-light">
+                                {totalSummary.totalItems.toLocaleString()} items processed today
+                              </strong>
+                            </th>
+                          </tr>
+                        );
+                        
+                        return [...hourlyRows, totalRow];
                       })()}
                     </tbody>
                   </table>
+                </div>
+                
+                {/* Summary Stats */}
+                <div className="row mt-3">
+                  <div className="col-12">
+                    <div className="alert alert-light">
+                      <div className="row text-center">
+                        <div className="col-md-3">
+                          <strong className="text-primary">
+                            {Object.values(productionSummary.hourlyBreakdown || {}).reduce((sum, count) => sum + count, 0).toLocaleString()}
+                          </strong>
+                          <br />
+                          <small className="text-muted">Total Units Today</small>
+                        </div>
+                        <div className="col-md-3">
+                          <strong className="text-success">
+                            {Object.keys(productionSummary.hourlyBreakdown || {}).length}
+                          </strong>
+                          <br />
+                          <small className="text-muted">Active Hours</small>
+                        </div>
+                        <div className="col-md-3">
+                          <strong className="text-info">
+                            {Object.keys(productionSummary.hourlyBreakdown || {}).length > 0 ? 
+                              Math.round(Object.values(productionSummary.hourlyBreakdown || {}).reduce((sum, count) => sum + count, 0) / Object.keys(productionSummary.hourlyBreakdown || {}).length)
+                              : 0
+                            }
+                          </strong>
+                          <br />
+                          <small className="text-muted">Avg Units/Hour</small>
+                        </div>
+                        <div className="col-md-3">
+                          <strong className="text-warning">
+                            {Math.round(productionSummary.currentHourRate || 0)}
+                          </strong>
+                          <br />
+                          <small className="text-muted">Current Hour Rate</small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -535,13 +1068,26 @@ const ProductionClassificationDashboard: React.FC = () => {
         <div className="col-md-6">
           <div className="card border-success h-100">
             <div className="card-header bg-success text-white">
-              <h5 className="mb-0">
-                <i className="fas fa-compress-arrows-alt me-2"></i>
-                Mangle Production
-                {classifiedGroups.mangle.activeInLast30Min && (
-                  <span className="badge bg-light text-success ms-2">🔴 Live</span>
-                )}
-              </h5>
+              <div className="d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">
+                  <i className="fas fa-compress-arrows-alt me-2"></i>
+                  Mangle Production
+                  {classifiedGroups.mangle.activeInLast30Min && (
+                    <span className="badge bg-light text-success ms-2">🔴 Live</span>
+                  )}
+                </h5>
+                <div className="text-end">
+                  <div className="fw-bold fs-5">
+                    <i className="fas fa-weight-hanging me-1"></i>
+                    {segregationLoading ? (
+                      <span className="spinner-border spinner-border-sm me-1"></span>
+                    ) : (
+                      totalSegregatedWeight.toLocaleString()
+                    )} lbs
+                  </div>
+                  <small className="opacity-75">Segregated Today</small>
+                </div>
+              </div>
             </div>
             <div className="card-body">
               <div className="row text-center mb-3">
@@ -613,6 +1159,184 @@ const ProductionClassificationDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Segregated Clients Log for Today */}
+      <div className="row mb-4">
+        <div className="col-12">
+          <div className="card border-info">
+            <div className="card-header bg-info text-white">
+              <div className="d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">
+                  <i className="fas fa-tasks me-2"></i>
+                  Segregated Clients Today
+                </h5>
+                <div className="d-flex align-items-center gap-3">
+                  <div className="text-end">
+                    <div className="fw-bold fs-6">
+                      {segregatedClientsToday.length} Clients
+                    </div>
+                    <small className="opacity-75">Processed</small>
+                  </div>
+                  <div className="text-end">
+                    <div className="fw-bold fs-6">
+                      {totalSegregatedWeight.toLocaleString()} lbs
+                    </div>
+                    <small className="opacity-75">Total Weight</small>
+                  </div>
+                  {segregationHourlyData.length > 0 && (
+                    <>
+                      <div className="text-end">
+                        <div className="fw-bold fs-6">
+                          {Math.round(totalSegregatedWeight / segregationHourlyData.length).toLocaleString()} lbs/hr
+                        </div>
+                        <small className="opacity-75">Avg Rate</small>
+                      </div>
+                      {currentHourSegregationRate > 0 && (
+                        <div className="text-end">
+                          <div className="fw-bold fs-6 text-warning">
+                            {Math.round(currentHourSegregationRate).toLocaleString()} lbs/hr
+                          </div>
+                          <small className="opacity-75">This Hour</small>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Hourly Segregation Rates Card */}
+            {!segregationLoading && segregationHourlyData.length > 0 && (
+              <div className="card-body border-bottom">
+                <h6 className="text-info mb-3">
+                  <i className="fas fa-chart-line me-2"></i>
+                  Hourly Segregation Breakdown
+                </h6>
+                <div className="table-responsive">
+                  <table className="table table-sm table-bordered">
+                    <thead className="table-light">
+                      <tr>
+                        <th className="text-center">Hour</th>
+                        <th className="text-center">Clients</th>
+                        <th className="text-center">Weight (lbs)</th>
+                        <th className="text-center">Rate (lbs/hr)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {segregationHourlyData.map((hourData) => (
+                        <tr key={hourData.hour}>
+                          <td className="text-center">
+                            <span className="badge bg-dark">
+                              {hourData.hour.toString().padStart(2, '0')}:00
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span className="fw-bold text-info">
+                              {hourData.clients}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span className="fw-bold">
+                              {hourData.weight.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span className="badge bg-info">
+                              {Math.round(hourData.rate).toLocaleString()}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {/* Summary Row */}
+                      <tr className="border-top bg-light">
+                        <td className="text-center fw-bold text-dark">
+                          <i className="fas fa-calculator me-1"></i>
+                          Total
+                        </td>
+                        <td className="text-center fw-bold text-dark">
+                          {segregationHourlyData.reduce((sum, h) => sum + h.clients, 0)}
+                        </td>
+                        <td className="text-center fw-bold text-dark">
+                          {segregationHourlyData.reduce((sum, h) => sum + h.weight, 0).toLocaleString()}
+                        </td>
+                        <td className="text-center">
+                          <span className="badge bg-dark">
+                            {Math.round(
+                              segregationHourlyData.reduce((sum, h) => sum + h.weight, 0) / 
+                              segregationHourlyData.length
+                            ).toLocaleString()}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {/* Segregated Clients Table with Professional Styling */}
+            <div className="card-body p-0">
+              {segregationLoading ? (
+                <div className="text-center py-4">
+                  <div className="spinner-border text-info" role="status">
+                    <span className="visually-hidden">Loading segregation data...</span>
+                  </div>
+                  <div className="mt-2 text-muted">Loading segregation data...</div>
+                </div>
+              ) : segregatedClientsToday.length === 0 ? (
+                <div className="text-center text-muted py-4">
+                  <i className="fas fa-clipboard-list fa-2x mb-3 opacity-25"></i>
+                  <div>No clients have been segregated today</div>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-striped table-hover mb-0">
+                    <thead className="table-info">
+                      <tr>
+                        <th>Time</th>
+                        <th>Client Name</th>
+                        <th className="text-center">Weight (lbs)</th>
+                        <th className="text-center">Segregated By</th>
+                        <th className="text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {segregatedClientsToday.map((client, index) => (
+                        <tr key={`${client.clientId}-${index}`}>
+                          <td>
+                            <span className="badge bg-info">
+                              {new Date(client.timestamp).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </span>
+                          </td>
+                          <td className="fw-bold">{client.clientName}</td>
+                          <td className="text-center">
+                            <span className="badge bg-success fs-6">
+                              {client.weight.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span className="badge bg-secondary">
+                              {client.user || 'Unknown'}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span className="badge bg-info">
+                              <i className="fas fa-check-circle me-1"></i>
+                              Segregated
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Detailed Tables */}
       <div className="row">
         {/* Mangle Table */}
@@ -627,12 +1351,12 @@ const ProductionClassificationDashboard: React.FC = () => {
             <div className="card-body p-0">
               <div className="table-responsive">
                 <table className="table table-striped table-hover mb-0">
-                  <thead className="table-success">
+                  <thead className="table-info">
                     <tr>
                       <th>Time</th>
                       <th>Client Name</th>
                       <th>Product</th>
-                      <th>Quantity</th>
+                      <th className="text-center">Quantity</th>
                       <th>Added By</th>
                       <th>Invoice</th>
                     </tr>
@@ -649,14 +1373,14 @@ const ProductionClassificationDashboard: React.FC = () => {
                       classifiedGroups.mangle.entries.map((entry, index) => (
                         <tr key={`${entry.id}-${index}`}>
                           <td>
-                            <span className="badge bg-success">
+                            <span className="badge bg-info">
                               {formatTime(entry.addedAt)}
                             </span>
                           </td>
                           <td className="fw-bold">{entry.clientName}</td>
                           <td>{entry.productName}</td>
-                          <td>
-                            <span className="badge bg-primary">
+                          <td className="text-center">
+                            <span className="badge bg-success fs-6">
                               {entry.quantity.toLocaleString()}
                             </span>
                           </td>
@@ -688,12 +1412,12 @@ const ProductionClassificationDashboard: React.FC = () => {
             <div className="card-body p-0">
               <div className="table-responsive">
                 <table className="table table-striped table-hover mb-0">
-                  <thead className="table-warning">
+                  <thead className="table-info">
                     <tr>
                       <th>Time</th>
                       <th>Client Name</th>
                       <th>Product</th>
-                      <th>Quantity</th>
+                      <th className="text-center">Quantity</th>
                       <th>Added By</th>
                       <th>Invoice</th>
                     </tr>
@@ -710,14 +1434,14 @@ const ProductionClassificationDashboard: React.FC = () => {
                       classifiedGroups.doblado.entries.map((entry, index) => (
                         <tr key={`${entry.id}-${index}`}>
                           <td>
-                            <span className="badge bg-warning text-dark">
+                            <span className="badge bg-info">
                               {formatTime(entry.addedAt)}
                             </span>
                           </td>
                           <td className="fw-bold">{entry.clientName}</td>
                           <td>{entry.productName}</td>
-                          <td>
-                            <span className="badge bg-primary">
+                          <td className="text-center">
+                            <span className="badge bg-success fs-6">
                               {entry.quantity.toLocaleString()}
                             </span>
                           </td>

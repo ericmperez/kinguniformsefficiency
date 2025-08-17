@@ -39,7 +39,8 @@ export interface ProductionSummary {
   totalUniqueProducts: number;
   activeProducts: number; // products with activity in last 30 minutes  
   topProductsByRate: ProductionRate[];
-  recentEntries: ProductionEntry[];
+  recentEntries: ProductionEntry[]; // Recent 50 entries for general display
+  allEntriesToday: ProductionEntry[]; // ALL entries for today for detailed hourly breakdown
   hourlyBreakdown: { [hour: string]: number }; // items per hour breakdown
   currentHourRate: number; // items per hour for current hour
   lastUpdate: Date;
@@ -82,7 +83,7 @@ class ProductionTrackingService {
     const invoicesQuery = query(
       collection(db, 'invoices'),
       orderBy('date', 'desc'),
-      limit(500) // Get recent invoices to check for today's items
+      limit(2000) // Increased limit to ensure we get all invoices with today's items
     );
 
     const unsubscribeInvoices = onSnapshot(invoicesQuery, (snapshot) => {
@@ -111,11 +112,14 @@ class ProductionTrackingService {
 
               // Only include items added today
               if (itemTime >= todayStartTime && itemTime < tomorrowStartTime) {
-                // Skip "Unknown" products
-                if (!item.productName || 
-                    item.productName.toLowerCase().includes('unknown') ||
-                    !item.quantity || 
-                    item.quantity <= 0) {
+                // More permissive filtering - only skip completely invalid items
+                const productName = item.productName || 'Unknown Product';
+                const quantity = Number(item.quantity) || 0;
+                
+                // Skip only if quantity is clearly invalid (0 or negative)
+                // Allow "unknown" products as they might be legitimate placeholders
+                if (quantity <= 0) {
+                  console.log(`[Production Tracking] Skipping item with invalid quantity: ${productName} (${quantity})`);
                   return;
                 }
 
@@ -127,8 +131,8 @@ class ProductionTrackingService {
                   cartId,
                   cartName,
                   productId: item.productId || '',
-                  productName: item.productName || '',
-                  quantity: Number(item.quantity) || 0,
+                  productName: productName,
+                  quantity: quantity,
                   price: Number(item.price) || 0,
                   addedBy: item.addedBy || 'Unknown',
                   addedAt: itemAddedAt,
@@ -289,8 +293,11 @@ class ProductionTrackingService {
       return b.totalQuantity - a.totalQuantity;
     });
 
-    // Get recent entries (last 50)
+    // Get recent entries (last 50 for general use)
     const recentEntries = this.productionEntries.slice(0, 50);
+    
+    // Get ALL entries for today for hourly breakdown (sorted by time, newest first)
+    const allEntriesForToday = [...this.productionEntries];
 
     // Count active products
     const activeProducts = productionRates.filter(rate => rate.isActive).length;
@@ -306,6 +313,7 @@ class ProductionTrackingService {
       activeProducts,
       topProductsByRate: productionRates.slice(0, 15), // Top 15 products
       recentEntries,
+      allEntriesToday: allEntriesForToday,
       hourlyBreakdown,
       currentHourRate,
       lastUpdate: now

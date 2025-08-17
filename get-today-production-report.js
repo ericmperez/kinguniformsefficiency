@@ -42,6 +42,9 @@ async function getTodayProductionReport() {
       const invoiceId = invoiceDoc.id;
       const clientName = invoice.clientName || 'Unknown Client';
       const clientId = invoice.clientId || '';
+      const invoiceStatus = invoice.status || 'Unknown';
+      const shipped = invoice.shipped || false;
+      const done = invoice.done || false;
       const carts = invoice.carts || [];
       
       let invoiceHasItemsToday = false;
@@ -55,7 +58,8 @@ async function getTodayProductionReport() {
           if (item.addedAt) {
             const itemAddedAt = new Date(item.addedAt);
             
-            // Check if item was added today
+            // ✅ IMPORTANT: Check if item was added today regardless of invoice status
+            // This captures all production activity by actual work date, not invoice status
             if (itemAddedAt >= today && itemAddedAt < tomorrow) {
               invoiceHasItemsToday = true;
               
@@ -78,7 +82,11 @@ async function getTodayProductionReport() {
                   hour: '2-digit',
                   minute: '2-digit',
                   second: '2-digit'
-                })
+                }),
+                // Include invoice status for verification
+                invoiceStatus: invoiceStatus,
+                shipped: shipped,
+                done: done
               });
             }
           }
@@ -162,6 +170,38 @@ async function getTodayProductionReport() {
         const hourStr = hour.toString().padStart(2, '0') + ':00';
         console.log(`${hourStr} - ${data.quantity.toLocaleString()} units (${data.count} items)`);
       });
+
+    // Invoice status breakdown to verify we're capturing shipped/done invoices
+    const statusBreakdown = {
+      active: { count: 0, quantity: 0 },
+      shipped: { count: 0, quantity: 0 },
+      done: { count: 0, quantity: 0 },
+      unknown: { count: 0, quantity: 0 }
+    };
+
+    allProductionEntries.forEach(entry => {
+      if (entry.shipped) {
+        statusBreakdown.shipped.count++;
+        statusBreakdown.shipped.quantity += entry.quantity;
+      } else if (entry.done) {
+        statusBreakdown.done.count++;
+        statusBreakdown.done.quantity += entry.quantity;
+      } else if (entry.invoiceStatus && entry.invoiceStatus !== 'Unknown') {
+        statusBreakdown.active.count++;
+        statusBreakdown.active.quantity += entry.quantity;
+      } else {
+        statusBreakdown.unknown.count++;
+        statusBreakdown.unknown.quantity += entry.quantity;
+      }
+    });
+
+    console.log(`\n📋 INVOICE STATUS BREAKDOWN`);
+    console.log('=' * 40);
+    console.log('✅ This shows production work was captured regardless of invoice status:');
+    console.log(`🟢 Active Invoices: ${statusBreakdown.active.quantity.toLocaleString()} units (${statusBreakdown.active.count} items)`);
+    console.log(`📦 Shipped Invoices: ${statusBreakdown.shipped.quantity.toLocaleString()} units (${statusBreakdown.shipped.count} items)`);
+    console.log(`✅ Done Invoices: ${statusBreakdown.done.quantity.toLocaleString()} units (${statusBreakdown.done.count} items)`);
+    console.log(`❓ Unknown Status: ${statusBreakdown.unknown.quantity.toLocaleString()} units (${statusBreakdown.unknown.count} items)`);
 
     // Top products
     const productSummary = {};

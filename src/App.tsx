@@ -70,7 +70,7 @@ const GlobalActivityLog = lazy(() => import("./components/GlobalActivityLog"));
 const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivityDashboard"));
 const RealTimeOperationsDashboard = lazy(() => import("./components/RealTimeOperationsDashboard"));
 const ProductionClassificationDashboard = lazy(() => import("./components/ProductionClassificationDashboard"));
-const DeliveredInvoicesPage = lazy(() => import("./components/DeliveredInvoicesPage"));
+const HistoricalReportsViewer = lazy(() => import("./components/HistoricalReportsViewer"));
 const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
 const SpecialItemsReminder = lazy(() => import("./components/SpecialItemsReminder"));
 const PredictionScheduleDashboard = lazy(() => import("./components/EnhancedPredictionScheduleDashboard"));
@@ -775,6 +775,12 @@ function App() {
           label: "Production Classification",
           page: "productionClassification",
           icon: <GroupWorkIcon />,
+          visible: true,
+        },
+        {
+          label: "Historical Reports",
+          page: "historicalReports",
+          icon: <AssessmentIcon />,
           visible: true,
         },
       ],
@@ -1490,6 +1496,17 @@ function App() {
             <div className="col-12">
               <Suspense fallback={<LoadingSpinner />}>
                 <ProductionClassificationDashboard />
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      )}
+      {activePage === "historicalReports" && (
+        <div className="container py-5">
+          <div className="row justify-content-center">
+            <div className="col-12">
+              <Suspense fallback={<LoadingSpinner />}>
+                <HistoricalReportsViewer />
               </Suspense>
             </div>
           </div>

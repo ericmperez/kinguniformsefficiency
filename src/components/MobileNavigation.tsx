@@ -109,6 +109,12 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
       visible: canSee('Report')
     },
     {
+      label: 'Historical Reports',
+      value: 'historicalReports',
+      icon: <span style={{ fontSize: 20 }}>📊</span>,
+      visible: canSee('Report')
+    },
+    {
       label: 'Billing',
       value: 'billing',
       icon: <BillingIcon />,
@@ -311,4 +317,4 @@ export const MobileFAB: React.FC<{
       </div>
     </Box>
   );
-}; 
+};
