@@ -69,9 +69,11 @@ const DailyProductAnalytics = lazy(() => import("./components/DailyProductAnalyt
 const GlobalActivityLog = lazy(() => import("./components/GlobalActivityLog"));
 const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivityDashboard"));
 const RealTimeOperationsDashboard = lazy(() => import("./components/RealTimeOperationsDashboard"));
+const ProductionClassificationDashboard = lazy(() => import("./components/ProductionClassificationDashboard"));
 const DeliveredInvoicesPage = lazy(() => import("./components/DeliveredInvoicesPage"));
 const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
 const SpecialItemsReminder = lazy(() => import("./components/SpecialItemsReminder"));
+const PredictionScheduleDashboard = lazy(() => import("./components/EnhancedPredictionScheduleDashboard"));
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
@@ -761,6 +763,18 @@ function App() {
           label: "Daily Product Analytics",
           page: "dailyProductAnalytics",
           icon: <AssessmentIcon />,
+          visible: true,
+        },
+        {
+          label: "Prediction Schedule",
+          page: "predictionSchedule",
+          icon: <AssessmentIcon />,
+          visible: true,
+        },
+        {
+          label: "Production Classification",
+          page: "productionClassification",
+          icon: <GroupWorkIcon />,
           visible: true,
         },
       ],
@@ -1464,6 +1478,22 @@ function App() {
         <Suspense fallback={<LoadingSpinner />}>
           <DailyProductAnalytics />
         </Suspense>
+      )}
+      {activePage === "predictionSchedule" && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <PredictionScheduleDashboard />
+        </Suspense>
+      )}
+      {activePage === "productionClassification" && (
+        <div className="container py-5">
+          <div className="row justify-content-center">
+            <div className="col-12">
+              <Suspense fallback={<LoadingSpinner />}>
+                <ProductionClassificationDashboard />
+              </Suspense>
+            </div>
+          </div>
+        </div>
       )}
       {activePage === "settings" && canManageUsers && (
         <>

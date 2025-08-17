@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot, Timestamp } from "firebase/firest
 import { db } from "../firebase";
 import { useRealTimeIndicator } from "../hooks/useRealTimeIndicator";
 import RealTimeIndicator from "./RealTimeIndicator";
+import ProductionTrackingService, { ProductionSummary } from "../services/ProductionTrackingService";
 
 interface TodayMetrics {
   totalPoundsEntered: number;
@@ -78,11 +79,13 @@ const RealTimeOperationsDashboard: React.FC = () => {
   const [tunnelGroups, setTunnelGroups] = useState<TunnelGroup[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [productionSummary, setProductionSummary] = useState<ProductionSummary | null>(null);
 
   // Real-time indicators
   const pickupIndicator = useRealTimeIndicator('Pickup Data');
   const tunnelIndicator = useRealTimeIndicator('Tunnel Operations');
   const invoiceIndicator = useRealTimeIndicator('Invoice Processing');
+  const productionIndicator = useRealTimeIndicator('Production Tracking');
 
   // Get today's date range
   const todayRange = useMemo(() => {
@@ -130,6 +133,31 @@ const RealTimeOperationsDashboard: React.FC = () => {
 
     return () => unsubscribe();
   }, [todayRange.start, todayRange.end]);
+
+  // Initialize production tracking
+  useEffect(() => {
+    const productionService = ProductionTrackingService.getInstance();
+    
+    console.log('🏭 [Operations Dashboard] Starting production tracking');
+    productionIndicator.setUpdating(true);
+
+    // Subscribe to production updates
+    const unsubscribeProduction = productionService.subscribe((summary: ProductionSummary) => {
+      console.log('🏭 [Operations Dashboard] Received production update:', summary.totalItemsAdded, 'items');
+      setProductionSummary(summary);
+      productionIndicator.markUpdate('Production Data');
+    });
+
+    // Start tracking
+    productionService.startTracking();
+
+    // Cleanup
+    return () => {
+      console.log('🏭 [Operations Dashboard] Cleaning up production tracking');
+      unsubscribeProduction();
+      productionService.stopTracking();
+    };
+  }, []);
 
   // Real-time listener for pickup groups (tunnel washing)
   useEffect(() => {
@@ -262,7 +290,7 @@ const RealTimeOperationsDashboard: React.FC = () => {
     setLoading(false);
 
     console.log('📊 Metrics calculated:', newMetrics);
-  }, [pickupEntries, pickupGroups, tunnelGroups, invoices]);
+  }, [pickupEntries, pickupGroups, tunnelGroups, invoices, productionSummary]);
 
   const formatNumber = (num: number) => {
     return num.toLocaleString();
@@ -313,6 +341,11 @@ const RealTimeOperationsDashboard: React.FC = () => {
                 size="small" 
                 showDetails={true}
               />
+              <RealTimeIndicator 
+                status={productionIndicator.status} 
+                size="small" 
+                showDetails={true}
+              />
             </div>
           </div>
         </div>
@@ -320,7 +353,30 @@ const RealTimeOperationsDashboard: React.FC = () => {
 
       {/* Main Metrics Cards */}
       <div className="row mb-4">
-        <div className="col-md-4 mb-3">
+        <div className="col-md-3 mb-3">
+          <div className="card border-info h-100">
+            <div className="card-body text-center">
+              <div className="display-4 text-info mb-2">
+                <i className="bi bi-speedometer2"></i>
+              </div>
+              <h2 className="text-info mb-1">
+                {formatNumber(productionSummary?.totalItemsAdded || 0)}
+              </h2>
+              <h5 className="card-title">Items Added to Invoices Today</h5>
+              <p className="text-muted mb-2">
+                {productionSummary?.activeProducts || 0} active products
+                {productionSummary && productionSummary.currentHourRate > 0 && (
+                  <span> • {Math.round(productionSummary.currentHourRate)}/hr current rate</span>
+                )}
+              </p>
+              <small className="text-muted">
+                Real-time invoice item tracking
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-3 mb-3">
           <div className="card border-primary h-100">
             <div className="card-body text-center">
               <div className="display-4 text-primary mb-2">
@@ -340,7 +396,7 @@ const RealTimeOperationsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="col-md-4 mb-3">
+        <div className="col-md-3 mb-3">
           <div className="card border-success h-100">
             <div className="card-body text-center">
               <div className="display-4 text-success mb-2">
@@ -360,7 +416,7 @@ const RealTimeOperationsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="col-md-4 mb-3">
+        <div className="col-md-3 mb-3">
           <div className="card border-warning h-100">
             <div className="card-body text-center">
               <div className="display-4 text-warning mb-2">
@@ -589,54 +645,161 @@ const RealTimeOperationsDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Processing Efficiency */}
-      <div className="row">
-        <div className="col-12">
-          <div className="card">
-            <div className="card-header">
-              <h5 className="mb-0">📈 Today's Processing Efficiency</h5>
-            </div>
-            <div className="card-body">
-              <div className="row text-center">
-                <div className="col-md-3">
-                  <div className="mb-3">
-                    <h3 className="text-info">{formatNumber(metrics.totalItemsProcessed)}</h3>
-                    <small className="text-muted">Items Processed</small>
+      {/* Real-Time Production Section */}
+      {productionSummary && productionSummary.totalItemsAdded > 0 && (
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="card">
+              <div className="card-header">
+                <h5 className="mb-0 d-flex align-items-center justify-content-between">
+                  <span>🏭 Real-Time Production Rates (Items Added to Invoices)</span>
+                  <div className="d-flex gap-2">
+                    <span className="badge bg-success">
+                      {productionSummary.activeProducts} Active
+                    </span>
+                    <span className="badge bg-info">
+                      {Math.round(productionSummary.currentHourRate)}/hr Current Rate
+                    </span>
                   </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="mb-3">
-                    <h3 className="text-info">{formatNumber(metrics.totalInvoices)}</h3>
-                    <small className="text-muted">Invoices Created</small>
+                </h5>
+              </div>
+              <div className="card-body">
+                {productionSummary.topProductsByRate.length === 0 ? (
+                  <div className="text-center text-muted py-4">
+                    <i className="bi bi-hourglass-split" style={{ fontSize: '3rem', opacity: 0.3 }}></i>
+                    <p className="mt-2 mb-0">No production activity detected</p>
                   </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="mb-3">
-                    <h3 className="text-info">
-                      {metrics.totalInvoices > 0 
-                        ? Math.round(metrics.totalItemsProcessed / metrics.totalInvoices)
-                        : 0
-                      }
-                    </h3>
-                    <small className="text-muted">Items per Invoice</small>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="mb-3">
-                    <h3 className="text-info">
-                      {metrics.totalPoundsEntered > 0 && metrics.totalItemsProcessed > 0
-                        ? (metrics.totalPoundsEntered / metrics.totalItemsProcessed).toFixed(2)
-                        : '0'
-                      }
-                    </h3>
-                    <small className="text-muted">Lbs per Item</small>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    {/* Hourly Breakdown Chart */}
+                    <div className="mb-4">
+                      <h6 className="mb-3">📊 Hourly Activity Breakdown</h6>
+                      <div className="row">
+                        {Object.entries(productionSummary.hourlyBreakdown)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([hour, count]) => (
+                          <div key={hour} className="col-md-2 col-sm-3 mb-2">
+                            <div className="text-center">
+                              <div className="fw-bold text-primary">{count}</div>
+                              <small className="text-muted">{hour}</small>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Top Products */}
+                    <div className="mb-4">
+                      <h6 className="mb-3">🏆 Top Production Items</h6>
+                      <div className="row">
+                        {productionSummary.topProductsByRate.slice(0, 8).map((product, index) => {
+                          const getProductIcon = (productName: string) => {
+                            const name = productName.toLowerCase();
+                            if (name.includes('sabana')) return '🛏️';
+                            if (name.includes('towel') || name.includes('toalla')) return '🏖️';
+                            if (name.includes('uniform') || name.includes('scrub')) return '👔';
+                            if (name.includes('blanket') || name.includes('colcha')) return '🛌';
+                            if (name.includes('pickup') || name.includes('weight')) return '⚖️';
+                            return '📦';
+                          };
+
+                          const formatRate = (rate: number) => {
+                            if (rate < 1) return `${(rate * 60).toFixed(1)}/min`;
+                            return `${Math.round(rate)}/hr`;
+                          };
+
+                          return (
+                            <div key={`${product.productName}-${index}`} className="col-md-6 col-lg-4 col-xl-3 mb-3">
+                              <div className={`card h-100 ${product.isActive ? 'border-success' : 'border-secondary'}`}>
+                                <div className="card-body p-3">
+                                  <div className="d-flex justify-content-between align-items-start mb-2">
+                                    <span style={{ fontSize: '1.2em' }}>
+                                      {getProductIcon(product.productName)}
+                                    </span>
+                                    <span className={`badge ${product.isActive ? 'bg-success' : 'bg-secondary'}`} style={{ fontSize: '0.7em' }}>
+                                      {product.isActive ? '🔴 Live' : '⚫ Inactive'}
+                                    </span>
+                                  </div>
+                                  
+                                  <h6 className="card-title text-truncate mb-2" title={product.productName} style={{ fontSize: '0.9em' }}>
+                                    {product.productName}
+                                  </h6>
+                                  
+                                  <div className="row text-center mb-2">
+                                    <div className="col-6">
+                                      <div className="text-primary fw-bold">
+                                        {product.totalQuantity.toLocaleString()}
+                                      </div>
+                                      <small className="text-muted d-block" style={{ fontSize: '0.65rem' }}>
+                                        Total Items
+                                      </small>
+                                    </div>
+                                    <div className="col-6">
+                                      <div className={`fw-bold ${product.isActive ? 'text-success' : 'text-muted'}`}>
+                                        {formatRate(product.ratePerHour)}
+                                      </div>
+                                      <small className="text-muted d-block" style={{ fontSize: '0.65rem' }}>
+                                        Rate
+                                      </small>
+                                    </div>
+                                  </div>
+
+                                  <div className="row text-center">
+                                    <div className="col-6">
+                                      <small className="text-muted" style={{ fontSize: '0.65rem' }}>
+                                        {product.entriesCount} entries
+                                      </small>
+                                    </div>
+                                    <div className="col-6">
+                                      <small className="text-muted" style={{ fontSize: '0.65rem' }}>
+                                        {product.clientsCount} clients
+                                      </small>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Production Summary Statistics */}
+                    <div className="border-top pt-3 mt-3">
+                      <div className="row text-center">
+                        <div className="col-md-3">
+                          <div className="fw-bold text-primary">
+                            {productionSummary.totalItemsAdded.toLocaleString()}
+                          </div>
+                          <small className="text-muted">Total Items Added</small>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="fw-bold text-success">
+                            {productionSummary.activeProducts}
+                          </div>
+                          <small className="text-muted">Active Products</small>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="fw-bold text-info">
+                            {Math.round(productionSummary.topProductsByRate.reduce((sum, p) => sum + p.ratePerHour, 0) / Math.max(productionSummary.topProductsByRate.length, 1))}
+                          </div>
+                          <small className="text-muted">Avg Rate/Hr</small>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="fw-bold text-warning">
+                            {productionSummary.totalUniqueProducts}
+                          </div>
+                          <small className="text-muted">Product Types</small>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Live Update Footer */}
       <div className="row mt-4">

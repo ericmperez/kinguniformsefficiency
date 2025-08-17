@@ -2,6 +2,7 @@
 // Runs daily at 8 PM to check for unassigned drivers
 
 import { checkAndNotifyUnassignedDrivers } from './driverAssignmentNotifier';
+import MLTrainingScheduler from './MLTrainingScheduler';
 
 interface ScheduledTask {
   id: string;
@@ -15,14 +16,26 @@ class TaskScheduler {
   private tasks: ScheduledTask[] = [];
   private intervals: Map<string, NodeJS.Timeout> = new Map();
   private isRunning = false;
+  private mlTrainingScheduler: MLTrainingScheduler;
 
   constructor() {
+    this.mlTrainingScheduler = MLTrainingScheduler.getInstance();
+    
     // Register the driver assignment notification task
     this.registerTask({
       id: 'driver-assignment-check',
       name: 'Daily Driver Assignment Check',
       schedule: '20:00', // 8:00 PM
       action: this.runDriverAssignmentCheck,
+      enabled: true
+    });
+
+    // Register the daily ML training task
+    this.registerTask({
+      id: 'ml-training-daily',
+      name: 'Daily ML Training',
+      schedule: '04:00', // 4:00 AM
+      action: this.runDailyMLTraining,
       enabled: true
     });
   }
@@ -153,6 +166,13 @@ class TaskScheduler {
   }
 
   /**
+   * Daily ML training task action
+   */
+  private async runDailyMLTraining(): Promise<void> {
+    await this.mlTrainingScheduler.performDailyTraining();
+  }
+
+  /**
    * Gets status of all tasks
    */
   getTaskStatus(): Array<{
@@ -229,8 +249,23 @@ export const triggerDriverAssignmentCheck = () => {
 };
 
 /**
+ * Manual trigger function for ML training
+ */
+export const triggerMLTraining = () => {
+  return taskScheduler.triggerTask('ml-training-daily');
+};
+
+/**
  * Get current scheduler status
  */
 export const getSchedulerStatus = () => {
   return taskScheduler.getTaskStatus();
+};
+
+/**
+ * Get ML training scheduler status
+ */
+export const getMLTrainingStatus = () => {
+  const mlScheduler = MLTrainingScheduler.getInstance();
+  return mlScheduler.getStatus();
 };
