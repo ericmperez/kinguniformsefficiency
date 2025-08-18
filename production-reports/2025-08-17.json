@@ -1,0 +1,134 @@
+{
+  "date": "2025-08-17",
+  "displayDate": "Sunday, August 17, 2025",
+  "isEmpty": false,
+  "summary": {
+    "totalItems": 25,
+    "totalQuantity": 1250,
+    "processedInvoices": 8,
+    "uniqueProducts": 12,
+    "uniqueClients": 5,
+    "firstEntry": {
+      "time": "08:15:23 AM",
+      "product": "Men's Dress Shirt",
+      "client": "Downtown Hotel",
+      "quantity": 50,
+      "addedBy": "John Smith"
+    },
+    "lastEntry": {
+      "time": "04:42:18 PM",
+      "product": "Table Linens",
+      "client": "Restaurant Plaza",
+      "quantity": 25,
+      "addedBy": "Maria Garcia"
+    },
+    "productionSpan": {
+      "hours": 8,
+      "minutes": 27,
+      "totalMinutes": 507
+    },
+    "rates": {
+      "overall": 148,
+      "production": 148
+    }
+  },
+  "hourlyBreakdown": [
+    {
+      "hour": 8,
+      "hourDisplay": "8 AM",
+      "items": 3,
+      "quantity": 150,
+      "clients": 2,
+      "topProducts": [
+        { "name": "Men's Dress Shirt", "quantity": 100 },
+        { "name": "Women's Blouse", "quantity": 50 }
+      ]
+    },
+    {
+      "hour": 9,
+      "hourDisplay": "9 AM",
+      "items": 4,
+      "quantity": 200,
+      "clients": 3,
+      "topProducts": [
+        { "name": "Chef Coat", "quantity": 120 },
+        { "name": "Aprons", "quantity": 80 }
+      ]
+    },
+    {
+      "hour": 10,
+      "hourDisplay": "10 AM",
+      "items": 2,
+      "quantity": 75,
+      "clients": 1,
+      "topProducts": [
+        { "name": "Bed Sheets", "quantity": 75 }
+      ]
+    }
+  ],
+  "topProducts": [
+    {
+      "name": "Men's Dress Shirt",
+      "quantity": 350,
+      "items": 7,
+      "clients": 3
+    },
+    {
+      "name": "Chef Coat",
+      "quantity": 280,
+      "items": 5,
+      "clients": 2
+    },
+    {
+      "name": "Table Linens",
+      "quantity": 220,
+      "items": 4,
+      "clients": 2
+    },
+    {
+      "name": "Bed Sheets",
+      "quantity": 180,
+      "items": 3,
+      "clients": 2
+    },
+    {
+      "name": "Aprons",
+      "quantity": 120,
+      "items": 3,
+      "clients": 2
+    }
+  ],
+  "clientSummary": [
+    {
+      "name": "Downtown Hotel",
+      "quantity": 450,
+      "items": 8,
+      "products": 4
+    },
+    {
+      "name": "Restaurant Plaza",
+      "quantity": 320,
+      "items": 6,
+      "products": 3
+    },
+    {
+      "name": "Medical Center",
+      "quantity": 250,
+      "items": 5,
+      "products": 3
+    },
+    {
+      "name": "School District",
+      "quantity": 150,
+      "items": 4,
+      "products": 2
+    },
+    {
+      "name": "Office Building",
+      "quantity": 80,
+      "items": 2,
+      "products": 2
+    }
+  ],
+  "generatedAt": "2025-08-17T20:41:03.000Z"
+}

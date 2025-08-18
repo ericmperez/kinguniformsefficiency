@@ -45,6 +45,12 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
       visible: true
     },
     {
+      label: 'Daily',
+      value: 'dailyDashboard',
+      icon: <span style={{ fontSize: 20 }}>📊</span>,
+      visible: true
+    },
+    {
       label: 'Entradas',
       value: 'entradas',
       icon: <ListAltIcon />,

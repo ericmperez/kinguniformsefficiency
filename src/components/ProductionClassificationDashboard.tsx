@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import ProductionTrackingService, { ProductionSummary, ProductionEntry } from "../services/ProductionTrackingService";
+import EndOfShiftDashboard from "./EndOfShiftDashboard";
 // Add segregation-related imports
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
@@ -46,6 +47,67 @@ const ProductionClassificationDashboard: React.FC = () => {
   }>>([]);
   const [totalSegregatedWeight, setTotalSegregatedWeight] = useState(0);
   const [segregationLoading, setSegregationLoading] = useState(true);
+
+  // Add pickup entries state
+  const [pickupEntriesToday, setPickupEntriesToday] = useState<Array<{
+    id: string;
+    clientId: string;
+    clientName: string;
+    driverId: string;
+    driverName: string;
+    groupId: string;
+    weight: number;
+    timestamp: string;
+  }>>([]);
+  const [totalPickupWeight, setTotalPickupWeight] = useState(0);
+  const [pickupEntriesLoading, setPickupEntriesLoading] = useState(true);
+
+  // State for production start times for hourly rate calculations
+  const [mangleStartTime, setMangleStartTime] = useState<string>(
+    localStorage.getItem('mangleStartTime') || '08:00'
+  );
+  const [dobladoStartTime, setDobladoStartTime] = useState<string>(
+    localStorage.getItem('dobladoStartTime') || '08:00'
+  );
+  const [segregationStartTime, setSegregationStartTime] = useState<string>(
+    localStorage.getItem('segregationStartTime') || '08:00'
+  );
+
+  // Collapsible sections state
+  const [collapsedSections, setCollapsedSections] = useState<{
+    segregation: boolean;
+    pickupEntries: boolean;
+    mangleLog: boolean;
+    dobladoLog: boolean;
+  }>({
+    segregation: false,
+    pickupEntries: false,
+    mangleLog: false,
+    dobladoLog: false,
+  });
+
+  const toggleSection = (section: keyof typeof collapsedSections) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  // Save start times to localStorage when changed
+  const handleMangleStartTimeChange = (time: string) => {
+    setMangleStartTime(time);
+    localStorage.setItem('mangleStartTime', time);
+  };
+
+  const handleDobladoStartTimeChange = (time: string) => {
+    setDobladoStartTime(time);
+    localStorage.setItem('dobladoStartTime', time);
+  };
+
+  const handleSegregationStartTimeChange = (time: string) => {
+    setSegregationStartTime(time);
+    localStorage.setItem('segregationStartTime', time);
+  };
 
   // Default classification rules
   const getDefaultClassification = (productName: string): 'Mangle' | 'Doblado' => {
@@ -168,46 +230,102 @@ const ProductionClassificationDashboard: React.FC = () => {
     rate: number;
   }>>([]);
 
-  // Fetch segregation data for today
+  // Fetch segregation data for today (with fallback to recent data)
   useEffect(() => {
     const fetchSegregationData = async () => {
       try {
         setSegregationLoading(true);
         
-        // Get today's date string (YYYY-MM-DD format)
+        // Get today's date string (YYYY-MM-DD format) using local timezone
         const today = new Date();
-        const todayStr = today.toISOString().slice(0, 10);
+        const localTodayStr = today.getFullYear() + '-' + 
+          String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+          String(today.getDate()).padStart(2, '0');
+        const utcTodayStr = today.toISOString().slice(0, 10);
         
-        // Query segregation_done_logs for today
-        const segregationQuery = query(
+        console.log('🏭 [Segregation] Local date:', localTodayStr);
+        console.log('🏭 [Segregation] UTC date:', utcTodayStr);
+        console.log('🏭 [Segregation] Timezone offset (hours):', today.getTimezoneOffset() / 60);
+        
+        // Try local date first, then UTC date as fallback
+        let segregationQuery = query(
           collection(db, 'segregation_done_logs'),
-          where('date', '==', todayStr)
+          where('date', '==', localTodayStr)
         );
         
-        const segregationSnapshot = await getDocs(segregationQuery);
+        let segregationSnapshot = await getDocs(segregationQuery);
+        console.log('🏭 [Segregation] Found', segregationSnapshot.docs.length, 'records for local date:', localTodayStr);
+        
+        // If no records found with local date and local != UTC, try UTC date
+        if (segregationSnapshot.docs.length === 0 && localTodayStr !== utcTodayStr) {
+          console.log('🏭 [Segregation] Trying UTC date:', utcTodayStr);
+          segregationQuery = query(
+            collection(db, 'segregation_done_logs'),
+            where('date', '==', utcTodayStr)
+          );
+          segregationSnapshot = await getDocs(segregationQuery);
+          console.log('🏭 [Segregation] Found', segregationSnapshot.docs.length, 'records for UTC date:', utcTodayStr);
+        }
+        
+        // If still no records found, check recent records as fallback
+        let allSegregationDocs = segregationSnapshot.docs;
+        
+        if (segregationSnapshot.docs.length === 0) {
+          console.log('🏭 [Segregation] No records for either date, checking recent records...');
+          
+          // Query recent segregation records (last 48 hours) as fallback
+          const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+          const { Timestamp } = await import('firebase/firestore');
+          
+          const recentQuery = query(
+            collection(db, 'segregation_done_logs'),
+            where('timestamp', '>=', Timestamp.fromDate(twoDaysAgo))
+          );
+          
+          const recentSnapshot = await getDocs(recentQuery);
+          console.log('🏭 [Segregation] Found', recentSnapshot.docs.length, 'recent records (last 48h)');
+          allSegregationDocs = recentSnapshot.docs;
+        }
+                
         const segregatedClients: typeof segregatedClientsToday = [];
         let totalWeight = 0;
         
         // Hourly breakdown data
         const hourlyBreakdown: { [hour: number]: { clients: number; weight: number } } = {};
         
-        segregationSnapshot.docs.forEach(doc => {
+        allSegregationDocs.forEach(doc => {
           const data = doc.data();
           const weight = Number(data.weight) || 0;
           const timestamp = data.timestamp || new Date().toISOString();
+          
+          // Convert Firestore timestamp to JavaScript Date if needed
+          let timestampDate;
+          if (timestamp && timestamp.toDate) {
+            timestampDate = timestamp.toDate();
+          } else if (timestamp) {
+            timestampDate = new Date(timestamp);
+          } else {
+            timestampDate = new Date();
+          }
+          
+          // Only include records from the last 24 hours for better relevance
+          const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          if (timestampDate < twentyFourHoursAgo) {
+            return; // Skip old records
+          }
           
           segregatedClients.push({
             clientId: data.clientId || 'unknown',
             clientName: data.clientName || 'Unknown Client',
             weight: weight,
-            timestamp: timestamp,
+            timestamp: timestampDate.toISOString(),
             user: data.user || 'Unknown'
           });
           
           totalWeight += weight;
           
           // Calculate hourly breakdown
-          const hour = new Date(timestamp).getHours();
+          const hour = timestampDate.getHours();
           if (!hourlyBreakdown[hour]) {
             hourlyBreakdown[hour] = { clients: 0, weight: 0 };
           }
@@ -235,11 +353,19 @@ const ProductionClassificationDashboard: React.FC = () => {
         setTotalSegregatedWeight(totalWeight);
         setSegregationHourlyData(hourlyData);
         
-        console.log('🏭 [Segregation Data] Loaded segregation data for today:', {
+        console.log('🏭 [Segregation Data] Processed segregation data:', {
           totalClients: segregatedClients.length,
           totalWeight: totalWeight,
+          localDateFilter: localTodayStr,
+          utcDateFilter: utcTodayStr,
+          recordsFound: allSegregationDocs.length,
+          recordsInLast24h: segregatedClients.length,
           hourlyBreakdown: hourlyData,
-          clientsProcessed: segregatedClients.map(c => c.clientName)
+          sampleClients: segregatedClients.slice(0, 3).map(c => ({
+            name: c.clientName,
+            weight: c.weight,
+            time: new Date(c.timestamp).toLocaleTimeString()
+          }))
         });
         
       } catch (error) {
@@ -250,6 +376,83 @@ const ProductionClassificationDashboard: React.FC = () => {
     };
 
     fetchSegregationData();
+  }, []);
+
+  // Fetch pickup entries data for today
+  useEffect(() => {
+    const fetchPickupEntries = async () => {
+      try {
+        setPickupEntriesLoading(true);
+        
+        // Get today's date range
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        // Import Firebase functions dynamically
+        const { Timestamp } = await import('firebase/firestore');
+        
+        // Query pickup_entries for today
+        const pickupEntriesQuery = query(
+          collection(db, 'pickup_entries'),
+          where('timestamp', '>=', Timestamp.fromDate(today)),
+          where('timestamp', '<', Timestamp.fromDate(tomorrow))
+        );
+        
+        const pickupEntriesSnapshot = await getDocs(pickupEntriesQuery);
+        const pickupEntries: typeof pickupEntriesToday = [];
+        let totalWeight = 0;
+        
+        pickupEntriesSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          const weight = Number(data.weight) || 0;
+          const timestamp = data.timestamp;
+          
+          // Convert timestamp to string
+          let timestampStr = new Date().toISOString();
+          if (timestamp && typeof timestamp.toDate === 'function') {
+            timestampStr = timestamp.toDate().toISOString();
+          } else if (timestamp instanceof Date) {
+            timestampStr = timestamp.toISOString();
+          } else if (typeof timestamp === 'string') {
+            timestampStr = new Date(timestamp).toISOString();
+          }
+          
+          pickupEntries.push({
+            id: doc.id,
+            clientId: data.clientId || 'unknown',
+            clientName: data.clientName || 'Unknown Client',
+            driverId: data.driverId || 'unknown',
+            driverName: data.driverName || 'Unknown Driver',
+            groupId: data.groupId || 'unknown',
+            weight: weight,
+            timestamp: timestampStr
+          });
+          
+          totalWeight += weight;
+        });
+        
+        // Sort by timestamp (most recent first)
+        pickupEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        
+        setPickupEntriesToday(pickupEntries);
+        setTotalPickupWeight(totalWeight);
+        
+        console.log('🚛 [Pickup Entries] Loaded pickup entries data for today:', {
+          totalEntries: pickupEntries.length,
+          totalWeight: totalWeight,
+          entriesProcessed: pickupEntries.map(e => `${e.clientName} - ${e.weight}lbs`)
+        });
+        
+      } catch (error) {
+        console.error('Error fetching pickup entries data:', error);
+      } finally {
+        setPickupEntriesLoading(false);
+      }
+    };
+
+    fetchPickupEntries();
   }, []);
 
   // Calculate current hour segregation rate
@@ -501,12 +704,87 @@ const ProductionClassificationDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Production Start Time Configuration */}
+      <div className="row mb-4">
+        <div className="col-12">
+          <div className="card border-info">
+            <div className="card-header bg-light text-dark">
+              <h5 className="mb-0">
+                <i className="fas fa-clock me-2"></i>
+                Production Start Time Configuration
+              </h5>
+            </div>
+            <div className="card-body">
+              <div className="row">
+                <div className="col-md-4">
+                  <div className="mb-3">
+                    <label className="form-label fw-bold">
+                      <i className="fas fa-compress-arrows-alt me-2 text-success"></i>
+                      Mangle Production Start Time
+                    </label>
+                    <input 
+                      type="time"
+                      className="form-control"
+                      value={mangleStartTime}
+                      onChange={(e) => handleMangleStartTimeChange(e.target.value)}
+                    />
+                    <small className="text-muted">
+                      Used to calculate hourly production rates for Daily Dashboard charts
+                    </small>
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <div className="mb-3">
+                    <label className="form-label fw-bold">
+                      <i className="fas fa-hands me-2 text-warning"></i>
+                      Doblado Production Start Time
+                    </label>
+                    <input 
+                      type="time"
+                      className="form-control"
+                      value={dobladoStartTime}
+                      onChange={(e) => handleDobladoStartTimeChange(e.target.value)}
+                    />
+                    <small className="text-muted">
+                      Used to calculate hourly production rates for Daily Dashboard charts
+                    </small>
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <div className="mb-3">
+                    <label className="form-label fw-bold">
+                      <i className="fas fa-tasks me-2 text-info"></i>
+                      Segregation Start Time
+                    </label>
+                    <input 
+                      type="time"
+                      className="form-control"
+                      value={segregationStartTime}
+                      onChange={(e) => handleSegregationStartTimeChange(e.target.value)}
+                    />
+                    <small className="text-muted">
+                      Used to calculate hourly segregation rates for Daily Dashboard charts
+                    </small>
+                  </div>
+                </div>
+              </div>
+              <div className="alert alert-light mt-3">
+                <i className="fas fa-info-circle me-2 text-info"></i>
+                <strong>Note:</strong> These start times are used by the Daily Dashboard to calculate 
+                accurate hourly production rates. The graphs will show production from these selected 
+                times onwards. Settings are saved automatically.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Production Timing Summary */}
       {timingSummary && (
         <div className="row mb-4">
           <div className="col-12">
             <div className="card border-primary">
-              <div className="card-header bg-primary text-white">
+              <div className="card-header bg-light text-dark">
                 <h5 className="mb-0">
                   <i className="fas fa-clock me-2"></i>
                   Today's Production Timeline
@@ -615,23 +893,34 @@ const ProductionClassificationDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Hourly Breakdown Table - Enhanced to show ALL hours */}
+      {/* Enhanced Hourly Production Analytics Dashboard */}
       {timingSummary && productionSummary && productionSummary.recentEntries.length > 0 && (
         <div className="row mb-4">
           <div className="col-12">
-            <div className="card">
-              <div className="card-header bg-secondary text-white">
-                <h5 className="mb-0">
-                  <i className="fas fa-chart-bar me-2"></i>
-                  Complete Hourly Production Breakdown - All Hours Today
-                </h5>
-              </div>
-              <div className="card-body">
-                <div className="alert alert-info">
-                  <i className="fas fa-info-circle me-2"></i>
-                  This shows ALL production activity for today by hour, matching the Daily Live Production Dashboard
+            <div className="card shadow-sm">
+              <div className="card-header bg-light text-dark">
+                <div className="d-flex justify-content-between align-items-center">
+                  <h5 className="mb-0">
+                    <i className="fas fa-chart-line me-2"></i>
+                    📊 Hourly Production Analytics
+                  </h5>
+                  <div className="d-flex gap-3 text-center">
+                    <div>
+                      <div className="fw-bold fs-6">
+                        {Object.keys(productionSummary.hourlyBreakdown || {}).length}
+                      </div>
+                      <small className="text-muted">Active Hours</small>
+                    </div>
+                    <div>
+                      <div className="fw-bold fs-6">
+                        {Math.round(productionSummary.currentHourRate || 0)}
+                      </div>
+                      <small className="text-muted">Current Rate/hr</small>
+                    </div>
+                  </div>
                 </div>
-                
+              </div>
+              <div className="card-body p-0">
                 <div className="table-responsive">
                   <table className="table table-striped table-hover">
                     <thead>
@@ -848,7 +1137,7 @@ const ProductionClassificationDashboard: React.FC = () => {
                                               display: 'flex',
                                               alignItems: 'center',
                                               justifyContent: 'center',
-                                              color: 'white'
+                                              color: 'black'
                                             }}
                                           >
                                             M {Math.round((data.mangleUnits / data.units) * 100)}%
@@ -964,7 +1253,7 @@ const ProductionClassificationDashboard: React.FC = () => {
                                           display: 'flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
-                                          color: 'white'
+                                          color: 'black'
                                         }}
                                       >
                                         M {Math.round((totalSummary.totalMangleUnits / totalSummary.totalUnits) * 100)}%
@@ -985,7 +1274,7 @@ const ProductionClassificationDashboard: React.FC = () => {
                                       </div>
                                     </div>
                                   </div>
-                                  <small className="text-light">
+                                  <small className="text-dark">
                                     {totalSummary.totalMangleUnits.toLocaleString()} / {totalSummary.totalDobladoUnits.toLocaleString()}
                                   </small>
                                 </div>
@@ -1067,7 +1356,7 @@ const ProductionClassificationDashboard: React.FC = () => {
       <div className="row mb-4">
         <div className="col-md-6">
           <div className="card border-success h-100">
-            <div className="card-header bg-success text-white">
+            <div className="card-header bg-light text-dark">
               <div className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">
                   <i className="fas fa-compress-arrows-alt me-2"></i>
@@ -1076,17 +1365,6 @@ const ProductionClassificationDashboard: React.FC = () => {
                     <span className="badge bg-light text-success ms-2">🔴 Live</span>
                   )}
                 </h5>
-                <div className="text-end">
-                  <div className="fw-bold fs-5">
-                    <i className="fas fa-weight-hanging me-1"></i>
-                    {segregationLoading ? (
-                      <span className="spinner-border spinner-border-sm me-1"></span>
-                    ) : (
-                      totalSegregatedWeight.toLocaleString()
-                    )} lbs
-                  </div>
-                  <small className="opacity-75">Segregated Today</small>
-                </div>
               </div>
             </div>
             <div className="card-body">
@@ -1120,7 +1398,7 @@ const ProductionClassificationDashboard: React.FC = () => {
 
         <div className="col-md-6">
           <div className="card border-warning h-100">
-            <div className="card-header bg-warning text-dark">
+            <div className="card-header bg-light text-dark">
               <h5 className="mb-0">
                 <i className="fas fa-hands me-2"></i>
                 Doblado Production
@@ -1163,115 +1441,36 @@ const ProductionClassificationDashboard: React.FC = () => {
       <div className="row mb-4">
         <div className="col-12">
           <div className="card border-info">
-            <div className="card-header bg-info text-white">
+            <div 
+              className="card-header bg-light text-dark"
+              style={{ cursor: 'pointer' }}
+              onClick={() => toggleSection('segregation')}
+            >
               <div className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">
+                  <i className={`fas ${collapsedSections.segregation ? 'fa-chevron-right' : 'fa-chevron-down'} me-2`}></i>
                   <i className="fas fa-tasks me-2"></i>
-                  Segregated Clients Today
+                  Segregated Clients (Last 24h)
                 </h5>
-                <div className="d-flex align-items-center gap-3">
+                <div className="d-flex gap-4">
                   <div className="text-end">
                     <div className="fw-bold fs-6">
-                      {segregatedClientsToday.length} Clients
+                      {segregatedClientsToday.length}
                     </div>
-                    <small className="opacity-75">Processed</small>
+                    <small className="text-muted">Clients</small>
                   </div>
                   <div className="text-end">
                     <div className="fw-bold fs-6">
                       {totalSegregatedWeight.toLocaleString()} lbs
                     </div>
-                    <small className="opacity-75">Total Weight</small>
+                    <small className="text-muted">Total Weight</small>
                   </div>
-                  {segregationHourlyData.length > 0 && (
-                    <>
-                      <div className="text-end">
-                        <div className="fw-bold fs-6">
-                          {Math.round(totalSegregatedWeight / segregationHourlyData.length).toLocaleString()} lbs/hr
-                        </div>
-                        <small className="opacity-75">Avg Rate</small>
-                      </div>
-                      {currentHourSegregationRate > 0 && (
-                        <div className="text-end">
-                          <div className="fw-bold fs-6 text-warning">
-                            {Math.round(currentHourSegregationRate).toLocaleString()} lbs/hr
-                          </div>
-                          <small className="opacity-75">This Hour</small>
-                        </div>
-                      )}
-                    </>
-                  )}
                 </div>
               </div>
             </div>
-            {/* Hourly Segregation Rates Card */}
-            {!segregationLoading && segregationHourlyData.length > 0 && (
-              <div className="card-body border-bottom">
-                <h6 className="text-info mb-3">
-                  <i className="fas fa-chart-line me-2"></i>
-                  Hourly Segregation Breakdown
-                </h6>
-                <div className="table-responsive">
-                  <table className="table table-sm table-bordered">
-                    <thead className="table-light">
-                      <tr>
-                        <th className="text-center">Hour</th>
-                        <th className="text-center">Clients</th>
-                        <th className="text-center">Weight (lbs)</th>
-                        <th className="text-center">Rate (lbs/hr)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {segregationHourlyData.map((hourData) => (
-                        <tr key={hourData.hour}>
-                          <td className="text-center">
-                            <span className="badge bg-dark">
-                              {hourData.hour.toString().padStart(2, '0')}:00
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span className="fw-bold text-info">
-                              {hourData.clients}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span className="fw-bold">
-                              {hourData.weight.toLocaleString()}
-                            </span>
-                          </td>
-                          <td className="text-center">
-                            <span className="badge bg-info">
-                              {Math.round(hourData.rate).toLocaleString()}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {/* Summary Row */}
-                      <tr className="border-top bg-light">
-                        <td className="text-center fw-bold text-dark">
-                          <i className="fas fa-calculator me-1"></i>
-                          Total
-                        </td>
-                        <td className="text-center fw-bold text-dark">
-                          {segregationHourlyData.reduce((sum, h) => sum + h.clients, 0)}
-                        </td>
-                        <td className="text-center fw-bold text-dark">
-                          {segregationHourlyData.reduce((sum, h) => sum + h.weight, 0).toLocaleString()}
-                        </td>
-                        <td className="text-center">
-                          <span className="badge bg-dark">
-                            {Math.round(
-                              segregationHourlyData.reduce((sum, h) => sum + h.weight, 0) / 
-                              segregationHourlyData.length
-                            ).toLocaleString()}
-                          </span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-            {/* Segregated Clients Table with Professional Styling */}
+            
+            {/* Collapsible Content */}
+            <div className={`collapse ${!collapsedSections.segregation ? 'show' : ''}`}>
             <div className="card-body p-0">
               {segregationLoading ? (
                 <div className="text-center py-4">
@@ -1283,7 +1482,7 @@ const ProductionClassificationDashboard: React.FC = () => {
               ) : segregatedClientsToday.length === 0 ? (
                 <div className="text-center text-muted py-4">
                   <i className="fas fa-clipboard-list fa-2x mb-3 opacity-25"></i>
-                  <div>No clients have been segregated today</div>
+                  <div>No clients have been segregated in the last 24 hours</div>
                 </div>
               ) : (
                 <div className="table-responsive">
@@ -1333,6 +1532,103 @@ const ProductionClassificationDashboard: React.FC = () => {
                 </div>
               )}
             </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pickup Entries Log */}
+      <div className="row mb-4">
+        <div className="col-12">
+          <div className="card border-primary">
+            <div 
+              className="card-header bg-light text-dark"
+              style={{ cursor: 'pointer' }}
+              onClick={() => toggleSection('pickupEntries')}
+            >
+              <div className="d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">
+                  <i className={`fas ${collapsedSections.pickupEntries ? 'fa-chevron-right' : 'fa-chevron-down'} me-2`}></i>
+                  <i className="fas fa-truck me-2"></i>
+                  Pickup Entries Today
+                </h5>
+                <div className="d-flex gap-4">
+                  <div className="text-end">
+                    <div className="fw-bold fs-6">
+                      {pickupEntriesToday.length}
+                    </div>
+                    <small className="opacity-75">Entries</small>
+                  </div>
+                  <div className="text-end">
+                    <div className="fw-bold fs-6">
+                      {totalPickupWeight.toLocaleString()} lbs
+                    </div>
+                    <small className="opacity-75">Total Weight</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Collapsible Content */}
+            <div className={`collapse ${!collapsedSections.pickupEntries ? 'show' : ''}`}>
+            <div className="card-body p-0">
+              {pickupEntriesLoading ? (
+                <div className="text-center py-4">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading pickup entries data...</span>
+                  </div>
+                  <div className="mt-2 text-muted">Loading pickup entries data...</div>
+                </div>
+              ) : pickupEntriesToday.length === 0 ? (
+                <div className="text-center text-muted py-4">
+                  <i className="fas fa-truck fa-2x mb-3 opacity-25"></i>
+                  <div>No pickup entries recorded today</div>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-striped table-hover mb-0">
+                    <thead className="table-info">
+                      <tr>
+                        <th>Time</th>
+                        <th>Client Name</th>
+                        <th>Driver Name</th>
+                        <th className="text-center">Weight (lbs)</th>
+                        <th className="text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pickupEntriesToday.map((entry, index) => (
+                        <tr key={`${entry.id}-${index}`}>
+                          <td>
+                            <span className="badge bg-info">
+                              {new Date(entry.timestamp).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </span>
+                          </td>
+                          <td className="fw-bold">{entry.clientName}</td>
+                          <td>{entry.driverName}</td>
+                          <td className="text-center">
+                            <span className="badge bg-success fs-6">
+                              {entry.weight.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="text-center">
+                            <span className="badge bg-primary">
+                              <i className="fas fa-check-circle me-1"></i>
+                              Entrada
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1342,12 +1638,20 @@ const ProductionClassificationDashboard: React.FC = () => {
         {/* Mangle Table */}
         <div className="col-12 mb-4">
           <div className="card">
-            <div className="card-header bg-success text-white">
+            <div 
+              className="card-header bg-light text-dark"
+              style={{ cursor: 'pointer' }}
+              onClick={() => toggleSection('mangleLog')}
+            >
               <h5 className="mb-0">
+                <i className={`fas ${collapsedSections.mangleLog ? 'fa-chevron-right' : 'fa-chevron-down'} me-2`}></i>
                 <i className="fas fa-compress-arrows-alt me-2"></i>
                 Mangle Production Log ({classifiedGroups.mangle.entries.length} entries)
               </h5>
             </div>
+            
+            {/* Collapsible Content */}
+            <div className={`collapse ${!collapsedSections.mangleLog ? 'show' : ''}`}>
             <div className="card-body p-0">
               <div className="table-responsive">
                 <table className="table table-striped table-hover mb-0">
@@ -1397,18 +1701,27 @@ const ProductionClassificationDashboard: React.FC = () => {
                 </table>
               </div>
             </div>
+            </div>
           </div>
         </div>
 
         {/* Doblado Table */}
         <div className="col-12 mb-4">
           <div className="card">
-            <div className="card-header bg-warning text-dark">
+            <div 
+              className="card-header bg-light text-dark"
+              style={{ cursor: 'pointer' }}
+              onClick={() => toggleSection('dobladoLog')}
+            >
               <h5 className="mb-0">
+                <i className={`fas ${collapsedSections.dobladoLog ? 'fa-chevron-right' : 'fa-chevron-down'} me-2`}></i>
                 <i className="fas fa-hands me-2"></i>
                 Doblado Production Log ({classifiedGroups.doblado.entries.length} entries)
               </h5>
             </div>
+            
+            {/* Collapsible Content */}
+            <div className={`collapse ${!collapsedSections.dobladoLog ? 'show' : ''}`}>
             <div className="card-body p-0">
               <div className="table-responsive">
                 <table className="table table-striped table-hover mb-0">
@@ -1457,6 +1770,7 @@ const ProductionClassificationDashboard: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -1564,6 +1878,13 @@ const ProductionClassificationDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* End-of-Shift Detection Dashboard */}
+      <div className="row mb-4">
+        <div className="col-12">
+          <EndOfShiftDashboard className="shadow-lg border-0" />
+        </div>
+      </div>
 
       {/* Live Update Footer */}
       <div className="row mt-4">

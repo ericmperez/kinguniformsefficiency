@@ -71,6 +71,7 @@ const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivi
 const RealTimeOperationsDashboard = lazy(() => import("./components/RealTimeOperationsDashboard"));
 const ProductionClassificationDashboard = lazy(() => import("./components/ProductionClassificationDashboard"));
 const HistoricalReportsViewer = lazy(() => import("./components/HistoricalReportsViewer"));
+const DeliveredInvoicesPage = lazy(() => import("./components/DeliveredInvoicesPage"));
 const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
 const SpecialItemsReminder = lazy(() => import("./components/SpecialItemsReminder"));
 const PredictionScheduleDashboard = lazy(() => import("./components/EnhancedPredictionScheduleDashboard"));
@@ -104,6 +105,7 @@ import kingUniformsLogo from "./assets/King Uniforms Logo.jpeg";
 import SignInSide from "./components/SignInSide";
 import RutasPorCamion from "./components/RutasPorCamion";
 import SendInvoicePage from "./components/SendInvoicePage";
+import DailyEmployeeDashboard from "./components/DailyEmployeeDashboard";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 // Import task scheduler to start automated notifications
 import "./services/taskScheduler";
@@ -703,6 +705,12 @@ function App() {
   // Refactored navLinks: Combine Entradas, Segregation, Washing under Process
   const navLinks = [
     {
+      label: "Daily Dashboard",
+      page: "dailyDashboard" as const,
+      icon: <span style={{ fontSize: 20 }}>📊</span>,
+      visible: true, // Available to all users
+    },
+    {
       label: "Process",
       page: "process" as const,
       icon: <LocalLaundryServiceIcon />,
@@ -826,6 +834,12 @@ function App() {
 
   // Home page cards config
   const homePages = [
+    {
+      label: "Daily Dashboard",
+      page: "dailyDashboard",
+      color: "#17a2b8",
+      icon: <span style={{ fontSize: 38, color: "#17a2b8" }}>📊</span>,
+    },
     {
       label: "Entradas",
       page: "entradas",
@@ -1501,6 +1515,17 @@ function App() {
           </div>
         </div>
       )}
+      {activePage === "dailyDashboard" && (
+        <div className="container py-5">
+          <div className="row justify-content-center">
+            <div className="col-12">
+              <Suspense fallback={<LoadingSpinner />}>
+                <DailyEmployeeDashboard />
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      )}
       {activePage === "historicalReports" && (
         <div className="container py-5">
           <div className="row justify-content-center">
@@ -2012,6 +2037,7 @@ function App() {
       )}
       <Routes>
         <Route path="/send-invoice" element={<SendInvoicePage />} />
+        <Route path="/daily-dashboard" element={<DailyEmployeeDashboard />} />
         <Route path="/*" element={<div />} />
       </Routes>
       
