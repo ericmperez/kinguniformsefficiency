@@ -585,3 +585,148 @@ body.modal-open {
 }
 
 /* --- End Floating Animation --- */
+  width: 90vw !important;
+  max-width: 500px !important;
+  height: auto !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+}
+
+.keypad-modal-fullscreen .modal-content {
+  border-radius: 24px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4) !important;
+  border: none !important;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+}
+
+.keypad-modal-fullscreen .modal-header {
+  background: linear-gradient(135deg, #0E62A0 0%, #1976d2 100%) !important;
+  color: white !important;
+  border-radius: 24px 24px 0 0 !important;
+  border-bottom: none !important;
+  padding: 20px 24px !important;
+}
+
+.keypad-modal-fullscreen .modal-title {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+}
+
+.keypad-modal-fullscreen .btn-close {
+  filter: brightness(0) invert(1) !important;
+  opacity: 0.8 !important;
+  font-size: 18px !important;
+}
+
+.keypad-modal-fullscreen .modal-body {
+  padding: 24px !important;
+  text-align: center !important;
+}
+
+.keypad-modal-fullscreen .quantity-display {
+  font-size: 48px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  padding: 20px !important;
+  border: 3px solid #e9ecef !important;
+  border-radius: 16px !important;
+  background: #f8fafc !important;
+  color: #0E62A0 !important;
+  letter-spacing: 4px !important;
+  margin-bottom: 24px !important;
+  min-height: 100px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.keypad-modal-fullscreen .keypad-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  grid-template-rows: repeat(4, 80px) !important;
+  gap: 15px !important;
+  max-width: 300px !important;
+  margin: 0 auto 20px auto !important;
+}
+
+.keypad-modal-fullscreen .keypad-btn {
+  border-radius: 16px !important;
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  border: 2px solid #e9ecef !important;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  color: #333 !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.keypad-modal-fullscreen .keypad-btn:hover {
+  background: linear-gradient(135deg, #f8fafc 0%, #e9ecef 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+.keypad-modal-fullscreen .keypad-btn:active {
+  transform: translateY(0px) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.keypad-modal-fullscreen .keypad-btn.ok-btn {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  color: white !important;
+  border-color: #16a34a !important;
+  grid-column: span 2 !important;
+}
+
+.keypad-modal-fullscreen .keypad-btn.ok-btn:hover {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+}
+
+.keypad-modal-fullscreen .keypad-btn.delete-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  color: white !important;
+  border-color: #dc2626 !important;
+}
+
+.keypad-modal-fullscreen .keypad-btn.delete-btn:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+}
+
+.keypad-modal-fullscreen .keypad-btn.clear-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  color: white !important;
+  border-color: #d97706 !important;
+}
+
+.keypad-modal-fullscreen .keypad-btn.clear-btn:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+}
+
+/* Mobile optimizations for keypad */
+@media (max-width: 576px) {
+  .keypad-modal-fullscreen .modal-dialog {
+    width: 95vw !important;
+    max-width: 400px !important;
+  }
+  
+  .keypad-modal-fullscreen .quantity-display {
+    font-size: 36px !important;
+    min-height: 80px !important;
+    padding: 15px !important;
+  }
+  
+  .keypad-modal-fullscreen .keypad-grid {
+    grid-template-rows: repeat(4, 70px) !important;
+    gap: 12px !important;
+  }
+  
+  .keypad-modal-fullscreen .keypad-btn {
+    font-size: 24px !important;
+  }
+}

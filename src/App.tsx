@@ -42,7 +42,7 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { useAppState, useBusinessLogic } from './hooks';
+import { useAppState, useBusinessLogic } from "./hooks";
 import Report from "./components/Report";
 import React, { Suspense, lazy } from "react";
 import { canUserSeeComponent, AppComponentKey } from "./permissions";
@@ -50,13 +50,23 @@ import TodoListFloating from "./components/TodoListFloating";
 import TodoManager from "./components/TodoManager";
 
 // Lazy load large components for better performance
-const ProductForm = lazy(() => import("./components/ProductForm").then(module => ({ default: module.ProductForm })));
-const ClientForm = lazy(() => import("./components/ClientForm").then(module => ({ default: module.ClientForm })));
+const ProductForm = lazy(() =>
+  import("./components/ProductForm").then((module) => ({
+    default: module.ProductForm,
+  }))
+);
+const ClientForm = lazy(() =>
+  import("./components/ClientForm").then((module) => ({
+    default: module.ClientForm,
+  }))
+);
 const ActiveInvoices = lazy(() => import("./components/ActiveInvoices"));
 const PickupWashing = lazy(() => import("./components/PickupWashing"));
 const Washing = lazy(() => import("./components/Washing"));
 const Segregation = lazy(() => import("./components/Segregation"));
-const DriverNotificationSettings = lazy(() => import("./components/DriverNotificationSettings"));
+const DriverNotificationSettings = lazy(
+  () => import("./components/DriverNotificationSettings")
+);
 const BillingPage = lazy(() => import("./components/BillingPage"));
 const ShippingPage = lazy(() => import("./components/ShippingPage"));
 const UserManagement = lazy(() => import("./components/UserManagement"));
@@ -64,17 +74,38 @@ const DriverManagement = lazy(() => import("./components/DriverManagement"));
 const PrintingSettings = lazy(() => import("./components/PrintingSettings"));
 const ReportsPage = lazy(() => import("./components/ReportsPage"));
 const AnalyticsPage = lazy(() => import("./components/AnalyticsPage"));
-const ComprehensiveAnalyticsDashboard = lazy(() => import("./components/ComprehensiveAnalyticsDashboard"));
-const DailyProductAnalytics = lazy(() => import("./components/DailyProductAnalytics"));
+const ComprehensiveAnalyticsDashboard = lazy(
+  () => import("./components/ComprehensiveAnalyticsDashboard")
+);
+const DailyProductAnalytics = lazy(
+  () => import("./components/DailyProductAnalytics")
+);
+const WeeklyProductionAnalytics = lazy(
+  () => import("./components/WeeklyProductionAnalytics")
+);
 const GlobalActivityLog = lazy(() => import("./components/GlobalActivityLog"));
-const RealTimeActivityDashboard = lazy(() => import("./components/RealTimeActivityDashboard"));
-const RealTimeOperationsDashboard = lazy(() => import("./components/RealTimeOperationsDashboard"));
-const ProductionClassificationDashboard = lazy(() => import("./components/ProductionClassificationDashboard"));
-const HistoricalReportsViewer = lazy(() => import("./components/HistoricalReportsViewer"));
-const DeliveredInvoicesPage = lazy(() => import("./components/DeliveredInvoicesPage"));
+const RealTimeActivityDashboard = lazy(
+  () => import("./components/RealTimeActivityDashboard")
+);
+const RealTimeOperationsDashboard = lazy(
+  () => import("./components/RealTimeOperationsDashboard")
+);
+const ProductionClassificationDashboard = lazy(
+  () => import("./components/ProductionClassificationDashboard")
+);
+const HistoricalReportsViewer = lazy(
+  () => import("./components/HistoricalReportsViewer")
+);
+const DeliveredInvoicesPage = lazy(
+  () => import("./components/DeliveredInvoicesPage")
+);
 const SuggestionsPanel = lazy(() => import("./components/SuggestionsPanel"));
-const SpecialItemsReminder = lazy(() => import("./components/SpecialItemsReminder"));
-const PredictionScheduleDashboard = lazy(() => import("./components/EnhancedPredictionScheduleDashboard"));
+const SpecialItemsReminder = lazy(
+  () => import("./components/SpecialItemsReminder")
+);
+const PredictionScheduleDashboard = lazy(
+  () => import("./components/EnhancedPredictionScheduleDashboard")
+);
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
@@ -109,7 +140,11 @@ import DailyEmployeeDashboard from "./components/DailyEmployeeDashboard";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 // Import task scheduler to start automated notifications
 import "./services/taskScheduler";
-import { LoadingSpinner, TableSkeleton, FormSkeleton } from './components/LoadingStates';
+import {
+  LoadingSpinner,
+  TableSkeleton,
+  FormSkeleton,
+} from "./components/LoadingStates";
 
 interface ActiveInvoicesProps {
   clients: Client[];
@@ -177,18 +212,18 @@ function updateClientInInvoices(
       ? { ...invoice, clientName: client.name }
       : invoice
   );
-  }
+}
 
 function App() {
   const { user, logout } = useAuth();
-  
+
   // Use the new state management hook
   const appState = useAppState();
   const businessLogic = useBusinessLogic();
-  
+
   // State for todo-based login flow - no longer needed as TodoManager handles this automatically
   // const [showTodoLogin, setShowTodoLogin] = React.useState(false);
-  
+
   // Extract state and actions for easier access
   const {
     products,
@@ -367,7 +402,7 @@ function App() {
   useEffect(() => {
     if (user) {
       setShowWelcome(false);
-      
+
       // Set default page based on user preferences immediately
       if (user.defaultPage) {
         setActivePage(
@@ -698,9 +733,10 @@ function App() {
   const canManageClients = true; // All roles, or use canSee('ClientForm') if you want to restrict
 
   // Helper: who can see the floating suggestions button and panel
-  const canSeeSuggestionsFloating = user && (
-    user.id === '1991' || ['Supervisor', 'Admin', 'Owner'].includes(user.role)
-  );
+  const canSeeSuggestionsFloating =
+    user &&
+    (user.id === "1991" ||
+      ["Supervisor", "Admin", "Owner"].includes(user.role));
 
   // Refactored navLinks: Combine Entradas, Segregation, Washing under Process
   const navLinks = [
@@ -708,7 +744,7 @@ function App() {
       label: "Daily Dashboard",
       page: "dailyDashboard" as const,
       icon: <span style={{ fontSize: 20 }}>📊</span>,
-      visible: true, // Available to all users
+      visible: canSee("DailyEmployeeDashboard"), // Now uses permission check
     },
     {
       label: "Process",
@@ -770,6 +806,12 @@ function App() {
         {
           label: "Daily Product Analytics",
           page: "dailyProductAnalytics",
+          icon: <AssessmentIcon />,
+          visible: true,
+        },
+        {
+          label: "Weekly Production Analytics",
+          page: "weeklyProductionAnalytics",
           icon: <AssessmentIcon />,
           visible: true,
         },
@@ -1332,7 +1374,9 @@ function App() {
                 color="inherit"
                 onClick={() => setShowSuggestionsPanel(!showSuggestionsPanel)}
                 sx={{
-                  bgcolor: showSuggestionsPanel ? "rgba(255,224,102,0.20)" : "rgba(255,255,255,0.10)",
+                  bgcolor: showSuggestionsPanel
+                    ? "rgba(255,224,102,0.20)"
+                    : "rgba(255,255,255,0.10)",
                   borderRadius: 2,
                   width: 32,
                   height: 32,
@@ -1416,7 +1460,7 @@ function App() {
               )}
             {canSeeSuggestions && (
               <ListItem disablePadding>
-                <ListItemButton 
+                <ListItemButton
                   selected={showSuggestionsPanel}
                   onClick={() => setShowSuggestionsPanel(!showSuggestionsPanel)}
                 >
@@ -1499,6 +1543,11 @@ function App() {
           <DailyProductAnalytics />
         </Suspense>
       )}
+      {activePage === "weeklyProductionAnalytics" && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <WeeklyProductionAnalytics />
+        </Suspense>
+      )}
       {activePage === "predictionSchedule" && (
         <Suspense fallback={<LoadingSpinner />}>
           <PredictionScheduleDashboard />
@@ -1515,7 +1564,7 @@ function App() {
           </div>
         </div>
       )}
-      {activePage === "dailyDashboard" && (
+      {activePage === "dailyDashboard" && canSee("DailyEmployeeDashboard") && (
         <div className="container py-5">
           <div className="row justify-content-center">
             <div className="col-12">
@@ -1773,8 +1822,11 @@ function App() {
                       ? "0 2px 8px rgba(14,98,160,0.08)"
                       : "none",
                   background:
-                    activeSettingsTab === "notifications" ? "var(--ku-blue)" : "#fff",
-                  color: activeSettingsTab === "notifications" ? "#fff" : "#0E62A0",
+                    activeSettingsTab === "notifications"
+                      ? "var(--ku-blue)"
+                      : "#fff",
+                  color:
+                    activeSettingsTab === "notifications" ? "#fff" : "#0E62A0",
                   border: "2px solid var(--ku-blue)",
                   transition: "all 0.2s",
                 }}
@@ -1907,18 +1959,22 @@ function App() {
           {/* <PendingProductsWidget /> */}
           <div className="row justify-content-center g-4">
             {homePages
-              .filter(
-                (p) => {
-                  // For drivers, only show shipping card
-                  if (user && user.role === "Driver") {
-                    return p.page === "shipping";
-                  }
-                  // For other roles, use existing filter logic
-                  return navLinks.find((l) => l.page === p.page && l.visible) &&
-                    p.page !== "reports" &&
-                    p.page !== "settings";
+              .filter((p) => {
+                // For drivers, only show shipping card
+                if (user && user.role === "Driver") {
+                  return p.page === "shipping";
                 }
-              )
+                // For Daily Dashboard, check specific permission
+                if (p.page === "dailyDashboard") {
+                  return canSee("DailyEmployeeDashboard");
+                }
+                // For other roles, use existing filter logic
+                return (
+                  navLinks.find((l) => l.page === p.page && l.visible) &&
+                  p.page !== "reports" &&
+                  p.page !== "settings"
+                );
+              })
               .map((p) => (
                 <div
                   key={p.page}
@@ -1971,7 +2027,11 @@ function App() {
           <div className="container-fluid py-4">
             <div className="row justify-content-center">
               <div className="col-12 col-lg-10">
-                <Suspense fallback={<div className="text-center">Loading special items...</div>}>
+                <Suspense
+                  fallback={
+                    <div className="text-center">Loading special items...</div>
+                  }
+                >
                   <SpecialItemsReminder />
                 </Suspense>
               </div>
@@ -2002,28 +2062,30 @@ function App() {
           </div>
         </div>
       )}
-      {activePage === "realTimeActivity" && canSee("RealTimeActivityDashboard") && (
-        <div className="container py-5">
-          <div className="row justify-content-center">
-            <div className="col-12">
-              <Suspense fallback={<LoadingSpinner />}>
-                <RealTimeActivityDashboard />
-              </Suspense>
+      {activePage === "realTimeActivity" &&
+        canSee("RealTimeActivityDashboard") && (
+          <div className="container py-5">
+            <div className="row justify-content-center">
+              <div className="col-12">
+                <Suspense fallback={<LoadingSpinner />}>
+                  <RealTimeActivityDashboard />
+                </Suspense>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      {activePage === "realTimeOperations" && canSee("RealTimeActivityDashboard") && (
-        <div className="container py-5">
-          <div className="row justify-content-center">
-            <div className="col-12">
-              <Suspense fallback={<LoadingSpinner />}>
-                <RealTimeOperationsDashboard />
-              </Suspense>
+        )}
+      {activePage === "realTimeOperations" &&
+        canSee("RealTimeActivityDashboard") && (
+          <div className="container py-5">
+            <div className="row justify-content-center">
+              <div className="col-12">
+                <Suspense fallback={<LoadingSpinner />}>
+                  <RealTimeOperationsDashboard />
+                </Suspense>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       {activePage === "shipping" && canSee("ShippingPage") && (
         <div className="container py-5">
           <div className="row justify-content-center">
@@ -2040,29 +2102,29 @@ function App() {
         <Route path="/daily-dashboard" element={<DailyEmployeeDashboard />} />
         <Route path="/*" element={<div />} />
       </Routes>
-      
+
       {/* Floating Suggestions Button (for supervisors and up, and Eric 1991) */}
       {canSeeSuggestionsFloating && (
         <button
           onClick={() => setShowSuggestionsPanel(true)}
           style={{
-            position: 'fixed',
+            position: "fixed",
             bottom: 32,
             right: 32,
             zIndex: 2000,
-            background: '#FAC61B',
-            color: '#222',
-            border: 'none',
-            borderRadius: '50%',
+            background: "#FAC61B",
+            color: "#222",
+            border: "none",
+            borderRadius: "50%",
             width: 64,
             height: 64,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
             fontSize: 32,
             fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
           title="Suggestions Center"
         >

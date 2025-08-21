@@ -1,14 +1,14 @@
-import React from 'react';
-import { 
-  BottomNavigation, 
-  BottomNavigationAction, 
+import React from "react";
+import {
+  BottomNavigation,
+  BottomNavigationAction,
   Paper,
   Badge,
   Box,
   SpeedDial,
   SpeedDialAction,
-  SpeedDialIcon
-} from '@mui/material';
+  SpeedDialIcon,
+} from "@mui/material";
 import {
   Home as HomeIcon,
   ListAlt as ListAltIcon,
@@ -18,8 +18,8 @@ import {
   Settings as SettingsIcon,
   GroupWork as SegregationIcon,
   Calculate as BillingIcon,
-  MoreVert as MoreIcon
-} from '@mui/icons-material';
+  MoreVert as MoreIcon,
+} from "@mui/icons-material";
 
 interface MobileNavigationProps {
   activePage: string;
@@ -32,113 +32,113 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
   activePage,
   onPageChange,
   canSee,
-  notificationCount = 0
+  notificationCount = 0,
 }) => {
   const [speedDialOpen, setSpeedDialOpen] = React.useState(false);
 
   // Primary navigation items (always visible)
   const primaryNavItems = [
     {
-      label: 'Home',
-      value: 'home',
+      label: "Home",
+      value: "home",
       icon: <HomeIcon />,
-      visible: true
+      visible: true,
     },
     {
-      label: 'Daily',
-      value: 'dailyDashboard',
+      label: "Daily",
+      value: "dailyDashboard",
       icon: <span style={{ fontSize: 20 }}>📊</span>,
-      visible: true
+      visible: canSee("DailyEmployeeDashboard"),
     },
     {
-      label: 'Entradas',
-      value: 'entradas',
+      label: "Entradas",
+      value: "entradas",
       icon: <ListAltIcon />,
-      visible: canSee('PickupWashing')
+      visible: canSee("PickupWashing"),
     },
     {
-      label: 'Washing',
-      value: 'washing',
+      label: "Washing",
+      value: "washing",
       icon: <LaundryIcon />,
-      visible: canSee('Washing')
+      visible: canSee("Washing"),
     },
     {
-      label: 'Shipping',
-      value: 'shipping',
+      label: "Shipping",
+      value: "shipping",
       icon: <ShippingIcon />,
-      visible: canSee('ShippingPage')
-    }
-  ].filter(item => item.visible);
+      visible: canSee("ShippingPage"),
+    },
+  ].filter((item) => item.visible);
 
   // Secondary navigation items (in speed dial)
   const secondaryNavItems = [
     {
-      label: 'Segregation',
-      value: 'segregation',
+      label: "Segregation",
+      value: "segregation",
       icon: <SegregationIcon />,
-      visible: canSee('Segregation')
+      visible: canSee("Segregation"),
     },
     {
-      label: 'Reports',
-      value: 'reports',
+      label: "Reports",
+      value: "reports",
       icon: <ReportsIcon />,
-      visible: canSee('Report')
+      visible: canSee("Report"),
     },
     {
-      label: 'Delivered Invoices',
-      value: 'deliveredInvoices',
+      label: "Delivered Invoices",
+      value: "deliveredInvoices",
       icon: <ShippingIcon />,
-      visible: canSee('ShippingPage')
+      visible: canSee("ShippingPage"),
     },
     {
-      label: 'Analytics',
-      value: 'analytics',
+      label: "Analytics",
+      value: "analytics",
       icon: <ReportsIcon />,
-      visible: canSee('Report')
+      visible: canSee("Report"),
     },
     {
-      label: 'Daily Analytics',
-      value: 'dailyProductAnalytics',
+      label: "Daily Analytics",
+      value: "dailyProductAnalytics",
       icon: <ReportsIcon />,
-      visible: canSee('Report')
+      visible: canSee("Report"),
     },
     {
-      label: 'Prediction Schedule',
-      value: 'predictionSchedule',
+      label: "Prediction Schedule",
+      value: "predictionSchedule",
       icon: <ReportsIcon />,
-      visible: canSee('Report')
+      visible: canSee("Report"),
     },
     {
-      label: 'Production Classification',
-      value: 'productionClassification',
+      label: "Production Classification",
+      value: "productionClassification",
       icon: <span style={{ fontSize: 20 }}>🏭</span>,
-      visible: canSee('Report')
+      visible: canSee("Report"),
     },
     {
-      label: 'Historical Reports',
-      value: 'historicalReports',
+      label: "Historical Reports",
+      value: "historicalReports",
       icon: <span style={{ fontSize: 20 }}>📊</span>,
-      visible: canSee('Report')
+      visible: canSee("Report"),
     },
     {
-      label: 'Billing',
-      value: 'billing',
+      label: "Billing",
+      value: "billing",
       icon: <BillingIcon />,
-      visible: canSee('BillingPage')
+      visible: canSee("BillingPage"),
     },
     {
-      label: 'Operations Dashboard',
-      value: 'realTimeOperations',
+      label: "Operations Dashboard",
+      value: "realTimeOperations",
       icon: <span style={{ fontSize: 20 }}>📊</span>,
-      visible: canSee('RealTimeActivityDashboard')
+      visible: canSee("RealTimeActivityDashboard"),
     },
     {
-      label: 'Settings',
-      value: 'settings',
+      label: "Settings",
+      value: "settings",
       icon: <SettingsIcon />,
-      visible: canSee('UserManagement')
-    }
-  ].filter(item => item.visible);
+      visible: canSee("UserManagement"),
+    },
+  ].filter((item) => item.visible);
 
   const handleNavigation = (value: string) => {
     onPageChange(value);
@@ -147,8 +147,8 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const getCurrentNavValue = () => {
     // Map current page to navigation value
-    if (primaryNavItems.some(item => item.value === activePage)) {
-      return primaryNavItems.findIndex(item => item.value === activePage);
+    if (primaryNavItems.some((item) => item.value === activePage)) {
+      return primaryNavItems.findIndex((item) => item.value === activePage);
     }
     return -1; // No primary nav item selected
   };
@@ -156,15 +156,15 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
   return (
     <>
       {/* Bottom Navigation */}
-      <Paper 
-        sx={{ 
-          position: 'fixed', 
-          bottom: 0, 
-          left: 0, 
-          right: 0, 
+      <Paper
+        sx={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
           zIndex: 1000,
-          borderTop: '1px solid #e0e0e0'
-        }} 
+          borderTop: "1px solid #e0e0e0",
+        }}
         elevation={3}
       >
         <BottomNavigation
@@ -174,14 +174,14 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
               handleNavigation(primaryNavItems[newValue].value);
             }
           }}
-          sx={{ 
+          sx={{
             height: 70,
-            '& .MuiBottomNavigationAction-root': {
+            "& .MuiBottomNavigationAction-root": {
               minWidth: 60,
-              '&.Mui-selected': {
-                color: '#D72328'
-              }
-            }
+              "&.Mui-selected": {
+                color: "#D72328",
+              },
+            },
           }}
         >
           {primaryNavItems.map((item) => (
@@ -189,7 +189,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
               key={item.value}
               label={item.label}
               icon={
-                item.value === 'home' && notificationCount > 0 ? (
+                item.value === "home" && notificationCount > 0 ? (
                   <Badge badgeContent={notificationCount} color="error">
                     {item.icon}
                   </Badge>
@@ -198,14 +198,14 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 )
               }
               sx={{
-                fontSize: '0.75rem',
-                '& .MuiBottomNavigationAction-label': {
-                  fontSize: '0.75rem'
-                }
+                fontSize: "0.75rem",
+                "& .MuiBottomNavigationAction-label": {
+                  fontSize: "0.75rem",
+                },
               }}
             />
           ))}
-          
+
           {/* More menu item */}
           {secondaryNavItems.length > 0 && (
             <BottomNavigationAction
@@ -213,10 +213,10 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
               icon={<MoreIcon />}
               onClick={() => setSpeedDialOpen(true)}
               sx={{
-                fontSize: '0.75rem',
-                '& .MuiBottomNavigationAction-label': {
-                  fontSize: '0.75rem'
-                }
+                fontSize: "0.75rem",
+                "& .MuiBottomNavigationAction-label": {
+                  fontSize: "0.75rem",
+                },
               }}
             />
           )}
@@ -227,17 +227,17 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
       {secondaryNavItems.length > 0 && (
         <SpeedDial
           ariaLabel="More navigation options"
-          sx={{ 
-            position: 'fixed', 
-            bottom: 80, 
+          sx={{
+            position: "fixed",
+            bottom: 80,
             right: 16,
             zIndex: 1001,
-            '& .MuiSpeedDial-fab': {
-              backgroundColor: '#D72328',
-              '&:hover': {
-                backgroundColor: '#B01E22'
-              }
-            }
+            "& .MuiSpeedDial-fab": {
+              backgroundColor: "#D72328",
+              "&:hover": {
+                backgroundColor: "#B01E22",
+              },
+            },
           }}
           icon={<SpeedDialIcon />}
           open={speedDialOpen}
@@ -251,13 +251,13 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
               tooltipTitle={item.label}
               onClick={() => handleNavigation(item.value)}
               sx={{
-                '& .MuiSpeedDialAction-fab': {
-                  backgroundColor: '#FAC61B',
-                  color: '#000',
-                  '&:hover': {
-                    backgroundColor: '#E6B317'
-                  }
-                }
+                "& .MuiSpeedDialAction-fab": {
+                  backgroundColor: "#FAC61B",
+                  color: "#000",
+                  "&:hover": {
+                    backgroundColor: "#E6B317",
+                  },
+                },
               }}
             />
           ))}
@@ -275,47 +275,47 @@ export const MobileFAB: React.FC<{
   icon: React.ReactNode;
   onClick: () => void;
   label?: string;
-  color?: 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success';
-}> = ({ icon, onClick, label, color = 'primary' }) => {
+  color?: "primary" | "secondary" | "error" | "warning" | "info" | "success";
+}> = ({ icon, onClick, label, color = "primary" }) => {
   const colorMap = {
-    primary: '#D72328',
-    secondary: '#FAC61B',
-    error: '#f44336',
-    warning: '#ff9800',
-    info: '#2196f3',
-    success: '#4caf50'
+    primary: "#D72328",
+    secondary: "#FAC61B",
+    error: "#f44336",
+    warning: "#ff9800",
+    info: "#2196f3",
+    success: "#4caf50",
   };
 
   return (
     <Box
       sx={{
-        position: 'fixed',
+        position: "fixed",
         bottom: 90, // Above bottom navigation
         right: 16,
-        zIndex: 1000
+        zIndex: 1000,
       }}
     >
       <div
         style={{
           width: 56,
           height: 56,
-          borderRadius: '50%',
+          borderRadius: "50%",
           backgroundColor: colorMap[color],
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-          color: 'white',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          color: "white",
           fontSize: 24,
-          transition: 'all 0.2s ease',
+          transition: "all 0.2s ease",
         }}
         onClick={onClick}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.1)';
+          e.currentTarget.style.transform = "scale(1.1)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.transform = "scale(1)";
         }}
         title={label}
       >

@@ -1349,11 +1349,6 @@ export default function ActiveInvoices({
     setShowPrintInvoiceModal(true);
   }
 
-  // Avatar error state: track which invoice cards have failed avatar loads
-  const [avatarErrorMap, setAvatarErrorMap] = useState<{
-    [invoiceId: string]: boolean;
-  }>({});
-
   const [showInvoiceDetailsModal, setShowInvoiceDetailsModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
@@ -1411,8 +1406,16 @@ export default function ActiveInvoices({
     const found = users.find(
       (u: UserRecord) => u.id === verifierId || u.username === verifierId
     );
-    if (found) return found.username;
-    if (verifierId.length > 4 || /[a-zA-Z]/.test(verifierId)) return verifierId;
+    if (found) {
+      // Return only the first name from the username
+      const firstName = found.username.split(' ')[0];
+      return firstName;
+    }
+    if (verifierId.length > 4 || /[a-zA-Z]/.test(verifierId)) {
+      // Return only the first part if it's a string with multiple words
+      const firstName = verifierId.split(' ')[0];
+      return firstName;
+    }
     return verifierId;
   };
 
@@ -1792,7 +1795,6 @@ export default function ActiveInvoices({
         <div className="row">
           {filteredInvoices.map((invoice, idx) => {
               const client = clients.find((c) => c.id === invoice.clientId);
-              const avatarSrc = getClientAvatarUrl(client || {});
               const isReady =
                 invoice.status === "ready" || readyInvoices[invoice.id];
               const isVerified = invoice.verified;
@@ -1907,7 +1909,7 @@ export default function ActiveInvoices({
                         position: "relative",
                         minHeight: 380,
                         maxWidth: 340,
-                        margin: "60px auto 0 auto",
+                        margin: "0 auto", // Changed from "60px auto 0 auto" since no avatar overlap
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
@@ -1926,146 +1928,27 @@ export default function ActiveInvoices({
                         }
                       }}
                     >
-                      {/* Delete button in top left corner */}
-                      {user &&
-                        ["Supervisor", "Admin", "Owner"].includes(
-                          user.role
-                        ) && (
-                          <button
-                            className="btn"
-                            style={{
-                              position: "absolute",
-                              top: 16,
-                              left: 16,
-                              background: "#fff",
-                              borderRadius: "50%",
-                              width: 44,
-                              height: 44,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              border: "none",
-                              color: "#ef4444",
-                              fontSize: 22,
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClick(invoice);
-                            }}
-                            title="Delete"
-                            disabled={!!invoice.locked}
-                          >
-                            <i className="bi bi-trash" />
-                          </button>
-                        )}
-                      
-                      {/* Merge button in top left corner (next to delete) */}
-                      {user &&
-                        ["Supervisor", "Admin", "Owner"].includes(
-                          user.role
-                        ) && 
-                        true && (  /* Temporarily always show for debugging */
-                          <button
-                            className="btn"
-                            style={{
-                              position: "absolute",
-                              top: 16,
-                              left: 70,
-                              background: "#fff",
-                              borderRadius: "50%",
-                              width: 44,
-                              height: 44,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              border: "none",
-                              color: "#0ea5e9",
-                              fontSize: 22,
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              console.log("Merge button clicked for invoice:", invoice.id);
-                              console.log("Mergeable invoices:", getMergeableInvoices(invoice.id));
-                              handleOpenMergeModal(invoice.id);
-                            }}
-                            title="Merge with another invoice from same client"
-                            disabled={!!invoice.locked}
-                          >
-                            <i className="bi bi-shuffle" />
-                          </button>
-                        )}
-                      
-                      {/* Invoice Number in top right corner */}
+                      {/* Client Name Tab at Top with consistent spacing */}
                       <div
                         style={{
                           position: "absolute",
-                          top: 16,
-                          right: 16,
-                          background: "linear-gradient(135deg, #3b82f6, #1e40af)",
-                          borderRadius: "8px",
-                          padding: "8px 12px",
-                          boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
-                          border: "1px solid rgba(59, 130, 246, 0.2)",
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: "#ffffff",
-                          letterSpacing: "0.5px",
-                          zIndex: 3,
-                        }}
-                      >
-                        #{invoice.invoiceNumber || invoice.id.substring(0, 8)}
-                      </div>
-                      
-                      {/* Avatar */}
-                      <div
-                        style={{
-                          width: 110,
-                          height: 110,
-                          position: "absolute",
-                          left: "50%",
-                          top: -55,
-                          transform: "translateX(-50%)",
-                          zIndex: 2,
-                          display: "flex",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          pointerEvents: "none",
-                        }}
-                      >
-                        <img
-                          src={avatarSrc}
-                          alt="avatar"
-                          style={{
-                            width: 100,
-                            height: 100,
-                            borderRadius: "50%",
-                            border: "4px solid #fff",
-                            objectFit: "cover",
-                            boxShadow: "0 2px 12px rgba(0,0,0,0.10)",
-                            background: "#e0f2fe",
-                          }}
-                          onError={() =>
-                            setAvatarErrorMap((prev) => ({
-                              ...prev,
-                              [invoice.id]: true,
-                            }))
-                          }
-                        />
-                      </div>
-                      {/* Name and subtitle */}
-                      <div
-                        style={{
+                          top: -1,
+                          left: -1,
+                          right: -1,
+                          background: "#ffffff",
+                          borderRadius: "24px 24px 0 0",
+                          padding: "16px 24px",
                           textAlign: "center",
-                          marginTop: 16,
-                          marginBottom: 8,
+                          border: `2px solid ${cardBorderColor}40`,
+                          borderBottom: "1px solid #e5e7eb",
+                          zIndex: 2,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
                         }}
                       >
                         <div
                           style={{
-                            fontWeight: 800,
-                            fontSize: 28, // Increased from 24 for better readability
+                            fontWeight: 700,
+                            fontSize: 25,
                             color: (invoice.carts || []).some((c) =>
                               c.name
                                 .toUpperCase()
@@ -2073,16 +1956,177 @@ export default function ActiveInvoices({
                             )
                               ? "red"
                               : "#222",
-                            marginBottom: 4,
+                            letterSpacing: "0.5px",
+                            lineHeight: "1.3",
+                            wordWrap: "break-word",
+                            overflowWrap: "break-word",
+                            hyphens: "auto",
                           }}
                         >
                           {client?.name || invoice.clientName}
                         </div>
+                      </div>
+                      
+                      {/* Buttons and Invoice Number positioned relative to white border */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: -1, // Start from same position as client name tab
+                          left: -1,
+                          right: -1,
+                          pointerEvents: "none", // Allow clicks to pass through container
+                        }}
+                      >
+                        {/* Calculate position after white background + border + gap */}
+                        <div
+                          style={{
+                            position: "relative",
+                            background: "transparent",
+                            borderRadius: "24px 24px 0 0",
+                            padding: "16px 24px", // Same padding as white background
+                            border: "2px solid transparent", // Same border size as white background
+                            borderBottom: "1px solid transparent",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              fontSize: 25,
+                              color: "transparent", // Invisible text to maintain spacing
+                              letterSpacing: "0.5px",
+                              lineHeight: "1.3",
+                              wordWrap: "break-word",
+                              overflowWrap: "break-word",
+                              hyphens: "auto",
+                            }}
+                          >
+                            {client?.name || invoice.clientName}
+                          </div>
+                          
+                          {/* Buttons positioned with consistent gap from white border */}
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "calc(100% + 20px)", // 20px gap from white border
+                              left: 0,
+                              right: 0,
+                              height: "44px",
+                            }}
+                          >
+                            {/* Delete button */}
+                            {user &&
+                              ["Supervisor", "Admin", "Owner"].includes(
+                                user.role
+                              ) && (
+                                <button
+                                  className="btn"
+                                  style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 16,
+                                    background: "#fff",
+                                    borderRadius: "50%",
+                                    width: 44,
+                                    height: 44,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                                    border: "none",
+                                    color: "#ef4444",
+                                    fontSize: 22,
+                                    zIndex: 4,
+                                    pointerEvents: "auto",
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClick(invoice);
+                                  }}
+                                  title="Delete"
+                                  disabled={!!invoice.locked}
+                                >
+                                  <i className="bi bi-trash" />
+                                </button>
+                              )}
+                            
+                            {/* Merge button */}
+                            {user &&
+                              ["Supervisor", "Admin", "Owner"].includes(
+                                user.role
+                              ) && 
+                              true && (
+                                <button
+                                  className="btn"
+                                  style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 70,
+                                    background: "#fff",
+                                    borderRadius: "50%",
+                                    width: 44,
+                                    height: 44,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                                    border: "none",
+                                    color: "#0ea5e9",
+                                    fontSize: 22,
+                                    zIndex: 4,
+                                    pointerEvents: "auto",
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    console.log("Merge button clicked for invoice:", invoice.id);
+                                    console.log("Mergeable invoices:", getMergeableInvoices(invoice.id));
+                                    handleOpenMergeModal(invoice.id);
+                                  }}
+                                  title="Merge with another invoice from same client"
+                                  disabled={!!invoice.locked}
+                                >
+                                  <i className="bi bi-shuffle" />
+                                </button>
+                              )}
+                            
+                            {/* Invoice Number */}
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 0,
+                                right: 16,
+                                background: "linear-gradient(135deg, #3b82f6, #1e40af)",
+                                borderRadius: "8px",
+                                padding: "8px 12px",
+                                boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
+                                border: "1px solid rgba(59, 130, 246, 0.2)",
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: "#ffffff",
+                                letterSpacing: "0.5px",
+                                zIndex: 4,
+                                pointerEvents: "auto",
+                              }}
+                            >
+                              #{invoice.invoiceNumber || invoice.id.substring(0, 8)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Content area - positioned below client name tab, buttons, and sticky note */}
+                      <div
+                        style={{
+                          textAlign: "center",
+                          marginTop: invoice.note ? 220 : 140, // Extra space when note is present (130px note position + 80px max height + 10px padding)
+                          marginBottom: 8,
+                        }}
+                      >
                         <div
                           style={{
                             fontSize: 11,
                             color: "#777",
-                            marginBottom: 0,
+                            marginBottom: 4,
                           }}
                         >
                           Active Invoice
@@ -2173,7 +2217,7 @@ export default function ActiveInvoices({
                             padding: 0,
                             margin: 0,
                             fontSize: 28, // Increased from 15 for product list
-                            marginBottom: 20,
+                            marginBottom: (invoice.verified || invoice.partiallyVerified) ? 8 : 80, // Conditional margin: small when approval info present, large when absent
                           }}
                         >
                           {(() => {
@@ -2212,9 +2256,76 @@ export default function ActiveInvoices({
                                 <b style={{ fontSize: 18 }}>{prod.qty}</b>
                               </li>
                             ));
-                          })()}
+                          })(                        )}
                         </ul>
                       </div>
+
+                      {/* Sticky Note Display - Positioned below buttons to avoid overlap */}
+                      {invoice.note && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "130px", // Positioned below buttons (client tab ~70px + buttons ~44px + gap ~16px)
+                            left: "16px",
+                            right: "16px",
+                            background: "rgba(255, 241, 118, 0.98)",
+                            border: "2px solid #fbbf24",
+                            borderRadius: "10px",
+                            padding: "10px 14px",
+                            fontSize: "13px",
+                            fontWeight: "500",
+                            color: "#92400e",
+                            maxHeight: "80px", // Slightly reduced to fit better in card
+                            overflowY: "auto",
+                            boxShadow: "0 4px 20px rgba(251, 191, 36, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3)",
+                            zIndex: 8, // Below buttons (zIndex 4) but above content
+                            backdropFilter: "blur(3px)", // Enhanced backdrop blur
+                            transition: "all 0.3s ease-in-out",
+                            cursor: "pointer",
+                            userSelect: "text", // Allow text selection
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent card click when clicking note
+                            // Open note editor when clicking the note
+                            setShowNoteInput(prev => ({ ...prev, [invoice.id]: true }));
+                          }}
+                          title="Click to edit note"
+                        >
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              marginBottom: "6px",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "4px",
+                            }}
+                          >
+                            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                              📝 Note
+                            </span>
+                            <span style={{ 
+                              fontSize: "10px", 
+                              opacity: 0.7,
+                              fontStyle: "italic",
+                              fontWeight: "normal" 
+                            }}>
+                              Click to edit
+                            </span>
+                          </div>
+                          <div style={{ 
+                            lineHeight: "1.4", 
+                            wordBreak: "break-word",
+                            whiteSpace: "pre-wrap" 
+                          }}>
+                            {invoice.note}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Social-style action buttons */}
                       <div
                         style={{
@@ -2229,7 +2340,7 @@ export default function ActiveInvoices({
                       >
                         {/* Sticky Note Button */}
                         <button
-                          className="btn btn-sm btn-warning"
+                          className={`btn btn-sm ${invoice.note ? "btn-warning" : "btn-outline-warning"}`}
                           style={{
                             fontSize: 16,
                             width: 44,
@@ -2240,15 +2351,22 @@ export default function ActiveInvoices({
                             justifyContent: "center",
                             padding: 0,
                             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: "2px solid #fbbf24",
+                            border: invoice.note ? "2px solid #f59e0b" : "2px solid #fbbf24",
+                            background: invoice.note ? "#f59e0b" : "transparent",
                           }}
-                          title={invoice.note ? "View/Edit Note" : "Add Note"}
+                          title={invoice.note ? `View/Edit Note: "${invoice.note.substring(0, 50)}${invoice.note.length > 50 ? '...' : ''}"` : "Add Note"}
                           onClick={(e) => {
                             e.stopPropagation();
                             setShowNoteInput(prev => ({ ...prev, [invoice.id]: true }));
                           }}
                         >
-                          <i className="bi bi-sticky" style={{ fontSize: 22, color: "#fff" }} />
+                          <i 
+                            className="bi bi-sticky" 
+                            style={{ 
+                              fontSize: 22, 
+                              color: invoice.note ? "#fff" : "#f59e0b" 
+                            }} 
+                          />
                         </button>
                         {/* Schedule Delivery button - Step 0 - Only show when invoice is approved */}
                         {(invoice.verified || invoice.partiallyVerified) && (
@@ -2743,39 +2861,44 @@ export default function ActiveInvoices({
                       </div>
                       {/* Show approval status and details on invoice card */}
                       {(invoice.verified || invoice.partiallyVerified) && (
-                        <div style={{ marginTop: 8 }}>
-                          <span
+                        <div style={{ marginTop: 4, marginBottom: 80 }}> {/* Reduced top margin, keep bottom margin to prevent overlap with bottom buttons */}
+                          <div
                             style={{
-                              fontWeight: 700,
-                              color: invoice.verified ? "#22c55e" : "#fbbf24",
+                              background: "rgba(255, 255, 255, 0.9)", // Semi-transparent white background
+                              border: "1px solid #e5e7eb", // Light gray border
+                              borderRadius: "12px", // Rounded pill shape
+                              padding: "8px 16px", // Comfortable padding
+                              boxShadow: "0 2px 4px rgba(0,0,0,0.05)", // Subtle shadow
+                              display: "flex", // Use flex to center content
+                              alignItems: "center", // Center vertically
+                              justifyContent: "center", // Center horizontally
+                              textAlign: "center", // Center text
                             }}
                           >
-                            {invoice.verified
-                              ? "Fully Approved"
-                              : "Partially Approved"}
-                          </span>
-                          {invoice.verifiedBy && (
                             <span
                               style={{
-                                marginLeft: 12,
-                                color: "#888",
-                                fontWeight: 500,
+                                fontWeight: 700,
+                                color: "#000", // Black text
+                                fontSize: "14px", // Slightly smaller font
                               }}
                             >
-                              Approved by: {getVerifierName(invoice.verifiedBy)}
+                              {invoice.verified
+                                ? "Fully Approved"
+                                : "Partially Approved"}
                             </span>
-                          )}
-                          {invoice.verifiedAt && (
-                            <span
-                              style={{
-                                marginLeft: 12,
-                                color: "#888",
-                                fontWeight: 500,
-                              }}
-                            >
-                              Date: {formatDateSpanish(invoice.verifiedAt)}
-                            </span>
-                          )}
+                            {invoice.verifiedBy && (
+                              <span
+                                style={{
+                                  marginLeft: 12,
+                                  color: "#000", // Black text
+                                  fontWeight: 500,
+                                  fontSize: "14px", // Consistent font size
+                                }}
+                              >
+                                Approved by: {getVerifierName(invoice.verifiedBy)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -2925,7 +3048,7 @@ export default function ActiveInvoices({
                           {/* Verification info */}
                           {(isVerified || isPartiallyVerified) && invoice.verifiedBy && (
                             <small className="text-muted">
-                              by {invoice.verifiedBy}
+                              by {getVerifierName(invoice.verifiedBy)}
                             </small>
                           )}
                         </div>
@@ -4560,7 +4683,6 @@ export default function ActiveInvoices({
                   className="form-control"
                   value={shippedDeliveryDate}
                   onChange={(e) => setShippedDeliveryDate(e.target.value)}
-                  min={new Date().toISOString().slice(0, 10)}
                   required
                 />
               </div>
@@ -4860,7 +4982,6 @@ export default function ActiveInvoices({
                     className="form-control"
                     value={scheduleDeliveryDate}
                     onChange={(e) => setScheduleDeliveryDate(e.target.value)}
-                    min={new Date().toISOString().slice(0, 10)}
                     required
                   />
                   <small className="form-text text-muted">
@@ -5438,7 +5559,7 @@ export default function ActiveInvoices({
           className="modal show"
           style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
         >
-          <div className="modal-dialog modal-lg">
+          <div className="modal-dialog modal-fullscreen">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Verify Laundry Ticket Items</h5>
@@ -5510,9 +5631,34 @@ export default function ActiveInvoices({
       {showCompletionModal && completionInvoiceId && (
         <div
           className="modal show"
-          style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+          style={{ 
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.3)",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            zIndex: 2000,
+            overflowY: "auto",
+            paddingTop: "80px", // Add padding to account for navigation header
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCompletionModal(false);
+            }
+          }}
         >
-          <div className="modal-dialog">
+          <div 
+            className="modal-dialog"
+            style={{
+              margin: "0 auto 80px auto", // Top margin handled by parent padding, add bottom margin
+              pointerEvents: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">

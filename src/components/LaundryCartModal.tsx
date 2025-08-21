@@ -261,8 +261,9 @@ export default function LaundryCartModal({
           onConfirm={handleConfirmCreate}
           title="Create New Cart?"
           message={`Are you sure you want to create a new cart named "${pendingCartName}"?`}
-          confirmButtonText="Add New Cart"
+          confirmButtonText="Yes"
           confirmButtonClass="btn-success"
+          fullscreen={true}
         />
       )}
     </>

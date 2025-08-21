@@ -692,19 +692,19 @@ const BillingPage: React.FC = () => {
         );
       }
       
-      // Base subtotal (products + peso only, without delivery charges and minimum billing)
-      let baseSubtotalOnly = baseSubtotal;
+      // Base subtotal (products + peso + general delivery)
+      let baseSubtotalOnly = baseSubtotal + generalDeliveryChargeValue;
       
-      // Display subtotal (with minimum billing applied if needed, plus delivery charges)
-      let displaySubtotal = baseSubtotal + deliveryChargeValue + generalDeliveryChargeValue;
+      // Display subtotal (with minimum billing applied if needed, plus special delivery charges only)
+      let displaySubtotal = baseSubtotalOnly + deliveryChargeValue;
       if (minValue > 0 && baseSubtotal < minValue) {
-        displaySubtotal = minValue + deliveryChargeValue + generalDeliveryChargeValue;
+        displaySubtotal = minValue + generalDeliveryChargeValue + deliveryChargeValue;
       }
       
-      // Calculate the higher subtotal value for service charge calculation (without delivery charge)
-      let subtotalForServiceCharge = baseSubtotal;
+      // Calculate the higher subtotal value for service charge calculation (includes general delivery)
+      let subtotalForServiceCharge = baseSubtotal + generalDeliveryChargeValue;
       if (minValue > 0 && baseSubtotal < minValue) {
-        subtotalForServiceCharge = minValue;
+        subtotalForServiceCharge = minValue + generalDeliveryChargeValue;
       }
       
       let serviceCharge = 0;
@@ -1739,16 +1739,25 @@ const BillingPage: React.FC = () => {
                             type="checkbox"
                             checked={
                               clientInvoices.length > 0 &&
-                              selectedInvoiceIds.length ===
-                                clientInvoices.length
+                              clientInvoices.every(inv => selectedInvoiceIds.includes(inv.id))
                             }
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedInvoiceIds(
-                                  clientInvoices.map((inv) => inv.id)
-                                );
+                                // Add all client invoices to selection
+                                setSelectedInvoiceIds(prev => {
+                                  const newIds = [...prev];
+                                  clientInvoices.forEach(inv => {
+                                    if (!newIds.includes(inv.id)) {
+                                      newIds.push(inv.id);
+                                    }
+                                  });
+                                  return newIds;
+                                });
                               } else {
-                                setSelectedInvoiceIds([]);
+                                // Remove only current client's invoices from selection
+                                setSelectedInvoiceIds(prev => 
+                                  prev.filter(id => !clientInvoices.some(inv => inv.id === id))
+                                );
                               }
                             }}
                           />
@@ -1762,6 +1771,9 @@ const BillingPage: React.FC = () => {
                         {productColumns.map((prod) => (
                           <th key={prod.id} style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>{prod.name}</th>
                         ))}
+                        {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
+                          <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>General Delivery</th>
+                        )}
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Subtotal (Base)</th>
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Minimum Billing</th>
                         {serviceChargeEnabled && <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Service Charge</th>}
@@ -1776,9 +1788,6 @@ const BillingPage: React.FC = () => {
                         )}
                         {deliveryCharge && Number(deliveryCharge) > 0 && (
                           <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Special Delivery</th>
-                        )}
-                        {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
-                          <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>General Delivery</th>
                         )}
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Actions</th>
                       </tr>
@@ -1943,19 +1952,19 @@ const BillingPage: React.FC = () => {
                             );
                           }
                           
-                          // Base subtotal (products + peso, without delivery charges and minimum billing)
-                          let baseSubtotal = subtotal + pesoSubtotal;
+                          // Base subtotal (products + peso + general delivery)
+                          let baseSubtotal = subtotal + pesoSubtotal + generalDeliveryChargeValue;
                           
-                          // Display subtotal (with minimum billing applied if needed, plus delivery charges)
-                          let displaySubtotal = baseSubtotal + deliveryChargeValue + generalDeliveryChargeValue;
-                          if (minValue > 0 && baseSubtotal < minValue) {
-                            displaySubtotal = minValue + deliveryChargeValue + generalDeliveryChargeValue;
+                          // Display subtotal (with minimum billing applied if needed, plus special delivery charges only)
+                          let displaySubtotal = baseSubtotal + deliveryChargeValue;
+                          if (minValue > 0 && (subtotal + pesoSubtotal) < minValue) {
+                            displaySubtotal = minValue + generalDeliveryChargeValue + deliveryChargeValue;
                           }
                           
-                          // Calculate the higher subtotal value for service charge calculation (without delivery charge)
+                          // Calculate the higher subtotal value for service charge calculation (includes general delivery)
                           let subtotalForServiceCharge = baseSubtotal;
-                          if (minValue > 0 && baseSubtotal < minValue) {
-                            subtotalForServiceCharge = minValue;
+                          if (minValue > 0 && (subtotal + pesoSubtotal) < minValue) {
+                            subtotalForServiceCharge = minValue + generalDeliveryChargeValue;
                           }
                           
                           // Calculate charges using formulas
@@ -2168,6 +2177,16 @@ const BillingPage: React.FC = () => {
                                 }
                                 return <td key={prod.id}>{cell}</td>;
                               })}
+                              {/* General Delivery */}
+                              {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {generalDeliveryChargeValue > 0
+                                      ? `$${generalDeliveryChargeValue.toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
                               {/* Base Subtotal (without minimum billing) */}
                               <td style={{
                                 ...nowrapCellStyle,
@@ -2251,15 +2270,6 @@ const BillingPage: React.FC = () => {
                                   <b>
                                     {deliveryChargeValue > 0
                                       ? `$${deliveryChargeValue.toFixed(2)}`
-                                      : ""}
-                                  </b>
-                                </td>
-                              )}
-                              {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
-                                <td style={nowrapCellStyle}>
-                                  <b>
-                                    {generalDeliveryChargeValue > 0
-                                      ? `$${generalDeliveryChargeValue.toFixed(2)}`
                                       : ""}
                                   </b>
                                 </td>
@@ -2392,6 +2402,47 @@ const BillingPage: React.FC = () => {
                             </td>
                           );
                         })}
+                        {/* General Delivery total */}
+                        {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let subtotal = 0;
+                                  let pesoSubtotal = 0;
+                                  productColumns.forEach((prod) => {
+                                    if (prod.name.toLowerCase().includes("peso")) {
+                                      const pesoPrice = productPrices[prod.id];
+                                      if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
+                                        pesoSubtotal += inv.totalWeight * pesoPrice;
+                                      }
+                                    } else {
+                                      const qty = (inv.carts || []).reduce((sum, cart) => {
+                                        return sum + (cart.items || [])
+                                          .filter((item) => item.productId === prod.id)
+                                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                      }, 0);
+                                      const price = productPrices[prod.id];
+                                      if (qty > 0 && price > 0) subtotal += qty * price;
+                                    }
+                                  });
+                                  
+                                  total += calculateCharge(
+                                    generalDeliveryChargeFormula,
+                                    Number(generalDeliveryCharge),
+                                    subtotal + pesoSubtotal,
+                                    1,
+                                    0
+                                  );
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
                         {/* Base Subtotal total (without minimum billing) */}
                         <td style={nowrapCellStyle}>
                           {(() => {
@@ -2455,14 +2506,27 @@ const BillingPage: React.FC = () => {
                                     0
                                   );
                                 }
-                                let baseSubtotal = subtotal + pesoSubtotal;
+                                
+                                // Apply general delivery charge to all invoices
+                                let generalDeliveryChargeValue = 0;
+                                if (generalDeliveryCharge && Number(generalDeliveryCharge) > 0) {
+                                  generalDeliveryChargeValue = calculateCharge(
+                                    generalDeliveryChargeFormula,
+                                    Number(generalDeliveryCharge) || 0,
+                                    subtotal + pesoSubtotal,
+                                    1,
+                                    0
+                                  );
+                                }
+                                
+                                let baseSubtotal = subtotal + pesoSubtotal + generalDeliveryChargeValue;
                                 baseTotal += baseSubtotal;
                                 
                                 // Calculate with minimum billing
                                 let minValue = minBilling ? Number(minBilling) : 0;
-                                let displaySubtotal = subtotal + pesoSubtotal + deliveryChargeValue;
-                                if (minValue > 0 && baseSubtotal < minValue) {
-                                  displaySubtotal = minValue + deliveryChargeValue;
+                                let displaySubtotal = subtotal + pesoSubtotal + generalDeliveryChargeValue + deliveryChargeValue;
+                                if (minValue > 0 && (subtotal + pesoSubtotal) < minValue) {
+                                  displaySubtotal = minValue + generalDeliveryChargeValue + deliveryChargeValue;
                                 }
                                 minTotal += displaySubtotal;
                               });
@@ -2891,47 +2955,6 @@ const BillingPage: React.FC = () => {
                                 0
                               );
                               return totalDeliveryCharge > 0 ? `$${totalDeliveryCharge.toFixed(2)}` : "";
-                            })()}
-                          </td>
-                        )}
-                        {/* General Delivery total */}
-                        {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
-                          <td style={nowrapCellStyle}>
-                            {(() => {
-                              let total = 0;
-                              clientInvoices
-                                .filter((inv) =>
-                                  selectedInvoiceIds.includes(inv.id)
-                                )
-                                .forEach((inv) => {
-                                  let subtotal = 0;
-                                  let pesoSubtotal = 0;
-                                  productColumns.forEach((prod) => {
-                                    if (prod.name.toLowerCase().includes("peso")) {
-                                      const pesoPrice = productPrices[prod.id];
-                                      if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
-                                        pesoSubtotal += inv.totalWeight * pesoPrice;
-                                      }
-                                    } else {
-                                      const qty = (inv.carts || []).reduce((sum, cart) => {
-                                        return sum + (cart.items || [])
-                                          .filter((item) => item.productId === prod.id)
-                                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
-                                      }, 0);
-                                      const price = productPrices[prod.id];
-                                      if (qty > 0 && price > 0) subtotal += qty * price;
-                                    }
-                                  });
-                                  
-                                  total += calculateCharge(
-                                    generalDeliveryChargeFormula,
-                                    Number(generalDeliveryCharge),
-                                    subtotal + pesoSubtotal,
-                                    1,
-                                    0
-                                  );
-                                });
-                              return total > 0 ? `$${total.toFixed(2)}` : "";
                             })()}
                           </td>
                         )}

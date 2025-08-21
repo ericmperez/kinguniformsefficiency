@@ -19,12 +19,13 @@ export type AppComponentKey =
   | 'RutasPorCamion'
   | 'SendLaundryTicketPage'
   | 'ShippingPage'
-  | 'SuggestionsPanel';
+  | 'SuggestionsPanel'
+  | 'DailyEmployeeDashboard';
 
 // Map roles to allowed components
 export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
   Employee: ['PickupWashing', 'ActiveLaundryTickets'],
-  Supervisor: ['PickupWashing', 'ActiveLaundryTickets', 'Report', 'Segregation', 'Washing', 'ShippingPage', 'SuggestionsPanel'],
+  Supervisor: ['PickupWashing', 'ActiveLaundryTickets', 'Report', 'Segregation', 'Washing', 'ShippingPage', 'SuggestionsPanel', 'DailyEmployeeDashboard'],
   Driver: ['ShippingPage'], // Drivers can only see ShippingPage
   Admin: [
     'PickupWashing',
@@ -43,6 +44,7 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'SendLaundryTicketPage',
     'ShippingPage',
     'SuggestionsPanel',
+    'DailyEmployeeDashboard',
   ],
   Owner: [
     'PickupWashing',
@@ -61,6 +63,7 @@ export const roleComponentPermissions: Record<Role, AppComponentKey[]> = {
     'SendLaundryTicketPage',
     'ShippingPage',
     'SuggestionsPanel',
+    'DailyEmployeeDashboard',
   ],
 };
 

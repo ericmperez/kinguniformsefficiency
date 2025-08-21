@@ -2645,19 +2645,64 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           className="d-flex flex-column flex-md-row align-items-md-center gap-4 flex-grow-1"
                           style={{ minWidth: 0 }}
                         >
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              color: group.isManualProduct
-                                ? "#b8860b"
-                                : "#007bff",
-                              fontSize: "1.5rem",
-                              /* Removed maxWidth, whiteSpace, overflow, textOverflow, minWidth, and display:block to allow full name display */
-                            }}
-                            title={group.clientName}
+                          {/* Date, Client Name, and Group Weight on Same Line */}
+                          <div
+                            className="d-flex flex-row align-items-center gap-3"
+                            style={{ flexWrap: "wrap", alignItems: "center" }}
                           >
-                            {group.clientName}
-                          </span>
+                            {/* Date Display */}
+                            <span
+                              style={{
+                                color: "#666",
+                                fontSize: "1rem",
+                                fontWeight: 500,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {group.startTime ? new Date(group.startTime).toLocaleDateString() : 
+                               group.endTime ? new Date(group.endTime).toLocaleDateString() :
+                               group.createdAt ? new Date(group.createdAt.seconds * 1000).toLocaleDateString() : 
+                               new Date().toLocaleDateString()}
+                            </span>
+                            
+                            {/* Client Name */}
+                            <span
+                              style={{
+                                fontWeight: 700,
+                                color: group.isManualProduct
+                                  ? "#b8860b"
+                                  : "#007bff",
+                                fontSize: "1.5rem",
+                              }}
+                              title={group.clientName}
+                            >
+                              {group.clientName}
+                            </span>
+                            
+                            {/* Group Weight */}
+                            {!group.isManualProduct && (
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  backgroundColor: "#28a745",
+                                  color: "white",
+                                  padding: "4px 12px",
+                                  borderRadius: "20px",
+                                  fontSize: "1rem",
+                                  fontWeight: "bold",
+                                  minWidth: "80px",
+                                  textAlign: "center",
+                                  whiteSpace: "nowrap"
+                                }}
+                              >
+                                {typeof group.totalWeight === "number"
+                                  ? Math.round(group.totalWeight)
+                                  : "?"} lbs
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Cart Count on Second Line */}
                           <span
                             style={{
                               color: "#333",
@@ -2713,27 +2758,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   </span>
                                 )) : null
                               )}
-                            </span>
-                          )}
-                          {/* Weight section */}
-                          {!group.isManualProduct && (
-                            <span
-                              style={{
-                                display: "inline-block",
-                                backgroundColor: "#28a745",
-                                color: "white",
-                                padding: "4px 12px",
-                                borderRadius: "20px",
-                                fontSize: "1rem",
-                                fontWeight: "bold",
-                                minWidth: "80px",
-                                textAlign: "center",
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {typeof group.totalWeight === "number"
-                                ? Math.round(group.totalWeight)
-                                : "?"} lbs
                             </span>
                           )}
                         </div>

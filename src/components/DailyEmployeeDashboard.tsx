@@ -1,8 +1,14 @@
 import React, { useEffect, useState, useMemo } from "react";
-import ProductionTrackingService, { ProductionSummary, ProductionEntry } from "../services/ProductionTrackingService";
+import ProductionTrackingService, {
+  ProductionSummary,
+  ProductionEntry,
+} from "../services/ProductionTrackingService";
+import { productClassificationService } from "../services/ProductClassificationService";
 import EndOfShiftDashboard from "./EndOfShiftDashboard";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
+import { canUserSeeComponent, AppComponentKey } from "../permissions";
+import { useAuth } from "./AuthContext";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,8 +18,8 @@ import {
   Tooltip,
   Legend,
   ChartOptions,
-} from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+} from "chart.js";
+import { Bar } from "react-chartjs-2";
 
 // Register Chart.js components
 ChartJS.register(
@@ -24,6 +30,16 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+
+// Rotation view types
+enum RotationView {
+  MAIN_STATS = "main_stats",
+  SECONDARY_STATS = "secondary_stats",
+  PROGRESS_SECTION = "progress_section",
+  PRODUCTION_CHARTS = "production_charts",
+  END_OF_SHIFT = "end_of_shift",
+  FULL_VIEW = "full_view",
+}
 
 // Add CSS animations
 const animationStyles = `
@@ -86,7 +102,7 @@ interface DailyStats {
   dobladoUnits: number;
   totalItems: number;
   uniqueClients: number;
-  currentHourRate: number;
+  averageHourRate: number;
   peakHourRate: number;
   productionSpanHours: number;
   firstEntryTime: string;
@@ -98,25 +114,127 @@ interface DailyStats {
 }
 
 const DailyEmployeeDashboard: React.FC = () => {
-  const [productionSummary, setProductionSummary] = useState<ProductionSummary | null>(null);
+  const { user } = useAuth();
+
+  // Check permission early and return unauthorized message if needed
+  const canSee = (component: AppComponentKey) =>
+    user && canUserSeeComponent(user, component);
+
+  if (!canSee("DailyEmployeeDashboard")) {
+    return (
+      <div className="container-fluid py-5">
+        <div className="row justify-content-center">
+          <div className="col-12 col-md-8 col-lg-6">
+            <div
+              className="card shadow-lg border-0"
+              style={{ borderRadius: "15px" }}
+            >
+              <div className="card-body text-center p-5">
+                <div className="mb-4">
+                  <span style={{ fontSize: "4rem", color: "#dc3545" }}>🚫</span>
+                </div>
+                <h2 className="text-danger mb-3">Access Restricted</h2>
+                <p className="text-muted mb-0">
+                  You don't have permission to view the Daily Dashboard. Please
+                  contact your supervisor or administrator for access.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const [productionSummary, setProductionSummary] =
+    useState<ProductionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
-  
+
+  // Rotation feature state
+  const [isRotationActive, setIsRotationActive] = useState(false);
+  const [currentRotationView, setCurrentRotationView] = useState<RotationView>(
+    RotationView.FULL_VIEW
+  );
+  const [rotationInterval, setRotationInterval] =
+    useState<NodeJS.Timeout | null>(null);
+
   // Segregation and pickup data
-  const [segregatedClientsToday, setSegregatedClientsToday] = useState<number>(0);
+  const [segregatedClientsToday, setSegregatedClientsToday] =
+    useState<number>(0);
   const [totalSegregatedWeight, setTotalSegregatedWeight] = useState<number>(0);
   const [pickupEntriesToday, setPickupEntriesToday] = useState<number>(0);
   const [totalPickupWeight, setTotalPickupWeight] = useState<number>(0);
 
   // Hourly chart data
-  const [hourlyDobladoData, setHourlyDobladoData] = useState<{[hour: number]: number}>({});
-  const [hourlyMangleData, setHourlyMangleData] = useState<{[hour: number]: number}>({});
-  const [hourlySegregationData, setHourlySegregationData] = useState<{[hour: number]: number}>({});
-  
+  const [hourlyDobladoData, setHourlyDobladoData] = useState<{
+    [hour: number]: number;
+  }>({});
+  const [hourlyMangleData, setHourlyMangleData] = useState<{
+    [hour: number]: number;
+  }>({});
+  const [hourlySegregationData, setHourlySegregationData] = useState<{
+    [hour: number]: number;
+  }>({});
+
   // Get start times from localStorage (set in Production Classification Dashboard)
-  const mangleStartTime = localStorage.getItem('mangleStartTime') || '08:00';
-  const dobladoStartTime = localStorage.getItem('dobladoStartTime') || '08:00';
-  const segregationStartTime = localStorage.getItem('segregationStartTime') || '08:00';
+  const mangleStartTime = localStorage.getItem("mangleStartTime") || "08:00";
+  const dobladoStartTime = localStorage.getItem("dobladoStartTime") || "08:00";
+  const segregationStartTime =
+    localStorage.getItem("segregationStartTime") || "08:00";
+
+  // Rotation control functions
+  const rotationViews = [
+    RotationView.MAIN_STATS,
+    RotationView.SECONDARY_STATS,
+    RotationView.PROGRESS_SECTION,
+    RotationView.PRODUCTION_CHARTS,
+    RotationView.END_OF_SHIFT,
+  ];
+
+  const startRotation = () => {
+    if (rotationInterval) {
+      clearInterval(rotationInterval);
+    }
+
+    setIsRotationActive(true);
+    setCurrentRotationView(rotationViews[0]);
+
+    let currentIndex = 0;
+    const interval = setInterval(() => {
+      currentIndex = (currentIndex + 1) % rotationViews.length;
+      setCurrentRotationView(rotationViews[currentIndex]);
+    }, 10000); // 10 seconds
+
+    setRotationInterval(interval);
+  };
+
+  const stopRotation = () => {
+    if (rotationInterval) {
+      clearInterval(rotationInterval);
+      setRotationInterval(null);
+    }
+    setIsRotationActive(false);
+    setCurrentRotationView(RotationView.FULL_VIEW);
+  };
+
+  const selectView = (view: RotationView) => {
+    if (rotationInterval) {
+      clearInterval(rotationInterval);
+      setRotationInterval(null);
+    }
+    setIsRotationActive(false);
+    setCurrentRotationView(view);
+  };
+
+  // Clean up rotation interval on unmount
+  useEffect(() => {
+    return () => {
+      if (rotationInterval) {
+        clearInterval(rotationInterval);
+      }
+    };
+  }, [rotationInterval]);
 
   // Update current time every minute
   useEffect(() => {
@@ -127,11 +245,13 @@ const DailyEmployeeDashboard: React.FC = () => {
   // Initialize production tracking
   useEffect(() => {
     const productionService = ProductionTrackingService.getInstance();
-    
-    const unsubscribe = productionService.subscribe((summary: ProductionSummary) => {
-      setProductionSummary(summary);
-      setLoading(false);
-    });
+
+    const unsubscribe = productionService.subscribe(
+      (summary: ProductionSummary) => {
+        setProductionSummary(summary);
+        setLoading(false);
+      }
+    );
 
     productionService.startTracking();
 
@@ -141,28 +261,75 @@ const DailyEmployeeDashboard: React.FC = () => {
     };
   }, []);
 
+  // Initialize classification service and listen for updates
+  useEffect(() => {
+    const initializeClassificationService = async () => {
+      try {
+        console.log(
+          "🏭 [Daily Dashboard] Initializing classification service..."
+        );
+        await productClassificationService.waitForInitialization();
+        console.log(
+          "🏭 [Daily Dashboard] ✅ Classification service initialized successfully"
+        );
+
+        // Log current classification state for debugging
+        const stats = productClassificationService.getStats();
+        console.log("🏭 [Daily Dashboard] Classification stats:", stats);
+      } catch (error) {
+        console.error(
+          "🏭 [Daily Dashboard] ❌ Error initializing classification service:",
+          error
+        );
+      }
+    };
+
+    initializeClassificationService();
+
+    // Subscribe to classification updates to refresh data when classifications change
+    const unsubscribe = productClassificationService.subscribe(() => {
+      console.log(
+        "🔄 [Daily Dashboard] Classifications updated, refreshing data..."
+      );
+      const stats = productClassificationService.getStats();
+      console.log("🔄 [Daily Dashboard] New classification stats:", stats);
+
+      // Force re-computation of hourly data by updating production summary
+      if (productionSummary) {
+        setProductionSummary({ ...productionSummary });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [productionSummary]);
+
   // Fetch additional data
   useEffect(() => {
     const fetchDailyData = async () => {
       try {
         const today = new Date();
-        const localTodayStr = today.getFullYear() + '-' + 
-          String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-          String(today.getDate()).padStart(2, '0');
+        const localTodayStr =
+          today.getFullYear() +
+          "-" +
+          String(today.getMonth() + 1).padStart(2, "0") +
+          "-" +
+          String(today.getDate()).padStart(2, "0");
 
         // Fetch segregation data
         const segregationQuery = query(
-          collection(db, 'segregation_done_logs'),
-          where('date', '==', localTodayStr)
+          collection(db, "segregation_done_logs"),
+          where("date", "==", localTodayStr)
         );
         const segregationSnapshot = await getDocs(segregationQuery);
-        
+
         let segWeight = 0;
-        segregationSnapshot.docs.forEach(doc => {
+        segregationSnapshot.docs.forEach((doc) => {
           const data = doc.data();
           segWeight += Number(data.weight) || 0;
         });
-        
+
         setSegregatedClientsToday(segregationSnapshot.docs.length);
         setTotalSegregatedWeight(segWeight);
 
@@ -170,27 +337,26 @@ const DailyEmployeeDashboard: React.FC = () => {
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        
-        const { Timestamp } = await import('firebase/firestore');
+
+        const { Timestamp } = await import("firebase/firestore");
         const pickupQuery = query(
-          collection(db, 'pickup_entries'),
-          where('timestamp', '>=', Timestamp.fromDate(today)),
-          where('timestamp', '<', Timestamp.fromDate(tomorrow))
+          collection(db, "pickup_entries"),
+          where("timestamp", ">=", Timestamp.fromDate(today)),
+          where("timestamp", "<", Timestamp.fromDate(tomorrow))
         );
-        
+
         const pickupSnapshot = await getDocs(pickupQuery);
         let pickupWeight = 0;
-        
-        pickupSnapshot.docs.forEach(doc => {
+
+        pickupSnapshot.docs.forEach((doc) => {
           const data = doc.data();
           pickupWeight += Number(data.weight) || 0;
         });
-        
+
         setPickupEntriesToday(pickupSnapshot.docs.length);
         setTotalPickupWeight(pickupWeight);
-        
       } catch (error) {
-        console.error('Error fetching daily data:', error);
+        console.error("Error fetching daily data:", error);
       }
     };
 
@@ -200,40 +366,48 @@ const DailyEmployeeDashboard: React.FC = () => {
   // Fetch hourly Doblado production data
   useEffect(() => {
     const fetchHourlyDobladoData = async () => {
-      if (!productionSummary?.allEntriesToday && !productionSummary?.recentEntries) return;
-      
-      const entries = productionSummary.allEntriesToday || productionSummary.recentEntries;
-      const hourlyData: {[hour: number]: number} = {};
-      
-      // Get classification function from localStorage or use defaults
-      const getDefaultClassification = (productName: string): 'Mangle' | 'Doblado' => {
-        const name = productName.toLowerCase();
-        if (name.includes('sheet') || 
-            name.includes('duvet') || 
-            name.includes('sabana') ||
-            name.includes('servilleta') ||
-            name.includes('funda') ||
-            name.includes('toalla') ||
-            name.includes('towel') ||
-            name.includes('mangle') ||
-            name.includes('tablecloth')) {
-          return 'Mangle';
-        }
-        return 'Doblado';
-      };
+      if (
+        !productionSummary?.allEntriesToday &&
+        !productionSummary?.recentEntries
+      )
+        return;
 
-      const customClassifications = JSON.parse(localStorage.getItem('productClassifications') || '{}');
-      const getClassification = (productName: string) => 
-        customClassifications[productName] || getDefaultClassification(productName);
-      
-      // Process entries for Doblado items only
-      entries.forEach(entry => {
-        if (getClassification(entry.productName) === 'Doblado') {
+      // Ensure classification service is initialized
+      try {
+        await productClassificationService.waitForInitialization();
+      } catch (error) {
+        console.log(
+          "🔍 [Hourly Doblado] Classification service failed to initialize, skipping",
+          error
+        );
+        return;
+      }
+
+      const entries =
+        productionSummary.allEntriesToday || productionSummary.recentEntries;
+      const hourlyData: { [hour: number]: number } = {};
+
+      // Process entries for Doblado items only using centralized service
+      entries.forEach((entry) => {
+        if (
+          productClassificationService.getClassification(entry.productName) ===
+          "Doblado"
+        ) {
           const hour = entry.addedAt.getHours();
           hourlyData[hour] = (hourlyData[hour] || 0) + entry.quantity;
         }
       });
-      
+
+      console.log("🔍 [Hourly Doblado] Classification results:", {
+        totalEntries: entries.length,
+        dobladoHours: Object.keys(hourlyData).length,
+        dobladoTotalUnits: Object.values(hourlyData).reduce(
+          (sum, units) => sum + units,
+          0
+        ),
+        hourlyBreakdown: hourlyData,
+      });
+
       setHourlyDobladoData(hourlyData);
     };
 
@@ -243,68 +417,79 @@ const DailyEmployeeDashboard: React.FC = () => {
   // Fetch hourly Mangle production data
   useEffect(() => {
     const fetchHourlyMangleData = async () => {
-      if (!productionSummary?.allEntriesToday && !productionSummary?.recentEntries) return;
-      
-      const entries = productionSummary.allEntriesToday || productionSummary.recentEntries;
-      const hourlyData: {[hour: number]: number} = {};
-      
-      // Get classification function from localStorage or use defaults
-      const getDefaultClassification = (productName: string): 'Mangle' | 'Doblado' => {
-        const name = productName.toLowerCase();
-        if (name.includes('sheet') || 
-            name.includes('duvet') || 
-            name.includes('sabana') ||
-            name.includes('servilleta') ||
-            name.includes('funda') ||
-            name.includes('toalla') ||
-            name.includes('towel') ||
-            name.includes('mangle') ||
-            name.includes('tablecloth')) {
-          return 'Mangle';
-        }
-        return 'Doblado';
-      };
+      if (
+        !productionSummary?.allEntriesToday &&
+        !productionSummary?.recentEntries
+      )
+        return;
 
-      const customClassifications = JSON.parse(localStorage.getItem('productClassifications') || '{}');
-      const getClassification = (productName: string) => 
-        customClassifications[productName] || getDefaultClassification(productName);
-      
-      // Process entries for Mangle items only
-      entries.forEach(entry => {
-        if (getClassification(entry.productName) === 'Mangle') {
+      // Ensure classification service is initialized
+      try {
+        await productClassificationService.waitForInitialization();
+      } catch (error) {
+        console.log(
+          "🔍 [Hourly Mangle] Classification service failed to initialize, skipping",
+          error
+        );
+        return;
+      }
+
+      const entries =
+        productionSummary.allEntriesToday || productionSummary.recentEntries;
+      const hourlyData: { [hour: number]: number } = {};
+
+      // Process entries for Mangle items only using centralized service
+      entries.forEach((entry) => {
+        if (
+          productClassificationService.getClassification(entry.productName) ===
+          "Mangle"
+        ) {
           const hour = entry.addedAt.getHours();
           hourlyData[hour] = (hourlyData[hour] || 0) + entry.quantity;
         }
       });
-      
+
+      console.log("🔍 [Hourly Mangle] Classification results:", {
+        totalEntries: entries.length,
+        mangleHours: Object.keys(hourlyData).length,
+        mangleTotalUnits: Object.values(hourlyData).reduce(
+          (sum, units) => sum + units,
+          0
+        ),
+        hourlyBreakdown: hourlyData,
+      });
+
       setHourlyMangleData(hourlyData);
     };
 
     fetchHourlyMangleData();
   }, [productionSummary]);
 
-  // Fetch hourly segregation data  
+  // Fetch hourly segregation data
   useEffect(() => {
     const fetchHourlySegregationData = async () => {
       try {
         const today = new Date();
-        const localTodayStr = today.getFullYear() + '-' + 
-          String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-          String(today.getDate()).padStart(2, '0');
+        const localTodayStr =
+          today.getFullYear() +
+          "-" +
+          String(today.getMonth() + 1).padStart(2, "0") +
+          "-" +
+          String(today.getDate()).padStart(2, "0");
 
         const segregationQuery = query(
-          collection(db, 'segregation_done_logs'),
-          where('date', '==', localTodayStr)
+          collection(db, "segregation_done_logs"),
+          where("date", "==", localTodayStr)
         );
-        
+
         const segregationSnapshot = await getDocs(segregationQuery);
-        const hourlyData: {[hour: number]: number} = {};
-        
-        segregationSnapshot.docs.forEach(doc => {
+        const hourlyData: { [hour: number]: number } = {};
+
+        segregationSnapshot.docs.forEach((doc) => {
           const data = doc.data();
           const weight = Number(data.weight) || 0;
           const timestamp = data.timestamp;
-          
+
           let timestampDate;
           if (timestamp && timestamp.toDate) {
             timestampDate = timestamp.toDate();
@@ -313,15 +498,14 @@ const DailyEmployeeDashboard: React.FC = () => {
           } else {
             return;
           }
-          
+
           const hour = timestampDate.getHours();
           hourlyData[hour] = (hourlyData[hour] || 0) + weight;
         });
-        
+
         setHourlySegregationData(hourlyData);
-        
       } catch (error) {
-        console.error('Error fetching hourly segregation data:', error);
+        console.error("Error fetching hourly segregation data:", error);
       }
     };
 
@@ -330,7 +514,11 @@ const DailyEmployeeDashboard: React.FC = () => {
 
   // Calculate current production rates based on area-specific duration calculations
   const currentProductionRates = useMemo(() => {
-    if (!productionSummary || (!productionSummary.allEntriesToday?.length && !productionSummary.recentEntries?.length)) {
+    if (
+      !productionSummary ||
+      (!productionSummary.allEntriesToday?.length &&
+        !productionSummary.recentEntries?.length)
+    ) {
       return {
         mangleRate: 0,
         dobladoRate: 0,
@@ -340,21 +528,22 @@ const DailyEmployeeDashboard: React.FC = () => {
         segregationHoursElapsed: 0,
         totalMangleProduction: 0,
         totalDobladoProduction: 0,
-        totalSegregationProduction: totalSegregatedWeight
+        totalSegregationProduction: totalSegregatedWeight,
       };
     }
 
-    const entries = productionSummary.allEntriesToday || productionSummary.recentEntries;
-    
+    const entries =
+      productionSummary.allEntriesToday || productionSummary.recentEntries;
+
     // Debug logging to verify data source
-    console.log('🔍 [Daily Dashboard] Production data source:', {
-      usingAllEntriesToday: !!(productionSummary.allEntriesToday),
+    console.log("🔍 [Daily Dashboard] Production data source:", {
+      usingAllEntriesToday: !!productionSummary.allEntriesToday,
       allEntriesTodayCount: productionSummary.allEntriesToday?.length || 0,
       recentEntriesCount: productionSummary.recentEntries?.length || 0,
       totalEntriesUsed: entries.length,
-      totalUnitsFromEntries: entries.reduce((sum, e) => sum + e.quantity, 0)
+      totalUnitsFromEntries: entries.reduce((sum, e) => sum + e.quantity, 0),
     });
-    
+
     if (entries.length === 0) {
       return {
         mangleRate: 0,
@@ -365,13 +554,13 @@ const DailyEmployeeDashboard: React.FC = () => {
         segregationHoursElapsed: 0,
         totalMangleProduction: 0,
         totalDobladoProduction: 0,
-        totalSegregationProduction: totalSegregatedWeight
+        totalSegregationProduction: totalSegregatedWeight,
       };
     }
 
     // Helper function to parse time string to today's date
     const parseTimeToToday = (timeStr: string): Date => {
-      const [hours, minutes] = timeStr.split(':').map(Number);
+      const [hours, minutes] = timeStr.split(":").map(Number);
       const today = new Date();
       today.setHours(hours, minutes, 0, 0);
       return today;
@@ -381,36 +570,18 @@ const DailyEmployeeDashboard: React.FC = () => {
     const mangleStartDate = parseTimeToToday(mangleStartTime);
     const dobladoStartDate = parseTimeToToday(dobladoStartTime);
     const segregationStartDate = parseTimeToToday(segregationStartTime);
-    
-    // Classify entries
-    const getDefaultClassification = (productName: string): 'Mangle' | 'Doblado' => {
-      const name = productName.toLowerCase();
-      if (name.includes('sheet') || 
-          name.includes('duvet') || 
-          name.includes('sabana') ||
-          name.includes('servilleta') ||
-          name.includes('funda') ||
-          name.includes('toalla') ||
-          name.includes('towel') ||
-          name.includes('mangle')) {
-        return 'Mangle';
-      }
-      return 'Doblado';
-    };
-
-    const customClassifications = JSON.parse(localStorage.getItem('productClassifications') || '{}');
-    const getClassification = (productName: string) => 
-      customClassifications[productName] || getDefaultClassification(productName);
 
     // Separate entries by area and find last item time for each area
     let mangleEntries: ProductionEntry[] = [];
     let dobladoEntries: ProductionEntry[] = [];
     let totalMangleProduction = 0;
     let totalDobladoProduction = 0;
-    
-    entries.forEach(entry => {
-      const classification = getClassification(entry.productName);
-      if (classification === 'Mangle') {
+
+    entries.forEach((entry) => {
+      const classification = productClassificationService.getClassification(
+        entry.productName
+      );
+      if (classification === "Mangle") {
         mangleEntries.push(entry);
         totalMangleProduction += entry.quantity;
       } else {
@@ -420,18 +591,20 @@ const DailyEmployeeDashboard: React.FC = () => {
     });
 
     // Debug classification results
-    console.log('🔍 [Daily Dashboard] Classification results:', {
+    console.log("🔍 [Daily Dashboard] Classification results:", {
       totalEntries: entries.length,
       mangleEntries: mangleEntries.length,
       dobladoEntries: dobladoEntries.length,
       totalMangleProduction,
       totalDobladoProduction,
       totalFromBoth: totalMangleProduction + totalDobladoProduction,
-      sampleClassifications: entries.slice(0, 5).map(e => ({
+      sampleClassifications: entries.slice(0, 5).map((e) => ({
         product: e.productName,
         quantity: e.quantity,
-        classification: getClassification(e.productName)
-      }))
+        classification: productClassificationService.getClassification(
+          e.productName
+        ),
+      })),
     });
 
     // Calculate area-specific durations
@@ -441,33 +614,55 @@ const DailyEmployeeDashboard: React.FC = () => {
 
     // Mangle duration: configured start time → last Mangle item time
     if (mangleEntries.length > 0) {
-      const sortedMangleEntries = [...mangleEntries].sort((a, b) => a.addedAt.getTime() - b.addedAt.getTime());
-      const lastMangleItem = sortedMangleEntries[sortedMangleEntries.length - 1];
-      const mangleDurationMs = lastMangleItem.addedAt.getTime() - mangleStartDate.getTime();
+      const sortedMangleEntries = [...mangleEntries].sort(
+        (a, b) => a.addedAt.getTime() - b.addedAt.getTime()
+      );
+      const lastMangleItem =
+        sortedMangleEntries[sortedMangleEntries.length - 1];
+      const mangleDurationMs =
+        lastMangleItem.addedAt.getTime() - mangleStartDate.getTime();
       mangleDurationHours = Math.max(mangleDurationMs / (1000 * 60 * 60), 0.5); // Minimum 30 minutes
     }
 
     // Doblado duration: configured start time → last Doblado item time
     if (dobladoEntries.length > 0) {
-      const sortedDobladoEntries = [...dobladoEntries].sort((a, b) => a.addedAt.getTime() - b.addedAt.getTime());
-      const lastDobladoItem = sortedDobladoEntries[sortedDobladoEntries.length - 1];
-      const dobladoDurationMs = lastDobladoItem.addedAt.getTime() - dobladoStartDate.getTime();
-      dobladoDurationHours = Math.max(dobladoDurationMs / (1000 * 60 * 60), 0.5); // Minimum 30 minutes
+      const sortedDobladoEntries = [...dobladoEntries].sort(
+        (a, b) => a.addedAt.getTime() - b.addedAt.getTime()
+      );
+      const lastDobladoItem =
+        sortedDobladoEntries[sortedDobladoEntries.length - 1];
+      const dobladoDurationMs =
+        lastDobladoItem.addedAt.getTime() - dobladoStartDate.getTime();
+      dobladoDurationHours = Math.max(
+        dobladoDurationMs / (1000 * 60 * 60),
+        0.5
+      ); // Minimum 30 minutes
     }
 
     // Segregation duration: for now, use the configured segregation start time and current time
     // TODO: In the future, this could use the actual last segregation item timestamp
     if (totalSegregatedWeight > 0) {
       const currentTime = new Date();
-      const segregationDurationMs = currentTime.getTime() - segregationStartDate.getTime();
-      segregationDurationHours = Math.max(segregationDurationMs / (1000 * 60 * 60), 0.5); // Minimum 30 minutes
+      const segregationDurationMs =
+        currentTime.getTime() - segregationStartDate.getTime();
+      segregationDurationHours = Math.max(
+        segregationDurationMs / (1000 * 60 * 60),
+        0.5
+      ); // Minimum 30 minutes
     }
 
     // Calculate area-specific rates
-    const mangleRate = mangleDurationHours > 0 ? totalMangleProduction / mangleDurationHours : 0;
-    const dobladoRate = dobladoDurationHours > 0 ? totalDobladoProduction / dobladoDurationHours : 0;
-    const segregationRate = segregationDurationHours > 0 ? totalSegregatedWeight / segregationDurationHours : 0;
-    
+    const mangleRate =
+      mangleDurationHours > 0 ? totalMangleProduction / mangleDurationHours : 0;
+    const dobladoRate =
+      dobladoDurationHours > 0
+        ? totalDobladoProduction / dobladoDurationHours
+        : 0;
+    const segregationRate =
+      segregationDurationHours > 0
+        ? totalSegregatedWeight / segregationDurationHours
+        : 0;
+
     return {
       mangleRate: Math.round(mangleRate),
       dobladoRate: Math.round(dobladoRate),
@@ -477,180 +672,217 @@ const DailyEmployeeDashboard: React.FC = () => {
       segregationHoursElapsed: segregationDurationHours, // Area-specific duration
       totalMangleProduction,
       totalDobladoProduction,
-      totalSegregationProduction: totalSegregatedWeight
+      totalSegregationProduction: totalSegregatedWeight,
     };
-  }, [productionSummary, totalSegregatedWeight, mangleStartTime, dobladoStartTime, segregationStartTime]);
+  }, [
+    productionSummary,
+    totalSegregatedWeight,
+    mangleStartTime,
+    dobladoStartTime,
+    segregationStartTime,
+  ]);
 
   // Generate chart data for Doblado
   const dobladoChartData = useMemo(() => {
-    const hours = Array.from({length: 24}, (_, i) => i);
-    const data = hours.map(hour => hourlyDobladoData[hour] || 0);
-    
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const data = hours.map((hour) => hourlyDobladoData[hour] || 0);
+
     return {
-      labels: hours.map(h => `${h.toString().padStart(2, '0')}:00`),
-      datasets: [{
-        label: 'Doblado Units/Hour',
-        data: data,
-        backgroundColor: 'rgba(255, 193, 7, 0.7)',
-        borderColor: 'rgba(255, 193, 7, 1)',
-        borderWidth: 2,
-        borderRadius: 4,
-      }]
+      labels: hours.map((h) => `${h.toString().padStart(2, "0")}:00`),
+      datasets: [
+        {
+          label: "Doblado Units/Hour",
+          data: data,
+          backgroundColor: "rgba(255, 193, 7, 0.7)",
+          borderColor: "rgba(255, 193, 7, 1)",
+          borderWidth: 2,
+          borderRadius: 4,
+        },
+      ],
     };
   }, [hourlyDobladoData]);
 
   // Generate chart data for Mangle
   const mangleChartData = useMemo(() => {
-    const hours = Array.from({length: 24}, (_, i) => i);
-    const data = hours.map(hour => hourlyMangleData[hour] || 0);
-    
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const data = hours.map((hour) => hourlyMangleData[hour] || 0);
+
     return {
-      labels: hours.map(h => `${h.toString().padStart(2, '0')}:00`),
-      datasets: [{
-        label: 'Mangle Units/Hour',
-        data: data,
-        backgroundColor: 'rgba(17, 153, 142, 0.7)',
-        borderColor: 'rgba(17, 153, 142, 1)',
-        borderWidth: 2,
-        borderRadius: 4,
-      }]
+      labels: hours.map((h) => `${h.toString().padStart(2, "0")}:00`),
+      datasets: [
+        {
+          label: "Mangle Units/Hour",
+          data: data,
+          backgroundColor: "rgba(17, 153, 142, 0.7)",
+          borderColor: "rgba(17, 153, 142, 1)",
+          borderWidth: 2,
+          borderRadius: 4,
+        },
+      ],
     };
   }, [hourlyMangleData]);
 
   // Generate chart data for Segregation
   const segregationChartData = useMemo(() => {
-    const hours = Array.from({length: 24}, (_, i) => i);
-    const data = hours.map(hour => hourlySegregationData[hour] || 0);
-    
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const data = hours.map((hour) => hourlySegregationData[hour] || 0);
+
     return {
-      labels: hours.map(h => `${h.toString().padStart(2, '0')}:00`),
-      datasets: [{
-        label: 'Segregation Weight (lbs)/Hour',
-        data: data,
-        backgroundColor: 'rgba(23, 162, 184, 0.7)',
-        borderColor: 'rgba(23, 162, 184, 1)',
-        borderWidth: 2,
-        borderRadius: 4,
-      }]
+      labels: hours.map((h) => `${h.toString().padStart(2, "0")}:00`),
+      datasets: [
+        {
+          label: "Segregation Weight (lbs)/Hour",
+          data: data,
+          backgroundColor: "rgba(23, 162, 184, 0.7)",
+          borderColor: "rgba(23, 162, 184, 1)",
+          borderWidth: 2,
+          borderRadius: 4,
+        },
+      ],
     };
   }, [hourlySegregationData]);
 
   // Chart options
-  const chartOptions: ChartOptions<'bar'> = {
+  const chartOptions: ChartOptions<"bar"> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'top' as const,
+        position: "top" as const,
         labels: {
           font: {
             size: 14,
-            weight: 'bold'
+            weight: "bold",
           },
-          color: 'black'
-        }
+          color: "black",
+        },
       },
     },
     scales: {
       y: {
         beginAtZero: true,
         ticks: {
-          color: 'black',
+          color: "black",
           font: {
             size: 12,
-            weight: 'bold'
-          }
+            weight: "bold",
+          },
         },
         grid: {
-          color: 'rgba(0,0,0,0.1)'
-        }
+          color: "rgba(0,0,0,0.1)",
+        },
       },
       x: {
         ticks: {
-          color: 'black',
+          color: "black",
           font: {
             size: 11,
-            weight: 'bold'
-          }
+            weight: "bold",
+          },
         },
         grid: {
-          color: 'rgba(0,0,0,0.1)'
-        }
-      }
-    }
+          color: "rgba(0,0,0,0.1)",
+        },
+      },
+    },
   };
 
   // Calculate daily statistics
   const dailyStats = useMemo((): DailyStats | null => {
-    if (!productionSummary || (!productionSummary.allEntriesToday?.length && !productionSummary.recentEntries?.length)) {
+    if (
+      !productionSummary ||
+      (!productionSummary.allEntriesToday?.length &&
+        !productionSummary.recentEntries?.length)
+    ) {
       return null;
     }
 
-    const entries = productionSummary.allEntriesToday || productionSummary.recentEntries;
-    
-    // Debug: verify we're using the same data source as currentProductionRates
-    console.log('🔍 [Daily Stats] Using data source:', {
-      usingAllEntriesToday: !!(productionSummary.allEntriesToday),
-      entriesCount: entries.length,
-      totalUnits: entries.reduce((sum, entry) => sum + entry.quantity, 0)
-    });
-    
-    const sortedEntries = [...entries].sort((a, b) => a.addedAt.getTime() - b.addedAt.getTime());
-    
-    const totalUnits = entries.reduce((sum, entry) => sum + entry.quantity, 0);
-    const totalItems = entries.length;
-    const uniqueClients = new Set(entries.map(e => e.clientId)).size;
-    
-    // Calculate Mangle vs Doblado
-    const getDefaultClassification = (productName: string): 'Mangle' | 'Doblado' => {
-      const name = productName.toLowerCase();
-      if (name.includes('sheet') || 
-          name.includes('duvet') || 
-          name.includes('sabana') ||
-          name.includes('servilleta') ||
-          name.includes('funda') ||
-          name.includes('toalla') ||
-          name.includes('towel') ||
-          name.includes('mangle') ||
-          name.includes('tablecloth')) {
-        return 'Mangle';
-      }
-      return 'Doblado';
-    };
+    // Note: Since this is in a useMemo, we cannot use async/await here.
+    // The classification service initialization should be handled in useEffect above.
+    // For now, we'll check if the service appears to be ready by testing a basic call
+    try {
+      // Test if the service is ready by making a test call
+      productClassificationService.getClassification("test");
+    } catch (error) {
+      console.log(
+        "🔍 [Daily Stats] Classification service not yet initialized, skipping calculation"
+      );
+      return null;
+    }
 
-    const customClassifications = JSON.parse(localStorage.getItem('productClassifications') || '{}');
-    const getClassification = (productName: string) => 
-      customClassifications[productName] || getDefaultClassification(productName);
-    
-    let mangleUnits = 0, dobladoUnits = 0;
-    entries.forEach(entry => {
-      const classification = getClassification(entry.productName);
-      if (classification === 'Mangle') {
+    // Use data directly from ProductionTrackingService instead of recalculating
+    const entries =
+      productionSummary.allEntriesToday || productionSummary.recentEntries;
+
+    console.log("🔍 [Daily Stats] Using ProductionTrackingService data:", {
+      totalItemsFromService: productionSummary.totalItemsAdded,
+      entriesCount: entries.length,
+      hourlyBreakdownKeys: Object.keys(productionSummary.hourlyBreakdown || {}),
+      currentHourRateFromService: productionSummary.currentHourRate,
+    });
+
+    const sortedEntries = [...entries].sort(
+      (a, b) => a.addedAt.getTime() - b.addedAt.getTime()
+    );
+
+    // Use service data where possible, only calculate what's not available
+    const totalUnits = productionSummary.totalItemsAdded; // From service
+    const totalItems = entries.length;
+    const uniqueClients = new Set(entries.map((entry) => entry.clientId)).size;
+
+    // Use classification service for mangle/doblado breakdown
+    let mangleUnits = 0;
+    let dobladoUnits = 0;
+    entries.forEach((entry) => {
+      const classification = productClassificationService.getClassification(
+        entry.productName
+      );
+      if (classification === "Mangle") {
         mangleUnits += entry.quantity;
       } else {
         dobladoUnits += entry.quantity;
       }
     });
 
-    // Debug: verify classification matches currentProductionRates
-    console.log('🔍 [Daily Stats] Classification results:', {
+    console.log("🔍 [Daily Stats] Classification breakdown:", {
+      totalUnits,
       mangleUnits,
       dobladoUnits,
-      totalCalculated: mangleUnits + dobladoUnits,
-      totalExpected: totalUnits,
-      matches: (mangleUnits + dobladoUnits) === totalUnits
+      manglePercentage:
+        totalUnits > 0 ? ((mangleUnits / totalUnits) * 100).toFixed(1) : 0,
+      dobladoPercentage:
+        totalUnits > 0 ? ((dobladoUnits / totalUnits) * 100).toFixed(1) : 0,
+      sampleClassifications: entries.slice(0, 5).map((e) => ({
+        product: e.productName,
+        quantity: e.quantity,
+        classification: productClassificationService.getClassification(
+          e.productName
+        ),
+      })),
     });
 
-    // Calculate rates
+    console.log("🔍 [Daily Stats] Using service vs calculated:", {
+      totalUnitsFromService: productionSummary.totalItemsAdded,
+      totalUnitsCalculated: entries.reduce(
+        (sum, entry) => sum + entry.quantity,
+        0
+      ),
+      usingServiceValue: true,
+    });
+
+    // Use hourly data from service
     const hourlyBreakdown = productionSummary.hourlyBreakdown || {};
     const hourlyRates = Object.values(hourlyBreakdown);
     const peakHourRate = Math.max(...hourlyRates, 0);
-    const currentHourRate = productionSummary.currentHourRate || 0;
 
-    // Calculate production span
+    // Use service's current hour rate instead of recalculating
+    const averageHourRate = productionSummary.currentHourRate || 0;
+
+    // Calculate production span (this is specific to the dashboard view)
     const firstEntry = sortedEntries[0];
     const lastEntry = sortedEntries[sortedEntries.length - 1];
-    const productionSpanMs = lastEntry.addedAt.getTime() - firstEntry.addedAt.getTime();
+    const productionSpanMs =
+      lastEntry.addedAt.getTime() - firstEntry.addedAt.getTime();
     const productionSpanHours = productionSpanMs / (1000 * 60 * 60);
 
     return {
@@ -659,25 +891,31 @@ const DailyEmployeeDashboard: React.FC = () => {
       dobladoUnits,
       totalItems,
       uniqueClients,
-      currentHourRate,
+      averageHourRate, // Now using service's currentHourRate
       peakHourRate,
       productionSpanHours,
-      firstEntryTime: firstEntry.addedAt.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
+      firstEntryTime: firstEntry.addedAt.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
       }),
-      lastEntryTime: lastEntry.addedAt.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
+      lastEntryTime: lastEntry.addedAt.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
       }),
       segregatedClients: segregatedClientsToday,
       segregatedWeight: totalSegregatedWeight,
       pickupEntries: pickupEntriesToday,
-      pickupWeight: totalPickupWeight
+      pickupWeight: totalPickupWeight,
     };
-  }, [productionSummary, segregatedClientsToday, totalSegregatedWeight, pickupEntriesToday, totalPickupWeight]);
+  }, [
+    productionSummary,
+    segregatedClientsToday,
+    totalSegregatedWeight,
+    pickupEntriesToday,
+    totalPickupWeight,
+  ]);
 
   if (loading) {
     return (
@@ -705,763 +943,198 @@ const DailyEmployeeDashboard: React.FC = () => {
     );
   }
 
-  return (
-    <>
-      <style>{animationStyles}</style>
-      <div className="container-fluid py-3" style={{ 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-        minHeight: '100vh',
-        position: 'relative'
-      }}>
-        {/* Animated Background Pattern */}
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          background: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.02"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
-          zIndex: -1,
-          opacity: 0.3,
-          animation: 'float 8s ease-in-out infinite'
-        }} />
-        
-      {/* Header with Current Time */}
-      <div className="row mb-4">
-        <div className="col-12">
-          <div className="card border-0 shadow-lg" style={{ borderRadius: '20px' }}>
-            <div className="card-body text-center py-4" style={{ 
-              background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
-              borderRadius: '20px' 
-            }}>
-              <div className="mb-3">
-                <i className="fas fa-sun floating" style={{ 
-                  fontSize: '3rem', 
-                  color: '#FFE66D', 
-                  textShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                  animation: 'pulse 2s infinite'
-                }}></i>
-              </div>
-              <h1 className="text-dark mb-2" style={{ 
-                fontWeight: '700',
-                fontSize: '2.5rem'
-              }}>
-                🏭 Daily Production Dashboard
-              </h1>
-              <h2 className="text-dark mb-2" style={{ 
-                fontSize: '1.8rem'
-              }}>
-                {currentTime.toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </h2>
-              <div className="d-flex justify-content-center align-items-center">
-                <div className="bg-light rounded-pill px-4 py-2">
-                  <h3 className="text-dark mb-0" style={{ 
-                    fontFamily: 'monospace',
-                    fontSize: '2rem'
-                  }}>
-                    <i className="fas fa-clock me-2"></i>
-                    {currentTime.toLocaleTimeString('en-US', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true
-                    })}
-                  </h3>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Statistics Cards - Enhanced */}
-      <div className="row mb-4">
-        {/* Total Production */}
-        <div className="col-lg-3 col-md-6 mb-3">
-          <div className="card border-0 shadow-lg h-100 card-hover" style={{ 
-            borderRadius: '20px',
-            transform: 'scale(1)',
-            transition: 'all 0.3s ease'
-          }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'} 
-             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-            <div className="card-body text-center py-4 bg-light text-dark" style={{ 
-              borderRadius: '20px'
-            }}>
-              <div className="mb-3">
-                <div className="bg-secondary bg-opacity-20 rounded-circle d-inline-flex align-items-center justify-content-center" 
-                     style={{ width: '80px', height: '80px' }}>
-                  <i className="fas fa-cogs" style={{ fontSize: '2.5rem', color: '#0E62A0' }}></i>
-                </div>
-              </div>
-              <h1 className="mb-2 number-animation" style={{ 
-                fontSize: '3rem', 
-                fontWeight: '800'
-              }}>
-                {dailyStats.totalUnits.toLocaleString()}
-              </h1>
-              <h5 className="mb-2">
-                Total Units Produced
-              </h5>
-              <div className="bg-secondary bg-opacity-20 rounded-pill px-3 py-1">
-                <small style={{ fontSize: '0.9rem' }}>
-                  <i className="fas fa-clock me-1"></i>
-                  {dailyStats.firstEntryTime} - {dailyStats.lastEntryTime}
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Mangle Production */}
-        <div className="col-lg-3 col-md-6 mb-3">
-          <div className="card border-0 shadow-lg h-100 card-hover" style={{ 
-            borderRadius: '20px',
-            transform: 'scale(1)',
-            transition: 'all 0.3s ease'
-          }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'} 
-             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-            <div className="card-body text-center py-4 bg-light text-dark" style={{ 
-              borderRadius: '20px'
-            }}>
-              <div className="mb-3">
-                <div className="bg-secondary bg-opacity-20 rounded-circle d-inline-flex align-items-center justify-content-center" 
-                     style={{ width: '80px', height: '80px' }}>
-                  <i className="fas fa-compress-arrows-alt" style={{ fontSize: '2.5rem', color: '#198754' }}></i>
-                </div>
-              </div>
-              <h1 className="mb-2 number-animation" style={{ 
-                fontSize: '3rem', 
-                fontWeight: '800'
-              }}>
-                {dailyStats.mangleUnits.toLocaleString()}
-              </h1>
-              <h5 className="mb-2">
-                Mangle Units
-              </h5>
-              <div className="bg-secondary bg-opacity-20 rounded-pill px-3 py-1">
-                <small style={{ fontSize: '0.9rem' }}>
-                  <i className="fas fa-percentage me-1"></i>
-                  {dailyStats.totalUnits > 0 ? Math.round((dailyStats.mangleUnits / dailyStats.totalUnits) * 100) : 0}% of total
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Doblado Production */}
-        <div className="col-lg-3 col-md-6 mb-3">
-          <div className="card border-0 shadow-lg h-100 card-hover" style={{ 
-            borderRadius: '20px',
-            transform: 'scale(1)',
-            transition: 'all 0.3s ease'
-          }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'} 
-             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-            <div className="card-body text-center py-4 bg-light text-dark" style={{ 
-              borderRadius: '20px'
-            }}>
-              <div className="mb-3">
-                <div className="bg-secondary bg-opacity-20 rounded-circle d-inline-flex align-items-center justify-content-center" 
-                     style={{ width: '80px', height: '80px' }}>
-                  <i className="fas fa-hands" style={{ fontSize: '2.5rem', color: '#ffc107' }}></i>
-                </div>
-              </div>
-              <h1 className="mb-2 number-animation" style={{ 
-                fontSize: '3rem', 
-                fontWeight: '800'
-              }}>
-                {dailyStats.dobladoUnits.toLocaleString()}
-              </h1>
-              <h5 className="mb-2">
-                Doblado Units
-              </h5>
-              <div className="bg-secondary bg-opacity-20 rounded-pill px-3 py-1">
-                <small style={{ fontSize: '0.9rem' }}>
-                  <i className="fas fa-percentage me-1"></i>
-                  {dailyStats.totalUnits > 0 ? Math.round((dailyStats.dobladoUnits / dailyStats.totalUnits) * 100) : 0}% of total
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Current Performance */}
-        <div className="col-lg-3 col-md-6 mb-3">
-          <div className="card border-0 shadow-lg h-100 card-hover" style={{ 
-            borderRadius: '20px',
-            transform: 'scale(1)',
-            transition: 'all 0.3s ease'
-          }} onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'} 
-             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}>
-            <div className="card-body text-center py-4 bg-light text-dark" style={{ 
-              borderRadius: '20px'
-            }}>
-              <div className="mb-3">
-                <div className="bg-secondary bg-opacity-20 rounded-circle d-inline-flex align-items-center justify-content-center" 
-                     style={{ width: '80px', height: '80px' }}>
-                  <i className="fas fa-tachometer-alt" style={{ fontSize: '2.5rem', color: '#0dcaf0' }}></i>
-                </div>
-              </div>
-              <h1 className="mb-2 number-animation" style={{ 
-                fontSize: '3rem', 
-                fontWeight: '800'
-              }}>
-                {Math.round(dailyStats.currentHourRate)}
-              </h1>
-              <h5 className="mb-2">
-                Current Rate/Hour
-              </h5>
-              <div className="bg-secondary bg-opacity-20 rounded-pill px-3 py-1">
-                <small style={{ fontSize: '0.9rem' }}>
-                  <i className="fas fa-arrow-up me-1"></i>
-                  Peak: {Math.round(dailyStats.peakHourRate)}/hr
-                </small>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Secondary Stats Row - Enhanced with Modern Cards */}
-      <div className="row mb-4">
-        {/* Clients Served */}
-        <div className="col-lg-2 col-md-4 col-6 mb-3">
-          <div className="card border-0 shadow h-100 fade-in" style={{ 
-            borderRadius: '15px',
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <div className="card-body text-center py-3">
-              <div className="mb-2">
-                <i className="fas fa-users" style={{ 
-                  fontSize: '2.5rem', 
-                  background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
-                }}></i>
-              </div>
-              <h3 className="mb-1 number-animation" style={{ fontWeight: '700', color: '#2C3E50' }}>
-                {dailyStats.uniqueClients}
-              </h3>
-              <small className="text-muted fw-bold">Clients Served</small>
-            </div>
-          </div>
-        </div>
-
-        {/* Items Processed */}
-        <div className="col-lg-2 col-md-4 col-6 mb-3">
-          <div className="card border-0 shadow h-100 fade-in" style={{ 
-            borderRadius: '15px',
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <div className="card-body text-center py-3">
-              <div className="mb-2">
-                <i className="fas fa-list" style={{ 
-                  fontSize: '2.5rem', 
-                  background: 'linear-gradient(45deg, #667eea, #764ba2)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
-                }}></i>
-              </div>
-              <h3 className="mb-1 number-animation" style={{ fontWeight: '700', color: '#2C3E50' }}>
-                {dailyStats.totalItems}
-              </h3>
-              <small className="text-muted fw-bold">Items Processed</small>
-            </div>
-          </div>
-        </div>
-
-        {/* Segregated */}
-        <div className="col-lg-2 col-md-4 col-6 mb-3">
-          <div className="card border-0 shadow h-100 fade-in" style={{ 
-            borderRadius: '15px',
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <div className="card-body text-center py-3">
-              <div className="mb-2">
-                <i className="fas fa-tasks" style={{ 
-                  fontSize: '2.5rem', 
-                  background: 'linear-gradient(45deg, #11998e, #38ef7d)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
-                }}></i>
-              </div>
-              <h3 className="mb-1 number-animation" style={{ fontWeight: '700', color: '#2C3E50' }}>
-                {dailyStats.segregatedClients}
-              </h3>
-              <small className="text-muted fw-bold">Segregated</small>
-            </div>
-          </div>
-        </div>
-
-        {/* Segregation Weight */}
-        <div className="col-lg-2 col-md-4 col-6 mb-3">
-          <div className="card border-0 shadow h-100 fade-in" style={{ 
-            borderRadius: '15px',
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <div className="card-body text-center py-3">
-              <div className="mb-2">
-                <i className="fas fa-weight" style={{ 
-                  fontSize: '2.5rem', 
-                  background: 'linear-gradient(45deg, #f093fb, #f5576c)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
-                }}></i>
-              </div>
-              <h3 className="mb-1 number-animation" style={{ fontWeight: '700', color: '#2C3E50' }}>
-                {dailyStats.segregatedWeight.toLocaleString()}
-              </h3>
-              <small className="text-muted fw-bold">lbs Segregated</small>
-            </div>
-          </div>
-        </div>
-
-        {/* Pickups */}
-        <div className="col-lg-2 col-md-4 col-6 mb-3">
-          <div className="card border-0 shadow h-100 fade-in" style={{ 
-            borderRadius: '15px',
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <div className="card-body text-center py-3">
-              <div className="mb-2">
-                <i className="fas fa-truck" style={{ 
-                  fontSize: '2.5rem', 
-                  background: 'linear-gradient(45deg, #fa709a, #fee140)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
-                }}></i>
-              </div>
-              <h3 className="mb-1 number-animation" style={{ fontWeight: '700', color: '#2C3E50' }}>
-                {dailyStats.pickupEntries}
-              </h3>
-              <small className="text-muted fw-bold">Pickups</small>
-            </div>
-          </div>
-        </div>
-
-        {/* Pickup Weight */}
-        <div className="col-lg-2 col-md-4 col-6 mb-3">
-          <div className="card border-0 shadow h-100 fade-in" style={{ 
-            borderRadius: '15px',
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <div className="card-body text-center py-3">
-              <div className="mb-2">
-                <i className="fas fa-truck-loading" style={{ 
-                  fontSize: '2.5rem', 
-                  background: 'linear-gradient(45deg, #667eea, #764ba2)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
-                }}></i>
-              </div>
-              <h3 className="mb-1 number-animation" style={{ fontWeight: '700', color: '#2C3E50' }}>
-                {dailyStats.pickupWeight.toLocaleString()}
-              </h3>
-              <small className="text-muted fw-bold">lbs Picked Up</small>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Enhanced Progress Section */}
-      <div className="row mb-4">
-        <div className="col-12">
-          <div className="card border-0 shadow-lg" style={{ 
-            borderRadius: '20px',
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <div className="card-body p-4">
-              <div className="d-flex align-items-center mb-4">
-                <div className="bg-gradient-primary rounded-circle d-flex align-items-center justify-content-center me-3" 
-                     style={{ width: '50px', height: '50px', background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)' }}>
-                  <i className="fas fa-chart-pie text-dark" style={{ fontSize: '1.5rem' }}></i>
-                </div>
-                <h4 className="mb-0" style={{ color: '#2C3E50', fontWeight: '700' }}>
-                  Production Breakdown
-                </h4>
-              </div>
-              
-              <div className="row align-items-center">
-                <div className="col-lg-8 mb-3">
-                  <div className="progress mb-3" style={{ 
-                    height: '50px', 
-                    borderRadius: '25px',
-                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
-                  }}>
-                    <div 
-                      className="progress-bar d-flex align-items-center justify-content-center position-relative shimmer-effect"
-                      style={{ 
-                        width: `${dailyStats.totalUnits > 0 ? (dailyStats.mangleUnits / dailyStats.totalUnits) * 100 : 0}%`,
-                        background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-                        fontSize: '16px',
-                        fontWeight: '700',
-                        borderRadius: '25px 0 0 25px',
-                        textShadow: '0 1px 2px rgba(0,0,0,0.3)'
-                      }}
-                    >
-                      <i className="fas fa-compress-arrows-alt me-2"></i>
-                      Mangle: {dailyStats.mangleUnits.toLocaleString()}
-                    </div>
-                    <div 
-                      className="progress-bar d-flex align-items-center justify-content-center shimmer-effect"
-                      style={{ 
-                        width: `${dailyStats.totalUnits > 0 ? (dailyStats.dobladoUnits / dailyStats.totalUnits) * 100 : 0}%`,
-                        background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                        fontSize: '16px',
-                        fontWeight: '700',
-                        borderRadius: '0 25px 25px 0',
-                        textShadow: '0 1px 2px rgba(0,0,0,0.3)'
-                      }}
-                    >
-                      <i className="fas fa-hands me-2"></i>
-                      Doblado: {dailyStats.dobladoUnits.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-                <div className="col-lg-4">
-                  <div className="text-center p-4 glow-effect" style={{ 
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    borderRadius: '20px',
-                    color: 'white'
-                  }}>
-                    <div className="mb-2">
-                      <i className="fas fa-clock" style={{ fontSize: '2rem', opacity: '0.8' }}></i>
-                    </div>
-                    <h2 className="mb-1 number-animation" style={{ fontWeight: '800', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
-                      {Math.floor(dailyStats.productionSpanHours)}h {Math.floor((dailyStats.productionSpanHours % 1) * 60)}m
-                    </h2>
-                    <small style={{ opacity: '0.9', fontWeight: '600' }}>Active Production Time</small>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Real-Time Hourly Production Charts */}
-      <div className="row mb-4">
-        <div className="col-12">
-          <div className="card border-0 shadow-lg bg-light text-dark" style={{ 
-            borderRadius: '25px'
-          }}>
-            <div className="card-body p-4">
-              <div className="text-center mb-4">
-                <h3 className="mb-2" style={{ 
-                  fontWeight: '800'
-                }}>
-                  📊 Real-Time Hourly Production Charts
+  // Render functions for different rotation views
+  const renderHeader = () => (
+    <div className="row mb-4">
+      <div className="col-12">
+        <div
+          className="card border shadow-sm"
+          style={{ borderRadius: "8px" }}
+        >
+          <div
+            className="card-body text-center py-4 bg-white text-dark"
+            style={{
+              borderRadius: "8px",
+            }}
+          >
+            <h1
+              className="text-dark mb-2"
+              style={{
+                fontWeight: "600",
+                fontSize: "2rem",
+              }}
+            >
+              Daily Production Dashboard
+            </h1>
+            <h2
+              className="text-muted mb-2"
+              style={{
+                fontSize: "1.2rem",
+                fontWeight: "400",
+              }}
+            >
+              {currentTime.toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </h2>
+            <div className="d-flex justify-content-center align-items-center">
+              <div className="bg-light rounded-pill px-4 py-2">
+                <h3
+                  className="text-dark mb-0"
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: "2rem",
+                  }}
+                >
+                  <i className="fas fa-clock me-2"></i>
+                  {currentTime.toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })}
                 </h3>
-                <p className="mb-0 text-muted">
-                  Live tracking of Mangle, Doblado, and Segregation by hour
-                </p>
-              </div>
-              
-              <div className="row">
-                {/* Mangle Hourly Chart */}
-                <div className="col-lg-4 col-md-12 mb-4">
-                  <div className="card" style={{ 
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    borderRadius: '20px'
-                  }}>
-                    <div className="card-header text-center bg-light text-dark" style={{ 
-                      borderRadius: '20px 20px 0 0',
-                      border: 'none'
-                    }}>
-                      <h5 className="mb-0" style={{ fontWeight: '700' }}>
-                        <i className="fas fa-compress-arrows-alt me-2"></i>
-                        Mangle Production per Hour
-                      </h5>
-                    </div>
-                    <div className="card-body" style={{ height: '300px', padding: '20px' }}>
-                      <Bar data={mangleChartData} options={chartOptions} />
-                    </div>
-                    <div className="card-footer bg-success text-white text-center" style={{
-                      borderRadius: '0 0 20px 20px',
-                      background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'
-                    }}>
-                      <div className="d-flex justify-content-between align-items-center">
-                        <div>
-                          <h4 className="mb-0 fw-bold">
-                            <i className="fas fa-tachometer-alt me-2"></i>
-                            {currentProductionRates.mangleRate}/hr
-                          </h4>
-                          <small className="opacity-75">Current Rate</small>
-                        </div>
-                        <div className="text-end">
-                          <h6 className="mb-0">
-                            {currentProductionRates.totalMangleProduction.toLocaleString()}
-                          </h6>
-                          <small className="opacity-75">Total Units</small>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Doblado Hourly Chart */}
-                <div className="col-lg-4 col-md-12 mb-4">
-                  <div className="card" style={{ 
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    borderRadius: '20px'
-                  }}>
-                    <div className="card-header text-center bg-light text-dark" style={{ 
-                      borderRadius: '20px 20px 0 0',
-                      border: 'none'
-                    }}>
-                      <h5 className="mb-0" style={{ fontWeight: '700' }}>
-                        <i className="fas fa-hands me-2"></i>
-                        Doblado Production per Hour
-                      </h5>
-                    </div>
-                    <div className="card-body" style={{ height: '300px', padding: '20px' }}>
-                      <Bar data={dobladoChartData} options={chartOptions} />
-                    </div>
-                    <div className="card-footer bg-warning text-dark text-center" style={{
-                      borderRadius: '0 0 20px 20px',
-                      background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                      color: 'white !important'
-                    }}>
-                      <div className="d-flex justify-content-between align-items-center text-white">
-                        <div>
-                          <h4 className="mb-0 fw-bold">
-                            <i className="fas fa-tachometer-alt me-2"></i>
-                            {currentProductionRates.dobladoRate}/hr
-                          </h4>
-                          <small className="opacity-75">Current Rate</small>
-                        </div>
-                        <div className="text-end">
-                          <h6 className="mb-0">
-                            {currentProductionRates.totalDobladoProduction.toLocaleString()}
-                          </h6>
-                          <small className="opacity-75">Total Units</small>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Segregation Hourly Chart */}
-                <div className="col-lg-4 col-md-12 mb-4">
-                  <div className="card" style={{ 
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    borderRadius: '20px'
-                  }}>
-                    <div className="card-header text-center bg-light text-dark" style={{ 
-                      borderRadius: '20px 20px 0 0',
-                      border: 'none'
-                    }}>
-                      <h5 className="mb-0" style={{ fontWeight: '700' }}>
-                        <i className="fas fa-tasks me-2"></i>
-                        Segregation per Hour
-                      </h5>
-                    </div>
-                    <div className="card-body" style={{ height: '300px', padding: '20px' }}>
-                      <Bar data={segregationChartData} options={chartOptions} />
-                    </div>
-                    <div className="card-footer bg-info text-white text-center" style={{
-                      borderRadius: '0 0 20px 20px',
-                      background: 'linear-gradient(135deg, #23a2b8 0%, #17a2b8 100%)'
-                    }}>
-                      <div className="d-flex justify-content-between align-items-center">
-                        <div>
-                          <h4 className="mb-0 fw-bold">
-                            <i className="fas fa-tachometer-alt me-2"></i>
-                            {currentProductionRates.segregationRate} lbs/hr
-                          </h4>
-                          <small className="opacity-75">Current Rate</small>
-                        </div>
-                        <div className="text-end">
-                          <h6 className="mb-0">
-                            {currentProductionRates.totalSegregationProduction.toLocaleString()} lbs
-                          </h6>
-                          <small className="opacity-75">Total Weight</small>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Current Production Rates */}
-              <div className="row">
-                <div className="col-12">
-                  <div className="card" style={{ 
-                    background: 'rgba(255, 255, 255, 0.15)',
-                    backdropFilter: 'blur(15px)',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderRadius: '20px'
-                  }}>
-                    <div className="card-body p-4">
-                      <h5 className="text-center text-dark mb-4" style={{ fontWeight: '700' }}>
-                        📈 Current Production Rates (Area-Specific Duration Calculations)
-                      </h5>
-                      <div className="row">
-                        <div className="col-lg-2 col-md-4 col-6 text-center mb-3">
-                          <div className="text-success mb-2">
-                            <i className="fas fa-compress-arrows-alt" style={{ fontSize: '2rem' }}></i>
-                          </div>
-                          <h3 className="text-dark number-animation" style={{ 
-                            fontWeight: '800'
-                          }}>
-                            {currentProductionRates.mangleRate}
-                          </h3>
-                          <small style={{ opacity: '0.9', fontWeight: '600' }}>Mangle Units/Hour</small>
-                          <div className="mt-1">
-                            <small style={{ opacity: '0.7' }}>
-                              Duration: {currentProductionRates.mangleHoursElapsed.toFixed(1)}h
-                            </small>
-                          </div>
-                        </div>
-                        <div className="col-lg-2 col-md-4 col-6 text-center mb-3">
-                          <div className="text-warning mb-2">
-                            <i className="fas fa-hands" style={{ fontSize: '2rem' }}></i>
-                          </div>
-                          <h3 className="text-dark number-animation" style={{ 
-                            fontWeight: '800'
-                          }}>
-                            {currentProductionRates.dobladoRate}
-                          </h3>
-                          <small style={{ opacity: '0.9', fontWeight: '600' }}>Doblado Units/Hour</small>
-                          <div className="mt-1">
-                            <small style={{ opacity: '0.7' }}>
-                              Duration: {currentProductionRates.dobladoHoursElapsed.toFixed(1)}h
-                            </small>
-                          </div>
-                        </div>
-                        <div className="col-lg-2 col-md-4 col-6 text-center mb-3">
-                          <div className="text-info mb-2">
-                            <i className="fas fa-tasks" style={{ fontSize: '2rem' }}></i>
-                          </div>
-                          <h3 className="text-dark number-animation" style={{ 
-                            fontWeight: '800'
-                          }}>
-                            {currentProductionRates.segregationRate}
-                          </h3>
-                          <small style={{ opacity: '0.9', fontWeight: '600' }}>Segregation lbs/Hour</small>
-                          <div className="mt-1">
-                            <small style={{ opacity: '0.7' }}>
-                              Duration: {currentProductionRates.segregationHoursElapsed.toFixed(1)}h
-                            </small>
-                          </div>
-                        </div>
-                        <div className="col-lg-2 col-md-4 col-6 text-center mb-3">
-                          <div className="text-light mb-2">
-                            <i className="fas fa-compress-arrows-alt" style={{ fontSize: '2rem' }}></i>
-                          </div>
-                          <h3 className="text-dark number-animation" style={{ 
-                            fontWeight: '800'
-                          }}>
-                            {currentProductionRates.totalMangleProduction.toLocaleString()}
-                          </h3>
-                          <small style={{ opacity: '0.9', fontWeight: '600' }}>Total Mangle Units</small>
-                          <div className="mt-1">
-                            <small style={{ opacity: '0.7' }}>During production</small>
-                          </div>
-                        </div>
-                        <div className="col-lg-2 col-md-4 col-6 text-center mb-3">
-                          <div className="text-success mb-2">
-                            <i className="fas fa-calculator" style={{ fontSize: '2rem' }}></i>
-                          </div>
-                          <h3 className="text-dark number-animation" style={{ 
-                            fontWeight: '800'
-                          }}>
-                            {currentProductionRates.totalDobladoProduction.toLocaleString()}
-                          </h3>
-                          <small style={{ opacity: '0.9', fontWeight: '600' }}>Total Doblado Units</small>
-                          <div className="mt-1">
-                            <small style={{ opacity: '0.7' }}>During production</small>
-                          </div>
-                        </div>
-                        <div className="col-lg-2 col-md-4 col-6 text-center mb-3">
-                          <div className="text-primary mb-2">
-                            <i className="fas fa-weight-hanging" style={{ fontSize: '2rem' }}></i>
-                          </div>
-                          <h3 className="text-dark number-animation" style={{ 
-                            fontWeight: '800'
-                          }}>
-                            {currentProductionRates.totalSegregationProduction.toLocaleString()}
-                          </h3>
-                          <small style={{ opacity: '0.9', fontWeight: '600' }}>Total Segregation lbs</small>
-                          <div className="mt-1">
-                            <small style={{ opacity: '0.7' }}>During production</small>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-center mt-3">
-                        <small style={{ opacity: '0.8', fontStyle: 'italic' }}>
-                          💡 Each area uses its configured start time → last item time for duration calculation
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
 
-      {/* End-of-Shift Detection Dashboard */}
-      <div className="row mb-4">
-        <div className="col-12">
-          <EndOfShiftDashboard className="shadow-lg border-0" />
-        </div>
-      </div>
-
-      {/* Enhanced Footer */}
-      <div className="row">
-        <div className="col-12">
-          <div className="card border-0 shadow-lg" style={{ 
-            borderRadius: '20px',
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <div className="card-body text-center py-4">
-              <div className="mb-3">
-                <i className="fas fa-heart floating" style={{ 
-                  fontSize: '2rem', 
-                  color: '#e74c3c',
-                  animation: 'pulse 2s infinite'
-                }}></i>
-              </div>
-              <h5 className="mb-2" style={{ color: '#2C3E50', fontWeight: '600' }}>
-                <i className="fas fa-sync-alt me-2" style={{ 
-                  animation: 'spin 3s linear infinite',
-                  color: '#3498db'
-                }}></i>
-                Dashboard updates automatically every minute
-              </h5>
-              <div className="d-flex justify-content-center align-items-center">
-                <div className="bg-gradient-success rounded-pill px-4 py-2" style={{
-                  background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)',
-                  color: 'white'
-                }}>
-                  <h6 className="mb-0" style={{ fontWeight: '700' }}>
-                    Keep up the excellent work! 💪 🌟 🚀
+  const renderRotationControls = () => (
+    <div className="row mb-3">
+      <div className="col-12">
+        <div
+          className="card border-0 shadow-lg"
+          style={{ borderRadius: "15px" }}
+        >
+          <div
+            className="card-body py-3"
+            style={{
+              background: "rgba(255, 255, 255, 0.95)",
+              borderRadius: "15px",
+            }}
+          >
+            <div className="row align-items-center">
+              <div className="col-lg-6 col-md-12 mb-2 mb-lg-0">
+                <div className="d-flex align-items-center justify-content-center justify-content-lg-start">
+                  <h6
+                    className="mb-0 me-3"
+                    style={{ color: "#2C3E50", fontWeight: "600" }}
+                  >
+                    <i className="fas fa-tv me-2"></i>
+                    Wall Display Mode:
                   </h6>
+                  {isRotationActive ? (
+                    <button
+                      className="btn btn-danger btn-sm me-2"
+                      onClick={stopRotation}
+                      style={{ borderRadius: "20px" }}
+                    >
+                      <i className="fas fa-stop me-2"></i>
+                      Stop Rotation
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-success btn-sm me-2"
+                      onClick={startRotation}
+                      style={{ borderRadius: "20px" }}
+                    >
+                      <i className="fas fa-play me-2"></i>
+                      Start Rotation
+                    </button>
+                  )}
+                  {isRotationActive && (
+                    <span
+                      className="badge bg-primary"
+                      style={{ borderRadius: "20px" }}
+                    >
+                      <i
+                        className="fas fa-sync-alt me-1"
+                        style={{ animation: "spin 2s linear infinite" }}
+                      ></i>
+                      Auto-cycling every 10s
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="col-lg-6 col-md-12">
+                <div className="btn-group w-100" role="group">
+                  <button
+                    className={`btn btn-sm ${
+                      currentRotationView === RotationView.FULL_VIEW
+                        ? "btn-dark"
+                        : "btn-outline-dark"
+                    }`}
+                    onClick={() => selectView(RotationView.FULL_VIEW)}
+                    style={{
+                      borderRadius: "20px 0 0 20px",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    Full
+                  </button>
+                  <button
+                    className={`btn btn-sm ${
+                      currentRotationView === RotationView.MAIN_STATS
+                        ? "btn-dark"
+                        : "btn-outline-dark"
+                    }`}
+                    onClick={() => selectView(RotationView.MAIN_STATS)}
+                    style={{ fontSize: "0.8rem" }}
+                  >
+                    Stats
+                  </button>
+                  <button
+                    className={`btn btn-sm ${
+                      currentRotationView === RotationView.SECONDARY_STATS
+                        ? "btn-dark"
+                        : "btn-outline-dark"
+                    }`}
+                    onClick={() => selectView(RotationView.SECONDARY_STATS)}
+                    style={{ fontSize: "0.8rem" }}
+                  >
+                    Details
+                  </button>
+                  <button
+                    className={`btn btn-sm ${
+                      currentRotationView === RotationView.PROGRESS_SECTION
+                        ? "btn-dark"
+                        : "btn-outline-dark"
+                    }`}
+                    onClick={() => selectView(RotationView.PROGRESS_SECTION)}
+                    style={{ fontSize: "0.8rem" }}
+                  >
+                    Progress
+                  </button>
+                  <button
+                    className={`btn btn-sm ${
+                      currentRotationView === RotationView.PRODUCTION_CHARTS
+                        ? "btn-dark"
+                        : "btn-outline-dark"
+                    }`}
+                    onClick={() => selectView(RotationView.PRODUCTION_CHARTS)}
+                    style={{ fontSize: "0.8rem" }}
+                  >
+                    Charts
+                  </button>
+                  <button
+                    className={`btn btn-sm ${
+                      currentRotationView === RotationView.END_OF_SHIFT
+                        ? "btn-dark"
+                        : "btn-outline-dark"
+                    }`}
+                    onClick={() => selectView(RotationView.END_OF_SHIFT)}
+                    style={{
+                      borderRadius: "0 20px 20px 0",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    End Shift
+                  </button>
                 </div>
               </div>
             </div>
@@ -1469,6 +1142,645 @@ const DailyEmployeeDashboard: React.FC = () => {
         </div>
       </div>
     </div>
+  );
+
+  const renderMainStats = () => (
+    <div className="row mb-4">
+      {/* Total Production */}
+      <div className="col-lg-3 col-md-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <div
+            className="card-body text-center py-4 bg-primary text-white"
+            style={{
+              borderRadius: "8px",
+            }}
+          >
+            <h1
+              className="mb-2 text-white"
+              style={{
+                fontSize: "2.5rem",
+                fontWeight: "700",
+              }}
+            >
+              {dailyStats.totalUnits.toLocaleString()}
+            </h1>
+            <h5 className="mb-2 text-white">Total Units Produced</h5>
+            <div className="bg-white bg-opacity-20 rounded-pill px-3 py-1">
+              <small className="text-white" style={{ opacity: "0.9" }}>
+                <i className="fas fa-clock me-1"></i>
+                {dailyStats.firstEntryTime} - {dailyStats.lastEntryTime}
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mangle Production */}
+      <div className="col-lg-3 col-md-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <div
+            className="card-body text-center py-4 bg-white text-dark"
+            style={{
+              borderRadius: "8px",
+            }}
+          >
+            <h1
+              className="mb-2 text-dark"
+              style={{
+                fontSize: "2.5rem",
+                fontWeight: "700",
+              }}
+            >
+              {dailyStats.mangleUnits.toLocaleString()}
+            </h1>
+            <h5 className="mb-2 text-muted">Mangle Units</h5>
+            <div className="bg-light rounded-pill px-3 py-1">
+              <small className="text-muted">
+                <i className="fas fa-percentage me-1"></i>
+                {dailyStats.totalUnits > 0
+                  ? (
+                      (dailyStats.mangleUnits / dailyStats.totalUnits) *
+                      100
+                    ).toFixed(1)
+                  : 0}
+                % of total
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Doblado Production */}
+      <div className="col-lg-3 col-md-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <div
+            className="card-body text-center py-4 bg-white text-dark"
+            style={{
+              borderRadius: "8px",
+            }}
+          >
+            <h1
+              className="mb-2 text-dark"
+              style={{
+                fontSize: "2.5rem",
+                fontWeight: "700",
+              }}
+            >
+              {dailyStats.dobladoUnits.toLocaleString()}
+            </h1>
+            <h5 className="mb-2 text-muted">Doblado Units</h5>
+            <div className="bg-light rounded-pill px-3 py-1">
+              <small className="text-muted">
+                <i className="fas fa-percentage me-1"></i>
+                {dailyStats.totalUnits > 0
+                  ? (
+                      (dailyStats.dobladoUnits / dailyStats.totalUnits) *
+                      100
+                    ).toFixed(1)
+                  : 0}
+                % of total
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Average Rate per Hour */}
+      <div className="col-lg-3 col-md-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            transition: "all 0.2s ease",
+          }}
+        >
+          <div
+            className="card-body text-center py-4 bg-white text-dark"
+            style={{
+              borderRadius: "8px",
+            }}
+          >
+            <h1
+              className="mb-2 text-dark"
+              style={{
+                fontSize: "2.5rem",
+                fontWeight: "700",
+              }}
+            >
+              {Math.round(dailyStats.averageHourRate)}
+            </h1>
+            <h5 className="mb-2 text-muted">AVG Rate per Hour</h5>
+            <div className="bg-light rounded-pill px-3 py-1">
+              <small className="text-muted">
+                <i className="fas fa-clock me-1"></i>
+                Over {Math.floor(dailyStats.productionSpanHours)}h{" "}
+                {Math.floor((dailyStats.productionSpanHours % 1) * 60)}m
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSecondaryStats = () => (
+    <div className="row mb-4">
+      {/* Total Items */}
+      <div className="col-lg-2 col-md-4 col-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            background: "#ffffff",
+          }}
+        >
+          <div className="card-body text-center py-3">
+            <h3
+              className="mb-1 text-dark"
+              style={{ fontWeight: "700" }}
+            >
+              {dailyStats.totalItems.toLocaleString()}
+            </h3>
+            <small className="text-muted fw-bold">Total Items</small>
+          </div>
+        </div>
+      </div>
+
+      {/* Unique Clients */}
+      <div className="col-lg-2 col-md-4 col-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            background: "#ffffff",
+          }}
+        >
+          <div className="card-body text-center py-3">
+            <h3
+              className="mb-1 text-dark"
+              style={{ fontWeight: "700" }}
+            >
+              {dailyStats.uniqueClients}
+            </h3>
+            <small className="text-muted fw-bold">Unique Clients</small>
+          </div>
+        </div>
+      </div>
+
+      {/* Peak Hour Rate */}
+      <div className="col-lg-2 col-md-4 col-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            background: "#ffffff",
+          }}
+        >
+          <div className="card-body text-center py-3">
+            <h3
+              className="mb-1 text-dark"
+              style={{ fontWeight: "700" }}
+            >
+              {Math.round(dailyStats.peakHourRate)}
+            </h3>
+            <small className="text-muted fw-bold">Peak Hour Rate</small>
+          </div>
+        </div>
+      </div>
+
+      {/* Segregated Clients */}
+      <div className="col-lg-2 col-md-4 col-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            background: "#ffffff",
+          }}
+        >
+          <div className="card-body text-center py-3">
+            <h3
+              className="mb-1 text-dark"
+              style={{ fontWeight: "700" }}
+            >
+              {dailyStats.segregatedClients}
+            </h3>
+            <small className="text-muted fw-bold">Segregated Clients</small>
+          </div>
+        </div>
+      </div>
+
+      {/* Segregated Weight */}
+      <div className="col-lg-2 col-md-4 col-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            background: "#ffffff",
+          }}
+        >
+          <div className="card-body text-center py-3">
+            <h3
+              className="mb-1 text-dark"
+              style={{ fontWeight: "700" }}
+            >
+              {dailyStats.segregatedWeight.toLocaleString()}
+            </h3>
+            <small className="text-muted fw-bold">lbs Segregated</small>
+          </div>
+        </div>
+      </div>
+
+      {/* Pickups */}
+      <div className="col-lg-2 col-md-4 col-6 mb-3">
+        <div
+          className="card border shadow-sm h-100"
+          style={{
+            borderRadius: "8px",
+            background: "#ffffff",
+          }}
+        >
+          <div className="card-body text-center py-3">
+            <h3
+              className="mb-1 text-dark"
+              style={{ fontWeight: "700" }}
+            >
+              {dailyStats.pickupEntries}
+            </h3>
+            <small className="text-muted fw-bold">Pickups</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderProgressSection = () => (
+    <div className="row mb-4">
+      <div className="col-12">
+        <div
+          className="card border shadow-sm"
+          style={{
+            borderRadius: "8px",
+            background: "#ffffff",
+          }}
+        >
+          <div className="card-body p-4">
+            <div className="d-flex align-items-center mb-4">
+              <h4
+                className="mb-0 text-dark"
+                style={{ fontWeight: "600" }}
+              >
+                Production Breakdown
+              </h4>
+            </div>
+
+            <div className="row align-items-center">
+              <div className="col-lg-8 mb-3">
+                <div className="mb-3">
+                  <h6 className="text-muted mb-2">Mangle Production</h6>
+                  <div
+                    className="progress mb-2"
+                    style={{
+                      height: "30px",
+                      borderRadius: "6px",
+                    }}
+                  >
+                    <div
+                      className="progress-bar bg-success d-flex align-items-center justify-content-center"
+                      style={{
+                        width: `${
+                          dailyStats?.totalUnits > 0
+                            ? (dailyStats.mangleUnits / dailyStats.totalUnits) *
+                              100
+                            : 0
+                        }%`,
+                        fontSize: "14px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {dailyStats?.mangleUnits.toLocaleString()} units
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mb-3">
+                  <h6 className="text-muted mb-2">Doblado Production</h6>
+                  <div
+                    className="progress mb-2"
+                    style={{
+                      height: "30px",
+                      borderRadius: "6px",
+                    }}
+                  >
+                    <div
+                      className="progress-bar bg-info d-flex align-items-center justify-content-center"
+                      style={{
+                        width: `${
+                          dailyStats?.totalUnits > 0
+                            ? (dailyStats.dobladoUnits / dailyStats.totalUnits) *
+                              100
+                            : 0
+                        }%`,
+                        fontSize: "14px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {dailyStats?.dobladoUnits.toLocaleString()} units
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="col-lg-4">
+                <div
+                  className="text-center p-4 bg-light border rounded"
+                  style={{
+                    borderRadius: "8px",
+                  }}
+                >
+                  <h2
+                    className="mb-1 text-dark"
+                    style={{
+                      fontWeight: "700",
+                    }}
+                  >
+                    {Math.floor(dailyStats?.productionSpanHours || 0)}h{" "}
+                    {Math.floor(
+                      ((dailyStats?.productionSpanHours || 0) % 1) * 60
+                    )}
+                    m
+                  </h2>
+                  <small className="text-muted fw-bold">
+                    Active Production Time
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderProductionCharts = () => (
+    <div className="row mb-4">
+      <div className="col-12">
+        <div
+          className="card border shadow-sm"
+          style={{
+            borderRadius: "8px",
+            background: "#ffffff",
+          }}
+        >
+          <div className="card-body p-4">
+            <div className="text-center mb-4">
+              <h3
+                className="mb-2 text-dark"
+                style={{
+                  fontWeight: "600",
+                }}
+              >
+                Hourly Production Charts
+              </h3>
+              <p className="mb-0 text-muted">
+                Production tracking by hour for Mangle, Doblado, and Segregation
+              </p>
+            </div>
+
+            <div className="row">
+              {/* Mangle Hourly Chart */}
+              <div className="col-lg-4 col-md-12 mb-4">
+                <div
+                  className="card border"
+                  style={{
+                    borderRadius: "8px",
+                    background: "#ffffff",
+                  }}
+                >
+                  <div
+                    className="card-header text-center bg-white"
+                    style={{
+                      border: "none",
+                      borderBottom: "1px solid #dee2e6",
+                    }}
+                  >
+                    <h5 className="mb-0 text-dark" style={{ fontWeight: "600" }}>
+                      <i className="fas fa-compress-arrows-alt text-success me-2"></i>
+                      Mangle Production
+                    </h5>
+                  </div>
+                  <div
+                    className="card-body"
+                    style={{ height: "300px", padding: "20px" }}
+                  >
+                    <Bar data={mangleChartData} options={chartOptions} />
+                  </div>
+                  <div
+                    className="card-footer bg-success text-white text-center"
+                    style={{
+                      border: "none",
+                    }}
+                  >
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h5 className="mb-0 fw-bold">
+                          <i className="fas fa-tachometer-alt me-2"></i>
+                          {currentProductionRates.mangleRate}/hr
+                        </h5>
+                        <small className="opacity-75">Current Rate</small>
+                      </div>
+                      <div className="text-end">
+                        <h6 className="mb-0">
+                          {currentProductionRates.totalMangleProduction.toLocaleString()}
+                        </h6>
+                        <small className="opacity-75">Total Units</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Doblado Hourly Chart */}
+              <div className="col-lg-4 col-md-12 mb-4">
+                <div
+                  className="card border"
+                  style={{
+                    borderRadius: "8px",
+                    background: "#ffffff",
+                  }}
+                >
+                  <div
+                    className="card-header text-center bg-white"
+                    style={{
+                      border: "none",
+                      borderBottom: "1px solid #dee2e6",
+                    }}
+                  >
+                    <h5 className="mb-0 text-dark" style={{ fontWeight: "600" }}>
+                      <i className="fas fa-hands text-primary me-2"></i>
+                      Doblado Production
+                    </h5>
+                  </div>
+                  <div
+                    className="card-body"
+                    style={{ height: "300px", padding: "20px" }}
+                  >
+                    <Bar data={dobladoChartData} options={chartOptions} />
+                  </div>
+                  <div
+                    className="card-footer bg-primary text-white text-center"
+                    style={{
+                      border: "none",
+                    }}
+                  >
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h5 className="mb-0 fw-bold">
+                          <i className="fas fa-tachometer-alt me-2"></i>
+                          {currentProductionRates.dobladoRate}/hr
+                        </h5>
+                        <small className="opacity-75">Current Rate</small>
+                      </div>
+                      <div className="text-end">
+                        <h6 className="mb-0">
+                          {currentProductionRates.totalDobladoProduction.toLocaleString()}
+                        </h6>
+                        <small className="opacity-75">Total Units</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Segregation Hourly Chart */}
+              <div className="col-lg-4 col-md-12 mb-4">
+                <div
+                  className="card border"
+                  style={{
+                    borderRadius: "8px",
+                    background: "#ffffff",
+                  }}
+                >
+                  <div
+                    className="card-header text-center bg-white"
+                    style={{
+                      border: "none",
+                      borderBottom: "1px solid #dee2e6",
+                    }}
+                  >
+                    <h5 className="mb-0 text-dark" style={{ fontWeight: "600" }}>
+                      <i className="fas fa-tasks text-info me-2"></i>
+                      Segregation
+                    </h5>
+                  </div>
+                  <div
+                    className="card-body"
+                    style={{ height: "300px", padding: "20px" }}
+                  >
+                    <Bar data={segregationChartData} options={chartOptions} />
+                  </div>
+                  <div
+                    className="card-footer bg-info text-white text-center"
+                    style={{
+                      border: "none",
+                    }}
+                  >
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h5 className="mb-0 fw-bold">
+                          <i className="fas fa-tachometer-alt me-2"></i>
+                          {currentProductionRates.segregationRate} lbs/hr
+                        </h5>
+                        <small className="opacity-75">Current Rate</small>
+                      </div>
+                      <div className="text-end">
+                        <h6 className="mb-0">
+                          {currentProductionRates.totalSegregationProduction.toLocaleString()}{" "}
+                          lbs
+                        </h6>
+                        <small className="opacity-75">Total Weight</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderEndOfShiftDashboard = () => (
+    <div className="row mb-4">
+      <div className="col-12">
+        <EndOfShiftDashboard className="shadow-lg border-0" />
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <style>{animationStyles}</style>
+      <div
+        className="container-fluid py-3"
+        style={{
+          background: "#f8f9fa",
+          minHeight: "100vh",
+          position: "relative",
+        }}
+      >
+        {/* Always show header and rotation controls */}
+        {renderHeader()}
+        {renderRotationControls()}
+
+        {/* Conditional rendering based on rotation view */}
+        {currentRotationView === RotationView.FULL_VIEW && (
+          <>
+            {renderMainStats()}
+            {renderSecondaryStats()}
+            {renderProgressSection()}
+            {renderProductionCharts()}
+            {renderEndOfShiftDashboard()}
+          </>
+        )}
+
+        {currentRotationView === RotationView.MAIN_STATS && (
+          <>{renderMainStats()}</>
+        )}
+
+        {currentRotationView === RotationView.SECONDARY_STATS && (
+          <>{renderSecondaryStats()}</>
+        )}
+
+        {currentRotationView === RotationView.PROGRESS_SECTION && (
+          <>{renderProgressSection()}</>
+        )}
+
+        {currentRotationView === RotationView.PRODUCTION_CHARTS && (
+          <>{renderProductionCharts()}</>
+        )}
+
+        {currentRotationView === RotationView.END_OF_SHIFT && (
+          <>{renderEndOfShiftDashboard()}</>
+        )}
+      </div>
     </>
   );
 };

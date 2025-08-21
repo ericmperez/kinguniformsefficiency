@@ -1,6 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Product Classifications Collection - allow read/write for authenticated users
+    match /product_classifications/{productName} {
+      allow read, write: if true; // Keep open access for now, can be restricted later
+    }
+    
+    // Default rule for all other collections
     match /{document=**} {
       allow read, write: if true;
     }

@@ -141,7 +141,6 @@ export default function InvoiceForm({
                   className="form-control"
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
-                  max={getCurrentLocalDate()}
                 />
               </div>
               <div className="mb-3">
@@ -151,7 +150,6 @@ export default function InvoiceForm({
                   className="form-control"
                   value={deliveryDate}
                   onChange={(e) => setDeliveryDate(e.target.value)}
-                  min={getCurrentLocalDate()}
                 />
                 <small className="form-text text-muted">
                   Optional: Set a delivery date for scheduling

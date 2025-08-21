@@ -290,4 +290,5 @@ class MLTrainingScheduler {
 }
 
 export default MLTrainingScheduler;
-export { MLTrainingScheduler, MLTrainingConfig, MLTrainingLog };
+export { MLTrainingScheduler };
+export type { MLTrainingConfig, MLTrainingLog };

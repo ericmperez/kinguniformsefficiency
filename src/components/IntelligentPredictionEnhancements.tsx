@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Line, Bar, Scatter } from 'react-chartjs-2';
+import React, { useMemo } from "react";
+import { Line, Bar, Scatter } from "react-chartjs-2";
 
 interface PredictionData {
   date: string;
@@ -22,41 +22,48 @@ interface IntelligentPredictionProps {
 }
 
 // Enhanced intelligence features for prediction analysis
-export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionProps> = ({
-  predictions,
-  weeklyPatterns
-}) => {
+export const IntelligentPredictionEnhancements: React.FC<
+  IntelligentPredictionProps
+> = ({ predictions, weeklyPatterns }) => {
   // Advanced analytics with confidence intervals and seasonal adjustments
   const enhancedAnalysis = useMemo(() => {
     if (!predictions.length || !weeklyPatterns.length) return [];
 
     return predictions.map((pred, index) => {
       const dayOfWeek = new Date(pred.date).getDay();
-      const weeklyPattern = weeklyPatterns.find(p => p.dayOfWeek === dayOfWeek);
+      const weeklyPattern = weeklyPatterns.find(
+        (p) => p.dayOfWeek === dayOfWeek
+      );
       const historicalAvg = weeklyPattern ? weeklyPattern.avgWeight : 0;
       const difference = pred.totalPredictedWeight - historicalAvg;
-      const percentageDiff = historicalAvg > 0 ? (difference / historicalAvg) * 100 : 0;
+      const percentageDiff =
+        historicalAvg > 0 ? (difference / historicalAvg) * 100 : 0;
 
       // Calculate confidence intervals (assuming 15% standard deviation)
       const historicalVariance = historicalAvg * 0.15;
       const confidenceInterval = {
-        lower: pred.totalPredictedWeight - (1.96 * historicalVariance),
-        upper: pred.totalPredictedWeight + (1.96 * historicalVariance),
-        margin: 1.96 * historicalVariance
+        lower: pred.totalPredictedWeight - 1.96 * historicalVariance,
+        upper: pred.totalPredictedWeight + 1.96 * historicalVariance,
+        margin: 1.96 * historicalVariance,
       };
 
       // Seasonal adjustment
       const monthOfYear = new Date(pred.date).getMonth();
       const seasonalMultiplier = getSeasonalMultiplier(monthOfYear);
-      const seasonallyAdjustedPrediction = pred.totalPredictedWeight * seasonalMultiplier;
+      const seasonallyAdjustedPrediction =
+        pred.totalPredictedWeight * seasonalMultiplier;
 
       // Anomaly detection using Z-score
-      const zScore = historicalVariance > 0 ? Math.abs(difference) / historicalVariance : 0;
+      const zScore =
+        historicalVariance > 0 ? Math.abs(difference) / historicalVariance : 0;
       const isAnomalous = zScore > 2.5;
 
       // Trend analysis
-      const trend = index > 0 ? 
-        pred.totalPredictedWeight - predictions[index - 1].totalPredictedWeight : 0;
+      const trend =
+        index > 0
+          ? pred.totalPredictedWeight -
+            predictions[index - 1].totalPredictedWeight
+          : 0;
 
       return {
         ...pred,
@@ -69,8 +76,11 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
         isAnomalous,
         zScore,
         trend,
-        accuracy: calculatePredictionAccuracy(pred.totalPredictedWeight, historicalAvg),
-        volatility: calculateVolatility(historicalVariance, historicalAvg)
+        accuracy: calculatePredictionAccuracy(
+          pred.totalPredictedWeight,
+          historicalAvg
+        ),
+        volatility: calculateVolatility(historicalVariance, historicalAvg),
       };
     });
   }, [predictions, weeklyPatterns]);
@@ -82,64 +92,75 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
     const insights = [];
 
     // Overall accuracy insight
-    const excellentCount = enhancedAnalysis.filter(a => a.accuracy === 'Excellent').length;
-    const goodCount = enhancedAnalysis.filter(a => a.accuracy === 'Good').length;
+    const excellentCount = enhancedAnalysis.filter(
+      (a) => a.accuracy === "Excellent"
+    ).length;
+    const goodCount = enhancedAnalysis.filter(
+      (a) => a.accuracy === "Good"
+    ).length;
 
     if (excellentCount >= enhancedAnalysis.length * 0.7) {
       insights.push({
-        type: 'success',
-        icon: '🎯',
-        message: `High accuracy predictions: ${excellentCount}/${enhancedAnalysis.length} days show excellent accuracy (≥95%)`
+        type: "success",
+        icon: "🎯",
+        message: `High accuracy predictions: ${excellentCount}/${enhancedAnalysis.length} days show excellent accuracy (≥95%)`,
       });
     } else if (goodCount + excellentCount >= enhancedAnalysis.length * 0.6) {
       insights.push({
-        type: 'info',
-        icon: '📊',
-        message: `Good prediction reliability: ${goodCount + excellentCount}/${enhancedAnalysis.length} days show good accuracy (≥85%)`
+        type: "info",
+        icon: "📊",
+        message: `Good prediction reliability: ${goodCount + excellentCount}/${
+          enhancedAnalysis.length
+        } days show good accuracy (≥85%)`,
       });
     } else {
       insights.push({
-        type: 'warning',
-        icon: '⚠️',
-        message: 'Prediction accuracy could be improved - consider reviewing historical data patterns'
+        type: "warning",
+        icon: "⚠️",
+        message:
+          "Prediction accuracy could be improved - consider reviewing historical data patterns",
       });
     }
 
     // Anomaly detection
-    const anomalousCount = enhancedAnalysis.filter(a => a.isAnomalous).length;
+    const anomalousCount = enhancedAnalysis.filter((a) => a.isAnomalous).length;
     if (anomalousCount > 0) {
       insights.push({
-        type: 'warning',
-        icon: '🚨',
-        message: `${anomalousCount} day(s) show anomalous predictions (>2.5σ from historical patterns)`
+        type: "warning",
+        icon: "🚨",
+        message: `${anomalousCount} day(s) show anomalous predictions (>2.5σ from historical patterns)`,
       });
     }
 
     // Trend analysis
-    const upwardTrends = enhancedAnalysis.filter(a => a.trend > 0).length;
-    const downwardTrends = enhancedAnalysis.filter(a => a.trend < 0).length;
+    const upwardTrends = enhancedAnalysis.filter((a) => a.trend > 0).length;
+    const downwardTrends = enhancedAnalysis.filter((a) => a.trend < 0).length;
 
     if (upwardTrends > downwardTrends) {
       insights.push({
-        type: 'info',
-        icon: '📈',
-        message: 'Upward trend detected - workload increasing over forecast period'
+        type: "info",
+        icon: "📈",
+        message:
+          "Upward trend detected - workload increasing over forecast period",
       });
     } else if (downwardTrends > upwardTrends) {
       insights.push({
-        type: 'info',
-        icon: '📉',
-        message: 'Downward trend detected - workload decreasing over forecast period'
+        type: "info",
+        icon: "📉",
+        message:
+          "Downward trend detected - workload decreasing over forecast period",
       });
     }
 
     // Seasonal insights
-    const seasonalAdjustments = enhancedAnalysis.filter(a => Math.abs(a.seasonalMultiplier - 1) > 0.05);
+    const seasonalAdjustments = enhancedAnalysis.filter(
+      (a) => Math.abs(a.seasonalMultiplier - 1) > 0.05
+    );
     if (seasonalAdjustments.length > 0) {
       insights.push({
-        type: 'info',
-        icon: '🗓️',
-        message: `${seasonalAdjustments.length} day(s) have significant seasonal adjustments (±5%)`
+        type: "info",
+        icon: "🗓️",
+        message: `${seasonalAdjustments.length} day(s) have significant seasonal adjustments (±5%)`,
       });
     }
 
@@ -150,66 +171,66 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
   const confidenceBandChart = useMemo(() => {
     if (!enhancedAnalysis.length) return { labels: [], datasets: [] };
 
-    const labels = enhancedAnalysis.map(a => 
-      `${a.dayName.slice(0, 3)} ${new Date(a.date).getDate()}`
+    const labels = enhancedAnalysis.map(
+      (a) => `${a.dayName.slice(0, 3)} ${new Date(a.date).getDate()}`
     );
 
     return {
       labels,
       datasets: [
         {
-          label: 'Predicted Weight',
-          data: enhancedAnalysis.map(a => a.totalPredictedWeight),
-          backgroundColor: 'rgba(59, 130, 246, 0.2)',
-          borderColor: 'rgb(59, 130, 246)',
+          label: "Predicted Weight",
+          data: enhancedAnalysis.map((a) => a.totalPredictedWeight),
+          backgroundColor: "rgba(59, 130, 246, 0.2)",
+          borderColor: "rgb(59, 130, 246)",
           borderWidth: 3,
           pointRadius: 6,
           fill: false,
-          tension: 0.4
+          tension: 0.4,
         },
         {
-          label: 'Historical Average',
-          data: enhancedAnalysis.map(a => a.historicalAvg),
-          backgroundColor: 'rgba(34, 197, 94, 0.2)',
-          borderColor: 'rgb(34, 197, 94)',
+          label: "Historical Average",
+          data: enhancedAnalysis.map((a) => a.historicalAvg),
+          backgroundColor: "rgba(34, 197, 94, 0.2)",
+          borderColor: "rgb(34, 197, 94)",
           borderWidth: 2,
           pointRadius: 5,
           borderDash: [5, 5],
           fill: false,
-          tension: 0.4
+          tension: 0.4,
         },
         {
-          label: 'Upper Confidence Bound (95%)',
-          data: enhancedAnalysis.map(a => a.confidenceInterval.upper),
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          borderColor: 'rgba(59, 130, 246, 0.3)',
+          label: "Upper Confidence Bound (95%)",
+          data: enhancedAnalysis.map((a) => a.confidenceInterval.upper),
+          backgroundColor: "rgba(59, 130, 246, 0.1)",
+          borderColor: "rgba(59, 130, 246, 0.3)",
           borderWidth: 1,
           pointRadius: 0,
-          fill: '+1',
-          tension: 0.4
+          fill: "+1",
+          tension: 0.4,
         },
         {
-          label: 'Lower Confidence Bound (95%)',
-          data: enhancedAnalysis.map(a => a.confidenceInterval.lower),
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          borderColor: 'rgba(59, 130, 246, 0.3)',
+          label: "Lower Confidence Bound (95%)",
+          data: enhancedAnalysis.map((a) => a.confidenceInterval.lower),
+          backgroundColor: "rgba(59, 130, 246, 0.1)",
+          borderColor: "rgba(59, 130, 246, 0.3)",
           borderWidth: 1,
           pointRadius: 0,
           fill: false,
-          tension: 0.4
+          tension: 0.4,
         },
         {
-          label: 'Seasonally Adjusted',
-          data: enhancedAnalysis.map(a => a.seasonallyAdjustedPrediction),
-          backgroundColor: 'rgba(168, 85, 247, 0.2)',
-          borderColor: 'rgb(168, 85, 247)',
+          label: "Seasonally Adjusted",
+          data: enhancedAnalysis.map((a) => a.seasonallyAdjustedPrediction),
+          backgroundColor: "rgba(168, 85, 247, 0.2)",
+          borderColor: "rgb(168, 85, 247)",
           borderWidth: 2,
           pointRadius: 4,
           borderDash: [2, 2],
           fill: false,
-          tension: 0.4
-        }
-      ]
+          tension: 0.4,
+        },
+      ],
     };
   }, [enhancedAnalysis]);
 
@@ -217,26 +238,29 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
   const anomalyScatterChart = useMemo(() => {
     if (!enhancedAnalysis.length) return { datasets: [] };
 
-    const normalPoints = enhancedAnalysis.filter(a => !a.isAnomalous);
-    const anomalousPoints = enhancedAnalysis.filter(a => a.isAnomalous);
+    const normalPoints = enhancedAnalysis.filter((a) => !a.isAnomalous);
+    const anomalousPoints = enhancedAnalysis.filter((a) => a.isAnomalous);
 
     return {
       datasets: [
         {
-          label: 'Normal Predictions',
+          label: "Normal Predictions",
           data: normalPoints.map((a, i) => ({ x: i, y: a.zScore })),
-          backgroundColor: 'rgba(34, 197, 94, 0.7)',
-          borderColor: 'rgb(34, 197, 94)',
-          pointRadius: 6
+          backgroundColor: "rgba(34, 197, 94, 0.7)",
+          borderColor: "rgb(34, 197, 94)",
+          pointRadius: 6,
         },
         {
-          label: 'Anomalous Predictions',
-          data: anomalousPoints.map((a, i) => ({ x: enhancedAnalysis.indexOf(a), y: a.zScore })),
-          backgroundColor: 'rgba(239, 68, 68, 0.7)',
-          borderColor: 'rgb(239, 68, 68)',
-          pointRadius: 8
-        }
-      ]
+          label: "Anomalous Predictions",
+          data: anomalousPoints.map((a, i) => ({
+            x: enhancedAnalysis.indexOf(a),
+            y: a.zScore,
+          })),
+          backgroundColor: "rgba(239, 68, 68, 0.7)",
+          borderColor: "rgb(239, 68, 68)",
+          pointRadius: 8,
+        },
+      ],
     };
   }, [enhancedAnalysis]);
 
@@ -244,7 +268,9 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
     return (
       <div className="alert alert-info">
         <h6>🔬 Intelligent Analysis Unavailable</h6>
-        <p className="mb-0">Generate predictions to see advanced intelligence features</p>
+        <p className="mb-0">
+          Generate predictions to see advanced intelligence features
+        </p>
       </div>
     );
   }
@@ -259,13 +285,18 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
           </div>
           <div className="card-body">
             {smartInsights.map((insight, index) => (
-              <div 
-                key={index} 
-                className={`alert alert-${insight.type === 'success' ? 'success' : 
-                          insight.type === 'warning' ? 'warning' : 'info'} mb-2`}
+              <div
+                key={index}
+                className={`alert alert-${
+                  insight.type === "success"
+                    ? "success"
+                    : insight.type === "warning"
+                    ? "warning"
+                    : "info"
+                } mb-2`}
               >
                 <div className="d-flex">
-                  <div className="me-2" style={{ fontSize: '1.2rem' }}>
+                  <div className="me-2" style={{ fontSize: "1.2rem" }}>
                     {insight.icon}
                   </div>
                   <div>
@@ -282,14 +313,25 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
                 <div className="col-6">
                   <div className="border-end">
                     <strong className="d-block">
-                      {Math.round(enhancedAnalysis.reduce((sum, a) => sum + Math.abs(a.percentageDiff), 0) / enhancedAnalysis.length)}%
+                      {Math.round(
+                        enhancedAnalysis.reduce(
+                          (sum, a) => sum + Math.abs(a.percentageDiff),
+                          0
+                        ) / enhancedAnalysis.length
+                      )}
+                      %
                     </strong>
                     <small className="text-muted">Avg Deviation</small>
                   </div>
                 </div>
                 <div className="col-6">
                   <strong className="d-block">
-                    {enhancedAnalysis.filter(a => a.accuracy === 'Excellent' || a.accuracy === 'Good').length}
+                    {
+                      enhancedAnalysis.filter(
+                        (a) =>
+                          a.accuracy === "Excellent" || a.accuracy === "Good"
+                      ).length
+                    }
                   </strong>
                   <small className="text-muted">Reliable Days</small>
                 </div>
@@ -303,35 +345,35 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
           <div className="card-header">
             <h6 className="mb-0">🚨 Anomaly Detection</h6>
           </div>
-          <div className="card-body" style={{ height: '250px' }}>
-            <Scatter 
-              data={anomalyScatterChart} 
+          <div className="card-body" style={{ height: "250px" }}>
+            <Scatter
+              data={anomalyScatterChart}
               options={{
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
                   title: {
                     display: true,
-                    text: 'Statistical Deviation (Z-Score)'
+                    text: "Statistical Deviation (Z-Score)",
                   },
                   legend: {
-                    position: 'bottom'
-                  }
+                    position: "bottom",
+                  },
                 },
                 scales: {
                   x: {
                     title: {
                       display: true,
-                      text: 'Day Index'
-                    }
+                      text: "Day Index",
+                    },
                   },
                   y: {
                     title: {
                       display: true,
-                      text: 'Z-Score (σ)'
-                    }
-                  }
-                }
+                      text: "Z-Score (σ)",
+                    },
+                  },
+                },
               }}
             />
           </div>
@@ -342,18 +384,22 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
       <div className="col-lg-8">
         <div className="card">
           <div className="card-header">
-            <h6 className="mb-0">📊 Advanced Prediction Analysis with Confidence Intervals</h6>
-            <small className="text-muted">95% confidence bands and seasonal adjustments</small>
+            <h6 className="mb-0">
+              📊 Advanced Prediction Analysis with Confidence Intervals
+            </h6>
+            <small className="text-muted">
+              95% confidence bands and seasonal adjustments
+            </small>
           </div>
-          <div className="card-body" style={{ height: '400px' }}>
-            <Line 
-              data={confidenceBandChart} 
+          <div className="card-body" style={{ height: "400px" }}>
+            <Line
+              data={confidenceBandChart}
               options={{
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
                   legend: {
-                    position: 'top'
+                    position: "top",
                   },
                   tooltip: {
                     callbacks: {
@@ -363,25 +409,27 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
                           const analysis = enhancedAnalysis[index];
                           return [
                             `Accuracy: ${analysis.accuracy}`,
-                            `Seasonal Factor: ${(analysis.seasonalMultiplier * 100).toFixed(1)}%`,
+                            `Seasonal Factor: ${(
+                              analysis.seasonalMultiplier * 100
+                            ).toFixed(1)}%`,
                             `Z-Score: ${analysis.zScore.toFixed(2)}σ`,
-                            `Volatility: ${analysis.volatility}`
+                            `Volatility: ${analysis.volatility}`,
                           ];
                         }
                         return [];
-                      }
-                    }
-                  }
+                      },
+                    },
+                  },
                 },
                 scales: {
                   y: {
                     beginAtZero: true,
                     title: {
                       display: true,
-                      text: 'Weight (lbs)'
-                    }
-                  }
-                }
+                      text: "Weight (lbs)",
+                    },
+                  },
+                },
               }}
             />
           </div>
@@ -408,7 +456,10 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
                 </thead>
                 <tbody>
                   {enhancedAnalysis.map((analysis, index) => (
-                    <tr key={index} className={analysis.isAnomalous ? 'table-warning' : ''}>
+                    <tr
+                      key={index}
+                      className={analysis.isAnomalous ? "table-warning" : ""}
+                    >
                       <td>
                         <strong>{analysis.dayName}</strong>
                         <br />
@@ -425,18 +476,34 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
                       </td>
                       <td>{Math.round(analysis.historicalAvg)} lbs</td>
                       <td>
-                        <span className={analysis.difference >= 0 ? 'text-success' : 'text-danger'}>
-                          {analysis.difference >= 0 ? '+' : ''}{Math.round(analysis.difference)} lbs
+                        <span
+                          className={
+                            analysis.difference >= 0
+                              ? "text-success"
+                              : "text-danger"
+                          }
+                        >
+                          {analysis.difference >= 0 ? "+" : ""}
+                          {Math.round(analysis.difference)} lbs
                           <br />
-                          <small>({analysis.percentageDiff >= 0 ? '+' : ''}{Math.round(analysis.percentageDiff)}%)</small>
+                          <small>
+                            ({analysis.percentageDiff >= 0 ? "+" : ""}
+                            {Math.round(analysis.percentageDiff)}%)
+                          </small>
                         </span>
                       </td>
                       <td>
-                        <span className={`badge ${
-                          analysis.accuracy === 'Excellent' ? 'bg-success' :
-                          analysis.accuracy === 'Good' ? 'bg-primary' :
-                          analysis.accuracy === 'Fair' ? 'bg-warning' : 'bg-danger'
-                        }`}>
+                        <span
+                          className={`badge ${
+                            analysis.accuracy === "Excellent"
+                              ? "bg-success"
+                              : analysis.accuracy === "Good"
+                              ? "bg-primary"
+                              : analysis.accuracy === "Fair"
+                              ? "bg-warning"
+                              : "bg-danger"
+                          }`}
+                        >
                           {analysis.accuracy}
                         </span>
                       </td>
@@ -444,13 +511,15 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
                         {(analysis.seasonalMultiplier * 100).toFixed(1)}%
                         <br />
                         <small className="text-muted">
-                          {Math.round(analysis.seasonallyAdjustedPrediction)} lbs
+                          {Math.round(analysis.seasonallyAdjustedPrediction)}{" "}
+                          lbs
                         </small>
                       </td>
                       <td>
                         {analysis.isAnomalous ? (
                           <span className="badge bg-warning">
-                            <i className="bi bi-exclamation-triangle-fill"></i> Anomaly
+                            <i className="bi bi-exclamation-triangle-fill"></i>{" "}
+                            Anomaly
                           </span>
                         ) : (
                           <span className="badge bg-success">
@@ -473,37 +542,40 @@ export const IntelligentPredictionEnhancements: React.FC<IntelligentPredictionPr
 // Helper functions
 function getSeasonalMultiplier(month: number): number {
   const seasonalFactors: { [key: number]: number } = {
-    0: 1.1,   // January - New Year cleanup
-    1: 0.95,  // February - slower month
-    2: 1.05,  // March - spring cleaning
-    3: 1.1,   // April - spring peak
-    4: 1.15,  // May - wedding season
-    5: 1.2,   // June - peak season
-    6: 1.1,   // July - summer
-    7: 1.05,  // August - back to school
-    8: 1.1,   // September - fall cleaning
-    9: 1.0,   // October - normal
-    10: 0.9,  // November - pre-holiday lull
-    11: 1.05  // December - holiday events
+    0: 1.1, // January - New Year cleanup
+    1: 0.95, // February - slower month
+    2: 1.05, // March - spring cleaning
+    3: 1.1, // April - spring peak
+    4: 1.15, // May - wedding season
+    5: 1.2, // June - peak season
+    6: 1.1, // July - summer
+    7: 1.05, // August - back to school
+    8: 1.1, // September - fall cleaning
+    9: 1.0, // October - normal
+    10: 0.9, // November - pre-holiday lull
+    11: 1.05, // December - holiday events
   };
   return seasonalFactors[month] || 1.0;
 }
 
-function calculatePredictionAccuracy(predicted: number, historical: number): string {
-  if (historical === 0) return 'N/A';
+function calculatePredictionAccuracy(
+  predicted: number,
+  historical: number
+): string {
+  if (historical === 0) return "N/A";
   const accuracy = 100 - Math.abs((predicted - historical) / historical) * 100;
-  if (accuracy >= 95) return 'Excellent';
-  if (accuracy >= 85) return 'Good';
-  if (accuracy >= 70) return 'Fair';
-  return 'Needs Improvement';
+  if (accuracy >= 95) return "Excellent";
+  if (accuracy >= 85) return "Good";
+  if (accuracy >= 70) return "Fair";
+  return "Needs Improvement";
 }
 
 function calculateVolatility(variance: number, mean: number): string {
-  if (mean === 0) return 'N/A';
+  if (mean === 0) return "N/A";
   const coefficientOfVariation = (Math.sqrt(variance) / mean) * 100;
-  if (coefficientOfVariation < 10) return 'Low';
-  if (coefficientOfVariation < 25) return 'Moderate';
-  return 'High';
+  if (coefficientOfVariation < 10) return "Low";
+  if (coefficientOfVariation < 25) return "Moderate";
+  return "High";
 }
 
 export default IntelligentPredictionEnhancements;

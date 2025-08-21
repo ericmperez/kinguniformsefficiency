@@ -381,10 +381,12 @@ class ExternalDataIntegrationService {
 
     // Determine condition based on precipitation and temperature
     let condition: WeatherData['condition'] = 'sunny';
-    if (precipitation > 0.5) condition = 'rainy';
+    if (precipitation > 2.0 && temperature > 32) condition = 'stormy';
+    else if (precipitation > 0.5 && temperature <= 32) condition = 'snowy';
+    else if (precipitation > 0.5) condition = 'rainy';
     else if (precipitation > 0.1) condition = 'cloudy';
-    else if (temperature > 80) condition = 'sunny';
     else if (humidity > 85) condition = 'foggy';
+    else if (temperature > 80) condition = 'sunny';
 
     // Determine severity
     let severity: WeatherData['severity'] = 'low';

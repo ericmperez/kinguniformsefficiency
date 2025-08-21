@@ -31,6 +31,7 @@
     "html2pdf.js": "^0.10.3",
     "idb": "^8.0.3",
     "jspdf": "^3.0.1",
+    "lucide-react": "^0.540.0",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.5",
     "pdf-lib": "^1.17.1",

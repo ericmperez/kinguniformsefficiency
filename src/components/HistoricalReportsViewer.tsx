@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 
 interface ProductionReport {
   date: string;
@@ -59,10 +59,14 @@ interface ProductionReport {
 
 const HistoricalReportsViewer: React.FC = () => {
   const [reports, setReports] = useState<ProductionReport[]>([]);
-  const [filteredReports, setFilteredReports] = useState<ProductionReport[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedReport, setSelectedReport] = useState<ProductionReport | null>(null);
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [filteredReports, setFilteredReports] = useState<ProductionReport[]>(
+    []
+  );
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedReport, setSelectedReport] = useState<ProductionReport | null>(
+    null
+  );
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -74,19 +78,21 @@ const HistoricalReportsViewer: React.FC = () => {
   const loadReports = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/historical-reports');
+      const response = await fetch(
+        "http://localhost:3001/api/historical-reports"
+      );
       const data = await response.json();
-      
+
       if (data.success) {
         setReports(data.reports || []);
         setFilteredReports(data.reports || []);
       } else {
-        console.error('Failed to load reports:', data.error);
+        console.error("Failed to load reports:", data.error);
         setReports([]);
         setFilteredReports([]);
       }
     } catch (error) {
-      console.error('Error loading reports:', error);
+      console.error("Error loading reports:", error);
       setReports([]);
       setFilteredReports([]);
     } finally {
@@ -99,24 +105,32 @@ const HistoricalReportsViewer: React.FC = () => {
     let filtered = reports;
 
     if (searchTerm) {
-      filtered = filtered.filter(report => 
-        report.displayDate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        report.date.includes(searchTerm) ||
-        (report.summary && (
-          report.summary.firstEntry.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          report.summary.firstEntry.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          report.topProducts?.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          report.clientSummary?.some(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
-        ))
+      filtered = filtered.filter(
+        (report) =>
+          report.displayDate.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          report.date.includes(searchTerm) ||
+          (report.summary &&
+            (report.summary.firstEntry.client
+              .toLowerCase()
+              .includes(searchTerm.toLowerCase()) ||
+              report.summary.firstEntry.product
+                .toLowerCase()
+                .includes(searchTerm.toLowerCase()) ||
+              report.topProducts?.some((p) =>
+                p.name.toLowerCase().includes(searchTerm.toLowerCase())
+              ) ||
+              report.clientSummary?.some((c) =>
+                c.name.toLowerCase().includes(searchTerm.toLowerCase())
+              )))
       );
     }
 
     if (dateRange.start) {
-      filtered = filtered.filter(report => report.date >= dateRange.start);
+      filtered = filtered.filter((report) => report.date >= dateRange.start);
     }
 
     if (dateRange.end) {
-      filtered = filtered.filter(report => report.date <= dateRange.end);
+      filtered = filtered.filter((report) => report.date <= dateRange.end);
     }
 
     setFilteredReports(filtered);
@@ -125,29 +139,32 @@ const HistoricalReportsViewer: React.FC = () => {
   const generateReport = async (date: string) => {
     setGenerating(true);
     try {
-      const response = await fetch('http://localhost:3001/api/historical-reports', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'date',
-          date: date
-        })
-      });
-      
+      const response = await fetch(
+        "http://localhost:3001/api/historical-reports",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "date",
+            date: date,
+          }),
+        }
+      );
+
       const data = await response.json();
-      
+
       if (data.success) {
         alert(`Report generated successfully for ${date}!`);
         await loadReports();
       } else {
-        console.error('Failed to generate report:', data.error);
+        console.error("Failed to generate report:", data.error);
         alert(`Error generating report: ${data.error}`);
       }
     } catch (error) {
-      console.error('Error generating report:', error);
-      alert('Error generating report. Check console for details.');
+      console.error("Error generating report:", error);
+      alert("Error generating report. Check console for details.");
     } finally {
       setGenerating(false);
     }
@@ -155,36 +172,41 @@ const HistoricalReportsViewer: React.FC = () => {
 
   const generateDateRange = async () => {
     if (!dateRange.start || !dateRange.end) {
-      alert('Please select both start and end dates');
+      alert("Please select both start and end dates");
       return;
     }
-    
+
     setGenerating(true);
     try {
-      const response = await fetch('http://localhost:3001/api/historical-reports', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'range',
-          startDate: dateRange.start,
-          endDate: dateRange.end
-        })
-      });
-      
+      const response = await fetch(
+        "http://localhost:3001/api/historical-reports",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "range",
+            startDate: dateRange.start,
+            endDate: dateRange.end,
+          }),
+        }
+      );
+
       const data = await response.json();
-      
+
       if (data.success) {
-        alert(`Reports generated successfully for ${dateRange.start} to ${dateRange.end}!`);
+        alert(
+          `Reports generated successfully for ${dateRange.start} to ${dateRange.end}!`
+        );
         await loadReports();
       } else {
-        console.error('Failed to generate reports:', data.error);
+        console.error("Failed to generate reports:", data.error);
         alert(`Error generating reports: ${data.error}`);
       }
     } catch (error) {
-      console.error('Error generating date range:', error);
-      alert('Error generating reports. Check console for details.');
+      console.error("Error generating date range:", error);
+      alert("Error generating reports. Check console for details.");
     } finally {
       setGenerating(false);
     }
@@ -192,13 +214,14 @@ const HistoricalReportsViewer: React.FC = () => {
 
   const exportReport = (report: ProductionReport) => {
     const dataStr = JSON.stringify(report, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
+    const dataUri =
+      "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
+
     const exportFileDefaultName = `production-report-${report.date}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
+
+    const linkElement = document.createElement("a");
+    linkElement.setAttribute("href", dataUri);
+    linkElement.setAttribute("download", exportFileDefaultName);
     linkElement.click();
   };
 
@@ -222,8 +245,12 @@ const HistoricalReportsViewer: React.FC = () => {
         <div className="col-12">
           <div className="d-flex align-items-center justify-between">
             <div>
-              <h1 className="display-4 fw-bold text-primary">📊 Historical Production Reports</h1>
-              <p className="text-muted">Search and analyze production data across any date range</p>
+              <h1 className="display-4 fw-bold text-primary">
+                📊 Historical Production Reports
+              </h1>
+              <p className="text-muted">
+                Search and analyze production data across any date range
+              </p>
             </div>
             <div className="badge bg-primary fs-6">
               📄 {filteredReports.length} Reports
@@ -235,9 +262,7 @@ const HistoricalReportsViewer: React.FC = () => {
       {/* Controls */}
       <div className="card mb-4">
         <div className="card-header">
-          <h5 className="card-title mb-0">
-            🔧 Report Controls
-          </h5>
+          <h5 className="card-title mb-0">🔧 Report Controls</h5>
         </div>
         <div className="card-body">
           {/* Search */}
@@ -265,7 +290,9 @@ const HistoricalReportsViewer: React.FC = () => {
                   type="date"
                   className="form-control"
                   value={dateRange.start}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  onChange={(e) =>
+                    setDateRange((prev) => ({ ...prev, start: e.target.value }))
+                  }
                 />
               </div>
             </div>
@@ -276,17 +303,19 @@ const HistoricalReportsViewer: React.FC = () => {
                   type="date"
                   className="form-control"
                   value={dateRange.end}
-                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  onChange={(e) =>
+                    setDateRange((prev) => ({ ...prev, end: e.target.value }))
+                  }
                 />
               </div>
             </div>
             <div className="col-md-4">
-              <button 
+              <button
                 className="btn btn-primary w-100"
-                onClick={generateDateRange} 
+                onClick={generateDateRange}
                 disabled={generating}
               >
-                {generating ? '⏳ Generating...' : '🔄 Generate Range'}
+                {generating ? "⏳ Generating..." : "🔄 Generate Range"}
               </button>
             </div>
           </div>
@@ -294,21 +323,24 @@ const HistoricalReportsViewer: React.FC = () => {
           {/* Quick Actions */}
           <div className="row">
             <div className="col-md-3">
-              <button 
+              <button
                 className="btn btn-outline-primary w-100"
                 onClick={async () => {
                   setGenerating(true);
                   try {
-                    const response = await fetch('http://localhost:3001/api/historical-reports', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({ action: 'today' })
-                    });
-                    
+                    const response = await fetch(
+                      "http://localhost:3001/api/historical-reports",
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ action: "today" }),
+                      }
+                    );
+
                     const data = await response.json();
-                    
+
                     if (data.success) {
                       alert("Today's report generated successfully!");
                       await loadReports();
@@ -316,8 +348,8 @@ const HistoricalReportsViewer: React.FC = () => {
                       alert(`Error: ${data.error}`);
                     }
                   } catch (error) {
-                    console.error('Error:', error);
-                    alert('Error generating report');
+                    console.error("Error:", error);
+                    alert("Error generating report");
                   } finally {
                     setGenerating(false);
                   }
@@ -328,16 +360,22 @@ const HistoricalReportsViewer: React.FC = () => {
               </button>
             </div>
             <div className="col-md-3">
-              <button 
+              <button
                 className="btn btn-outline-secondary w-100"
-                onClick={() => generateReport(new Date(Date.now() - 24*60*60*1000).toISOString().split('T')[0])}
+                onClick={() =>
+                  generateReport(
+                    new Date(Date.now() - 24 * 60 * 60 * 1000)
+                      .toISOString()
+                      .split("T")[0]
+                  )
+                }
                 disabled={generating}
               >
                 🕐 Generate Yesterday
               </button>
             </div>
             <div className="col-md-3">
-              <button 
+              <button
                 className="btn btn-outline-info w-100"
                 onClick={loadReports}
               >
@@ -352,10 +390,19 @@ const HistoricalReportsViewer: React.FC = () => {
       <div className="alert alert-warning" role="alert">
         <h6 className="alert-heading">💻 Command Line Usage</h6>
         <small>
-          <strong>Today's Report:</strong> <code>node historical-production-report.js today</code><br/>
-          <strong>Specific Date:</strong> <code>node historical-production-report.js date 2024-01-15</code><br/>
-          <strong>Date Range:</strong> <code>node historical-production-report.js range 2024-01-01 2024-01-31</code><br/>
-          <strong>Search Reports:</strong> <code>node historical-production-report.js search "client name"</code>
+          <strong>Today's Report:</strong>{" "}
+          <code>node historical-production-report.js today</code>
+          <br />
+          <strong>Specific Date:</strong>{" "}
+          <code>node historical-production-report.js date 2024-01-15</code>
+          <br />
+          <strong>Date Range:</strong>{" "}
+          <code>
+            node historical-production-report.js range 2024-01-01 2024-01-31
+          </code>
+          <br />
+          <strong>Search Reports:</strong>{" "}
+          <code>node historical-production-report.js search "client name"</code>
         </small>
       </div>
 
@@ -366,13 +413,16 @@ const HistoricalReportsViewer: React.FC = () => {
             <i className="fas fa-file-alt fa-4x text-muted mb-3"></i>
             <h3 className="text-muted">No Reports Found</h3>
             <p className="text-muted">
-              {searchTerm || dateRange.start || dateRange.end 
-                ? 'No reports match your current filters. Try adjusting your search criteria.' 
-                : 'No production reports have been generated yet. Use the commands above to generate reports.'}
+              {searchTerm || dateRange.start || dateRange.end
+                ? "No reports match your current filters. Try adjusting your search criteria."
+                : "No production reports have been generated yet. Use the commands above to generate reports."}
             </p>
-            <button 
+            <button
               className="btn btn-primary"
-              onClick={() => {setSearchTerm(''); setDateRange({start: '', end: ''});}}
+              onClick={() => {
+                setSearchTerm("");
+                setDateRange({ start: "", end: "" });
+              }}
             >
               Clear Filters
             </button>
@@ -382,9 +432,17 @@ const HistoricalReportsViewer: React.FC = () => {
         <div className="row">
           {filteredReports.map((report) => (
             <div className="col-12 mb-4" key={report.date}>
-              <div className={`card h-100 ${selectedReport?.date === report.date ? 'border-primary' : ''}`} 
-                   style={{ cursor: 'pointer' }}
-                   onClick={() => setSelectedReport(selectedReport?.date === report.date ? null : report)}>
+              <div
+                className={`card h-100 ${
+                  selectedReport?.date === report.date ? "border-primary" : ""
+                }`}
+                style={{ cursor: "pointer" }}
+                onClick={() =>
+                  setSelectedReport(
+                    selectedReport?.date === report.date ? null : report
+                  )
+                }
+              >
                 <div className="card-header">
                   <div className="d-flex justify-content-between align-items-center">
                     <div>
@@ -392,7 +450,8 @@ const HistoricalReportsViewer: React.FC = () => {
                         📅 {report.displayDate}
                       </h5>
                       <small className="text-muted">
-                        Generated: {new Date(report.generatedAt).toLocaleString()}
+                        Generated:{" "}
+                        {new Date(report.generatedAt).toLocaleString()}
                       </small>
                     </div>
                     <div className="d-flex align-items-center gap-2">
@@ -415,33 +474,47 @@ const HistoricalReportsViewer: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 {!report.isEmpty && report.summary && (
                   <div className="card-body">
                     <div className="row text-center">
                       <div className="col-md-3">
-                        <h4 className="text-primary">{report.summary.totalItems}</h4>
+                        <h4 className="text-primary">
+                          {report.summary.totalItems}
+                        </h4>
                         <small className="text-muted">Items</small>
                       </div>
                       <div className="col-md-3">
-                        <h4 className="text-success">{report.summary.totalQuantity.toLocaleString()}</h4>
+                        <h4 className="text-success">
+                          {report.summary.totalQuantity.toLocaleString()}
+                        </h4>
                         <small className="text-muted">Units</small>
                       </div>
                       <div className="col-md-3">
-                        <h4 className="text-info">{report.summary.uniqueClients}</h4>
+                        <h4 className="text-info">
+                          {report.summary.uniqueClients}
+                        </h4>
                         <small className="text-muted">Clients</small>
                       </div>
                       <div className="col-md-3">
-                        <h4 className="text-warning">{report.summary.rates.production}</h4>
+                        <h4 className="text-warning">
+                          {report.summary.rates.production}
+                        </h4>
                         <small className="text-muted">Units/Hr</small>
                       </div>
                     </div>
-                    
+
                     <hr />
-                    
+
                     <div className="d-flex justify-content-between text-sm">
-                      <span>First: {report.summary.firstEntry.time} - {report.summary.firstEntry.product}</span>
-                      <span>Last: {report.summary.lastEntry.time} - {report.summary.lastEntry.product}</span>
+                      <span>
+                        First: {report.summary.firstEntry.time} -{" "}
+                        {report.summary.firstEntry.product}
+                      </span>
+                      <span>
+                        Last: {report.summary.lastEntry.time} -{" "}
+                        {report.summary.lastEntry.product}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -455,7 +528,9 @@ const HistoricalReportsViewer: React.FC = () => {
       {selectedReport && !selectedReport.isEmpty && selectedReport.summary && (
         <div className="card mt-4">
           <div className="card-header">
-            <h5 className="card-title">📋 Detailed Report - {selectedReport.displayDate}</h5>
+            <h5 className="card-title">
+              📋 Detailed Report - {selectedReport.displayDate}
+            </h5>
           </div>
           <div className="card-body">
             {/* Timing Summary */}
@@ -465,8 +540,11 @@ const HistoricalReportsViewer: React.FC = () => {
                 <div className="card bg-light">
                   <div className="card-body text-center">
                     <h6 className="text-success">First Item</h6>
-                    <p className="fw-bold">{selectedReport.summary.firstEntry.time}</p>
-                    <small>{selectedReport.summary.firstEntry.product}</small><br/>
+                    <p className="fw-bold">
+                      {selectedReport.summary.firstEntry.time}
+                    </p>
+                    <small>{selectedReport.summary.firstEntry.product}</small>
+                    <br />
                     <small>{selectedReport.summary.firstEntry.client}</small>
                   </div>
                 </div>
@@ -475,8 +553,11 @@ const HistoricalReportsViewer: React.FC = () => {
                 <div className="card bg-light">
                   <div className="card-body text-center">
                     <h6 className="text-danger">Last Item</h6>
-                    <p className="fw-bold">{selectedReport.summary.lastEntry.time}</p>
-                    <small>{selectedReport.summary.lastEntry.product}</small><br/>
+                    <p className="fw-bold">
+                      {selectedReport.summary.lastEntry.time}
+                    </p>
+                    <small>{selectedReport.summary.lastEntry.product}</small>
+                    <br />
                     <small>{selectedReport.summary.lastEntry.client}</small>
                   </div>
                 </div>
@@ -486,7 +567,8 @@ const HistoricalReportsViewer: React.FC = () => {
                   <div className="card-body text-center">
                     <h6 className="text-warning">Production Span</h6>
                     <p className="fw-bold">
-                      {selectedReport.summary.productionSpan.hours}h {selectedReport.summary.productionSpan.minutes}m
+                      {selectedReport.summary.productionSpan.hours}h{" "}
+                      {selectedReport.summary.productionSpan.minutes}m
                     </p>
                     <small>Active Production</small>
                   </div>
@@ -500,9 +582,12 @@ const HistoricalReportsViewer: React.FC = () => {
               {selectedReport.topProducts?.slice(0, 5).map((product, index) => (
                 <div className="col-12 mb-2" key={product.name}>
                   <div className="d-flex justify-content-between align-items-center p-2 bg-light rounded">
-                    <span className="fw-bold">{index + 1}. {product.name}</span>
+                    <span className="fw-bold">
+                      {index + 1}. {product.name}
+                    </span>
                     <small className="text-muted">
-                      {product.quantity.toLocaleString()} units • {product.items} entries • {product.clients} clients
+                      {product.quantity.toLocaleString()} units •{" "}
+                      {product.items} entries • {product.clients} clients
                     </small>
                   </div>
                 </div>
@@ -512,16 +597,21 @@ const HistoricalReportsViewer: React.FC = () => {
             {/* Client Summary */}
             <h6 className="mb-3">👥 Client Summary</h6>
             <div className="row">
-              {selectedReport.clientSummary?.slice(0, 5).map((client, index) => (
-                <div className="col-12 mb-2" key={client.name}>
-                  <div className="d-flex justify-content-between align-items-center p-2 bg-light rounded">
-                    <span className="fw-bold">{index + 1}. {client.name}</span>
-                    <small className="text-muted">
-                      {client.quantity.toLocaleString()} units • {client.items} items • {client.products} products
-                    </small>
+              {selectedReport.clientSummary
+                ?.slice(0, 5)
+                .map((client, index) => (
+                  <div className="col-12 mb-2" key={client.name}>
+                    <div className="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                      <span className="fw-bold">
+                        {index + 1}. {client.name}
+                      </span>
+                      <small className="text-muted">
+                        {client.quantity.toLocaleString()} units •{" "}
+                        {client.items} items • {client.products} products
+                      </small>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         </div>

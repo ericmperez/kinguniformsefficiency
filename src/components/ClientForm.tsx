@@ -279,13 +279,15 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                                 objectFit: "cover",
                               }}
                             />
-                          )}
-                          <span
-                            className="fw-semibold text-center"
-                            style={{ fontSize: 15 }}
-                          >
-                            {product.name}
-                          </span>
+                          )}                                <span
+                                  className="product-name medium interactive"
+                                  style={{
+                                    display: "block",
+                                    width: "100%"
+                                  }}
+                                >
+                                  {product.name}
+                                </span>
                         </div>
                       </label>
                     </div>
@@ -883,8 +885,11 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                                   />
                                 )}
                                 <span
-                                  className="fw-semibold text-center"
-                                  style={{ fontSize: 15 }}
+                                  className="product-name medium interactive"
+                                  style={{
+                                    display: "block",
+                                    width: "100%"
+                                  }}
                                 >
                                   {product.name}
                                 </span>
