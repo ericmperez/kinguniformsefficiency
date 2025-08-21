@@ -2564,7 +2564,7 @@ const PredictionScheduleDashboard: React.FC = () => {
                     <div className={`alert ${
                       next7DaysPredictions[0].confidenceLevel > 0.7 ? 'alert-success' :
                       next7DaysPredictions[0].confidenceLevel > 0.5 ? 'alert-warning' : 'alert-danger'
-                    }`}>I j</div>
+                    }`}>
                       <h6>Tomorrow ({next7DaysPredictions[0]?.dayName}) - {(next7DaysPredictions[0]?.confidenceLevel * 100).toFixed(0)}% Confidence</h6>
                       <ul className="mb-2">
                         <li>Expected workload: <strong>{next7DaysPredictions[0]?.totalPredictedWeight} lbs</strong></li>

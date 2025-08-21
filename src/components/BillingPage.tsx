@@ -692,19 +692,19 @@ const BillingPage: React.FC = () => {
         );
       }
       
-      // Base subtotal (products + peso + general delivery)
-      let baseSubtotalOnly = baseSubtotal + generalDeliveryChargeValue;
+      // Base subtotal (products + peso only - general delivery excluded)
+      let baseSubtotalOnly = baseSubtotal;
       
       // Display subtotal (with minimum billing applied if needed, plus special delivery charges only)
       let displaySubtotal = baseSubtotalOnly + deliveryChargeValue;
       if (minValue > 0 && baseSubtotal < minValue) {
-        displaySubtotal = minValue + generalDeliveryChargeValue + deliveryChargeValue;
+        displaySubtotal = minValue + deliveryChargeValue;
       }
       
-      // Calculate the higher subtotal value for service charge calculation (includes general delivery)
-      let subtotalForServiceCharge = baseSubtotal + generalDeliveryChargeValue;
+      // Calculate the higher subtotal value for service charge calculation (excludes general delivery)
+      let subtotalForServiceCharge = baseSubtotal;
       if (minValue > 0 && baseSubtotal < minValue) {
-        subtotalForServiceCharge = minValue + generalDeliveryChargeValue;
+        subtotalForServiceCharge = minValue;
       }
       
       let serviceCharge = 0;
@@ -781,9 +781,9 @@ const BillingPage: React.FC = () => {
         );
       }
       
-      // Calculate grand total: only displaySubtotal + surcharge + service + delivery charge
+      // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
       // (excludes fuel, nudos, disposable fee - these appear as separate columns)
-      const grandTotal = displaySubtotal + surchargeValue + serviceCharge;
+      const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
       
       // Build the CSV row with basic invoice info
       const csvRow: CSVRow = {
@@ -1771,11 +1771,11 @@ const BillingPage: React.FC = () => {
                         {productColumns.map((prod) => (
                           <th key={prod.id} style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>{prod.name}</th>
                         ))}
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Subtotal (Base)</th>
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Minimum Billing</th>
                         {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
                           <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>General Delivery</th>
                         )}
-                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Subtotal (Base)</th>
-                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Minimum Billing</th>
                         {serviceChargeEnabled && <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Service Charge</th>}
                         {surchargeEnabled && <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Surcharge</th>}
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Total</th>
@@ -1952,19 +1952,19 @@ const BillingPage: React.FC = () => {
                             );
                           }
                           
-                          // Base subtotal (products + peso + general delivery)
-                          let baseSubtotal = subtotal + pesoSubtotal + generalDeliveryChargeValue;
+                          // Base subtotal (products + peso only - general delivery excluded)
+                          let baseSubtotal = subtotal + pesoSubtotal;
                           
                           // Display subtotal (with minimum billing applied if needed, plus special delivery charges only)
                           let displaySubtotal = baseSubtotal + deliveryChargeValue;
                           if (minValue > 0 && (subtotal + pesoSubtotal) < minValue) {
-                            displaySubtotal = minValue + generalDeliveryChargeValue + deliveryChargeValue;
+                            displaySubtotal = minValue + deliveryChargeValue;
                           }
                           
-                          // Calculate the higher subtotal value for service charge calculation (includes general delivery)
+                          // Calculate the higher subtotal value for service charge calculation (excludes general delivery)
                           let subtotalForServiceCharge = baseSubtotal;
                           if (minValue > 0 && (subtotal + pesoSubtotal) < minValue) {
-                            subtotalForServiceCharge = minValue + generalDeliveryChargeValue;
+                            subtotalForServiceCharge = minValue;
                           }
                           
                           // Calculate charges using formulas
@@ -2039,9 +2039,9 @@ const BillingPage: React.FC = () => {
                             );
                           }
                           
-                          // Calculate grand total: only displaySubtotal + surcharge + service + delivery charge
+                          // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
                           // (excludes fuel, nudos, disposable fee - these appear as separate columns)
-                          const grandTotal = displaySubtotal + surchargeValue + serviceCharge;
+                          const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
                           return (
                             <tr
                               key={inv.id}
@@ -2177,16 +2177,6 @@ const BillingPage: React.FC = () => {
                                 }
                                 return <td key={prod.id}>{cell}</td>;
                               })}
-                              {/* General Delivery */}
-                              {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
-                                <td style={nowrapCellStyle}>
-                                  <b>
-                                    {generalDeliveryChargeValue > 0
-                                      ? `$${generalDeliveryChargeValue.toFixed(2)}`
-                                      : ""}
-                                  </b>
-                                </td>
-                              )}
                               {/* Base Subtotal (without minimum billing) */}
                               <td style={{
                                 ...nowrapCellStyle,
@@ -2213,6 +2203,16 @@ const BillingPage: React.FC = () => {
                                     : ""}
                                 </b>
                               </td>
+                              {/* General Delivery */}
+                              {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
+                                <td style={nowrapCellStyle}>
+                                  <b>
+                                    {generalDeliveryChargeValue > 0
+                                      ? `$${generalDeliveryChargeValue.toFixed(2)}`
+                                      : ""}
+                                  </b>
+                                </td>
+                              )}
                               {serviceChargeEnabled && (
                                 <td style={nowrapCellStyle}>
                                   <b>
@@ -2402,47 +2402,6 @@ const BillingPage: React.FC = () => {
                             </td>
                           );
                         })}
-                        {/* General Delivery total */}
-                        {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
-                          <td style={nowrapCellStyle}>
-                            {(() => {
-                              let total = 0;
-                              clientInvoices
-                                .filter((inv) =>
-                                  selectedInvoiceIds.includes(inv.id)
-                                )
-                                .forEach((inv) => {
-                                  let subtotal = 0;
-                                  let pesoSubtotal = 0;
-                                  productColumns.forEach((prod) => {
-                                    if (prod.name.toLowerCase().includes("peso")) {
-                                      const pesoPrice = productPrices[prod.id];
-                                      if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
-                                        pesoSubtotal += inv.totalWeight * pesoPrice;
-                                      }
-                                    } else {
-                                      const qty = (inv.carts || []).reduce((sum, cart) => {
-                                        return sum + (cart.items || [])
-                                          .filter((item) => item.productId === prod.id)
-                                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
-                                      }, 0);
-                                      const price = productPrices[prod.id];
-                                      if (qty > 0 && price > 0) subtotal += qty * price;
-                                    }
-                                  });
-                                  
-                                  total += calculateCharge(
-                                    generalDeliveryChargeFormula,
-                                    Number(generalDeliveryCharge),
-                                    subtotal + pesoSubtotal,
-                                    1,
-                                    0
-                                  );
-                                });
-                              return total > 0 ? `$${total.toFixed(2)}` : "";
-                            })()}
-                          </td>
-                        )}
                         {/* Base Subtotal total (without minimum billing) */}
                         <td style={nowrapCellStyle}>
                           {(() => {
@@ -2616,6 +2575,47 @@ const BillingPage: React.FC = () => {
                             );
                           })()}
                         </td>
+                        {/* General Delivery total */}
+                        {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let subtotal = 0;
+                                  let pesoSubtotal = 0;
+                                  productColumns.forEach((prod) => {
+                                    if (prod.name.toLowerCase().includes("peso")) {
+                                      const pesoPrice = productPrices[prod.id];
+                                      if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
+                                        pesoSubtotal += inv.totalWeight * pesoPrice;
+                                      }
+                                    } else {
+                                      const qty = (inv.carts || []).reduce((sum, cart) => {
+                                        return sum + (cart.items || [])
+                                          .filter((item) => item.productId === prod.id)
+                                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                      }, 0);
+                                      const price = productPrices[prod.id];
+                                      if (qty > 0 && price > 0) subtotal += qty * price;
+                                    }
+                                  });
+                                  
+                                  total += calculateCharge(
+                                    generalDeliveryChargeFormula,
+                                    Number(generalDeliveryCharge),
+                                    subtotal + pesoSubtotal,
+                                    1,
+                                    0
+                                  );
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
                         {/* Service Charge total */}
                         {serviceChargeEnabled && (
                           <td style={nowrapCellStyle}>
