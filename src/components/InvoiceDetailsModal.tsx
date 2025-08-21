@@ -1725,8 +1725,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                     </div>
                                   )}
 
-                                  <div className="card-body d-flex align-items-center justify-content-between py-3 px-4" style={{ position: "relative", zIndex: 2 }}>
-                                    {/* Product name */}
+                                  <div className="card-body d-flex align-items-center justify-content-center py-0 px-4" style={{ position: "relative", zIndex: 2, height: "100%" }}>
+                                    {/* Product name - perfectly centered */}
                                     <h6
                                       className="fw-bold mb-0"
                                       style={{ 
@@ -1737,15 +1737,24 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                         textTransform: "capitalize",
                                         lineHeight: 1.2,
                                         transition: "color 0.25s ease",
-                                        flex: 1
+                                        textAlign: "center",
+                                        width: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        paddingRight: "80px" // Leave space for the indicator
                                       }}
                                     >
                                       {product.name}
                                     </h6>
 
-                                    {/* Add indicator */}
+                                    {/* Add indicator - positioned absolute */}
                                     <div
                                       style={{
+                                        position: "absolute",
+                                        top: "50%",
+                                        right: 16,
+                                        transform: "translateY(-50%)",
                                         padding: "6px 12px",
                                         borderRadius: 8,
                                         fontSize: 12,
@@ -1756,8 +1765,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                         color: selectedProductId === product.id ? "#0E62A0" : "#64748b",
                                         transition: "all 0.25s ease",
                                         textTransform: "uppercase",
-                                        letterSpacing: "0.5px",
-                                        flexShrink: 0
+                                        letterSpacing: "0.5px"
                                       }}
                                     >
                                       {selectedProductId === product.id ? "Selected" : "Tap to Add"}
