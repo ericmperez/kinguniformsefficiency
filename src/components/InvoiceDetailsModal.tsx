@@ -1374,7 +1374,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 >
                   <div
                     className="modal-dialog"
-                    style={{ maxWidth: 320, margin: "120px auto" }}
+                    style={{ maxWidth: 320, margin: "120px auto 80px auto" }}
                   >
                     <div className="modal-content">
                       <div className="modal-header">
@@ -1631,7 +1631,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     className="modal show"
                     style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
                   >
-                    <div className="modal-dialog modal-lg">
+                    <div className="modal-dialog modal-lg" style={{ margin: "0 auto 80px auto" }}>
                       <div className="modal-content">
                         <div className="modal-header">
                           <h5 className="modal-title">Add Product</h5>
@@ -1690,7 +1690,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     className="modal show"
                     style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
                   >
-                    <div className="modal-dialog">
+                    <div className="modal-dialog" style={{ margin: "0 auto 80px auto" }}>
                       <div className="modal-content">
                         <div className="modal-header">
                           <h5 className="modal-title">Enter Quantity</h5>
@@ -2391,7 +2391,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             zIndex: 3000,
           }}
         >
-          <div className="modal-dialog" style={{ marginTop: "10vh" }}>
+          <div className="modal-dialog" style={{ margin: "10vh auto 80px auto" }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Confirm Product Addition</h5>
@@ -2870,7 +2870,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   maxWidth: "70vw", 
                   width: "70vw", 
                   minWidth: "800px",
-                  margin: "2vh auto"
+                  margin: "2vh auto 80px auto"
                 }}
               >
                 <div className="modal-content" style={{ height: "90vh" }}>
@@ -2980,7 +2980,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           tabIndex={-1} 
           style={{ background: "rgba(0,0,0,0.5)", zIndex: 2100 }}
         >
-          <div className="modal-dialog" style={{ maxWidth: 600, margin: "60px auto" }}>
+          <div className="modal-dialog" style={{ maxWidth: 600, margin: "60px auto 80px auto" }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">🚛 Loading Checklist</h5>
