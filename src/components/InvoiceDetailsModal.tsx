@@ -103,9 +103,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [showSpecialServiceConfirmation, setShowSpecialServiceConfirmation] = React.useState(false);
   const [pendingSpecialServiceState, setPendingSpecialServiceState] = React.useState<boolean>(false);
 
-  // Approval tabs state
-  const [activeApprovalTab, setActiveApprovalTab] = React.useState<'status' | 'history' | 'details'>('status');
-
   // Helper function to get current user safely
   const getCurrentUser = () => {
     try {
@@ -951,19 +948,12 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [showCreateCartConfirm, setShowCreateCartConfirm] = React.useState(false);
   const [pendingCartName, setPendingCartName] = React.useState("");
 
-  // Helper to check if invoice has any 'CARRO SIN NOMBRE' cart
-  const hasUnnamedCart = (invoice: Invoice) => {
-    return (invoice.carts || []).some((c) =>
-      c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
-    );
-  };
-
   return (
     <div
       className="modal show"
       style={{
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: "center",
         justifyContent: "center",
         background: "rgba(0,0,0,0.3)",
         position: "fixed",
@@ -973,7 +963,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
         height: "100vh",
         zIndex: 2000,
         overflowY: "auto",
-        paddingTop: "80px", // Add padding to account for navigation header
       }}
       onClick={(e) => {
         // Only close if the click is on the overlay, not inside the modal-dialog
@@ -985,7 +974,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       <div
         className="modal-dialog invoice-details-modal"
         style={{
-          margin: "0 auto 80px auto", // Top margin handled by parent padding, add bottom margin
+          margin: "auto",
           maxWidth: "70vw",
           width: "70vw",
           minWidth: 320,
@@ -1088,28 +1077,10 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             ></button>
           </div>
           <div className="modal-body">
-            {/* Client, Date, and Weight on the same line */}
-            <div className="d-flex flex-row align-items-center gap-4 mb-3 flex-wrap">
-              <h6 className="mb-0">
-                <strong>Client:</strong> {invoice.clientName}
-              </h6>
-              <h6 className="mb-0">
-                <strong>Date:</strong> {invoice.date ? formatDateSpanish(invoice.date) : "-"}
-              </h6>
-              {/* Show group weight if available on invoice or client */}
-              {typeof invoice.totalWeight === "number" && (
-                <h6 className="mb-0 text-success">
-                  <strong>Group Weight:</strong> {invoice.totalWeight} lbs
-                </h6>
-              )}
-              {client &&
-                typeof (client as any).groupWeight === "number" &&
-                !invoice.totalWeight && (
-                  <h6 className="mb-0 text-success">
-                    <strong>Group Weight:</strong> {(client as any).groupWeight} lbs
-                  </h6>
-                )}
-            </div>
+            <h6>Client: {invoice.clientName}</h6>
+            <h6>
+              Date: {invoice.date ? formatDateSpanish(invoice.date) : "-"}
+            </h6>
             {/* Delivery Date - LARGE PROMINENT DISPLAY */}
             <div className="mb-4" style={{
               background: 'linear-gradient(135deg, #fff3e0 0%, #ffcc80 100%)',
@@ -1180,119 +1151,62 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 )}
               </div>
             </div>
-
+            {/* Show verifier if present */}
+            {invoice.verifiedBy && (
+              <h6 className="text-success">
+                Verificado por: {getVerifierName(invoice.verifiedBy)}
+                {invoice.verifiedAt && (
+                  <span
+                    style={{ marginLeft: 12, color: "#888", fontWeight: 500 }}
+                  >
+                    ({formatDateSpanish(invoice.verifiedAt)})
+                  </span>
+                )}
+              </h6>
+            )}
             
-            {/* Total Carts - ARTISTIC PROMINENT DISPLAY */}
+            {/* Total Carts - LARGE PROMINENT DISPLAY */}
             <div className="text-center mb-4" style={{ 
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
-              borderRadius: '24px', 
-              padding: '32px 24px',
-              border: 'none',
-              boxShadow: '0 20px 40px rgba(102, 126, 234, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
-              position: 'relative',
-              overflow: 'hidden'
+              background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', 
+              borderRadius: '16px', 
+              padding: '24px',
+              border: '3px solid #0E62A0',
+              boxShadow: '0 8px 24px rgba(14, 98, 160, 0.15)'
             }}>
-              {/* Decorative background pattern */}
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-                opacity: 0.3
-              }}></div>
-              
-              {/* Cart icon and number display */}
-              <div className="d-flex align-items-center justify-content-center mb-3">
-                <div style={{
-                  background: 'rgba(255,255,255,0.25)',
-                  borderRadius: '20px',
-                  padding: '16px 24px',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '16px'
-                }}>
-                  <i className="bi bi-cart-fill" style={{
-                    fontSize: '2.5rem',
-                    color: '#fff',
-                    textShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                    filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.4))'
-                  }}></i>
-                  <h1 className="fw-bold mb-0" style={{ 
-                    fontSize: '5rem', 
-                    color: '#fff',
-                    textShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    letterSpacing: '-2px'
-                  }}>
-                    {invoice.carts.length}
-                  </h1>
-                </div>
-              </div>
-              
-              {/* Descriptive text with enhanced styling */}
-              <div style={{
-                background: 'rgba(255,255,255,0.15)',
-                borderRadius: '12px',
-                padding: '12px 20px',
-                backdropFilter: 'blur(5px)',
-                border: '1px solid rgba(255,255,255,0.1)'
+              <h1 className="fw-bold mb-0" style={{ 
+                fontSize: '4.5rem', 
+                color: '#0E62A0',
+                textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                display: 'inline-block' 
               }}>
-                <h4 className="mb-0" style={{ 
-                  color: '#fff',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '2px',
-                  fontSize: '1.1rem',
-                  textShadow: '0 2px 6px rgba(0,0,0,0.3)'
-                }}>
-                  {invoice.carts.length === 1 ? 'Carro de Ropa' : 'Carros de Ropa'}
-                </h4>
-                <div style={{
-                  color: 'rgba(255,255,255,0.8)',
-                  fontSize: '0.85rem',
-                  marginTop: '4px',
-                  fontWeight: 500
-                }}>
-                  Listo para procesar
-                </div>
-              </div>
-
-              {/* Animated floating elements */}
-              <div style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                width: '8px',
-                height: '8px',
-                background: 'rgba(255,255,255,0.6)',
-                borderRadius: '50%',
-                animation: 'float 3s ease-in-out infinite'
-              }}></div>
-              <div style={{
-                position: 'absolute',
-                bottom: '30px',
-                left: '30px',
-                width: '6px',
-                height: '6px',
-                background: 'rgba(255,255,255,0.4)',
-                borderRadius: '50%',
-                animation: 'float 3s ease-in-out infinite 1.5s'
-              }}></div>
+                {invoice.carts.length}
+              </h1>
+              <h4 className="mb-0" style={{ 
+                display: 'inline-block', 
+                marginLeft: '1rem', 
+                verticalAlign: 'bottom',
+                color: '#0E62A0',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '1px'
+              }}>
+                Total Cart{invoice.carts.length !== 1 ? 's' : ''}
+              </h4>
             </div>
-
-            <style>
-              {`
-                @keyframes float {
-                  0%, 100% { transform: translateY(0px); opacity: 0.6; }
-                  50% { transform: translateY(-10px); opacity: 1; }
-                }
-              `}
-            </style>
             
+            {/* Show group weight if available on invoice or client */}
+            {typeof invoice.totalWeight === "number" && (
+              <h6 className="text-success">
+                Group Weight: {invoice.totalWeight} lbs
+              </h6>
+            )}
+            {client &&
+              typeof (client as any).groupWeight === "number" &&
+              !invoice.totalWeight && (
+                <h6 className="text-success">
+                  Group Weight: {(client as any).groupWeight} lbs
+                </h6>
+              )}
             {/* Show verification status and verifier if present */}
             {(invoice.verified || invoice.partiallyVerified) && (
               <div className="mb-2">
@@ -1320,7 +1234,97 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             <div className="mb-3">
               {!showNewCartInput ? (
                 <>
-                  {/* Just show the new cart input toggle when not creating */}
+                  <button
+                    className="btn btn-primary me-2"
+                    onClick={() => {
+                      setShowNewCartInput(true);
+                      setShowCartKeypad(true);
+                      setNewCartName("");
+                    }}
+                  >
+                    Create New Cart
+                  </button>
+                  {localCarts.length > 0 && (
+                    <button
+                      className="btn btn-success me-2"
+                      onClick={() => {
+                        // Print all carts functionality
+                        printAllCarts();
+                      }}
+                      title="Print all carts in this invoice"
+                    >
+                      <i className="bi bi-printer-fill me-1" />
+                      Print All Carts ({localCarts.length})
+                    </button>
+                  )}
+                  {localCarts.length > 0 && (
+                    <button
+                      className="btn btn-info me-2"
+                      onClick={() => setShowChecklistModal(true)}
+                      title="Print loading checklist for this invoice"
+                    >
+                      <i className="bi bi-list-check me-1" />
+                      Print Loading Checklist
+                    </button>
+                  )}
+                  {localCarts.length > 0 && (
+                    <button
+                      className={`btn me-2 ${showQuantitiesForThisInvoice ? 'btn-outline-primary' : 'btn-outline-secondary'}`}
+                      onClick={() => setShowQuantitiesForThisInvoice(!showQuantitiesForThisInvoice)}
+                      title={`${showQuantitiesForThisInvoice ? 'Hide' : 'Show'} product quantities when printing`}
+                    >
+                      <i className={`bi ${showQuantitiesForThisInvoice ? 'bi-123' : 'bi-eye-slash'} me-1`} />
+                      {showQuantitiesForThisInvoice ? 'Hide Qty' : 'Show Qty'}
+                    </button>
+                  )}
+                  {/* Shipping Readiness Indicator */}
+                  {localCarts.length > 0 && (
+                    <div className="ms-auto">
+                      {(() => {
+                        const allReady = areAllCartsPrintedAndReady();
+                        const totalCarts = localCarts.length;
+                        const printedCarts = localCarts.filter(c => c.lastPrintedAt && !c.needsReprint && 
+                          (!c.lastModifiedAt || !c.lastPrintedAt || new Date(c.lastModifiedAt) <= new Date(c.lastPrintedAt))).length;
+                        const needsPrintCarts = totalCarts - printedCarts;
+                        
+                        return (
+                          <div className="d-flex align-items-center">
+                            <span 
+                              className={`badge ${allReady ? 'bg-success' : 'bg-warning text-dark'} me-2`}
+                              style={{ fontSize: '12px' }}
+                            >
+                              {allReady ? '✅ Ready to Ship' : `⚠️ ${needsPrintCarts} cart${needsPrintCarts !== 1 ? 's' : ''} need${needsPrintCarts === 1 ? 's' : ''} printing`}
+                            </span>
+                            <small className="text-muted">
+                              {printedCarts}/{totalCarts} printed
+                            </small>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {/* Print All Carts Tracking Display */}
+                  {localInvoice.printHistory?.lastPrintAllCarts && (
+                    <div className="col-12 mt-3">
+                      <div 
+                        className="alert alert-info d-flex align-items-center p-2"
+                        style={{ fontSize: '13px' }}
+                      >
+                        <i className="bi bi-printer-fill me-2" style={{ fontSize: '16px' }}></i>
+                        <div>
+                          <strong>Last "Print All Carts" operation:</strong>
+                          <br />
+                          <span className="text-muted">
+                            Performed by <strong>{localInvoice.printHistory.lastPrintAllCarts.printedBy}</strong> on{' '}
+                            {formatDateSpanish(localInvoice.printHistory.lastPrintAllCarts.printedAt)}
+                            {localInvoice.printHistory.lastPrintAllCarts.cartCount && (
+                              <span> ({localInvoice.printHistory.lastPrintAllCarts.cartCount} cart{localInvoice.printHistory.lastPrintAllCarts.cartCount !== 1 ? 's' : ''})</span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="d-flex gap-2 align-items-center">
@@ -1445,7 +1449,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 {/* Centered Cart Name */}
                 <div className="text-center mb-3">
                   <h3 className="enhanced-cart-name">
-                    Carro de Ropa - {cart.name}
+                    {cart.name}
                   </h3>
                 </div>
                 
@@ -1628,10 +1632,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 {/* Product Cards Modal for Adding Product */}
                 {addProductCartId === cart.id && (
                   <div
-                    className="modal show"
-                    style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+                    className="modal show d-block add-product-modal"
+                    style={{ background: "rgba(0,0,0,0.15)" }}
                   >
-                    <div className="modal-dialog modal-lg" style={{ margin: "0 auto 80px auto" }}>
+                    <div
+                      className="modal-dialog"
+                      // style removed, handled by CSS
+                    >
                       <div className="modal-content">
                         <div className="modal-header">
                           <h5 className="modal-title">Add Product</h5>
@@ -1645,18 +1652,44 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                             }}
                           ></button>
                         </div>
-                        <div className="modal-body">
-                          <div className="row g-3">
+                        <div className="modal-body" style={{ padding: "24px" }}>
+                          <div className="d-flex flex-column gap-3">
                             {clientProducts.map((product) => (
-                              <div key={product.id} className="col-12 col-md-6 col-lg-4">
+                              <div key={product.id} className="w-100">
                                 <div
-                                  className={`card mb-2 shadow-sm h-100${
-                                    selectedProductId === product.id ? " border-primary" : ""
+                                  className={`card shadow-lg product-card-enhanced${
+                                    selectedProductId === product.id ? " selected" : ""
                                   }`}
                                   style={{
                                     cursor: "pointer",
-                                    minHeight: 100,
-                                    borderWidth: selectedProductId === product.id ? 2 : 1,
+                                    height: 80,
+                                    borderWidth: 0,
+                                    borderRadius: 12,
+                                    background: selectedProductId === product.id 
+                                      ? "linear-gradient(135deg, #e3f2fd 0%, #bbdefb 50%, #90caf9 100%)"
+                                      : "linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%)",
+                                    boxShadow: selectedProductId === product.id
+                                      ? "0 8px 32px rgba(14, 98, 160, 0.25), 0 0 0 3px #0E62A0, inset 0 1px 0 rgba(255, 255, 255, 0.2)"
+                                      : "0 6px 20px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                                    transform: selectedProductId === product.id ? "translateY(-2px) scale(1.01)" : "translateY(0) scale(1)",
+                                    transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                                    border: selectedProductId === product.id 
+                                      ? "3px solid #0E62A0" 
+                                      : "1px solid rgba(148, 163, 184, 0.2)",
+                                    position: "relative",
+                                    overflow: "hidden"
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (selectedProductId !== product.id) {
+                                      e.currentTarget.style.transform = "translateY(-1px) scale(1.005)";
+                                      e.currentTarget.style.boxShadow = "0 8px 25px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)";
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (selectedProductId !== product.id) {
+                                      e.currentTarget.style.transform = "translateY(0) scale(1)";
+                                      e.currentTarget.style.boxShadow = "0 6px 20px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.1)";
+                                    }
                                   }}
                                   onClick={() => {
                                     setSelectedProductId(product.id);
@@ -1667,12 +1700,67 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                     setKeypadQty("");
                                   }}
                                 >
-                                  <div className="card-body text-center">
+                                  {/* Selection indicator */}
+                                  {selectedProductId === product.id && (
                                     <div
-                                      className="fw-bold"
-                                      style={{ fontSize: 16 }}
+                                      style={{
+                                        position: "absolute",
+                                        top: 12,
+                                        right: 12,
+                                        width: 20,
+                                        height: 20,
+                                        borderRadius: "50%",
+                                        background: "#0E62A0",
+                                        color: "white",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: 12,
+                                        fontWeight: 900,
+                                        zIndex: 10,
+                                        boxShadow: "0 2px 8px rgba(14, 98, 160, 0.4)"
+                                      }}
+                                    >
+                                      ✓
+                                    </div>
+                                  )}
+
+                                  <div className="card-body d-flex align-items-center justify-content-between py-3 px-4" style={{ position: "relative", zIndex: 2 }}>
+                                    {/* Product name */}
+                                    <h6
+                                      className="fw-bold mb-0"
+                                      style={{ 
+                                        fontSize: 20,
+                                        color: selectedProductId === product.id ? "#0E62A0" : "#1e293b",
+                                        fontWeight: 700,
+                                        letterSpacing: "0.5px",
+                                        textTransform: "capitalize",
+                                        lineHeight: 1.2,
+                                        transition: "color 0.25s ease",
+                                        flex: 1
+                                      }}
                                     >
                                       {product.name}
+                                    </h6>
+
+                                    {/* Add indicator */}
+                                    <div
+                                      style={{
+                                        padding: "6px 12px",
+                                        borderRadius: 8,
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        background: selectedProductId === product.id 
+                                          ? "rgba(14, 98, 160, 0.15)" 
+                                          : "rgba(148, 163, 184, 0.1)",
+                                        color: selectedProductId === product.id ? "#0E62A0" : "#64748b",
+                                        transition: "all 0.25s ease",
+                                        textTransform: "uppercase",
+                                        letterSpacing: "0.5px",
+                                        flexShrink: 0
+                                      }}
+                                    >
+                                      {selectedProductId === product.id ? "Selected" : "Tap to Add"}
                                     </div>
                                   </div>
                                 </div>
@@ -1687,10 +1775,18 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 {/* Product quantity keypad modal */}
                 {showProductKeypad && (
                   <div
-                    className="modal show"
-                    style={{ display: "block", background: "rgba(0,0,0,0.3)" }}
+                    className="modal show d-block"
+                    tabIndex={-1}
+                    style={{ background: "rgba(0,0,0,0.25)", zIndex: 2100 }}
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget)
+                        setShowProductKeypad(null);
+                    }}
                   >
-                    <div className="modal-dialog" style={{ margin: "0 auto 80px auto" }}>
+                    <div
+                      className="modal-dialog"
+                      style={{ maxWidth: 320, margin: "120px auto 80px auto" }}
+                    >
                       <div className="modal-content">
                         <div className="modal-header">
                           <h5 className="modal-title">Enter Quantity</h5>
@@ -1701,106 +1797,117 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                           ></button>
                         </div>
                         <div className="modal-body">
-                          <div className="mb-3">
-                            <label className="form-label">Quantity</label>
-                            <input
-                              type="number"
-                              className="form-control"
-                              value={keypadQty}
-                              onChange={(e) => setKeypadQty(e.target.value)}
-                              min={1}
-                              autoFocus
-                            />
-                          </div>
-                        </div>
-                        <div className="modal-footer">
-                          <button
-                            className="btn btn-secondary"
-                            onClick={() => setShowProductKeypad(null)}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            className="btn btn-primary"
-                            onClick={async () => {
-                              const qty = parseInt(keypadQty, 10);
-                              if (showProductKeypad && qty > 0) {
-                                const prod = clientProducts.find(
-                                  (p) => p.id === showProductKeypad.productId
-                                );
-                                
-                                // Create add product callback
-                                const addProductCallback = async () => {
-                                  // 1. Update localCarts immediately for instant UI update
-                                  setLocalCarts((prevCarts) =>
-                                    prevCarts.map((cartObj) => {
-                                      if (
-                                        cartObj.id !==
-                                        showProductKeypad.cartId
-                                      )
-                                        return cartObj;
-                                      
-                                      return {
-                                        ...cartObj,
-                                        items: [
-                                          ...cartObj.items,
-                                          {
-                                            productId:
-                                              showProductKeypad.productId,
-                                            productName: prod
-                                              ? prod.name
-                                              : "",
-                                            quantity: qty,
-                                            price: prod ? prod.price : 0,
-                                            addedBy:
-                                              user?.username || "You",
-                                            addedAt:
-                                              new Date().toISOString(),
-                                          },
-                                        ],
-                                      };
-                                    })
-                                  );
-                                  
-                                  // 2. Mark cart as modified (needs reprint)
-                                  await markCartAsModified(showProductKeypad.cartId);
-                                  
-                                  // 3. Persist to Firestore (parent handler)
-                                  await onAddProductToCart(
-                                    showProductKeypad.cartId,
-                                    showProductKeypad.productId,
-                                    qty
-                                  );
-                                  
-                                  if (refreshInvoices)
-                                    await refreshInvoices();
-                                  
-                                  // Clear states
-                                  setAddProductCartId(null);
-                                  setSelectedProductId("");
-                                  setShowProductKeypad(null);
-                                  setKeypadQty("");
-                                  setShowAddConfirmation(false);
-                                  setConfirmationProduct(null);
-                                };
-                                
-                                // Show confirmation dialog
-                                setConfirmationProduct({
-                                  cartId: showProductKeypad.cartId,
-                                  productId: showProductKeypad.productId,
-                                  product: prod || null,
-                                  quantity: qty,
-                                  addCallback: addProductCallback
-                                });
-                                setShowAddConfirmation(true);
-                              } else {
-                                setShowProductKeypad(null);
-                                setKeypadQty("");
-                              }
+                          <input
+                            type="text"
+                            className="form-control mb-3 text-center"
+                            value={keypadQty}
+                            readOnly
+                            style={{
+                              fontSize: 28,
+                              letterSpacing: 2,
+                              background: "#f8fafc",
                             }}
-                          >
-                            Add to Cart
-                          </button>
+                          />
+                          <div className="d-flex flex-wrap justify-content-center">
+                            {keypadButtons.map((btn, idx) => (
+                              <button
+                                key={btn + idx}
+                                className="btn btn-light m-1"
+                                style={{
+                                  width: 60,
+                                  height: 48,
+                                  fontSize: 22,
+                                  fontWeight: 600,
+                                }}
+                                onClick={async () => {
+                                  if (btn === "OK") {
+                                    const qty = parseInt(keypadQty, 10);
+                                    if (showProductKeypad && qty > 0) {
+                                      const prod = clientProducts.find(
+                                        (p) => p.id === showProductKeypad.productId
+                                      );
+                                      
+                                      // Create add product callback
+                                      const addProductCallback = async () => {
+                                        // 1. Update localCarts immediately for instant UI update
+                                        setLocalCarts((prevCarts) =>
+                                          prevCarts.map((cartObj) => {
+                                            if (
+                                              cartObj.id !==
+                                              showProductKeypad.cartId
+                                            )
+                                              return cartObj;
+                                            
+                                            return {
+                                              ...cartObj,
+                                              items: [
+                                                ...cartObj.items,
+                                                {
+                                                  productId:
+                                                    showProductKeypad.productId,
+                                                  productName: prod
+                                                    ? prod.name
+                                                    : "",
+                                                  quantity: qty,
+                                                  price: prod ? prod.price : 0,
+                                                  addedBy:
+                                                    user?.username || "You",
+                                                  addedAt:
+                                                    new Date().toISOString(),
+                                                },
+                                              ],
+                                            };
+                                          })
+                                        );
+                                        
+                                        // 2. Mark cart as modified (needs reprint)
+                                        await markCartAsModified(showProductKeypad.cartId);
+                                        
+                                        // 3. Persist to Firestore (parent handler)
+                                        await onAddProductToCart(
+                                          showProductKeypad.cartId,
+                                          showProductKeypad.productId,
+                                          qty
+                                        );
+                                        
+                                        if (refreshInvoices)
+                                          await refreshInvoices();
+                                        
+                                        // Clear states
+                                        setAddProductCartId(null);
+                                        setSelectedProductId("");
+                                        setShowProductKeypad(null);
+                                        setKeypadQty("");
+                                        setShowAddConfirmation(false);
+                                        setConfirmationProduct(null);
+                                      };
+                                      
+                                      // Show confirmation dialog
+                                      setConfirmationProduct({
+                                        cartId: showProductKeypad.cartId,
+                                        productId: showProductKeypad.productId,
+                                        product: prod || null,
+                                        quantity: qty,
+                                        addCallback: addProductCallback
+                                      });
+                                      setShowAddConfirmation(true);
+                                    } else {
+                                      setShowProductKeypad(null);
+                                      setKeypadQty("");
+                                    }
+                                  } else if (btn === "←") {
+                                    setKeypadQty((prev) => prev.slice(0, -1));
+                                  } else {
+                                    setKeypadQty((prev) => prev + btn);
+                                  }
+                                }}
+                                tabIndex={-1}
+                                type="button"
+                              >
+                                {btn}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1947,433 +2054,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               </div>
             ))}
           </div>
-
-          {/* Action Buttons - Moved to Bottom */}
-          <div className="mb-4">
-            {!showNewCartInput ? (
-              <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-                <button
-                  className="btn btn-primary me-2"
-                  onClick={() => {
-                    setShowNewCartInput(true);
-                    setShowCartKeypad(true);
-                    setNewCartName("");
-                  }}
-                >
-                  Create New Cart
-                </button>
-                {localCarts.length > 0 && (
-                  <button
-                    className="btn btn-success me-2"
-                    onClick={() => {
-                      // Print all carts functionality
-                      printAllCarts();
-                    }}
-                    title="Print all carts in this invoice"
-                  >
-                    <i className="bi bi-printer-fill me-1" />
-                    Print All Carts ({localCarts.length})
-                  </button>
-                )}
-                {localCarts.length > 0 && (
-                  <button
-                    className="btn btn-info me-2"
-                    onClick={() => setShowChecklistModal(true)}
-                    title="Print loading checklist for this invoice"
-                  >
-                    <i className="bi bi-list-check me-1" />
-                    Print Loading Checklist
-                  </button>
-                )}
-                {localCarts.length > 0 && (
-                  <button
-                    className={`btn me-2 ${showQuantitiesForThisInvoice ? 'btn-outline-primary' : 'btn-outline-secondary'}`}
-                    onClick={() => setShowQuantitiesForThisInvoice(!showQuantitiesForThisInvoice)}
-                    title={`${showQuantitiesForThisInvoice ? 'Hide' : 'Show'} product quantities when printing`}
-                  >
-                    <i className={`bi ${showQuantitiesForThisInvoice ? 'bi-123' : 'bi-eye-slash'} me-1`} />
-                    {showQuantitiesForThisInvoice ? 'Hide Qty' : 'Show Qty'}
-                  </button>
-                )}
-              </div>
-            ) : null}
-            
-            {/* Shipping Readiness Indicator */}
-            {localCarts.length > 0 && (
-              <div className="d-flex align-items-center justify-content-between">
-                <div className="d-flex align-items-center">
-                  {(() => {
-                    const allReady = areAllCartsPrintedAndReady();
-                    const totalCarts = localCarts.length;
-                    const printedCarts = localCarts.filter(c => c.lastPrintedAt && !c.needsReprint && 
-                      (!c.lastModifiedAt || !c.lastPrintedAt || new Date(c.lastModifiedAt) <= new Date(c.lastPrintedAt))).length;
-                    const needsPrintCarts = totalCarts - printedCarts;
-                    
-                    return (
-                      <div className="d-flex align-items-center">
-                        <span 
-                          className={`badge ${allReady ? 'bg-success' : 'bg-warning text-dark'} me-2`}
-                          style={{ fontSize: '12px' }}
-                        >
-                          {allReady ? '✅ Ready to Ship' : `⚠️ ${needsPrintCarts} cart${needsPrintCarts !== 1 ? 's' : ''} need${needsPrintCarts === 1 ? 's' : ''} printing`}
-                        </span>
-                        <small className="text-muted">
-                          {printedCarts}/{totalCarts} printed
-                        </small>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-            
-            {/* Print All Carts Tracking Display */}
-            {localInvoice.printHistory?.lastPrintAllCarts && (
-              <div className="col-12 mt-3">
-                <div 
-                  className="alert alert-info d-flex align-items-center p-2"
-                  style={{ fontSize: '13px' }}
-                >
-                  <i className="bi bi-printer-fill me-2" style={{ fontSize: '16px' }}></i>
-                  <div>
-                    <strong>Last "Print All Carts" operation:</strong>
-                    <br />
-                    <span className="text-muted">
-                      Performed by <strong>{localInvoice.printHistory.lastPrintAllCarts.printedBy}</strong> on{' '}
-                      {formatDateSpanish(localInvoice.printHistory.lastPrintAllCarts.printedAt)}
-                      {localInvoice.printHistory.lastPrintAllCarts.cartCount && (
-                        <span> ({localInvoice.printHistory.lastPrintAllCarts.cartCount} cart{localInvoice.printHistory.lastPrintAllCarts.cartCount !== 1 ? 's' : ''})</span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
-        
-        {/* Approval Tabs System - Bottom of Modal */}
-        {(invoice.verifiedBy || invoice.verified || invoice.partiallyVerified || 
-          (invoice.status === "completed" && invoice.manglesCompleted && invoice.dobladoCompleted)) && (
-          <div 
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              background: '#fff',
-              borderTop: '1px solid #e0e0e0',
-              borderBottomLeftRadius: '0.375rem',
-              borderBottomRightRadius: '0.375rem',
-              boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.1)',
-              zIndex: 10
-            }}
-          >
-            {/* Tab Navigation */}
-            <div 
-              style={{
-                display: 'flex',
-                borderBottom: '1px solid #e0e0e0',
-                background: '#f8f9fa'
-              }}
-            >
-              <button
-                className={`btn ${activeApprovalTab === 'status' ? 'btn-primary' : 'btn-outline-primary'}`}
-                style={{
-                  borderRadius: '0',
-                  borderTop: 'none',
-                  borderLeft: 'none',
-                  borderRight: '1px solid #e0e0e0',
-                  borderBottom: activeApprovalTab === 'status' ? 'none' : '1px solid #e0e0e0',
-                  padding: '8px 16px',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-                onClick={() => setActiveApprovalTab('status')}
-              >
-                <i className="bi bi-check-circle me-2"></i>
-                Approval Status
-              </button>
-              <button
-                className={`btn ${activeApprovalTab === 'history' ? 'btn-primary' : 'btn-outline-primary'}`}
-                style={{
-                  borderRadius: '0',
-                  borderTop: 'none',
-                  borderLeft: 'none',
-                  borderRight: '1px solid #e0e0e0',
-                  borderBottom: activeApprovalTab === 'history' ? 'none' : '1px solid #e0e0e0',
-                  padding: '8px 16px',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-                onClick={() => setActiveApprovalTab('history')}
-              >
-                <i className="bi bi-clock-history me-2"></i>
-                History
-              </button>
-              <button
-                className={`btn ${activeApprovalTab === 'details' ? 'btn-primary' : 'btn-outline-primary'}`}
-                style={{
-                  borderRadius: '0',
-                  borderTop: 'none',
-                  borderLeft: 'none',
-                  borderRight: 'none',
-                  borderBottom: activeApprovalTab === 'details' ? 'none' : '1px solid #e0e0e0',
-                  padding: '8px 16px',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-                onClick={() => setActiveApprovalTab('details')}
-              >
-                <i className="bi bi-info-circle me-2"></i>
-                Details
-              </button>
-            </div>
-
-            {/* Tab Content */}
-            <div style={{ padding: '12px 24px', minHeight: '60px' }}>
-              {/* Approval Status Tab */}
-              {activeApprovalTab === 'status' && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-                  <div style={{
-                    background: invoice.verified ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)' : 
-                               invoice.partiallyVerified ? 'linear-gradient(135deg, #ffc107 0%, #fd7e14 100%)' :
-                               'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
-                    borderRadius: '50%',
-                    padding: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <i 
-                      className={`bi ${invoice.verified ? 'bi-check-circle-fill' : 
-                                      invoice.partiallyVerified ? 'bi-exclamation-triangle-fill' : 
-                                      'bi-clock-fill'}`}
-                      style={{
-                        fontSize: '24px',
-                        color: '#fff'
-                      }}
-                    />
-                  </div>
-                  
-                  <div style={{ textAlign: 'center', flex: 1 }}>
-                    <div style={{
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      marginBottom: '2px',
-                      color: invoice.verified ? '#28a745' : invoice.partiallyVerified ? '#ffc107' : '#6c757d'
-                    }}>
-                      {invoice.verified ? 'Fully Approved' : 
-                       invoice.partiallyVerified ? 'Partially Approved' : 
-                       'Pending Approval'}
-                    </div>
-                    
-                    {invoice.verifiedBy && (
-                      <div style={{
-                        fontSize: '14px',
-                        color: '#6c757d'
-                      }}>
-                        Approved by: <strong>{getVerifierName(invoice.verifiedBy)}</strong>
-                      </div>
-                    )}
-
-                    {/* Action Button for Pending Approval */}
-                    {!invoice.verified && !invoice.partiallyVerified && 
-                     invoice.status === "completed" && invoice.manglesCompleted && invoice.dobladoCompleted && (
-                      <div style={{ marginTop: '8px', fontSize: '12px', color: '#6c757d' }}>
-                        <i className="bi bi-info-circle me-1"></i>
-                        Ready for approval - use the main approval button
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* History Tab */}
-              {activeApprovalTab === 'history' && (
-                <div>
-                  <div style={{ fontSize: '14px', color: '#6c757d' }}>
-                    <div className="d-flex justify-content-between align-items-center mb-2">
-                      <strong>Approval Timeline</strong>
-                      <span className="badge bg-light text-dark">
-                        {invoice.invoiceNumber || `#${invoice.id.substring(0, 8)}`}
-                      </span>
-                    </div>
-                    
-                    <div className="timeline" style={{ paddingLeft: '20px', position: 'relative' }}>
-                      {/* Timeline line */}
-                      <div style={{
-                        position: 'absolute',
-                        left: '8px',
-                        top: '0',
-                        bottom: '0',
-                        width: '2px',
-                        background: 'linear-gradient(to bottom, #28a745, #20c997)',
-                        borderRadius: '1px'
-                      }}></div>
-
-                      {/* Created */}
-                      <div className="timeline-item d-flex align-items-center mb-3" style={{ position: 'relative' }}>
-                        <div style={{
-                          position: 'absolute',
-                          left: '-12px',
-                          width: '16px',
-                          height: '16px',
-                          background: '#007bff',
-                          borderRadius: '50%',
-                          border: '2px solid #fff',
-                          zIndex: 1
-                        }}></div>
-                        <div style={{ marginLeft: '16px' }}>
-                          <strong>Invoice Created</strong>
-                          <br />
-                          <small className="text-muted">
-                            {invoice.date ? formatDateSpanish(invoice.date) : 'Unknown date'}
-                          </small>
-                        </div>
-                      </div>
-
-                      {/* Completed */}
-                      {invoice.status === 'completed' && (
-                        <div className="timeline-item d-flex align-items-center mb-3" style={{ position: 'relative' }}>
-                          <div style={{
-                            position: 'absolute',
-                            left: '-12px',
-                            width: '16px',
-                            height: '16px',
-                            background: '#ffc107',
-                            borderRadius: '50%',
-                            border: '2px solid #fff',
-                            zIndex: 1
-                          }}></div>
-                          <div style={{ marginLeft: '16px' }}>
-                            <strong>Completed</strong>
-                            <br />
-                            <small className="text-muted">
-                              Mangles: {invoice.manglesCompleted ? '✓' : '✗'} | 
-                              Doblado: {invoice.dobladoCompleted ? '✓' : '✗'}
-                            </small>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Approved */}
-                      {(invoice.verified || invoice.partiallyVerified) && (
-                        <div className="timeline-item d-flex align-items-center" style={{ position: 'relative' }}>
-                          <div style={{
-                            position: 'absolute',
-                            left: '-12px',
-                            width: '16px',
-                            height: '16px',
-                            background: invoice.verified ? '#28a745' : '#ffc107',
-                            borderRadius: '50%',
-                            border: '2px solid #fff',
-                            zIndex: 1
-                          }}></div>
-                          <div style={{ marginLeft: '16px' }}>
-                            <strong>{invoice.verified ? 'Fully Approved' : 'Partially Approved'}</strong>
-                            <br />
-                            <small className="text-muted">
-                              {invoice.verifiedBy && (
-                                <>by {getVerifierName(invoice.verifiedBy)}</>
-                              )}
-                            </small>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Details Tab */}
-              {activeApprovalTab === 'details' && (
-                <div>
-                  <div className="row">
-                    <div className="col-md-6">
-                      <h6 className="mb-3" style={{ fontSize: '14px', fontWeight: '600', color: '#495057' }}>
-                        <i className="bi bi-info-circle me-2"></i>Approval Requirements
-                      </h6>
-                      <div className="list-group list-group-flush">
-                        <div className="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
-                          <small>Status: Completed</small>
-                          <span className={`badge ${invoice.status === 'completed' ? 'bg-success' : 'bg-secondary'}`}>
-                            {invoice.status === 'completed' ? '✓' : '✗'}
-                          </span>
-                        </div>
-                        <div className="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
-                          <small>Mangles Completed</small>
-                          <span className={`badge ${invoice.manglesCompleted ? 'bg-success' : 'bg-secondary'}`}>
-                            {invoice.manglesCompleted ? '✓' : '✗'}
-                          </span>
-                        </div>
-                        <div className="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
-                          <small>Doblado Completed</small>
-                          <span className={`badge ${invoice.dobladoCompleted ? 'bg-success' : 'bg-secondary'}`}>
-                            {invoice.dobladoCompleted ? '✓' : '✗'}
-                          </span>
-                        </div>
-                        <div className="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
-                          <small>No Unnamed Carts</small>
-                          <span className={`badge ${!hasUnnamedCart(invoice) ? 'bg-success' : 'bg-warning'}`}>
-                            {!hasUnnamedCart(invoice) ? '✓' : '⚠'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <h6 className="mb-3" style={{ fontSize: '14px', fontWeight: '600', color: '#495057' }}>
-                        <i className="bi bi-graph-up me-2"></i>Progress Summary
-                      </h6>
-                      <div>
-                        {/* Progress for verified products */}
-                        {invoice.verifiedProducts && Object.keys(invoice.verifiedProducts).length > 0 && (
-                          <div className="mb-2">
-                            <small className="text-muted">Verified Items:</small>
-                            <div className="progress mt-1" style={{ height: '8px' }}>
-                              <div 
-                                className="progress-bar bg-success" 
-                                style={{ 
-                                  width: `${(Object.values(invoice.verifiedProducts).flat().length / 
-                                           invoice.carts.reduce((acc, cart) => acc + cart.items.length, 0)) * 100}%` 
-                                }}
-                              ></div>
-                            </div>
-                            <small className="text-muted">
-                              {Object.values(invoice.verifiedProducts).flat().length} of {invoice.carts.reduce((acc, cart) => acc + cart.items.length, 0)} items
-                            </small>
-                          </div>
-                        )}
-                        
-                        {/* Overall completion status */}
-                        <div className="mb-2">
-                          <small className="text-muted">Overall Progress:</small>
-                          <div className="progress mt-1" style={{ height: '8px' }}>
-                            <div 
-                              className={`progress-bar ${invoice.verified ? 'bg-success' : 
-                                                        invoice.partiallyVerified ? 'bg-warning' : 
-                                                        'bg-secondary'}`}
-                              style={{ 
-                                width: invoice.verified ? '100%' : 
-                                       invoice.partiallyVerified ? '50%' : 
-                                       invoice.status === 'completed' ? '75%' : '25%'
-                              }}
-                            ></div>
-                          </div>
-                          <small className="text-muted">
-                            {invoice.verified ? 'Complete' : 
-                             invoice.partiallyVerified ? 'In Progress' : 
-                             invoice.status === 'completed' ? 'Ready for Approval' : 'In Progress'}
-                          </small>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
       
       {/* Product Add Confirmation Modal */}
@@ -2391,7 +2072,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             zIndex: 3000,
           }}
         >
-          <div className="modal-dialog" style={{ margin: "10vh auto 80px auto" }}>
+          <div className="modal-dialog" style={{ marginTop: "10vh" }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Confirm Product Addition</h5>
@@ -2870,7 +2551,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   maxWidth: "70vw", 
                   width: "70vw", 
                   minWidth: "800px",
-                  margin: "2vh auto 80px auto"
+                  margin: "2vh auto"
                 }}
               >
                 <div className="modal-content" style={{ height: "90vh" }}>
@@ -2980,7 +2661,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           tabIndex={-1} 
           style={{ background: "rgba(0,0,0,0.5)", zIndex: 2100 }}
         >
-          <div className="modal-dialog" style={{ maxWidth: 600, margin: "60px auto 80px auto" }}>
+          <div className="modal-dialog" style={{ maxWidth: 600, margin: "60px auto" }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">🚛 Loading Checklist</h5>
