@@ -180,4 +180,105 @@ app.post('/api/historical-reports', async (req, res) => {
   }
 });
 
+// Endpoint for sending cart verification error emails
+app.post('/api/send-verification-error-email', async (req, res) => {
+  const { clientName, expectedCount, actualCount, username, date } = req.body;
+  
+  if (!clientName || !expectedCount || !actualCount || !username) {
+    return res.status(400).json({ error: 'Missing required data' });
+  }
+
+  const formattedDate = new Date(date).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const subject = `🚨 Cart Verification Error - ${clientName}`;
+  const text = `
+Cart Count Verification Error
+
+Client: ${clientName}
+Employee: ${username}
+Date: ${formattedDate}
+
+Expected Cart Count: ${expectedCount}
+Actual Cart Count: ${actualCount}
+Difference: ${Math.abs(expectedCount - actualCount)} cart(s)
+
+This error has been logged in the system activity logs.
+
+Please review with the employee to ensure accurate counting procedures are being followed.
+
+---
+King Uniforms Laundry Management System
+  `;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 8px;">
+      <div style="background: #dc3545; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+        <h2 style="margin: 0; font-size: 24px;">🚨 Cart Verification Error</h2>
+      </div>
+      
+      <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #dc3545;">
+        <h3 style="color: #dc3545; margin-top: 0;">Verification Details</h3>
+        
+        <div style="margin: 15px 0;">
+          <strong>Client:</strong> ${clientName}<br>
+          <strong>Employee:</strong> ${username}<br>
+          <strong>Date:</strong> ${formattedDate}
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span><strong>Expected Count:</strong></span>
+            <span style="color: #28a745; font-weight: bold;">${expectedCount} carts</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span><strong>Actual Count:</strong></span>
+            <span style="color: #dc3545; font-weight: bold;">${actualCount} carts</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-top: 1px solid #dee2e6; padding-top: 10px;">
+            <span><strong>Difference:</strong></span>
+            <span style="color: #dc3545; font-weight: bold;">${Math.abs(expectedCount - actualCount)} cart(s)</span>
+          </div>
+        </div>
+        
+        <div style="background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 12px; border-radius: 6px; margin: 15px 0;">
+          <strong>⚠️ Action Required:</strong> Please review counting procedures with the employee to ensure accuracy.
+        </div>
+        
+        <div style="font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 15px; margin-top: 20px;">
+          This error has been automatically logged in the system activity logs.<br>
+          <em>King Uniforms Laundry Management System</em>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const msg = {
+    to: [
+      'rmperez@kinguniforms.net',
+      'jperez@kinguniforms.net',
+      'eric.perez.pr@gmail.com'
+    ],
+    from: 'notifications@kinguniforms.net',
+    subject,
+    text,
+    html
+  };
+
+  try {
+    await sgMail.send(msg);
+    console.log(`Verification error email sent for ${clientName} - Employee: ${username}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error sending verification error email:', error);
+    res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
 app.listen(3001, () => console.log('Backend listening on port 3001'));

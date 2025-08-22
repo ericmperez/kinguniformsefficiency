@@ -949,11 +949,12 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   const [pendingCartName, setPendingCartName] = React.useState("");
 
   return (
-    <div
-      className="modal show"
-      style={{
-        display: "flex",
-        alignItems: "center",
+    <>
+      <div
+        className="modal show"
+        style={{
+          display: "flex",
+          alignItems: "center",
         justifyContent: "center",
         background: "rgba(0,0,0,0.3)",
         position: "fixed",
@@ -1411,7 +1412,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                                 height: 48,
                                 fontSize: 22,
                                 fontWeight: 600,
-                              }}                              onClick={async () => {
+                              }}
+                              onClick={async () => {
                                 if (btn === "OK") {
                                   if (newCartName.trim()) {
                                     setPendingCartName(newCartName.trim());
@@ -1629,298 +1631,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     + Add New Item
                   </button>
                 </div>
-                {/* Product Cards Modal for Adding Product */}
-                {addProductCartId === cart.id && (
-                  <div
-                    className="modal show d-block add-product-modal"
-                    style={{ background: "rgba(0,0,0,0.15)" }}
-                  >
-                    <div
-                      className="modal-dialog"
-                      // style removed, handled by CSS
-                    >
-                      <div className="modal-content">
-                        <div className="modal-header">
-                          <h5 className="modal-title">Add Product</h5>
-                          <button
-                            type="button"
-                            className="btn-close"
-                            onClick={() => {
-                              setAddProductCartId(null);
-                              setSelectedProductId("");
-                              setKeypadQty("");
-                            }}
-                          ></button>
-                        </div>
-                        <div className="modal-body" style={{ padding: "24px" }}>
-                          <div className="d-flex flex-column gap-3">
-                            {clientProducts.map((product) => (
-                              <div key={product.id} className="w-100">
-                                <div
-                                  className={`card shadow-lg product-card-enhanced${
-                                    selectedProductId === product.id ? " selected" : ""
-                                  }`}
-                                  style={{
-                                    cursor: "pointer",
-                                    height: 80,
-                                    borderWidth: 0,
-                                    borderRadius: 12,
-                                    background: selectedProductId === product.id 
-                                      ? "linear-gradient(135deg, #e3f2fd 0%, #bbdefb 50%, #90caf9 100%)"
-                                      : "linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%)",
-                                    boxShadow: selectedProductId === product.id
-                                      ? "0 8px 32px rgba(14, 98, 160, 0.25), 0 0 0 3px #0E62A0, inset 0 1px 0 rgba(255, 255, 255, 0.2)"
-                                      : "0 6px 20px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-                                    transform: selectedProductId === product.id ? "translateY(-2px) scale(1.01)" : "translateY(0) scale(1)",
-                                    transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                                    border: selectedProductId === product.id 
-                                      ? "3px solid #0E62A0" 
-                                      : "1px solid rgba(148, 163, 184, 0.2)",
-                                    position: "relative",
-                                    overflow: "hidden"
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (selectedProductId !== product.id) {
-                                      e.currentTarget.style.transform = "translateY(-1px) scale(1.005)";
-                                      e.currentTarget.style.boxShadow = "0 8px 25px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)";
-                                    }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (selectedProductId !== product.id) {
-                                      e.currentTarget.style.transform = "translateY(0) scale(1)";
-                                      e.currentTarget.style.boxShadow = "0 6px 20px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.1)";
-                                    }
-                                  }}
-                                  onClick={() => {
-                                    setSelectedProductId(product.id);
-                                    setShowProductKeypad({
-                                      cartId: cart.id,
-                                      productId: product.id,
-                                    });
-                                    setKeypadQty("");
-                                  }}
-                                >
-                                  {/* Selection indicator */}
-                                  {selectedProductId === product.id && (
-                                    <div
-                                      style={{
-                                        position: "absolute",
-                                        top: 12,
-                                        right: 12,
-                                        width: 20,
-                                        height: 20,
-                                        borderRadius: "50%",
-                                        background: "#0E62A0",
-                                        color: "white",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontSize: 12,
-                                        fontWeight: 900,
-                                        zIndex: 10,
-                                        boxShadow: "0 2px 8px rgba(14, 98, 160, 0.4)"
-                                      }}
-                                    >
-                                      ✓
-                                    </div>
-                                  )}
 
-                                  <div className="card-body d-flex align-items-center justify-content-center py-0 px-4" style={{ position: "relative", zIndex: 2, height: "100%" }}>
-                                    {/* Product name - perfectly centered */}
-                                    <h6
-                                      className="fw-bold mb-0"
-                                      style={{ 
-                                        fontSize: 20,
-                                        color: selectedProductId === product.id ? "#0E62A0" : "#1e293b",
-                                        fontWeight: 700,
-                                        letterSpacing: "0.5px",
-                                        textTransform: "capitalize",
-                                        lineHeight: 1.2,
-                                        transition: "color 0.25s ease",
-                                        textAlign: "center",
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        paddingRight: "80px" // Leave space for the indicator
-                                      }}
-                                    >
-                                      {product.name}
-                                    </h6>
 
-                                    {/* Add indicator - positioned absolute */}
-                                    <div
-                                      style={{
-                                        position: "absolute",
-                                        top: "50%",
-                                        right: 16,
-                                        transform: "translateY(-50%)",
-                                        padding: "6px 12px",
-                                        borderRadius: 8,
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        background: selectedProductId === product.id 
-                                          ? "rgba(14, 98, 160, 0.15)" 
-                                          : "rgba(148, 163, 184, 0.1)",
-                                        color: selectedProductId === product.id ? "#0E62A0" : "#64748b",
-                                        transition: "all 0.25s ease",
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.5px"
-                                      }}
-                                    >
-                                      {selectedProductId === product.id ? "Selected" : "Tap to Add"}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {/* Product quantity keypad modal */}
-                {showProductKeypad && (
-                  <div
-                    className="modal show d-block"
-                    tabIndex={-1}
-                    style={{ background: "rgba(0,0,0,0.25)", zIndex: 2100 }}
-                    onClick={(e) => {
-                      if (e.target === e.currentTarget)
-                        setShowProductKeypad(null);
-                    }}
-                  >
-                    <div
-                      className="modal-dialog"
-                      style={{ maxWidth: 320, margin: "120px auto 80px auto" }}
-                    >
-                      <div className="modal-content">
-                        <div className="modal-header">
-                          <h5 className="modal-title">Enter Quantity</h5>
-                          <button
-                            type="button"
-                            className="btn-close"
-                            onClick={() => setShowProductKeypad(null)}
-                          ></button>
-                        </div>
-                        <div className="modal-body">
-                          <input
-                            type="text"
-                            className="form-control mb-3 text-center"
-                            value={keypadQty}
-                            readOnly
-                            style={{
-                              fontSize: 28,
-                              letterSpacing: 2,
-                              background: "#f8fafc",
-                            }}
-                          />
-                          <div className="d-flex flex-wrap justify-content-center">
-                            {keypadButtons.map((btn, idx) => (
-                              <button
-                                key={btn + idx}
-                                className="btn btn-light m-1"
-                                style={{
-                                  width: 60,
-                                  height: 48,
-                                  fontSize: 22,
-                                  fontWeight: 600,
-                                }}
-                                onClick={async () => {
-                                  if (btn === "OK") {
-                                    const qty = parseInt(keypadQty, 10);
-                                    if (showProductKeypad && qty > 0) {
-                                      const prod = clientProducts.find(
-                                        (p) => p.id === showProductKeypad.productId
-                                      );
-                                      
-                                      // Create add product callback
-                                      const addProductCallback = async () => {
-                                        // 1. Update localCarts immediately for instant UI update
-                                        setLocalCarts((prevCarts) =>
-                                          prevCarts.map((cartObj) => {
-                                            if (
-                                              cartObj.id !==
-                                              showProductKeypad.cartId
-                                            )
-                                              return cartObj;
-                                            
-                                            return {
-                                              ...cartObj,
-                                              items: [
-                                                ...cartObj.items,
-                                                {
-                                                  productId:
-                                                    showProductKeypad.productId,
-                                                  productName: prod
-                                                    ? prod.name
-                                                    : "",
-                                                  quantity: qty,
-                                                  price: prod ? prod.price : 0,
-                                                  addedBy:
-                                                    user?.username || "You",
-                                                  addedAt:
-                                                    new Date().toISOString(),
-                                                },
-                                              ],
-                                            };
-                                          })
-                                        );
-                                        
-                                        // 2. Mark cart as modified (needs reprint)
-                                        await markCartAsModified(showProductKeypad.cartId);
-                                        
-                                        // 3. Persist to Firestore (parent handler)
-                                        await onAddProductToCart(
-                                          showProductKeypad.cartId,
-                                          showProductKeypad.productId,
-                                          qty
-                                        );
-                                        
-                                        if (refreshInvoices)
-                                          await refreshInvoices();
-                                        
-                                        // Clear states
-                                        setAddProductCartId(null);
-                                        setSelectedProductId("");
-                                        setShowProductKeypad(null);
-                                        setKeypadQty("");
-                                        setShowAddConfirmation(false);
-                                        setConfirmationProduct(null);
-                                      };
-                                      
-                                      // Show confirmation dialog
-                                      setConfirmationProduct({
-                                        cartId: showProductKeypad.cartId,
-                                        productId: showProductKeypad.productId,
-                                        product: prod || null,
-                                        quantity: qty,
-                                        addCallback: addProductCallback
-                                      });
-                                      setShowAddConfirmation(true);
-                                    } else {
-                                      setShowProductKeypad(null);
-                                      setKeypadQty("");
-                                    }
-                                  } else if (btn === "←") {
-                                    setKeypadQty((prev) => prev.slice(0, -1));
-                                  } else {
-                                    setKeypadQty((prev) => prev + btn);
-                                  }
-                                }}
-                                tabIndex={-1}
-                                type="button"
-                              >
-                                {btn}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 {/* Product summary cards */}
                 <div className="row g-2 mb-2">
                   {clientProducts
@@ -2068,16 +1780,18 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       {/* Product Add Confirmation Modal */}
       {showAddConfirmation && confirmationProduct && (
         <div
-          className="modal show"
+          className="modal show product-confirmation-modal"
           style={{
-            display: "block",
-            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.8)",
             position: "fixed",
             top: 0,
             left: 0,
             width: "100vw",
             height: "100vh",
-            zIndex: 3000,
+            zIndex: 9999, // Maximum z-index
           }}
         >
           <div className="modal-dialog" style={{ marginTop: "10vh" }}>
@@ -2938,6 +2652,215 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
         />
       )}
     </div>
+
+    {/* Product Cards Modal for Adding Product - Moved Outside Main Modal */}
+    {addProductCartId && (
+      <div 
+        className="modal show d-block add-product-modal"
+        style={{ zIndex: 2500 }}
+        onClick={(e) => {
+          // Close modal only if clicking on the backdrop, not the content
+          if (e.target === e.currentTarget) {
+            setAddProductCartId(null);
+            setSelectedProductId("");
+            setKeypadQty("");
+          }
+        }}
+      >
+        <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">Select Product</h5>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => {
+                  setAddProductCartId(null);
+                  setSelectedProductId("");
+                  setKeypadQty("");
+                }}
+              ></button>
+            </div>
+            <div className="modal-body">
+              <div className="product-grid">
+                {clientProducts.map((product) => (
+                  <div key={product.id}>
+                    <div
+                      className={`card product-card-selectable${
+                        selectedProductId === product.id ? " border-primary" : ""
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedProductId(product.id);
+                        setShowProductKeypad({
+                          cartId: addProductCartId,
+                          productId: product.id,
+                        });
+                        setKeypadQty("");
+                      }}
+                    >
+                      <div className="card-body">
+                        <h6 className="fw-bold mb-0">
+                          {product.name}
+                        </h6>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>        </div>
+      )}
+
+    {/* Quantity Keypad Modal for Product Selection - Moved Outside Main Modal */}
+    {showProductKeypad && (
+      <div
+        className="modal show d-block"
+        tabIndex={-1}
+        style={{ background: "rgba(0,0,0,0.5)", zIndex: 3500 }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget)
+            setShowProductKeypad(null);
+        }}
+      >
+        <div
+          className="modal-dialog"
+          style={{ maxWidth: 320, margin: "120px auto 80px auto" }}
+        >
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">Enter Quantity</h5>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setShowProductKeypad(null)}
+              ></button>
+            </div>
+            <div className="modal-body">
+              <input
+                type="text"
+                className="form-control mb-3 text-center"
+                value={keypadQty}
+                readOnly
+                style={{
+                  fontSize: 28,
+                  letterSpacing: 2,
+                  background: "#f8fafc",
+                }}
+              />
+              <div className="d-flex flex-wrap justify-content-center">
+                {keypadButtons.map((btn, idx) => (
+                  <button
+                    key={btn + idx}
+                    className="btn btn-light m-1"
+                    style={{
+                      width: 60,
+                      height: 48,
+                      fontSize: 22,
+                      fontWeight: 600,
+                    }}
+                    onClick={async () => {
+                      if (btn === "OK") {
+                        const qty = parseInt(keypadQty, 10);
+                        if (showProductKeypad && qty > 0) {
+                          const prod = clientProducts.find(
+                            (p) => p.id === showProductKeypad.productId
+                          );
+                          
+                          // Create add product callback
+                          const addProductCallback = async () => {
+                            // 1. Update localCarts immediately for instant UI update
+                            setLocalCarts((prevCarts) =>
+                              prevCarts.map((cartObj) => {
+                                if (
+                                  cartObj.id !==
+                                  showProductKeypad.cartId
+                                )
+                                  return cartObj;
+                                
+                                return {
+                                  ...cartObj,
+                                  items: [
+                                    ...cartObj.items,
+                                    {
+                                      productId:
+                                        showProductKeypad.productId,
+                                      productName: prod
+                                        ? prod.name
+                                        : "",
+                                      quantity: qty,
+                                      price: prod ? prod.price : 0,
+                                      addedBy:
+                                        user?.username || "You",
+                                      addedAt:
+                                        new Date().toISOString(),
+                                    },
+                                  ],
+                                };
+                              })
+                            );
+                            
+                            // 2. Mark cart as modified (needs reprint)
+                            await markCartAsModified(showProductKeypad.cartId);
+                            
+                            // 3. Persist to Firestore (parent handler)
+                            await onAddProductToCart(
+                              showProductKeypad.cartId,
+                              showProductKeypad.productId,
+                              qty
+                            );
+                            
+                            if (refreshInvoices)
+                              await refreshInvoices();
+                            
+                            // Clear states
+                            setAddProductCartId(null);
+                            setSelectedProductId("");
+                            setShowProductKeypad(null);
+                            setKeypadQty("");
+                            setShowAddConfirmation(false);
+                            setConfirmationProduct(null);
+                          };
+                          
+                          // Show confirmation dialog
+                          setConfirmationProduct({
+                            cartId: showProductKeypad.cartId,
+                            productId: showProductKeypad.productId,
+                            product: prod || null,
+                            quantity: qty,
+                            addCallback: addProductCallback
+                          });
+                          setShowAddConfirmation(true);
+                          
+                          // Close ALL other modals to make way for confirmation modal
+                          setShowProductKeypad(null);
+                          setAddProductCartId(null); // Close product selection modal
+                          setSelectedProductId("");
+                          setKeypadQty("");
+                        } else {
+                          setShowProductKeypad(null);
+                          setKeypadQty("");
+                        }
+                      } else if (btn === "←") {
+                        setKeypadQty((prev) => prev.slice(0, -1));
+                      } else {
+                        setKeypadQty((prev) => prev + btn);
+                      }
+                    }}
+                    tabIndex={-1}
+                    type="button"
+                  >
+                    {btn}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

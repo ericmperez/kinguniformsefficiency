@@ -360,12 +360,234 @@ input:focus, select:focus, textarea:focus {
   animation: approval-pulse 2s ease-in-out;
 }
 
+.invoice-card-partial {
+  animation: partial-approval-pulse 2s ease-in-out;
+}
+
 /* Prevent body scroll when modal is open */
 body.modal-open {
   overflow: hidden !important;
   position: fixed !important;
   width: 100% !important;
   height: 100% !important;
+}
+
+/* --- Clean Add Product Modal (No Visual Effects) --- */
+.add-product-modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2000 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: auto !important;
+}
+
+.add-product-modal .modal-dialog {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  margin: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  pointer-events: none !important;
+}
+
+.add-product-modal .modal-content {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border: none !important;
+  pointer-events: auto !important;
+}
+
+.add-product-modal .modal-header {
+  position: relative !important;
+  padding: 20px 30px !important;
+  border-bottom: 2px solid #ddd !important;
+  background: #0E62A0 !important;
+  color: white !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+}
+
+.add-product-modal .modal-title {
+  font-size: 32px !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+  flex: 1 !important;
+}
+
+.add-product-modal .btn-close {
+  color: white !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border: 2px solid white !important;
+  border-radius: 50% !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+  opacity: 1 !important;
+  position: absolute !important;
+  top: 15px !important;
+  right: 20px !important;
+  z-index: 10 !important;
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.add-product-modal .btn-close:hover {
+  background: rgba(255, 255, 255, 0.3) !important;
+  transform: scale(1.05) !important;
+}
+
+.add-product-modal .btn-close:focus {
+  outline: 2px solid white !important;
+  outline-offset: 2px !important;
+}
+
+.add-product-modal .btn-close::before {
+  content: "×" !important;
+  color: white !important;
+  font-size: 20px !important;
+  font-weight: bold !important;
+  line-height: 1 !important;
+}
+
+.add-product-modal .modal-body {
+  flex: 1 !important;
+  padding: 30px !important;
+  overflow-y: auto !important;
+  background: #f8f9fa !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.add-product-modal .product-grid {
+  gap: 15px !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-content: flex-start !important;
+}
+
+.add-product-modal .product-grid > div {
+  flex: 1 1 auto !important;
+  min-width: 200px !important;
+  max-width: 280px !important;
+}
+
+/* Responsive breakpoints for product cards */
+@media (max-width: 576px) {
+  .add-product-modal .product-grid > div {
+    flex: 1 1 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (min-width: 577px) and (max-width: 768px) {
+  .add-product-modal .product-grid > div {
+    flex: 1 1 calc(50% - 8px) !important;
+    min-width: calc(50% - 8px) !important;
+    max-width: calc(50% - 8px) !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .add-product-modal .product-grid > div {
+    flex: 1 1 calc(33.333% - 10px) !important;
+    min-width: calc(33.333% - 10px) !important;
+    max-width: calc(33.333% - 10px) !important;
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1400px) {
+  .add-product-modal .product-grid > div {
+    flex: 1 1 calc(25% - 12px) !important;
+    min-width: calc(25% - 12px) !important;
+    max-width: calc(25% - 12px) !important;
+  }
+}
+
+@media (min-width: 1401px) {
+  .add-product-modal .product-grid > div {
+    flex: 1 1 calc(20% - 12px) !important;
+    min-width: calc(20% - 12px) !important;
+    max-width: calc(20% - 12px) !important;
+  }
+}
+
+/* Clean Product Cards - No Effects */
+.add-product-modal .product-card-selectable {
+  min-height: 120px !important;
+  border: 2px solid #ddd !important;
+  border-radius: 8px !important;
+  background: white !important;
+  width: 100% !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  cursor: pointer !important;
+  position: relative !important;
+}
+
+.add-product-modal .product-card-selectable .card-body {
+  padding: 20px 15px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 1 !important;
+  text-align: center !important;
+}
+
+.add-product-modal .product-card-selectable .fw-bold {
+  font-size: 22px !important;
+  font-weight: 600 !important;
+  color: #333 !important;
+  text-align: center !important;
+  line-height: 1.2 !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+/* Selected State - Simple Border Change Only */
+.add-product-modal .product-card-selectable.border-primary {
+  border: 3px solid #0E62A0 !important;
+  background: #f0f8ff !important;
+}
+
+.add-product-modal .product-card-selectable.border-primary .fw-bold {
+  color: #0E62A0 !important;
+}
+
+/* Mobile specific adjustments */
+@media (max-width: 576px) {
+  .add-product-modal .modal-body {
+    padding: 20px !important;
+  }
+  
+  .add-product-modal .product-card-selectable .fw-bold {
+    font-size: 18px !important;
+  }
+  
+  .add-product-modal .modal-title {
+    font-size: 24px !important;
+  }
 }
 
 /* --- Universal Product Name Styling --- */
@@ -572,16 +794,42 @@ body.modal-open {
 
 /* --- End Invoice Special Service Styling --- */
 
-/* --- Floating Animation for Total Carts Display --- */
-@keyframes float {
-  0%, 100% { 
-    transform: translateY(0px); 
-    opacity: 0.6; 
-  }
-  50% { 
-    transform: translateY(-10px); 
-    opacity: 1; 
-  }
+/* --- Universal Product Name Styling --- */
+
+/* Add Product Confirmation Modal - Force Top Layer */
+.product-confirmation-modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important; /* Maximum priority - above all other modals */
+  background: rgba(0, 0, 0, 0.8) !important; /* Darker for better visibility */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: auto !important;
 }
 
-/* --- End Floating Animation --- */
+.product-confirmation-modal .modal-dialog {
+  z-index: 10000 !important;
+  margin: 0 !important;
+  pointer-events: auto !important;
+  position: relative !important;
+}
+
+.product-confirmation-modal .modal-content {
+  z-index: 10001 !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  pointer-events: auto !important;
+  position: relative !important;
+}
+
+/* Ensure confirmation modal appears above everything else */
+.modal.show.product-confirmation-modal {
+  z-index: 9999 !important;
+}
