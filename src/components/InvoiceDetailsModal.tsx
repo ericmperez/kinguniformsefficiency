@@ -2726,39 +2726,58 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
       >
         <div
           className="modal-dialog"
-          style={{ maxWidth: 320, margin: "120px auto 80px auto" }}
+          style={{ 
+            maxWidth: 450, 
+            margin: "0 auto", 
+            width: "45vw",
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)"
+          }}
         >
           <div className="modal-content">
-            <div className="modal-header">
-              <h5 className="modal-title">Enter Quantity</h5>
+            <div className="modal-header" style={{ padding: "10px 15px" }}>
+              <h4 className="modal-title fw-bold text-primary" style={{ fontSize: "1.3rem", margin: 0 }}>Enter Quantity</h4>
               <button
                 type="button"
                 className="btn-close"
                 onClick={() => setShowProductKeypad(null)}
+                style={{ fontSize: 16, width: 22, height: 22 }}
               ></button>
             </div>
-            <div className="modal-body">
+            <div className="modal-body" style={{ padding: "20px" }}>
               <input
                 type="text"
-                className="form-control mb-3 text-center"
+                className="form-control mb-3 text-center fw-bold"
                 value={keypadQty}
                 readOnly
                 style={{
-                  fontSize: 28,
+                  fontSize: 36,
                   letterSpacing: 2,
                   background: "#f8fafc",
+                  height: 65,
+                  border: "3px solid #3b82f6",
+                  borderRadius: 10,
+                  boxShadow: "0 4px 12px rgba(59, 130, 246, 0.15)",
+                  color: "#1e40af",
                 }}
               />
-              <div className="d-flex flex-wrap justify-content-center">
+              <div className="d-flex flex-wrap justify-content-center gap-4">
                 {keypadButtons.map((btn, idx) => (
                   <button
                     key={btn + idx}
-                    className="btn btn-light m-1"
+                    className="btn btn-outline-primary shadow"
                     style={{
-                      width: 60,
-                      height: 48,
-                      fontSize: 22,
-                      fontWeight: 600,
+                      width: 70,
+                      height: 60,
+                      fontSize: 28,
+                      fontWeight: 800,
+                      border: "2px solid #3b82f6",
+                      borderRadius: 8,
+                      transition: "all 0.2s ease",
+                      color: "#1e40af",
+                      margin: "4px",
                     }}
                     onClick={async () => {
                       if (btn === "OK") {
