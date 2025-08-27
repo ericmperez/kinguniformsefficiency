@@ -105,7 +105,9 @@ export default function LaundryCartModal({
                           className="list-group-item list-group-item-action"
                           onClick={() => onSelect(cart)}
                           style={
-                            cart.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
+                            cart.name
+                              .toUpperCase()
+                              .startsWith("CARRO SIN NOMBRE")
                               ? { color: "red", fontWeight: 700 }
                               : {}
                           }
@@ -157,7 +159,10 @@ export default function LaundryCartModal({
                       </button>
                     </div>
                     {cartNameError && (
-                      <div className="text-danger mt-1" style={{ fontSize: 14 }}>
+                      <div
+                        className="text-danger mt-1"
+                        style={{ fontSize: 14 }}
+                      >
                         {cartNameError}
                       </div>
                     )}

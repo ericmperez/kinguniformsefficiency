@@ -15,6 +15,7 @@ import { getManualConventionalProductsForDate } from "../services/firebaseServic
 import { logActivity } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
 import FlipMove from "react-flip-move";
+import { hardwareService, CartCountdownEvent } from '../services/hardwareService';
 
 interface WashingProps {
   setSelectedInvoiceId?: (id: string | null) => void;
@@ -577,7 +578,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       const existingTunnelGroups = tunnelGroups.filter((g) => typeof g.order === "number");
       let nextOrder = existingTunnelGroups.reduce((max, g) => Math.max(max, g.order!), -1) + 1;
       
-      // Batch update all groups that need order assignment
+      // Batch update all groups with consecutive order values
       const batchUpdates = tunnelGroupsNeedingOrder.map(async (group) => {
         const assignedOrder = nextOrder++;
         await updateDoc(doc(db, "pickup_groups", group.id), { order: assignedOrder });
@@ -735,7 +736,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     console.log(`📱 Moving: ${group?.clientName || groupId}`);
     console.log(`📍 From position: ${oldIndex + 1} → ${newIndex + 1}`);
     console.log(`⬆️⬇️ Direction: ${direction === "up" ? 'UP' : 'DOWN'}`);
-    console.log(`⏰ Time: ${new Date().toLocaleTimeString()}`);
     console.log(`🔄 Will swap with: ${swapGroup?.clientName || 'Unknown'}`);
     
     setTunnelReorderLoading(groupId);
@@ -816,7 +816,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     console.log(`📍 From position: ${idx + 1} → ${newIdx + 1}`);
     console.log(`⬆️⬇️ Direction: ${direction === "up" ? 'UP' : 'DOWN'}`);
     console.log(`🏷️ Type: ${movingItem?.isManualProduct ? 'Manual Product' : 'Client Group'}`);
-    console.log(`⏰ Time: ${new Date().toLocaleTimeString()}`);
     console.log(`🔄 Will swap with: ${swapItem?.clientName || swapItem?.productName || 'Unknown'}`);
     
     // Swap order values
@@ -1765,15 +1764,40 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 }
                                 onClick={async () => {
                                   if (!canVerify || rowControlsDisabled) return;
+                                  const previousCount = cartCounter;
                                   const newCount = Math.max(cartCounter - 1, 0);
+                                  
+                                  // Update UI state
                                   setCartCounters((prev) => ({
                                     ...prev,
                                     [group.id]: newCount,
                                   }));
+                                  
+                                  // Update database
                                   await updateDoc(
                                     doc(db, "pickup_groups", group.id),
                                     { tunnelCartCount: newCount }
                                   );
+                                  
+                                  // Send signal to hardware
+                                  try {
+                                    const hardwareEvent: CartCountdownEvent = {
+                                      groupId: group.id,
+                                      clientName: group.clientName || 'Unknown Client',
+                                      previousCount,
+                                      newCount,
+                                      timestamp: new Date(),
+                                    };
+                                    
+                                    const success = await hardwareService.sendCartCountdown(hardwareEvent);
+                                    if (success) {
+                                      console.log('✅ Hardware signal sent for cart countdown');
+                                    } else {
+                                      console.log('⚠️ Hardware signal failed (hardware may be disabled)');
+                                    }
+                                  } catch (error) {
+                                    console.error('❌ Error sending hardware signal:', error);
+                                  }
                                 }}
                               >
                                 -
@@ -2181,17 +2205,40 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 }
                                 onClick={async () => {
                                   if (!canVerify || rowControlsDisabled) return;
+                                  const previousCount = cartCounter;
                                   const newCount = Math.max(cartCounter - 1, 0);
+                                  
+                                  // Update UI state
                                   setCartCounters((prev) => ({
                                     ...prev,
                                     [group.id]: newCount,
                                   }));
+                                  
+                                  // Update database
                                   await updateDoc(
                                     doc(db, "pickup_groups", group.id),
-                                    {
-                                      tunnelCartCount: newCount,
-                                    }
+                                    { tunnelCartCount: newCount }
                                   );
+                                  
+                                  // Send signal to hardware
+                                  try {
+                                    const hardwareEvent: CartCountdownEvent = {
+                                      groupId: group.id,
+                                      clientName: group.clientName || 'Unknown Client',
+                                      previousCount,
+                                      newCount,
+                                      timestamp: new Date(),
+                                    };
+                                    
+                                    const success = await hardwareService.sendCartCountdown(hardwareEvent);
+                                    if (success) {
+                                      console.log('✅ Hardware signal sent for cart countdown');
+                                    } else {
+                                      console.log('⚠️ Hardware signal failed (hardware may be disabled)');
+                                    }
+                                  } catch (error) {
+                                    console.error('❌ Error sending hardware signal:', error);
+                                  }
                                 }}
                               >
                                 -

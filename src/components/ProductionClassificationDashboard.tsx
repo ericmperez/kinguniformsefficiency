@@ -84,6 +84,11 @@ const ProductionClassificationDashboard: React.FC = () => {
   const [totalPickupWeight, setTotalPickupWeight] = useState(0);
   const [pickupEntriesLoading, setPickupEntriesLoading] = useState(true);
 
+  // Add toast notification state for classification saves
+  const [showSaveToast, setShowSaveToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+
   // State for production start times for hourly rate calculations
   const [mangleStartTime, setMangleStartTime] = useState<string>(
     localStorage.getItem("mangleStartTime") || "08:00"
@@ -234,7 +239,7 @@ const ProductionClassificationDashboard: React.FC = () => {
     const fetchAllProductsForDate = async () => {
       try {
         // Parse the selected date as local date to avoid timezone shift
-        const [year, month, day] = selectedDate.split('-').map(Number);
+        const [year, month, day] = selectedDate.split("-").map(Number);
         const selectedDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
         const nextDay = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
 
@@ -293,7 +298,7 @@ const ProductionClassificationDashboard: React.FC = () => {
 
         // Get selected date string (YYYY-MM-DD format) using local timezone
         // Parse the selected date as local date to avoid timezone shift
-        const [year, month, day] = selectedDate.split('-').map(Number);
+        const [year, month, day] = selectedDate.split("-").map(Number);
         const selectedDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
         const localDateStr = selectedDate; // Keep the original selected date string
         const utcDateStr = selectedDateObj.toISOString().slice(0, 10);
@@ -581,10 +586,10 @@ const ProductionClassificationDashboard: React.FC = () => {
     const fetchProductionDataForDate = async () => {
       try {
         setSelectedDateProductionData((prev) => ({ ...prev, loading: true }));
-        
+
         // Get selected date range - handle timezone correctly
         // Parse the selected date as local date to avoid timezone shift
-        const [year, month, day] = selectedDate.split('-').map(Number);
+        const [year, month, day] = selectedDate.split("-").map(Number);
         const selectedDateObj = new Date(year, month - 1, day, 0, 0, 0, 0);
         const nextDay = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
 
@@ -597,24 +602,24 @@ const ProductionClassificationDashboard: React.FC = () => {
         invoicesSnapshot.docs.forEach((doc) => {
           const invoice = doc.data();
           const invoiceId = doc.id;
-          const clientId = invoice.clientId || '';
-          const clientName = invoice.clientName || 'Unknown Client';
+          const clientId = invoice.clientId || "";
+          const clientName = invoice.clientName || "Unknown Client";
           const carts = invoice.carts || [];
 
           carts.forEach((cart: any) => {
-            const cartId = cart.id || '';
-            const cartName = cart.name || 'Unknown Cart';
+            const cartId = cart.id || "";
+            const cartName = cart.name || "Unknown Cart";
             const items = cart.items || [];
 
             items.forEach((item: any, itemIndex: number) => {
               if (item.addedAt) {
                 const itemAddedAt = new Date(item.addedAt);
-                
+
                 // Include items added on selected date
                 if (itemAddedAt >= selectedDateObj && itemAddedAt < nextDay) {
-                  const productName = item.productName || 'Unknown Product';
+                  const productName = item.productName || "Unknown Product";
                   const quantity = Number(item.quantity) || 0;
-                  
+
                   // Only skip items with clearly invalid quantity
                   if (quantity > 0) {
                     productionEntries.push({
@@ -624,13 +629,13 @@ const ProductionClassificationDashboard: React.FC = () => {
                       clientName,
                       cartId,
                       cartName,
-                      productId: item.productId || '',
+                      productId: item.productId || "",
                       productName,
                       quantity,
                       price: Number(item.price) || 0,
-                      addedBy: item.addedBy || 'Unknown',
+                      addedBy: item.addedBy || "Unknown",
                       addedAt: itemAddedAt,
-                      source: 'invoice_item' as const
+                      source: "invoice_item" as const,
                     });
                   }
                 }
@@ -640,17 +645,26 @@ const ProductionClassificationDashboard: React.FC = () => {
         });
 
         // Sort by time (newest first)
-        productionEntries.sort((a, b) => b.addedAt.getTime() - a.addedAt.getTime());
+        productionEntries.sort(
+          (a, b) => b.addedAt.getTime() - a.addedAt.getTime()
+        );
 
-        console.log("🏭 [Production] Found", productionEntries.length, "entries for", selectedDate);
-        
+        console.log(
+          "🏭 [Production] Found",
+          productionEntries.length,
+          "entries for",
+          selectedDate
+        );
+
         setSelectedDateProductionData({
           entries: productionEntries,
           loading: false,
         });
-
       } catch (error) {
-        console.error("Error fetching production data for selected date:", error);
+        console.error(
+          "Error fetching production data for selected date:",
+          error
+        );
         setSelectedDateProductionData({
           entries: [],
           loading: false,
@@ -670,10 +684,13 @@ const ProductionClassificationDashboard: React.FC = () => {
     doblado: ProductionGroup;
   } => {
     // Determine which data source to use
-    const useSelectedDateData = !isToday || selectedDateProductionData.entries.length > 0;
-    const entriesSource = useSelectedDateData 
-      ? selectedDateProductionData.entries 
-      : (productionSummary?.allEntriesToday || productionSummary?.recentEntries || []);
+    const useSelectedDateData =
+      !isToday || selectedDateProductionData.entries.length > 0;
+    const entriesSource = useSelectedDateData
+      ? selectedDateProductionData.entries
+      : productionSummary?.allEntriesToday ||
+        productionSummary?.recentEntries ||
+        [];
 
     console.log("🔍 [Production Logs] Data source selection:", {
       selectedDate,
@@ -687,7 +704,10 @@ const ProductionClassificationDashboard: React.FC = () => {
       finalEntriesCount: entriesSource.length,
     });
 
-    if (entriesSource.length === 0 && (selectedDateProductionData.loading || loading)) {
+    if (
+      entriesSource.length === 0 &&
+      (selectedDateProductionData.loading || loading)
+    ) {
       return {
         mangle: {
           classification: "Mangle",
@@ -821,15 +841,23 @@ const ProductionClassificationDashboard: React.FC = () => {
       mangle: calculateGroupStats(mangleEntries),
       doblado: calculateGroupStats(dobladoEntries),
     };
-  }, [productionSummary, customClassifications, selectedDateProductionData, selectedDate, isToday, loading]);
+  }, [
+    productionSummary,
+    customClassifications,
+    selectedDateProductionData,
+    selectedDate,
+    isToday,
+    loading,
+  ]);
 
   // Calculate timing summary for production on selected date
   const timingSummary = useMemo(() => {
     // Determine which data source to use
-    const useSelectedDateData = !isToday || selectedDateProductionData.entries.length > 0;
-    const entriesSource = useSelectedDateData 
-      ? selectedDateProductionData.entries 
-      : (productionSummary?.recentEntries || []);
+    const useSelectedDateData =
+      !isToday || selectedDateProductionData.entries.length > 0;
+    const entriesSource = useSelectedDateData
+      ? selectedDateProductionData.entries
+      : productionSummary?.recentEntries || [];
 
     if (entriesSource.length === 0) {
       return null;
@@ -859,19 +887,22 @@ const ProductionClassificationDashboard: React.FC = () => {
     const selectedDateStart = new Date(selectedDate);
     selectedDateStart.setHours(0, 0, 0, 0);
     const now = new Date();
-    
+
     // For selected date calculations
     let hoursFromStart: number;
     if (isToday) {
       // For today, calculate from midnight to now
-      hoursFromStart = (now.getTime() - selectedDateStart.getTime()) / (1000 * 60 * 60);
+      hoursFromStart =
+        (now.getTime() - selectedDateStart.getTime()) / (1000 * 60 * 60);
     } else {
       // For past dates, calculate for the full 24 hours
       hoursFromStart = 24;
     }
-    
-    const overallHourlyRate = hoursFromStart > 0 ? totalQuantity / hoursFromStart : 0;
-    const productionPeriodRate = productionSpanHours > 0 ? totalQuantity / productionSpanHours : 0;
+
+    const overallHourlyRate =
+      hoursFromStart > 0 ? totalQuantity / hoursFromStart : 0;
+    const productionPeriodRate =
+      productionSpanHours > 0 ? totalQuantity / productionSpanHours : 0;
 
     return {
       firstEntry,
@@ -898,20 +929,46 @@ const ProductionClassificationDashboard: React.FC = () => {
         productName,
         newClassification
       );
+
       // Update local state for immediate UI feedback
       setCustomClassifications((prev) => ({
         ...prev,
         [productName]: newClassification,
       }));
-      // Optionally close modal or show success message
+
+      // Close modals and show success feedback
       setShowEditModal(false);
       setEditingProduct("");
+
+      // Show toast notification
+      setToastMessage(
+        `✅ Successfully saved: "${productName}" → ${newClassification}`
+      );
+      setToastType("success");
+      setShowSaveToast(true);
+
+      // Auto-hide toast after 3 seconds
+      setTimeout(() => {
+        setShowSaveToast(false);
+      }, 3000);
+
       console.log(
         `✅ Saved classification for ${productName}: ${newClassification} (Firebase)`
       );
     } catch (error) {
       console.error("❌ Failed to save classification:", error);
-      // Optionally show error message to user
+
+      // Show error toast
+      setToastMessage(
+        `❌ Failed to save classification for "${productName}". Please try again.`
+      );
+      setToastType("error");
+      setShowSaveToast(true);
+
+      // Auto-hide error toast after 5 seconds
+      setTimeout(() => {
+        setShowSaveToast(false);
+      }, 5000);
     }
   };
 
@@ -972,15 +1029,16 @@ const ProductionClassificationDashboard: React.FC = () => {
             <div>
               <h2 className="mb-1">🏭 Production Classification Dashboard</h2>
               <p className="text-muted">
-                {isToday 
+                {isToday
                   ? "Real-time tracking of Mangle vs Doblado production • Auto-updates"
-                  : `Historical data for ${new Date(selectedDate).toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}`
-                }
+                  : `Historical data for ${new Date(
+                      selectedDate
+                    ).toLocaleDateString("en-US", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}`}
                 {!isToday && (
                   <span className="badge bg-info ms-2">Historical View</span>
                 )}
@@ -989,7 +1047,10 @@ const ProductionClassificationDashboard: React.FC = () => {
             <div className="d-flex gap-3 align-items-center">
               {/* Date Selector */}
               <div>
-                <label htmlFor="selectedDate" className="form-label mb-1 small text-muted">
+                <label
+                  htmlFor="selectedDate"
+                  className="form-label mb-1 small text-muted"
+                >
                   Select Date
                 </label>
                 <input
@@ -1009,7 +1070,9 @@ const ProductionClassificationDashboard: React.FC = () => {
                       ? "btn-primary"
                       : "btn-outline-primary"
                   }`}
-                  onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                  onClick={() =>
+                    setSelectedDate(new Date().toISOString().slice(0, 10))
+                  }
                 >
                   Today
                 </button>
@@ -1035,6 +1098,59 @@ const ProductionClassificationDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Recently Saved Classifications Info */}
+      {Object.keys(customClassifications).length > 0 && (
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="alert alert-info border-info">
+              <div className="d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 className="alert-heading mb-2">
+                    <i className="fas fa-save me-2"></i>
+                    Custom Classifications Active (
+                    {Object.keys(customClassifications).length})
+                  </h6>
+                  <div className="d-flex flex-wrap gap-2">
+                    {Object.entries(customClassifications)
+                      .slice(0, 10) // Show only first 10
+                      .map(([productName, classification]) => (
+                        <span
+                          key={productName}
+                          className={`badge bg-${
+                            classification === "Mangle" ? "success" : "warning"
+                          } text-dark`}
+                          title={`${productName} is classified as ${classification}`}
+                        >
+                          {productName} → {classification}
+                        </span>
+                      ))}
+                    {Object.keys(customClassifications).length > 10 && (
+                      <span className="badge bg-secondary">
+                        +{Object.keys(customClassifications).length - 10}{" "}
+                        more...
+                      </span>
+                    )}
+                  </div>
+                  {Object.keys(customClassifications).length > 10 && (
+                    <small className="text-muted d-block mt-1">
+                      Click "Edit Classifications" to see all custom
+                      classifications
+                    </small>
+                  )}
+                </div>
+                <button
+                  className="btn btn-sm btn-outline-info"
+                  onClick={() => setShowEditModal(true)}
+                  title="View and edit all classifications"
+                >
+                  <i className="fas fa-cog"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Classifications Modal */}
       {showEditModal && (
@@ -1062,6 +1178,28 @@ const ProductionClassificationDashboard: React.FC = () => {
                     Default rules: Sheets, Duvets, Sabanas, Servilletas, Fundas,
                     and Fitted Sheets → Mangle. All others → Doblado.
                   </p>
+                  {Object.keys(customClassifications).length > 0 && (
+                    <div className="alert alert-success">
+                      <h6 className="alert-heading">
+                        <i className="fas fa-check-circle me-2"></i>
+                        {Object.keys(customClassifications).length} Custom
+                        Classifications Saved
+                      </h6>
+                      <p className="mb-0">
+                        Your custom classifications are automatically saved to
+                        Firebase and applied immediately. Changes will be
+                        reflected in all production reports and dashboards.
+                        <br />
+                        <small className="text-success">
+                          <i className="fas fa-info-circle me-1"></i>
+                          <strong>Only 1 value per product:</strong> Each
+                          product can have only one classification (Mangle or
+                          Doblado). Updating a classification replaces the
+                          previous value.
+                        </small>
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="table-responsive">
                   <table className="table table-striped">
@@ -1084,7 +1222,19 @@ const ProductionClassificationDashboard: React.FC = () => {
                             key={product}
                             className={isCustom ? "table-warning" : ""}
                           >
-                            <td>{product}</td>
+                            <td>
+                              <div className="d-flex align-items-center">
+                                {product}
+                                {isCustom && (
+                                  <span className="ms-2">
+                                    <i
+                                      className="fas fa-star text-warning"
+                                      title="Custom classification saved"
+                                    ></i>
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             <td>
                               <span
                                 className={`badge bg-${
@@ -1106,13 +1256,18 @@ const ProductionClassificationDashboard: React.FC = () => {
                               >
                                 {currentClass}
                               </span>
+                              {isCustom && (
+                                <small className="text-warning ms-2">
+                                  <i className="fas fa-check-circle"></i> Saved
+                                </small>
+                              )}
                             </td>
                             <td>
                               <button
                                 className="btn btn-sm btn-outline-primary"
                                 onClick={() => setEditingProduct(product)}
                               >
-                                Edit
+                                {isCustom ? "Edit" : "Classify"}
                               </button>
                             </td>
                           </tr>
@@ -1165,6 +1320,14 @@ const ProductionClassificationDashboard: React.FC = () => {
                   <p className="small text-muted">
                     Choose the new classification for this product:
                   </p>
+                  <div className="alert alert-info py-2">
+                    <small>
+                      <i className="fas fa-info-circle me-2"></i>
+                      <strong>Auto-save:</strong> Your selection will be saved
+                      immediately to Firebase and applied across all production
+                      reports. Only one classification per product is allowed.
+                    </small>
+                  </div>
                 </div>
 
                 <div className="d-grid gap-3">
@@ -1174,7 +1337,9 @@ const ProductionClassificationDashboard: React.FC = () => {
                         ? "btn-success"
                         : "btn-outline-success"
                     } btn-lg`}
-                    onClick={() => handleClassificationChange(editingProduct, "Mangle")}
+                    onClick={() =>
+                      handleClassificationChange(editingProduct, "Mangle")
+                    }
                   >
                     <i className="fas fa-compress-arrows-alt me-3"></i>
                     <div className="d-inline-block text-start">
@@ -1191,7 +1356,9 @@ const ProductionClassificationDashboard: React.FC = () => {
                         ? "btn-warning"
                         : "btn-outline-warning"
                     } btn-lg`}
-                    onClick={() => handleClassificationChange(editingProduct, "Doblado")}
+                    onClick={() =>
+                      handleClassificationChange(editingProduct, "Doblado")
+                    }
                   >
                     <i className="fas fa-hands me-3"></i>
                     <div className="d-inline-block text-start">
@@ -1213,6 +1380,38 @@ const ProductionClassificationDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification for Classification Saves */}
+      {showSaveToast && (
+        <div
+          className={`position-fixed top-0 end-0 p-3`}
+          style={{ zIndex: 9999 }}
+        >
+          <div
+            className={`toast show ${
+              toastType === "success" ? "bg-success" : "bg-danger"
+            } text-white`}
+            role="alert"
+          >
+            <div className="toast-header">
+              <i
+                className={`fas ${
+                  toastType === "success"
+                    ? "fa-check-circle"
+                    : "fa-exclamation-circle"
+                } text-${toastType === "success" ? "success" : "danger"} me-2`}
+              ></i>
+              <strong className="me-auto">Classification Update</strong>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setShowSaveToast(false)}
+              ></button>
+            </div>
+            <div className="toast-body">{toastMessage}</div>
           </div>
         </div>
       )}
@@ -1442,11 +1641,12 @@ const ProductionClassificationDashboard: React.FC = () => {
       )}
 
       {/* Enhanced Hourly Production Analytics Dashboard */}
-      {timingSummary && (
+      {timingSummary &&
         // Show for today's real-time data or selected date historical data
-        (isToday && productionSummary && productionSummary.recentEntries.length > 0) ||
-        (!isToday && selectedDateProductionData.entries.length > 0)
-      ) && (
+        ((isToday &&
+          productionSummary &&
+          productionSummary.recentEntries.length > 0) ||
+          (!isToday && selectedDateProductionData.entries.length > 0)) && (
           <div className="row mb-4">
             <div className="col-12">
               <div className="card shadow-sm">
@@ -1466,14 +1666,20 @@ const ProductionClassificationDashboard: React.FC = () => {
                         <div className="fw-bold fs-6">
                           {(() => {
                             if (isToday && productionSummary) {
-                              return Object.keys(productionSummary.hourlyBreakdown || {}).length;
+                              return Object.keys(
+                                productionSummary.hourlyBreakdown || {}
+                              ).length;
                             } else {
                               // Calculate active hours from selected date data
-                              const hourlyBreakdown: { [hour: number]: number } = {};
-                              const entriesSource = selectedDateProductionData.entries;
+                              const hourlyBreakdown: {
+                                [hour: number]: number;
+                              } = {};
+                              const entriesSource =
+                                selectedDateProductionData.entries;
                               entriesSource.forEach((entry) => {
                                 const hour = entry.addedAt.getHours();
-                                if (!hourlyBreakdown[hour]) hourlyBreakdown[hour] = 0;
+                                if (!hourlyBreakdown[hour])
+                                  hourlyBreakdown[hour] = 0;
                                 hourlyBreakdown[hour] += entry.quantity;
                               });
                               return Object.keys(hourlyBreakdown).length;
@@ -1486,21 +1692,33 @@ const ProductionClassificationDashboard: React.FC = () => {
                         <div className="fw-bold fs-6">
                           {(() => {
                             if (isToday && productionSummary) {
-                              return Math.round(productionSummary.currentHourRate || 0);
+                              return Math.round(
+                                productionSummary.currentHourRate || 0
+                              );
                             } else {
                               // For historical dates, show average hourly rate
-                              const entriesSource = selectedDateProductionData.entries;
+                              const entriesSource =
+                                selectedDateProductionData.entries;
                               if (entriesSource.length === 0) return 0;
-                              
-                              const totalQuantity = entriesSource.reduce((sum, e) => sum + e.quantity, 0);
-                              const hourlyBreakdown: { [hour: number]: number } = {};
+
+                              const totalQuantity = entriesSource.reduce(
+                                (sum, e) => sum + e.quantity,
+                                0
+                              );
+                              const hourlyBreakdown: {
+                                [hour: number]: number;
+                              } = {};
                               entriesSource.forEach((entry) => {
                                 const hour = entry.addedAt.getHours();
-                                if (!hourlyBreakdown[hour]) hourlyBreakdown[hour] = 0;
+                                if (!hourlyBreakdown[hour])
+                                  hourlyBreakdown[hour] = 0;
                                 hourlyBreakdown[hour] += entry.quantity;
                               });
-                              const activeHours = Object.keys(hourlyBreakdown).length;
-                              return activeHours > 0 ? Math.round(totalQuantity / activeHours) : 0;
+                              const activeHours =
+                                Object.keys(hourlyBreakdown).length;
+                              return activeHours > 0
+                                ? Math.round(totalQuantity / activeHours)
+                                : 0;
                             }
                           })()}
                         </div>
@@ -1526,18 +1744,29 @@ const ProductionClassificationDashboard: React.FC = () => {
                       <tbody>
                         {(() => {
                           // Determine which data source to use
-                          const useRealTimeData = isToday && productionSummary && productionSummary.recentEntries.length > 0;
-                          const useSelectedDateData = !isToday || (!useRealTimeData && selectedDateProductionData.entries.length > 0);
+                          const useRealTimeData =
+                            isToday &&
+                            productionSummary &&
+                            productionSummary.recentEntries.length > 0;
+                          const useSelectedDateData =
+                            !isToday ||
+                            (!useRealTimeData &&
+                              selectedDateProductionData.entries.length > 0);
 
-                          console.log("🔍 [Hourly Table] Data source selection:", {
-                            selectedDate,
-                            isToday,
-                            useRealTimeData,
-                            useSelectedDateData,
-                            productionSummaryExists: !!productionSummary,
-                            selectedDateEntries: selectedDateProductionData.entries.length,
-                            recentEntries: productionSummary?.recentEntries?.length || 0,
-                          });
+                          console.log(
+                            "🔍 [Hourly Table] Data source selection:",
+                            {
+                              selectedDate,
+                              isToday,
+                              useRealTimeData,
+                              useSelectedDateData,
+                              productionSummaryExists: !!productionSummary,
+                              selectedDateEntries:
+                                selectedDateProductionData.entries.length,
+                              recentEntries:
+                                productionSummary?.recentEntries?.length || 0,
+                            }
+                          );
 
                           // Common function to generate table rows
                           const generateTableRows = (
@@ -1562,22 +1791,37 @@ const ProductionClassificationDashboard: React.FC = () => {
 
                                 // Get units from service data first (for real-time), then fall back to computed data
                                 const hourKey = `${hour}:00`;
-                                const serviceUnits = isRealTime ? (hourlyFromService[hourKey] || 0) : 0;
+                                const serviceUnits = isRealTime
+                                  ? hourlyFromService[hourKey] || 0
+                                  : 0;
                                 const computedUnits = data.units;
-                                const finalUnits = Math.max(serviceUnits, computedUnits);
+                                const finalUnits = Math.max(
+                                  serviceUnits,
+                                  computedUnits
+                                );
 
-                                const hourStr = hour.toString().padStart(2, "0") + ":00";
+                                const hourStr =
+                                  hour.toString().padStart(2, "0") + ":00";
 
                                 // Get top 3 products for this hour
-                                const productEntries = Object.entries(data.products);
+                                const productEntries = Object.entries(
+                                  data.products
+                                );
                                 const topProducts = productEntries
-                                  .sort(([, a], [, b]) => (b as number) - (a as number))
+                                  .sort(
+                                    ([, a], [, b]) =>
+                                      (b as number) - (a as number)
+                                  )
                                   .slice(0, 3)
-                                  .map(([product, qty]) => `${product} (${qty})`)
+                                  .map(
+                                    ([product, qty]) => `${product} (${qty})`
+                                  )
                                   .join(", ");
 
-                                const isCurrentHour = isToday && new Date().getHours() === hour;
-                                const hasActivity = finalUnits > 0 || data.items > 0;
+                                const isCurrentHour =
+                                  isToday && new Date().getHours() === hour;
+                                const hasActivity =
+                                  finalUnits > 0 || data.items > 0;
 
                                 return (
                                   <tr
@@ -1602,7 +1846,9 @@ const ProductionClassificationDashboard: React.FC = () => {
                                       >
                                         {hourStr}
                                         {isCurrentHour && (
-                                          <small className="ms-1">(Current)</small>
+                                          <small className="ms-1">
+                                            (Current)
+                                          </small>
                                         )}
                                       </span>
                                     </td>
@@ -1628,7 +1874,11 @@ const ProductionClassificationDashboard: React.FC = () => {
                                               <div
                                                 className="progress-bar bg-success"
                                                 style={{
-                                                  width: `${Math.round((data.mangleUnits / data.units) * 100)}%`,
+                                                  width: `${Math.round(
+                                                    (data.mangleUnits /
+                                                      data.units) *
+                                                      100
+                                                  )}%`,
                                                   fontSize: "11px",
                                                   fontWeight: "bold",
                                                   display: "flex",
@@ -1637,12 +1887,22 @@ const ProductionClassificationDashboard: React.FC = () => {
                                                   color: "black",
                                                 }}
                                               >
-                                                M {Math.round((data.mangleUnits / data.units) * 100)}%
+                                                M{" "}
+                                                {Math.round(
+                                                  (data.mangleUnits /
+                                                    data.units) *
+                                                    100
+                                                )}
+                                                %
                                               </div>
                                               <div
                                                 className="progress-bar bg-warning"
                                                 style={{
-                                                  width: `${Math.round((data.dobladoUnits / data.units) * 100)}%`,
+                                                  width: `${Math.round(
+                                                    (data.dobladoUnits /
+                                                      data.units) *
+                                                      100
+                                                  )}%`,
                                                   fontSize: "11px",
                                                   fontWeight: "bold",
                                                   display: "flex",
@@ -1651,12 +1911,20 @@ const ProductionClassificationDashboard: React.FC = () => {
                                                   color: "#856404",
                                                 }}
                                               >
-                                                D {Math.round((data.dobladoUnits / data.units) * 100)}%
+                                                D{" "}
+                                                {Math.round(
+                                                  (data.dobladoUnits /
+                                                    data.units) *
+                                                    100
+                                                )}
+                                                %
                                               </div>
                                             </div>
                                           </div>
                                           <small className="text-muted">
-                                            {data.mangleUnits.toLocaleString()} / {data.dobladoUnits.toLocaleString()}
+                                            {data.mangleUnits.toLocaleString()}{" "}
+                                            /{" "}
+                                            {data.dobladoUnits.toLocaleString()}
                                           </small>
                                         </div>
                                       ) : (
@@ -1683,9 +1951,13 @@ const ProductionClassificationDashboard: React.FC = () => {
                                     </td>
                                     <td>
                                       {topProducts ? (
-                                        <small className="text-muted">{topProducts}</small>
+                                        <small className="text-muted">
+                                          {topProducts}
+                                        </small>
                                       ) : (
-                                        <small className="text-muted">No activity</small>
+                                        <small className="text-muted">
+                                          No activity
+                                        </small>
                                       )}
                                     </td>
                                   </tr>
@@ -1710,7 +1982,9 @@ const ProductionClassificationDashboard: React.FC = () => {
                                 totalUnits += data.units || 0;
                                 totalItems += data.items || 0;
                                 if (data.clients) {
-                                  data.clients.forEach((client: string) => allDayClients.add(client));
+                                  data.clients.forEach((client: string) =>
+                                    allDayClients.add(client)
+                                  );
                                 }
                               });
 
@@ -1727,7 +2001,10 @@ const ProductionClassificationDashboard: React.FC = () => {
 
                             // Add summary row
                             const totalRow = (
-                              <tr key="daily-total" className="table-dark border-top border-3 border-primary">
+                              <tr
+                                key="daily-total"
+                                className="table-dark border-top border-3 border-primary"
+                              >
                                 <th className="fw-bold text-light">
                                   <i className="fas fa-calculator me-2"></i>
                                   {isToday ? "DAILY TOTAL" : "DATE TOTAL"}
@@ -1735,7 +2012,13 @@ const ProductionClassificationDashboard: React.FC = () => {
                                 <th className="text-center">
                                   {totalSummary.totalItems > 0 ? (
                                     <div>
-                                      <div className="mb-1" style={{ width: "140px", margin: "0 auto" }}>
+                                      <div
+                                        className="mb-1"
+                                        style={{
+                                          width: "140px",
+                                          margin: "0 auto",
+                                        }}
+                                      >
                                         <div
                                           className="progress"
                                           style={{
@@ -1748,7 +2031,11 @@ const ProductionClassificationDashboard: React.FC = () => {
                                           <div
                                             className="progress-bar bg-success"
                                             style={{
-                                              width: `${Math.round((totalSummary.totalMangleUnits / totalSummary.totalUnits) * 100)}%`,
+                                              width: `${Math.round(
+                                                (totalSummary.totalMangleUnits /
+                                                  totalSummary.totalUnits) *
+                                                  100
+                                              )}%`,
                                               fontSize: "12px",
                                               fontWeight: "bold",
                                               display: "flex",
@@ -1757,12 +2044,22 @@ const ProductionClassificationDashboard: React.FC = () => {
                                               color: "black",
                                             }}
                                           >
-                                            M {Math.round((totalSummary.totalMangleUnits / totalSummary.totalUnits) * 100)}%
+                                            M{" "}
+                                            {Math.round(
+                                              (totalSummary.totalMangleUnits /
+                                                totalSummary.totalUnits) *
+                                                100
+                                            )}
+                                            %
                                           </div>
                                           <div
                                             className="progress-bar bg-warning"
                                             style={{
-                                              width: `${Math.round((totalSummary.totalDobladoUnits / totalSummary.totalUnits) * 100)}%`,
+                                              width: `${Math.round(
+                                                (totalSummary.totalDobladoUnits /
+                                                  totalSummary.totalUnits) *
+                                                  100
+                                              )}%`,
                                               fontSize: "12px",
                                               fontWeight: "bold",
                                               display: "flex",
@@ -1771,12 +2068,19 @@ const ProductionClassificationDashboard: React.FC = () => {
                                               color: "#856404",
                                             }}
                                           >
-                                            D {Math.round((totalSummary.totalDobladoUnits / totalSummary.totalUnits) * 100)}%
+                                            D{" "}
+                                            {Math.round(
+                                              (totalSummary.totalDobladoUnits /
+                                                totalSummary.totalUnits) *
+                                                100
+                                            )}
+                                            %
                                           </div>
                                         </div>
                                       </div>
                                       <small className="text-dark">
-                                        {totalSummary.totalMangleUnits.toLocaleString()} /{" "}
+                                        {totalSummary.totalMangleUnits.toLocaleString()}{" "}
+                                        /{" "}
                                         {totalSummary.totalDobladoUnits.toLocaleString()}
                                       </small>
                                     </div>
@@ -1796,8 +2100,13 @@ const ProductionClassificationDashboard: React.FC = () => {
                                 </th>
                                 <th>
                                   <strong className="text-light">
-                                    {totalSummary.totalItems.toLocaleString()} items processed
-                                    {isToday ? " today" : ` on ${new Date(selectedDate).toLocaleDateString()}`}
+                                    {totalSummary.totalItems.toLocaleString()}{" "}
+                                    items processed
+                                    {isToday
+                                      ? " today"
+                                      : ` on ${new Date(
+                                          selectedDate
+                                        ).toLocaleDateString()}`}
                                   </strong>
                                 </th>
                               </tr>
@@ -1808,13 +2117,20 @@ const ProductionClassificationDashboard: React.FC = () => {
 
                           if (useRealTimeData && productionSummary) {
                             // Use existing real-time logic for today's data
-                            const hourlyFromService = productionSummary.hourlyBreakdown || {};
-                            const allEntries = productionSummary.allEntriesToday || productionSummary.recentEntries;
-                            
-                            console.log("🔍 [Hourly Table] Using real-time data:", {
-                              hourlyBreakdownKeys: Object.keys(hourlyFromService),
-                              allEntriesCount: allEntries.length,
-                            });
+                            const hourlyFromService =
+                              productionSummary.hourlyBreakdown || {};
+                            const allEntries =
+                              productionSummary.allEntriesToday ||
+                              productionSummary.recentEntries;
+
+                            console.log(
+                              "🔍 [Hourly Table] Using real-time data:",
+                              {
+                                hourlyBreakdownKeys:
+                                  Object.keys(hourlyFromService),
+                                allEntriesCount: allEntries.length,
+                              }
+                            );
 
                             // Process entries for real-time data
                             const hourlyData: {
@@ -1849,12 +2165,19 @@ const ProductionClassificationDashboard: React.FC = () => {
                               hourlyData[hour].units += entry.quantity;
                               hourlyData[hour].clients.add(entry.clientName);
 
-                              if (!hourlyData[hour].products[entry.productName]) {
-                                hourlyData[hour].products[entry.productName] = 0;
+                              if (
+                                !hourlyData[hour].products[entry.productName]
+                              ) {
+                                hourlyData[hour].products[
+                                  entry.productName
+                                ] = 0;
                               }
-                              hourlyData[hour].products[entry.productName] += entry.quantity;
+                              hourlyData[hour].products[entry.productName] +=
+                                entry.quantity;
 
-                              const classification = getClassification(entry.productName);
+                              const classification = getClassification(
+                                entry.productName
+                              );
                               if (classification === "Mangle") {
                                 hourlyData[hour].mangleItems++;
                                 hourlyData[hour].mangleUnits += entry.quantity;
@@ -1866,27 +2189,38 @@ const ProductionClassificationDashboard: React.FC = () => {
 
                             // Collect all hours from both service and computed data
                             const allHours = new Set<number>();
-                            Object.keys(hourlyFromService).forEach((hourStr) => {
-                              const hourMatch = hourStr.match(/(\d+):00/);
-                              if (hourMatch) {
-                                const hour = parseInt(hourMatch[1]);
-                                if (!isNaN(hour)) allHours.add(hour);
+                            Object.keys(hourlyFromService).forEach(
+                              (hourStr) => {
+                                const hourMatch = hourStr.match(/(\d+):00/);
+                                if (hourMatch) {
+                                  const hour = parseInt(hourMatch[1]);
+                                  if (!isNaN(hour)) allHours.add(hour);
+                                }
                               }
-                            });
+                            );
                             Object.keys(hourlyData).forEach((hourStr) => {
                               const hour = parseInt(hourStr);
                               if (!isNaN(hour)) allHours.add(hour);
                             });
 
-                            return generateTableRows(allHours, hourlyData, hourlyFromService, true);
+                            return generateTableRows(
+                              allHours,
+                              hourlyData,
+                              hourlyFromService,
+                              true
+                            );
                           } else if (useSelectedDateData) {
                             // Use selected date data for historical analysis
-                            const entriesSource = selectedDateProductionData.entries;
-                            
-                            console.log("🔍 [Hourly Table] Using selected date data:", {
-                              selectedDate,
-                              entriesCount: entriesSource.length,
-                            });
+                            const entriesSource =
+                              selectedDateProductionData.entries;
+
+                            console.log(
+                              "🔍 [Hourly Table] Using selected date data:",
+                              {
+                                selectedDate,
+                                entriesCount: entriesSource.length,
+                              }
+                            );
 
                             // Process selected date entries
                             const hourlyData: {
@@ -1921,12 +2255,19 @@ const ProductionClassificationDashboard: React.FC = () => {
                               hourlyData[hour].units += entry.quantity;
                               hourlyData[hour].clients.add(entry.clientName);
 
-                              if (!hourlyData[hour].products[entry.productName]) {
-                                hourlyData[hour].products[entry.productName] = 0;
+                              if (
+                                !hourlyData[hour].products[entry.productName]
+                              ) {
+                                hourlyData[hour].products[
+                                  entry.productName
+                                ] = 0;
                               }
-                              hourlyData[hour].products[entry.productName] += entry.quantity;
+                              hourlyData[hour].products[entry.productName] +=
+                                entry.quantity;
 
-                              const classification = getClassification(entry.productName);
+                              const classification = getClassification(
+                                entry.productName
+                              );
                               if (classification === "Mangle") {
                                 hourlyData[hour].mangleItems++;
                                 hourlyData[hour].mangleUnits += entry.quantity;
@@ -1942,14 +2283,22 @@ const ProductionClassificationDashboard: React.FC = () => {
                               if (!isNaN(hour)) allHours.add(hour);
                             });
 
-                            return generateTableRows(allHours, hourlyData, {}, false);
+                            return generateTableRows(
+                              allHours,
+                              hourlyData,
+                              {},
+                              false
+                            );
                           } else {
                             // No data available
                             return (
                               <tr>
-                                <td colSpan={5} className="text-center text-muted py-4">
-                                  {selectedDateProductionData.loading 
-                                    ? "Loading hourly data..." 
+                                <td
+                                  colSpan={5}
+                                  className="text-center text-muted py-4"
+                                >
+                                  {selectedDateProductionData.loading
+                                    ? "Loading hourly data..."
                                     : "No production data available for this date"}
                                 </td>
                               </tr>
@@ -1969,7 +2318,9 @@ const ProductionClassificationDashboard: React.FC = () => {
                             <strong className="text-primary">
                               {(() => {
                                 if (isToday && productionSummary) {
-                                  return Object.values(productionSummary.hourlyBreakdown || {})
+                                  return Object.values(
+                                    productionSummary.hourlyBreakdown || {}
+                                  )
                                     .reduce((sum, count) => sum + count, 0)
                                     .toLocaleString();
                                 } else {
@@ -1989,15 +2340,22 @@ const ProductionClassificationDashboard: React.FC = () => {
                             <strong className="text-success">
                               {(() => {
                                 if (isToday && productionSummary) {
-                                  return Object.keys(productionSummary.hourlyBreakdown || {}).length;
+                                  return Object.keys(
+                                    productionSummary.hourlyBreakdown || {}
+                                  ).length;
                                 } else {
                                   // Calculate active hours from selected date data
-                                  const hourlyBreakdown: { [hour: number]: number } = {};
-                                  selectedDateProductionData.entries.forEach((entry) => {
-                                    const hour = entry.addedAt.getHours();
-                                    if (!hourlyBreakdown[hour]) hourlyBreakdown[hour] = 0;
-                                    hourlyBreakdown[hour] += entry.quantity;
-                                  });
+                                  const hourlyBreakdown: {
+                                    [hour: number]: number;
+                                  } = {};
+                                  selectedDateProductionData.entries.forEach(
+                                    (entry) => {
+                                      const hour = entry.addedAt.getHours();
+                                      if (!hourlyBreakdown[hour])
+                                        hourlyBreakdown[hour] = 0;
+                                      hourlyBreakdown[hour] += entry.quantity;
+                                    }
+                                  );
                                   return Object.keys(hourlyBreakdown).length;
                                 }
                               })()}
@@ -2009,28 +2367,46 @@ const ProductionClassificationDashboard: React.FC = () => {
                             <strong className="text-info">
                               {(() => {
                                 if (isToday && productionSummary) {
-                                  return Object.keys(productionSummary.hourlyBreakdown || {}).length > 0
+                                  return Object.keys(
+                                    productionSummary.hourlyBreakdown || {}
+                                  ).length > 0
                                     ? Math.round(
-                                        Object.values(productionSummary.hourlyBreakdown || {}).reduce(
+                                        Object.values(
+                                          productionSummary.hourlyBreakdown ||
+                                            {}
+                                        ).reduce(
                                           (sum, count) => sum + count,
                                           0
-                                        ) / Object.keys(productionSummary.hourlyBreakdown || {}).length
+                                        ) /
+                                          Object.keys(
+                                            productionSummary.hourlyBreakdown ||
+                                              {}
+                                          ).length
                                       )
                                     : 0;
                                 } else {
                                   // Calculate average hourly rate from selected date data
-                                  const hourlyBreakdown: { [hour: number]: number } = {};
-                                  selectedDateProductionData.entries.forEach((entry) => {
-                                    const hour = entry.addedAt.getHours();
-                                    if (!hourlyBreakdown[hour]) hourlyBreakdown[hour] = 0;
-                                    hourlyBreakdown[hour] += entry.quantity;
-                                  });
-                                  const activeHours = Object.keys(hourlyBreakdown).length;
-                                  const totalQuantity = selectedDateProductionData.entries.reduce(
-                                    (sum, e) => sum + e.quantity,
-                                    0
+                                  const hourlyBreakdown: {
+                                    [hour: number]: number;
+                                  } = {};
+                                  selectedDateProductionData.entries.forEach(
+                                    (entry) => {
+                                      const hour = entry.addedAt.getHours();
+                                      if (!hourlyBreakdown[hour])
+                                        hourlyBreakdown[hour] = 0;
+                                      hourlyBreakdown[hour] += entry.quantity;
+                                    }
                                   );
-                                  return activeHours > 0 ? Math.round(totalQuantity / activeHours) : 0;
+                                  const activeHours =
+                                    Object.keys(hourlyBreakdown).length;
+                                  const totalQuantity =
+                                    selectedDateProductionData.entries.reduce(
+                                      (sum, e) => sum + e.quantity,
+                                      0
+                                    );
+                                  return activeHours > 0
+                                    ? Math.round(totalQuantity / activeHours)
+                                    : 0;
                                 }
                               })()}
                             </strong>
@@ -2041,17 +2417,27 @@ const ProductionClassificationDashboard: React.FC = () => {
                             <strong className="text-warning">
                               {(() => {
                                 if (isToday && productionSummary) {
-                                  return Math.round(productionSummary.currentHourRate || 0);
+                                  return Math.round(
+                                    productionSummary.currentHourRate || 0
+                                  );
                                 } else {
                                   // For historical dates, show peak hourly rate instead
-                                  const hourlyBreakdown: { [hour: number]: number } = {};
-                                  selectedDateProductionData.entries.forEach((entry) => {
-                                    const hour = entry.addedAt.getHours();
-                                    if (!hourlyBreakdown[hour]) hourlyBreakdown[hour] = 0;
-                                    hourlyBreakdown[hour] += entry.quantity;
-                                  });
-                                  const hourlyRates = Object.values(hourlyBreakdown);
-                                  return hourlyRates.length > 0 ? Math.max(...hourlyRates) : 0;
+                                  const hourlyBreakdown: {
+                                    [hour: number]: number;
+                                  } = {};
+                                  selectedDateProductionData.entries.forEach(
+                                    (entry) => {
+                                      const hour = entry.addedAt.getHours();
+                                      if (!hourlyBreakdown[hour])
+                                        hourlyBreakdown[hour] = 0;
+                                      hourlyBreakdown[hour] += entry.quantity;
+                                    }
+                                  );
+                                  const hourlyRates =
+                                    Object.values(hourlyBreakdown);
+                                  return hourlyRates.length > 0
+                                    ? Math.max(...hourlyRates)
+                                    : 0;
                                 }
                               })()}
                             </strong>
@@ -2603,16 +2989,42 @@ const ProductionClassificationDashboard: React.FC = () => {
       <div className="row mt-4">
         <div className="col-12">
           <div className="alert alert-info text-center">
-            <small>
-              🔄 This dashboard updates automatically as items are added to
-              invoices. Classifications are saved to your browser.
-              {productionSummary && (
-                <span>
-                  {" "}
-                  Last update: {productionSummary.lastUpdate.toLocaleString()}
-                </span>
-              )}
-            </small>
+            <div className="row">
+              <div className="col-md-8">
+                <small>
+                  <i className="fas fa-sync-alt me-2"></i>
+                  <strong>Real-time Updates:</strong> This dashboard updates
+                  automatically as items are added to invoices.
+                  {productionSummary && (
+                    <span className="ms-2">
+                      Last update:{" "}
+                      {productionSummary.lastUpdate.toLocaleString()}
+                    </span>
+                  )}
+                </small>
+              </div>
+              <div className="col-md-4">
+                <small>
+                  <i className="fas fa-cloud me-2"></i>
+                  <strong>Classifications:</strong> Auto-saved to Firebase
+                  {Object.keys(customClassifications).length > 0 && (
+                    <span className="badge bg-success ms-2">
+                      {Object.keys(customClassifications).length} saved
+                    </span>
+                  )}
+                </small>
+              </div>
+            </div>
+            {Object.keys(customClassifications).length > 0 && (
+              <div className="mt-2">
+                <small className="text-muted">
+                  <i className="fas fa-eye me-1"></i>
+                  Your saved classifications appear in: Daily Dashboard charts,
+                  Production reports, Invoice printing, and all analytics. Each
+                  product has exactly 1 classification value.
+                </small>
+              </div>
+            )}
           </div>
         </div>
       </div>

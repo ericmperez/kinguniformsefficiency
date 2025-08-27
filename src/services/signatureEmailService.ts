@@ -1,7 +1,7 @@
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Client, Invoice } from '../types';
-import { sendSignatureEmail } from './emailService';
+import { sendSignatureEmail, sendInvoiceEmail } from './emailService';
 import { generateDeliveryTicketPDF } from './signedDeliveryPdfService';
 import { logActivity } from './firebaseService';
 
@@ -108,16 +108,11 @@ export class SignatureEmailService {
         console.log("📧 Continuing with text-only email...");
       }
 
-      // Send signature email
-      const success = await sendSignatureEmail(
+      // Send the same email as manual (use sendInvoiceEmail)
+      const success = await sendInvoiceEmail(
         client,
         invoiceData,
         emailSettings,
-        {
-          receivedBy: signatureData.receivedBy,
-          signatureDate: signatureData.signatureDate,
-          signatureTime: signatureData.signatureTime,
-        },
         pdfContent
       );
 

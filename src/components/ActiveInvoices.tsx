@@ -99,47 +99,54 @@ function hasUnnamedCart(invoice: Invoice) {
 }
 
 // Helper function to merge cart items as individual entries
-function mergeCartItems(existingItems: CartItem[], newItems: CartItem[]): CartItem[] {
+function mergeCartItems(
+  existingItems: CartItem[],
+  newItems: CartItem[]
+): CartItem[] {
   // Simply combine all items as individual entries without grouping
   const mergedItems = [...existingItems];
-  
-  newItems.forEach(newItem => {
+
+  newItems.forEach((newItem) => {
     // Add each item as a separate entry, regardless of product or price duplicates
     mergedItems.push({
       ...newItem,
       addedAt: new Date().toISOString(), // Update timestamp for merged item
       editedBy: newItem.addedBy || "System",
-      editedAt: new Date().toISOString()
+      editedAt: new Date().toISOString(),
     });
   });
-  
+
   return mergedItems;
 }
 
 // Helper function to mark cart as modified for reprint tracking
-async function markCartAsModified(invoiceId: string, cartId: string, currentUser: string) {
+async function markCartAsModified(
+  invoiceId: string,
+  cartId: string,
+  currentUser: string
+) {
   try {
     const invoiceRef = doc(db, "invoices", invoiceId);
     const invoiceDoc = await getDoc(invoiceRef);
-    
+
     if (invoiceDoc.exists()) {
       const invoice = invoiceDoc.data() as Invoice;
-      const updatedCarts = (invoice.carts || []).map(cart => {
+      const updatedCarts = (invoice.carts || []).map((cart) => {
         if (cart.id === cartId) {
           return {
             ...cart,
             needsReprint: true,
             lastModifiedAt: new Date().toISOString(),
-            lastModifiedBy: currentUser
+            lastModifiedBy: currentUser,
           };
         }
         return cart;
       });
-      
+
       await updateDoc(invoiceRef, {
         carts: updatedCarts,
         lastModifiedAt: new Date().toISOString(),
-        lastModifiedBy: currentUser
+        lastModifiedBy: currentUser,
       });
     }
   } catch (error) {
@@ -230,7 +237,7 @@ export default function ActiveInvoices({
   const [users, setUsers] = React.useState<UserRecord[]>([]);
 
   // View mode state - cards or list view
-  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
 
   React.useEffect(() => {
     getUsers().then((userList) => setUsers(userList));
@@ -238,7 +245,9 @@ export default function ActiveInvoices({
 
   // --- Invoice Merge State ---
   const [showMergeModal, setShowMergeModal] = useState(false);
-  const [mergeSourceInvoiceId, setMergeSourceInvoiceId] = useState<string | null>(null);
+  const [mergeSourceInvoiceId, setMergeSourceInvoiceId] = useState<
+    string | null
+  >(null);
   const [mergeTargetInvoiceId, setMergeTargetInvoiceId] = useState<string>("");
   const [mergeLoading, setMergeLoading] = useState(false);
   const [mergeError, setMergeError] = useState("");
@@ -256,7 +265,9 @@ export default function ActiveInvoices({
 
   // --- Two-Step Completion State ---
   const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const [completionInvoiceId, setCompletionInvoiceId] = useState<string | null>(null);
+  const [completionInvoiceId, setCompletionInvoiceId] = useState<string | null>(
+    null
+  );
   const [selectedCompletionParts, setSelectedCompletionParts] = useState<{
     mangles: boolean;
     doblado: boolean;
@@ -412,7 +423,7 @@ export default function ActiveInvoices({
   const handleOpenCompletionModal = (invoiceId: string) => {
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (!invoice) return;
-    
+
     setCompletionInvoiceId(invoiceId);
     setSelectedCompletionParts({
       mangles: invoice.manglesCompleted || false,
@@ -424,15 +435,15 @@ export default function ActiveInvoices({
   // Handler to apply completion selection
   const handleApplyCompletion = async () => {
     if (!completionInvoiceId) return;
-    
+
     const { mangles, doblado } = selectedCompletionParts;
-    
+
     // Update invoice with completion parts
     const updateData: Partial<Invoice> = {
       manglesCompleted: mangles,
       dobladoCompleted: doblado,
     };
-    
+
     // Only mark as fully completed if both parts are done
     if (mangles && doblado) {
       updateData.status = "completed";
@@ -441,35 +452,37 @@ export default function ActiveInvoices({
       updateData.status = "active";
     }
     // If only one part is completed, don't change the status yet
-    
+
     await onUpdateInvoice(completionInvoiceId, updateData);
-    
+
     // Trigger animation based on completion state
     if (mangles && doblado) {
       triggerApprovalAnimation(completionInvoiceId, "partial");
     }
-    
+
     // Log activity
     if (user?.username) {
       const invoice = invoices.find((inv) => inv.id === completionInvoiceId);
       const completedParts = [];
       if (mangles) completedParts.push("Mangles - Arriba");
       if (doblado) completedParts.push("Doblado - Abajo");
-      
-      let message = `User ${user.username} marked laundry ticket #${invoice?.invoiceNumber || completionInvoiceId}`;
+
+      let message = `User ${user.username} marked laundry ticket #${
+        invoice?.invoiceNumber || completionInvoiceId
+      }`;
       if (completedParts.length > 0) {
         message += ` - completed parts: ${completedParts.join(", ")}`;
       } else {
         message += " as uncompleted";
       }
-      
+
       await logActivity({
         type: "Invoice",
         message,
         user: user.username,
       });
     }
-    
+
     setShowCompletionModal(false);
     setCompletionInvoiceId(null);
   };
@@ -519,9 +532,11 @@ export default function ActiveInvoices({
     if (invoice) {
       // Log the approval activity
       if (user?.username) {
-        await        logActivity({
+        await logActivity({
           type: "Invoice",
-          message: `User ${user.username} ${isFullyVerified ? 'approved' : 'partially approved'} laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+          message: `User ${user.username} ${
+            isFullyVerified ? "approved" : "partially approved"
+          } laundry ticket #${invoice.invoiceNumber || invoice.id}`,
           user: user.username,
         });
       }
@@ -562,9 +577,13 @@ export default function ActiveInvoices({
               emailStatus: {
                 ...invoice.emailStatus,
                 approvalEmailSent: success,
-                approvalEmailSentAt: success ? new Date().toISOString() : undefined,
-                lastEmailError: success ? undefined : "Failed to send approval email"
-              }
+                approvalEmailSentAt: success
+                  ? new Date().toISOString()
+                  : undefined,
+                lastEmailError: success
+                  ? undefined
+                  : "Failed to send approval email",
+              },
             };
 
             await onUpdateInvoice(invoice.id, emailStatusUpdate);
@@ -573,7 +592,9 @@ export default function ActiveInvoices({
               console.log(`Auto-sent invoice email to ${client.email}`);
               await logActivity({
                 type: "Invoice",
-                message: `Laundry Ticket #${invoice.invoiceNumber || invoice.id} auto-sent to ${client.name} (${client.email}) on approval`,
+                message: `Laundry Ticket #${
+                  invoice.invoiceNumber || invoice.id
+                } auto-sent to ${client.name} (${client.email}) on approval`,
               });
             }
           } catch (error) {
@@ -686,32 +707,44 @@ export default function ActiveInvoices({
   // Real-time Firestore listener for invoices with debouncing
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
-    
+
     const unsub = onSnapshot(
       collection(db, "invoices"),
       (snapshot) => {
-        console.log("🔄 Real-time Firestore update received, docs:", snapshot.docs.length);
-        
+        console.log(
+          "🔄 Real-time Firestore update received, docs:",
+          snapshot.docs.length
+        );
+
         // Clear any pending update
         if (timeoutId) clearTimeout(timeoutId);
-        
+
         // Debounce updates to prevent rapid state changes
         timeoutId = setTimeout(() => {
           const updated = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
           })) as Invoice[];
-          
-          console.log("📱 Updating invoicesState with", updated.length, "invoices");
+
+          console.log(
+            "📱 Updating invoicesState with",
+            updated.length,
+            "invoices"
+          );
           setInvoicesState(updated);
-          
+
           // If modal is open, update selectedInvoice with latest data
           if (showInvoiceDetailsModal && selectedInvoice) {
-            const updatedSelectedInvoice = updated.find(inv => inv.id === selectedInvoice.id);
+            const updatedSelectedInvoice = updated.find(
+              (inv) => inv.id === selectedInvoice.id
+            );
             if (updatedSelectedInvoice) {
               console.log("🔄 Updating selectedInvoice with latest data:", {
                 invoiceId: updatedSelectedInvoice.id,
-                carts: updatedSelectedInvoice.carts?.map(c => ({ id: c.id, name: c.name }))
+                carts: updatedSelectedInvoice.carts?.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                })),
               });
               setSelectedInvoice({ ...updatedSelectedInvoice });
             }
@@ -722,7 +755,7 @@ export default function ActiveInvoices({
         console.error("Error listening to invoices:", error);
       }
     );
-    
+
     return () => {
       unsub();
       if (timeoutId) clearTimeout(timeoutId);
@@ -796,7 +829,7 @@ export default function ActiveInvoices({
   const handleScheduleDelivery = (invoice: Invoice) => {
     setShowDeliveryScheduleModal(invoice.id);
     // Pre-fill with current values if they exist
-    const existingDeliveryDate = invoice.deliveryDate 
+    const existingDeliveryDate = invoice.deliveryDate
       ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
       : "";
     setScheduleDeliveryDate(existingDeliveryDate);
@@ -815,12 +848,16 @@ export default function ActiveInvoices({
       return;
     }
 
-    const invoice = invoicesState.find(inv => inv.id === showDeliveryScheduleModal);
+    const invoice = invoicesState.find(
+      (inv) => inv.id === showDeliveryScheduleModal
+    );
     if (!invoice) return;
 
     try {
       const updateData: Partial<Invoice> = {
-        deliveryDate: new Date(scheduleDeliveryDate + "T00:00:00").toISOString(),
+        deliveryDate: new Date(
+          scheduleDeliveryDate + "T00:00:00"
+        ).toISOString(),
         deliveryMethod: scheduleDeliveryMethod,
       };
 
@@ -832,34 +869,42 @@ export default function ActiveInvoices({
       await onUpdateInvoice(invoice.id, updateData);
 
       if (user?.username) {
-        const deliveryMethodText = scheduleDeliveryMethod === "truck" 
-          ? `via Truck #${scheduleTruckNumber}` 
-          : "for client pickup";
-        
+        const deliveryMethodText =
+          scheduleDeliveryMethod === "truck"
+            ? `via Truck #${scheduleTruckNumber}`
+            : "for client pickup";
+
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} scheduled laundry ticket #${invoice.invoiceNumber || invoice.id} for delivery on ${scheduleDeliveryDate} ${deliveryMethodText}`,
+          message: `User ${user.username} scheduled laundry ticket #${
+            invoice.invoiceNumber || invoice.id
+          } for delivery on ${scheduleDeliveryDate} ${deliveryMethodText}`,
           user: user.username,
         });
       }
 
       await refreshInvoices();
-      
+
       // Store the invoice ID before clearing the delivery modal
       const invoiceId = invoice.id;
-      
+
       setShowDeliveryScheduleModal(null);
       setScheduleDeliveryDate("");
       setScheduleTruckNumber("");
       setScheduleDeliveryMethod("truck");
-      
+
       // Show print options modal after delivery is scheduled
       setShowPrintOptionsModal(invoiceId);
-      
-      const deliveryMethodText = scheduleDeliveryMethod === "truck" 
-        ? `via Truck #${scheduleTruckNumber}` 
-        : "for client pickup";
-      alert(`Laundry Ticket scheduled for delivery on ${new Date(scheduleDeliveryDate).toLocaleDateString()} ${deliveryMethodText}`);
+
+      const deliveryMethodText =
+        scheduleDeliveryMethod === "truck"
+          ? `via Truck #${scheduleTruckNumber}`
+          : "for client pickup";
+      alert(
+        `Laundry Ticket scheduled for delivery on ${new Date(
+          scheduleDeliveryDate
+        ).toLocaleDateString()} ${deliveryMethodText}`
+      );
     } catch (error) {
       console.error("Error scheduling delivery:", error);
       alert("Error scheduling delivery. Please try again.");
@@ -879,26 +924,27 @@ export default function ActiveInvoices({
     try {
       // Check for unconfirmed special items before marking as picked up
       try {
-        const pendingSpecialItems = await getPendingSpecialItems() as ManualConventionalProduct[];
-        const invoiceSpecialItems = pendingSpecialItems.filter(item => 
-          item.invoiceId === pickupSignatureInvoice.id
+        const pendingSpecialItems =
+          (await getPendingSpecialItems()) as ManualConventionalProduct[];
+        const invoiceSpecialItems = pendingSpecialItems.filter(
+          (item) => item.invoiceId === pickupSignatureInvoice.id
         );
-        
+
         if (invoiceSpecialItems.length > 0) {
-          const itemNames = invoiceSpecialItems.map(item => 
-            `${item.productName} (${item.category})`
-          ).join(', ');
-          
+          const itemNames = invoiceSpecialItems
+            .map((item) => `${item.productName} (${item.category})`)
+            .join(", ");
+
           alert(
             `Cannot complete pickup: ${invoiceSpecialItems.length} special item(s) require confirmation before pickup.\n\n` +
-            `Unconfirmed items: ${itemNames}\n\n` +
-            `Please confirm or skip these items in the Washing section before allowing pickup.`
+              `Unconfirmed items: ${itemNames}\n\n` +
+              `Please confirm or skip these items in the Washing section before allowing pickup.`
           );
           return;
         }
       } catch (error) {
-        console.error('Error checking special items:', error);
-        alert('Error checking special items. Please try again.');
+        console.error("Error checking special items:", error);
+        alert("Error checking special items. Please try again.");
         return;
       }
 
@@ -910,7 +956,9 @@ export default function ActiveInvoices({
       // Log the activity
       await logActivity({
         type: "Invoice",
-        message: `User ${user.username} marked laundry ticket #${pickupSignatureInvoice.invoiceNumber || pickupSignatureInvoice.id} as picked up by client`,
+        message: `User ${user.username} marked laundry ticket #${
+          pickupSignatureInvoice.invoiceNumber || pickupSignatureInvoice.id
+        } as picked up by client`,
         user: user.username,
       });
 
@@ -920,7 +968,10 @@ export default function ActiveInvoices({
           const { updatePickupGroupStatus } = await import(
             "../services/firebaseService"
           );
-          await updatePickupGroupStatus(pickupSignatureInvoice.pickupGroupId, "done");
+          await updatePickupGroupStatus(
+            pickupSignatureInvoice.pickupGroupId,
+            "done"
+          );
         } catch (err) {
           console.error("Error updating group status:", err);
         }
@@ -930,7 +981,11 @@ export default function ActiveInvoices({
       setShowPickupSignatureModal(null);
       setPickupSignatureInvoice(null);
 
-      alert(`Laundry Ticket #${pickupSignatureInvoice.invoiceNumber || pickupSignatureInvoice.id} marked as picked up!`);
+      alert(
+        `Laundry Ticket #${
+          pickupSignatureInvoice.invoiceNumber || pickupSignatureInvoice.id
+        } marked as picked up!`
+      );
     } catch (error) {
       console.error("Error marking as picked up:", error);
       alert("Error marking as picked up. Please try again.");
@@ -1006,40 +1061,49 @@ export default function ActiveInvoices({
           addedAt: new Date().toISOString(),
         },
       ];
-      
+
       // Update the cart in the invoice
       const updatedCarts = [...invoice.carts];
       updatedCarts[cartIdx] = {
         ...cart,
         needsReprint: true,
         lastModifiedAt: new Date().toISOString(),
-        lastModifiedBy: user?.username || "Unknown"
+        lastModifiedBy: user?.username || "Unknown",
       };
-      
+
       // Update local state immediately for instant UI feedback
-      setInvoicesState(prevInvoices => 
-        prevInvoices.map(inv => 
-          inv.id === selectedInvoiceId 
-            ? { ...inv, carts: updatedCarts }
-            : inv
+      setInvoicesState((prevInvoices) =>
+        prevInvoices.map((inv) =>
+          inv.id === selectedInvoiceId ? { ...inv, carts: updatedCarts } : inv
         )
       );
-      
+
       // Update selected invoice if modal is open
-      if (showInvoiceDetailsModal && selectedInvoice?.id === selectedInvoiceId) {
-        setSelectedInvoice(prev => prev ? { ...prev, carts: updatedCarts } : null);
+      if (
+        showInvoiceDetailsModal &&
+        selectedInvoice?.id === selectedInvoiceId
+      ) {
+        setSelectedInvoice((prev) =>
+          prev ? { ...prev, carts: updatedCarts } : null
+        );
       }
-      
+
       // Persist to Firestore
       await onUpdateInvoice(selectedInvoiceId, { carts: updatedCarts });
 
       // Mark cart as modified for reprint tracking
-      await markCartAsModified(selectedInvoiceId, cart.id, user?.username || "Unknown");
+      await markCartAsModified(
+        selectedInvoiceId,
+        cart.id,
+        user?.username || "Unknown"
+      );
 
       if (user?.username) {
         await logActivity({
           type: "Invoice",
-          message: `User ${user.username} added ${keypadQuantity} x '${productForKeypad.name}' to laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+          message: `User ${user.username} added ${keypadQuantity} x '${
+            productForKeypad.name
+          }' to laundry ticket #${invoice.invoiceNumber || invoice.id}`,
           user: user.username,
         });
       }
@@ -1373,14 +1437,21 @@ export default function ActiveInvoices({
   const [shippedDeliveryDate, setShippedDeliveryDate] = useState("");
 
   // Delivery scheduling modal state
-  const [showDeliveryScheduleModal, setShowDeliveryScheduleModal] = useState<string | null>(null);
+  const [showDeliveryScheduleModal, setShowDeliveryScheduleModal] = useState<
+    string | null
+  >(null);
   const [scheduleDeliveryDate, setScheduleDeliveryDate] = useState("");
   const [scheduleTruckNumber, setScheduleTruckNumber] = useState("");
-  const [scheduleDeliveryMethod, setScheduleDeliveryMethod] = useState<"truck" | "client_pickup">("truck");
+  const [scheduleDeliveryMethod, setScheduleDeliveryMethod] = useState<
+    "truck" | "client_pickup"
+  >("truck");
 
   // Client pickup signature modal state
-  const [showPickupSignatureModal, setShowPickupSignatureModal] = useState<string | null>(null);
-  const [pickupSignatureInvoice, setPickupSignatureInvoice] = useState<Invoice | null>(null);
+  const [showPickupSignatureModal, setShowPickupSignatureModal] = useState<
+    string | null
+  >(null);
+  const [pickupSignatureInvoice, setPickupSignatureInvoice] =
+    useState<Invoice | null>(null);
 
   // --- DEMO/TEST: Inject a fake overdue invoice if none exist ---
   const hasOverdue = invoices.some((inv) => {
@@ -1408,12 +1479,12 @@ export default function ActiveInvoices({
     );
     if (found) {
       // Return only the first name from the username
-      const firstName = found.username.split(' ')[0];
+      const firstName = found.username.split(" ")[0];
       return firstName;
     }
     if (verifierId.length > 4 || /[a-zA-Z]/.test(verifierId)) {
       // Return only the first part if it's a string with multiple words
-      const firstName = verifierId.split(' ')[0];
+      const firstName = verifierId.split(" ")[0];
       return firstName;
     }
     return verifierId;
@@ -1445,55 +1516,81 @@ export default function ActiveInvoices({
 
   // Status filter options
   const STATUS_FILTERS = [
-    { key: 'all', label: 'All', icon: 'bi-circle' },
-    { key: 'in_progress', label: 'In Progress', icon: 'bi-hourglass' },
-    { key: 'completed', label: 'Completed', icon: 'bi-check2-circle' },
-    { key: 'approved', label: 'Approved', icon: 'bi-check-circle-fill' },
-    { key: 'partial', label: 'Partial', icon: 'bi-exclamation-circle' },
-    { key: 'shipped', label: 'Shipped', icon: 'bi-truck' },
+    { key: "all", label: "All", icon: "bi-circle" },
+    { key: "in_progress", label: "In Progress", icon: "bi-hourglass" },
+    { key: "completed", label: "Completed", icon: "bi-check2-circle" },
+    { key: "approved", label: "Approved", icon: "bi-check-circle-fill" },
+    { key: "partial", label: "Partial", icon: "bi-exclamation-circle" },
+    { key: "shipped", label: "Shipped", icon: "bi-truck" },
   ];
-  const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'completed' | 'approved' | 'partial' | 'shipped'>('all');
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "in_progress" | "completed" | "approved" | "partial" | "shipped"
+  >("all");
 
   // Calculate counts for each status filter
   const statusCounts = useMemo(() => {
     const counts = {
-      all: sortedInvoices.filter(inv => inv.status !== 'done').length,
-      in_progress: sortedInvoices.filter(inv => !inv.verified && inv.status !== 'done' && inv.status !== 'completed').length,
-      completed: sortedInvoices.filter(inv => inv.status === 'completed' && !inv.verified).length,
-      approved: sortedInvoices.filter(inv => inv.verified && inv.status !== 'done').length,
-      partial: sortedInvoices.filter(inv => inv.partiallyVerified && !inv.verified && inv.status !== 'done').length,
-      shipped: sortedInvoices.filter(inv => inv.status === 'done').length,
+      all: sortedInvoices.filter((inv) => inv.status !== "done").length,
+      in_progress: sortedInvoices.filter(
+        (inv) =>
+          !inv.verified && inv.status !== "done" && inv.status !== "completed"
+      ).length,
+      completed: sortedInvoices.filter(
+        (inv) => inv.status === "completed" && !inv.verified
+      ).length,
+      approved: sortedInvoices.filter(
+        (inv) => inv.verified && inv.status !== "done"
+      ).length,
+      partial: sortedInvoices.filter(
+        (inv) => inv.partiallyVerified && !inv.verified && inv.status !== "done"
+      ).length,
+      shipped: sortedInvoices.filter((inv) => inv.status === "done").length,
     };
     return counts;
   }, [sortedInvoices]);
 
   // Filter invoices by status
   const filteredInvoices = useMemo(() => {
-    if (statusFilter === 'all') return sortedInvoices.filter(inv => inv.status !== 'done');
-    if (statusFilter === 'in_progress') return sortedInvoices.filter(inv => !inv.verified && inv.status !== 'done' && inv.status !== 'completed');
-    if (statusFilter === 'completed') return sortedInvoices.filter(inv => inv.status === 'completed' && !inv.verified);
-    if (statusFilter === 'approved') return sortedInvoices.filter(inv => inv.verified && inv.status !== 'done');
-    if (statusFilter === 'partial') return sortedInvoices.filter(inv => inv.partiallyVerified && !inv.verified && inv.status !== 'done');
-    if (statusFilter === 'shipped') return sortedInvoices.filter(inv => inv.status === 'done');
-    return sortedInvoices.filter(inv => inv.status !== 'done');
+    if (statusFilter === "all")
+      return sortedInvoices.filter((inv) => inv.status !== "done");
+    if (statusFilter === "in_progress")
+      return sortedInvoices.filter(
+        (inv) =>
+          !inv.verified && inv.status !== "done" && inv.status !== "completed"
+      );
+    if (statusFilter === "completed")
+      return sortedInvoices.filter(
+        (inv) => inv.status === "completed" && !inv.verified
+      );
+    if (statusFilter === "approved")
+      return sortedInvoices.filter(
+        (inv) => inv.verified && inv.status !== "done"
+      );
+    if (statusFilter === "partial")
+      return sortedInvoices.filter(
+        (inv) => inv.partiallyVerified && !inv.verified && inv.status !== "done"
+      );
+    if (statusFilter === "shipped")
+      return sortedInvoices.filter((inv) => inv.status === "done");
+    return sortedInvoices.filter((inv) => inv.status !== "done");
   }, [sortedInvoices, statusFilter]);
 
   // Handler to select an invoice (for card click)
   function handleInvoiceClick(invoiceId: string) {
     const invoice = invoicesState.find((inv) => inv.id === invoiceId);
-    console.log("🔍 handleInvoiceClick:", { 
-      invoiceId, 
-      foundInvoice: !!invoice, 
-      carts: invoice?.carts?.map(c => ({ id: c.id, name: c.name })),
-      timestamp: new Date().toISOString()
+    console.log("🔍 handleInvoiceClick:", {
+      invoiceId,
+      foundInvoice: !!invoice,
+      carts: invoice?.carts?.map((c) => ({ id: c.id, name: c.name })),
+      timestamp: new Date().toISOString(),
     });
-    
+
     if (invoice) {
       // Ensure we have the latest invoice data
       setSelectedInvoice({ ...invoice }); // Create a new object to trigger re-render
       setShowInvoiceDetailsModal(true);
     }
-    
+
     if (typeof setSelectedInvoiceId === "function") {
       setSelectedInvoiceId(invoiceId);
     }
@@ -1506,19 +1603,20 @@ export default function ActiveInvoices({
   }
 
   // --- Invoice Merge Functions ---
-  
+
   // Get invoices that can be merged with the given invoice (same client name)
   const getMergeableInvoices = (sourceInvoiceId: string) => {
-    const sourceInvoice = invoices.find(inv => inv.id === sourceInvoiceId);
+    const sourceInvoice = invoices.find((inv) => inv.id === sourceInvoiceId);
     if (!sourceInvoice) return [];
-    
-    return invoices.filter(inv => 
-      inv.id !== sourceInvoiceId && 
-      inv.clientName === sourceInvoice.clientName &&
-      inv.status !== "done" // Don't merge with shipped invoices
+
+    return invoices.filter(
+      (inv) =>
+        inv.id !== sourceInvoiceId &&
+        inv.clientName === sourceInvoice.clientName &&
+        inv.status !== "done" // Don't merge with shipped invoices
     );
   };
-  
+
   // Open merge modal for selecting target invoice
   const handleOpenMergeModal = (sourceInvoiceId: string) => {
     const mergeableInvoices = getMergeableInvoices(sourceInvoiceId);
@@ -1526,88 +1624,104 @@ export default function ActiveInvoices({
       alert("No invoices with the same client name found to merge with.");
       return;
     }
-    
+
     setMergeSourceInvoiceId(sourceInvoiceId);
     setMergeTargetInvoiceId("");
     setMergeError("");
     setShowMergeModal(true);
   };
-  
+
   // Handle the actual merge operation
   const handleMergeInvoices = async () => {
     if (!mergeSourceInvoiceId || !mergeTargetInvoiceId) {
       setMergeError("Please select both source and target invoices.");
       return;
     }
-    
+
     setMergeLoading(true);
     setMergeError("");
-    
+
     try {
-      const sourceInvoice = invoices.find(inv => inv.id === mergeSourceInvoiceId);
-      const targetInvoice = invoices.find(inv => inv.id === mergeTargetInvoiceId);
-      
+      const sourceInvoice = invoices.find(
+        (inv) => inv.id === mergeSourceInvoiceId
+      );
+      const targetInvoice = invoices.find(
+        (inv) => inv.id === mergeTargetInvoiceId
+      );
+
       if (!sourceInvoice || !targetInvoice) {
         throw new Error("Source or target invoice not found");
       }
-      
+
       // Handle cart name conflicts by renaming duplicates
-      const targetCartNames = new Set(targetInvoice.carts.map(c => c.name.toLowerCase()));
-      
-      const resolvedSourceCarts = sourceInvoice.carts.map(cart => {
+      const targetCartNames = new Set(
+        targetInvoice.carts.map((c) => c.name.toLowerCase())
+      );
+
+      const resolvedSourceCarts = sourceInvoice.carts.map((cart) => {
         let newName = cart.name;
         let counter = 1;
-        
+
         while (targetCartNames.has(newName.toLowerCase())) {
           newName = `${cart.name} (${counter})`;
           counter++;
         }
-        
+
         return { ...cart, name: newName };
       });
-      
+
       // Combine carts from both invoices
       const mergedCarts = [...targetInvoice.carts, ...resolvedSourceCarts];
-      
+
       // Combine weights if both invoices have totalWeight
-      const combinedWeight = (sourceInvoice.totalWeight || 0) + (targetInvoice.totalWeight || 0);
-      
+      const combinedWeight =
+        (sourceInvoice.totalWeight || 0) + (targetInvoice.totalWeight || 0);
+
       // Prepare update data
       const updateData: Partial<Invoice> = {
-        carts: mergedCarts
+        carts: mergedCarts,
       };
-      
+
       // Only include totalWeight if there's actually weight to combine
       if (combinedWeight > 0) {
         updateData.totalWeight = combinedWeight;
       }
-      
+
       // Update target invoice with merged carts and combined weight
       await onUpdateInvoice(targetInvoice.id, updateData);
-      
+
       // Delete source invoice
       await onDeleteInvoice(sourceInvoice.id);
-      
+
       // Log merge activity
       if (user?.username) {
-        const weightInfo = combinedWeight > 0 
-          ? ` (Weight: ${sourceInvoice.totalWeight || 0} + ${targetInvoice.totalWeight || 0} = ${combinedWeight} lbs)`
-          : '';
-          
+        const weightInfo =
+          combinedWeight > 0
+            ? ` (Weight: ${sourceInvoice.totalWeight || 0} + ${
+                targetInvoice.totalWeight || 0
+              } = ${combinedWeight} lbs)`
+            : "";
+
         await logActivity({
           type: "invoice_merge",
-          message: `User ${user.username} merged invoice #${sourceInvoice.invoiceNumber || sourceInvoice.id} into invoice #${targetInvoice.invoiceNumber || targetInvoice.id}${weightInfo}`,
-          user: user.username
+          message: `User ${user.username} merged invoice #${
+            sourceInvoice.invoiceNumber || sourceInvoice.id
+          } into invoice #${
+            targetInvoice.invoiceNumber || targetInvoice.id
+          }${weightInfo}`,
+          user: user.username,
         });
       }
-      
+
       // Close modal and reset state
       setShowMergeModal(false);
       setMergeSourceInvoiceId(null);
       setMergeTargetInvoiceId("");
     } catch (error: any) {
       console.error("Error merging invoices:", error);
-      setMergeError(error.message || "Failed to merge invoices. Please try again.");
+      setMergeError(
+        error.message || "Failed to merge invoices. Please try again."
+      );
     } finally {
       setMergeLoading(false);
     }
@@ -1742,15 +1856,16 @@ export default function ActiveInvoices({
             {/* Status Filter Cards */}
             <div className="d-flex gap-2 mb-2 mb-md-0">
               {STATUS_FILTERS.map((filter) => {
-                const count = statusCounts[filter.key as keyof typeof statusCounts] || 0;
+                const count =
+                  statusCounts[filter.key as keyof typeof statusCounts] || 0;
                 return (
                   <button
                     key={filter.key}
                     type="button"
                     className={`btn btn-sm ${
-                      statusFilter === filter.key 
-                        ? 'btn-primary' 
-                        : 'btn-outline-secondary'
+                      statusFilter === filter.key
+                        ? "btn-primary"
+                        : "btn-outline-secondary"
                     }`}
                     onClick={() => setStatusFilter(filter.key as any)}
                     title={`${filter.label} (${count})`}
@@ -1761,21 +1876,25 @@ export default function ActiveInvoices({
                 );
               })}
             </div>
-            
+
             {/* View Toggle */}
             <div className="btn-group" role="group" aria-label="View options">
               <button
                 type="button"
-                className={`btn ${viewMode === 'cards' ? 'btn-primary' : 'btn-outline-primary'}`}
-                onClick={() => setViewMode('cards')}
+                className={`btn ${
+                  viewMode === "cards" ? "btn-primary" : "btn-outline-primary"
+                }`}
+                onClick={() => setViewMode("cards")}
               >
                 <i className="bi bi-grid-3x3-gap me-1"></i>
                 Cards
               </button>
               <button
                 type="button"
-                className={`btn ${viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'}`}
-                onClick={() => setViewMode('list')}
+                className={`btn ${
+                  viewMode === "list" ? "btn-primary" : "btn-outline-primary"
+                }`}
+                onClick={() => setViewMode("list")}
               >
                 <i className="bi bi-list-ul me-1"></i>
                 List
@@ -1788,174 +1907,210 @@ export default function ActiveInvoices({
       {/* Content Area - Cards or List View */}
       {invoicesState.filter((inv) => inv.status !== "done").length === 0 ? (
         <div className="text-center text-muted py-5">
-          No active laundry tickets found. Create a new laundry ticket to get started.
+          No active laundry tickets found. Create a new laundry ticket to get
+          started.
         </div>
-      ) : viewMode === 'cards' ? (
+      ) : viewMode === "cards" ? (
         // Cards View (existing)
         <div className="row">
           {filteredInvoices.map((invoice, idx) => {
-              const client = clients.find((c) => c.id === invoice.clientId);
-              const isReady =
-                invoice.status === "ready" || readyInvoices[invoice.id];
-              const isVerified = invoice.verified;
-              const isPartiallyVerified =
-                invoice.partiallyVerified ||
-                partialVerifiedInvoices[invoice.id];
-              // Determine highlight color for this invoice
-              const highlight = invoice.highlight || "blue";
-              // Compute background based on approval status with enhanced visual feedback
-              let cardBackground = "";
-              let cardBorderColor = "";
+            const client = clients.find((c) => c.id === invoice.clientId);
+            const isReady =
+              invoice.status === "ready" || readyInvoices[invoice.id];
+            const isVerified = invoice.verified;
+            const isPartiallyVerified =
+              invoice.partiallyVerified || partialVerifiedInvoices[invoice.id];
+            // Determine highlight color for this invoice
+            const highlight = invoice.highlight || "blue";
+            // Compute background based on approval status with enhanced visual feedback
+            let cardBackground = "";
+            let cardBorderColor = "";
 
-              if (isVerified) {
-                // Check if this is a client pickup order - make it pink instead of green
-                if (invoice.deliveryMethod === "client_pickup") {
-                  // Fully approved client pickup - Pink card
-                  cardBackground =
-                    "linear-gradient(135deg, #fce7f3 0%, #ec4899 100%)";
-                  cardBorderColor = "#ec4899";
-                } else {
-                  // Fully approved - Green card
-                  cardBackground =
-                    "linear-gradient(135deg, #dcfce7 0%, #16a34a 100%)";
-                  cardBorderColor = "#16a34a";
-                }
-              } else if (isPartiallyVerified) {
-                // Partially approved - Yellow card
+            if (isVerified) {
+              // Check if this is a client pickup order - make it pink instead of green
+              if (invoice.deliveryMethod === "client_pickup") {
+                // Fully approved client pickup - Pink card
                 cardBackground =
-                  "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
-                cardBorderColor = "#eab308";
-              } else if (invoice.status === "completed") {
-                // Completed but not approved - Yellow card
-                cardBackground =
-                  "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
-                cardBorderColor = "#eab308";
-              } else if (invoice.manglesCompleted || invoice.dobladoCompleted) {
-                // Partial completion - Split background
-                if (invoice.manglesCompleted && invoice.dobladoCompleted) {
-                  // Both parts completed - should be status "completed", but fallback
-                  cardBackground =
-                    "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
-                  cardBorderColor = "#eab308";
-                } else if (invoice.manglesCompleted) {
-                  // Only top part completed - Yellow top, blue bottom
-                  cardBackground =
-                    "linear-gradient(to bottom, #fef3c7 0%, #fef3c7 50%, #dbeafe 50%, #dbeafe 100%)";
-                  cardBorderColor = "#3b82f6";
-                } else if (invoice.dobladoCompleted) {
-                  // Only bottom part completed - Blue top, yellow bottom
-                  cardBackground =
-                    "linear-gradient(to bottom, #dbeafe 0%, #dbeafe 50%, #fef3c7 50%, #fef3c7 100%)";
-                  cardBorderColor = "#3b82f6";
-                }
-              } else if (isReady) {
-                // Ready status - Light yellow
-                cardBackground =
-                  "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
-                cardBorderColor = "#fbbf24";
-              } else if (highlight === "yellow") {
-                // Yellow highlight
-                cardBackground =
-                  "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
-                cardBorderColor = "#fbbf24";
+                  "linear-gradient(135deg, #fce7f3 0%, #ec4899 100%)";
+                cardBorderColor = "#ec4899";
               } else {
-                // Default - Blue card (not approved)
+                // Fully approved - Green card
                 cardBackground =
-                  "linear-gradient(135deg, #dbeafe 0%, #3b82f6 100%)";
+                  "linear-gradient(135deg, #dcfce7 0%, #16a34a 100%)";
+                cardBorderColor = "#16a34a";
+              }
+            } else if (isPartiallyVerified) {
+              // Partially approved - Yellow card
+              cardBackground =
+                "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+              cardBorderColor = "#eab308";
+            } else if (invoice.status === "completed") {
+              // Completed but not approved - Yellow card
+              cardBackground =
+                "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+              cardBorderColor = "#eab308";
+            } else if (invoice.manglesCompleted || invoice.dobladoCompleted) {
+              // Partial completion - Split background
+              if (invoice.manglesCompleted && invoice.dobladoCompleted) {
+                // Both parts completed - should be status "completed", but fallback
+                cardBackground =
+                  "linear-gradient(135deg, #fefce8 0%, #eab308 100%)";
+                cardBorderColor = "#eab308";
+              } else if (invoice.manglesCompleted) {
+                // Only top part completed - Yellow top, blue bottom
+                cardBackground =
+                  "linear-gradient(to bottom, #fef3c7 0%, #fef3c7 50%, #dbeafe 50%, #dbeafe 100%)";
+                cardBorderColor = "#3b82f6";
+              } else if (invoice.dobladoCompleted) {
+                // Only bottom part completed - Blue top, yellow bottom
+                cardBackground =
+                  "linear-gradient(to bottom, #dbeafe 0%, #dbeafe 50%, #fef3c7 50%, #fef3c7 100%)";
                 cardBorderColor = "#3b82f6";
               }
+            } else if (isReady) {
+              // Ready status - Light yellow
+              cardBackground =
+                "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
+              cardBorderColor = "#fbbf24";
+            } else if (highlight === "yellow") {
+              // Yellow highlight
+              cardBackground =
+                "linear-gradient(135deg, #fde68a 0%, #fbbf24 100%)";
+              cardBorderColor = "#fbbf24";
+            } else {
+              // Default - Blue card (not approved)
+              cardBackground =
+                "linear-gradient(135deg, #dbeafe 0%, #3b82f6 100%)";
+              cardBorderColor = "#3b82f6";
+            }
 
-              // --- Overdue logic: more than 1 day old ---
-              let isOverdue = false;
-              if (invoice.date) {
-                const created = new Date(invoice.date);
-                const now = new Date();
-                const diffMs = now.getTime() - created.getTime();
-                if (diffMs > 24 * 60 * 60 * 1000) {
-                  isOverdue = true;
-                }
+            // --- Overdue logic: more than 1 day old ---
+            let isOverdue = false;
+            if (invoice.date) {
+              const created = new Date(invoice.date);
+              const now = new Date();
+              const diffMs = now.getTime() - created.getTime();
+              if (diffMs > 24 * 60 * 60 * 1000) {
+                isOverdue = true;
               }
+            }
 
-              // Only apply overdue-blink if overdue AND not verified
-              const showOverdueBlink = isOverdue && !isVerified;
+            // Only apply overdue-blink if overdue AND not verified
+            const showOverdueBlink = isOverdue && !isVerified;
 
-              // Get animation class if animation is active
-              const animationClass = animatingInvoices[invoice.id]
-                ? animatingInvoices[invoice.id] === "approved"
-                  ? "invoice-card-approved"
-                  : "invoice-card-partial"
-                : "";
+            // Get animation class if animation is active
+            const animationClass = animatingInvoices[invoice.id]
+              ? animatingInvoices[invoice.id] === "approved"
+                ? "invoice-card-approved"
+                : "invoice-card-partial"
+              : "";
 
-              return (
-                <React.Fragment key={invoice.id}>
+            return (
+              <React.Fragment key={invoice.id}>
+                <div
+                  key={invoice.id}
+                  className={`col-lg-4 col-md-6 mb-4${
+                    showOverdueBlink ? " overdue-blink" : ""
+                  }`}
+                  onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
+                  onMouseLeave={() => setHoveredInvoiceId(null)}
+                >
                   <div
-                    key={invoice.id}
-                    className={`col-lg-4 col-md-6 mb-4${
+                    className={`modern-invoice-card shadow-lg${
                       showOverdueBlink ? " overdue-blink" : ""
-                    }`}
-                    onMouseEnter={() => setHoveredInvoiceId(invoice.id)}
-                    onMouseLeave={() => setHoveredInvoiceId(null)}
+                    }${animationClass ? ` ${animationClass}` : ""}`}
+                    style={{
+                      borderRadius: 24,
+                      background: cardBackground,
+                      color: "#222",
+                      boxShadow: `0 8px 32px 0 rgba(0,0,0,0.10), 0 0 0 2px ${cardBorderColor}20`,
+                      border: `2px solid ${cardBorderColor}40`,
+                      position: "relative",
+                      minHeight: 380,
+                      maxWidth: 340,
+                      margin: "0 auto", // Changed from "60px auto 0 auto" since no avatar overlap
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "flex-start",
+                      fontFamily: "Inter, Segoe UI, Arial, sans-serif",
+                      padding: "2.5rem 1.5rem 1.5rem 1.5rem",
+                      transition: "all 0.3s ease-in-out",
+                      transform: isVerified ? "scale(1.02)" : "scale(1)",
+                    }}
+                    onClick={() => handleInvoiceClick(invoice.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        handleInvoiceClick(invoice.id);
+                      }
+                    }}
                   >
+                    {/* Client Name Tab at Top with consistent spacing */}
                     <div
-                      className={`modern-invoice-card shadow-lg${
-                        showOverdueBlink ? " overdue-blink" : ""
-                      }${animationClass ? ` ${animationClass}` : ""}`}
                       style={{
-                        borderRadius: 24,
-                        background: cardBackground,
-                        color: "#222",
-                        boxShadow: `0 8px 32px 0 rgba(0,0,0,0.10), 0 0 0 2px ${cardBorderColor}20`,
+                        position: "absolute",
+                        top: -1,
+                        left: -1,
+                        right: -1,
+                        background: "#ffffff",
+                        borderRadius: "24px 24px 0 0",
+                        padding: "16px 24px",
+                        textAlign: "center",
                         border: `2px solid ${cardBorderColor}40`,
-                        position: "relative",
-                        minHeight: 380,
-                        maxWidth: 340,
-                        margin: "0 auto", // Changed from "60px auto 0 auto" since no avatar overlap
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "flex-start",
-                        fontFamily: "Inter, Segoe UI, Arial, sans-serif",
-                        padding: "2.5rem 1.5rem 1.5rem 1.5rem",
-                        transition: "all 0.3s ease-in-out",
-                        transform: isVerified ? "scale(1.02)" : "scale(1)",
-                      }}
-                      onClick={() => handleInvoiceClick(invoice.id)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          handleInvoiceClick(invoice.id);
-                        }
+                        borderBottom: "1px solid #e5e7eb",
+                        zIndex: 2,
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
                       }}
                     >
-                      {/* Client Name Tab at Top with consistent spacing */}
                       <div
                         style={{
-                          position: "absolute",
-                          top: -1,
-                          left: -1,
-                          right: -1,
-                          background: "#ffffff",
+                          fontWeight: 700,
+                          fontSize: 25,
+                          color: (invoice.carts || []).some((c) =>
+                            c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
+                          )
+                            ? "red"
+                            : "#222",
+                          letterSpacing: "0.5px",
+                          lineHeight: "1.3",
+                          wordWrap: "break-word",
+                          overflowWrap: "break-word",
+                          hyphens: "auto",
+                        }}
+                      >
+                        {client?.name || invoice.clientName}
+                      </div>
+                    </div>
+
+                    {/* Buttons and Invoice Number positioned relative to white border */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: -1, // Start from same position as client name tab
+                        left: -1,
+                        right: -1,
+                        pointerEvents: "none", // Allow clicks to pass through container
+                      }}
+                    >
+                      {/* Calculate position after white background + border + gap */}
+                      <div
+                        style={{
+                          position: "relative",
+                          background: "transparent",
                           borderRadius: "24px 24px 0 0",
-                          padding: "16px 24px",
+                          padding: "16px 24px", // Same padding as white background
+                          border: "2px solid transparent", // Same border size as white background
+                          borderBottom: "1px solid transparent",
                           textAlign: "center",
-                          border: `2px solid ${cardBorderColor}40`,
-                          borderBottom: "1px solid #e5e7eb",
-                          zIndex: 2,
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
                         }}
                       >
                         <div
                           style={{
                             fontWeight: 700,
                             fontSize: 25,
-                            color: (invoice.carts || []).some((c) =>
-                              c.name
-                                .toUpperCase()
-                                .startsWith("CARRO SIN NOMBRE")
-                            )
-                              ? "red"
-                              : "#222",
+                            color: "transparent", // Invisible text to maintain spacing
                             letterSpacing: "0.5px",
                             lineHeight: "1.3",
                             wordWrap: "break-word",
@@ -1965,449 +2120,421 @@ export default function ActiveInvoices({
                         >
                           {client?.name || invoice.clientName}
                         </div>
-                      </div>
-                      
-                      {/* Buttons and Invoice Number positioned relative to white border */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: -1, // Start from same position as client name tab
-                          left: -1,
-                          right: -1,
-                          pointerEvents: "none", // Allow clicks to pass through container
-                        }}
-                      >
-                        {/* Calculate position after white background + border + gap */}
-                        <div
-                          style={{
-                            position: "relative",
-                            background: "transparent",
-                            borderRadius: "24px 24px 0 0",
-                            padding: "16px 24px", // Same padding as white background
-                            border: "2px solid transparent", // Same border size as white background
-                            borderBottom: "1px solid transparent",
-                            textAlign: "center",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              fontSize: 25,
-                              color: "transparent", // Invisible text to maintain spacing
-                              letterSpacing: "0.5px",
-                              lineHeight: "1.3",
-                              wordWrap: "break-word",
-                              overflowWrap: "break-word",
-                              hyphens: "auto",
-                            }}
-                          >
-                            {client?.name || invoice.clientName}
-                          </div>
-                          
-                          {/* Buttons positioned with consistent gap from white border */}
-                          <div
-                            style={{
-                              position: "absolute",
-                              top: "calc(100% + 20px)", // 20px gap from white border
-                              left: 0,
-                              right: 0,
-                              height: "44px",
-                            }}
-                          >
-                            {/* Delete button */}
-                            {user &&
-                              ["Supervisor", "Admin", "Owner"].includes(
-                                user.role
-                              ) && (
-                                <button
-                                  className="btn"
-                                  style={{
-                                    position: "absolute",
-                                    top: 0,
-                                    left: 16,
-                                    background: "#fff",
-                                    borderRadius: "50%",
-                                    width: 44,
-                                    height: 44,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                                    border: "none",
-                                    color: "#ef4444",
-                                    fontSize: 22,
-                                    zIndex: 4,
-                                    pointerEvents: "auto",
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClick(invoice);
-                                  }}
-                                  title="Delete"
-                                  disabled={!!invoice.locked}
-                                >
-                                  <i className="bi bi-trash" />
-                                </button>
-                              )}
-                            
-                            {/* Merge button */}
-                            {user &&
-                              ["Supervisor", "Admin", "Owner"].includes(
-                                user.role
-                              ) && 
-                              true && (
-                                <button
-                                  className="btn"
-                                  style={{
-                                    position: "absolute",
-                                    top: 0,
-                                    left: 70,
-                                    background: "#fff",
-                                    borderRadius: "50%",
-                                    width: 44,
-                                    height: 44,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                                    border: "none",
-                                    color: "#0ea5e9",
-                                    fontSize: 22,
-                                    zIndex: 4,
-                                    pointerEvents: "auto",
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    console.log("Merge button clicked for invoice:", invoice.id);
-                                    console.log("Mergeable invoices:", getMergeableInvoices(invoice.id));
-                                    handleOpenMergeModal(invoice.id);
-                                  }}
-                                  title="Merge with another invoice from same client"
-                                  disabled={!!invoice.locked}
-                                >
-                                  <i className="bi bi-shuffle" />
-                                </button>
-                              )}
-                            
-                            {/* Invoice Number */}
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: 0,
-                                right: 16,
-                                background: "linear-gradient(135deg, #3b82f6, #1e40af)",
-                                borderRadius: "8px",
-                                padding: "8px 12px",
-                                boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
-                                border: "1px solid rgba(59, 130, 246, 0.2)",
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: "#ffffff",
-                                letterSpacing: "0.5px",
-                                zIndex: 4,
-                                pointerEvents: "auto",
-                              }}
-                            >
-                              #{invoice.invoiceNumber || invoice.id.substring(0, 8)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
 
-                      {/* Content area - positioned below client name tab, buttons, and sticky note */}
-                      <div
-                        style={{
-                          textAlign: "center",
-                          marginTop: invoice.note ? 220 : 140, // Extra space when note is present (130px note position + 80px max height + 10px padding)
-                          marginBottom: 8,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: "#777",
-                            marginBottom: 4,
-                          }}
-                        >
-                          Active Invoice
-                        </div>
-                        {/* Approval Status Badge */}
-                        {(isVerified ||
-                          isPartiallyVerified ||
-                          invoice.status === "completed") && (
-                          <div
-                            style={{
-                              display: "inline-block",
-                              padding: "4px 12px",
-                              borderRadius: "12px",
-                              fontSize: "11px",
-                              fontWeight: "700",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.5px",
-                              marginTop: "8px",
-                              background: isVerified
-                                ? "#16a34a"
-                                : isPartiallyVerified
-                                ? "#eab308"
-                                : "#eab308", // Yellow for completed but not approved
-                              color: "white",
-                              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                            }}
-                          >
-                            {isVerified
-                              ? "✓ APPROVED"
-                              : isPartiallyVerified
-                              ? "⚠ PARTIAL"
-                              : "📋 COMPLETED"}
-                          </div>
-                        )}
-                        
-                        {/* Delivery Schedule Badge */}
-                        {invoice.deliveryDate && (
-                          <div
-                            style={{
-                              display: "inline-block",
-                              padding: "4px 12px",
-                              borderRadius: "12px",
-                              fontSize: "11px",
-                              fontWeight: "700",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.5px",
-                              marginTop: "8px",
-                              marginLeft: "8px",
-                              background: "#3b82f6",
-                              color: "white",
-                              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                            }}
-                          >
-                            {invoice.deliveryMethod === "client_pickup" ? (
-                              <>
-                                👤 {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric"
-                                })} - Client Pickup
-                              </>
-                            ) : (
-                              <>
-                                🚛 {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric"
-                                })} - Truck #{invoice.truckNumber || "TBD"}
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      {/* Product summary (total qty per product) */}
-                      <div style={{ margin: "12px 0 0 0", width: "100%" }}>
-                        <div
-                          style={{
-                            fontWeight: 700,
-                            fontSize: 20, // Increased from 15 for product summary title
-                            color: "white",
-                            marginBottom: 2,
-                          }}
-                        >
-                          Productos Total global
-                        </div>
-                        <ul
-                          style={{
-                            listStyle: "none",
-                            paddingLeft: 20,
-                            padding: 0,
-                            margin: 0,
-                            fontSize: 28, // Increased from 15 for product list
-                            marginBottom: (invoice.verified || invoice.partiallyVerified) ? 8 : 80, // Conditional margin: small when approval info present, large when absent
-                          }}
-                        >
-                          {(() => {
-                            // Aggregate product totals across all carts
-                            const productTotals: {
-                              [productId: string]: {
-                                name: string;
-                                qty: number;
-                              };
-                            } = {};
-                            (invoice.carts || []).forEach((cart) => {
-                              cart.items.forEach((item) => {
-                                if (!productTotals[item.productId]) {
-                                  productTotals[item.productId] = {
-                                    name: item.productName,
-                                    qty: 0,
-                                  };
-                                }
-                                productTotals[item.productId].qty +=
-                                  Number(item.quantity) || 0;
-                              });
-                            });
-                            const sorted = Object.values(productTotals).sort(
-                              (a, b) => a.name.localeCompare(b.name)
-                            );
-                            if (sorted.length === 0) {
-                              return (
-                                <li className="text-muted">No products yet.</li>
-                              );
-                            }
-                            return sorted.map((prod, idx) => (
-                              <li key={prod.name + idx}>
-                                <span style={{ fontSize: 18 }}>
-                                  {prod.name}
-                                </span>{" "}
-                                <b style={{ fontSize: 18 }}>{prod.qty}</b>
-                              </li>
-                            ));
-                          })(                        )}
-                        </ul>
-                      </div>
-
-                      {/* Sticky Note Display - Positioned below buttons to avoid overlap */}
-                      {invoice.note && (
+                        {/* Buttons positioned with consistent gap from white border */}
                         <div
                           style={{
                             position: "absolute",
-                            top: "130px", // Positioned below buttons (client tab ~70px + buttons ~44px + gap ~16px)
-                            left: "16px",
-                            right: "16px",
-                            background: "rgba(255, 241, 118, 0.98)",
-                            border: "2px solid #fbbf24",
-                            borderRadius: "10px",
-                            padding: "10px 14px",
-                            fontSize: "13px",
-                            fontWeight: "500",
-                            color: "#92400e",
-                            maxHeight: "80px", // Slightly reduced to fit better in card
-                            overflowY: "auto",
-                            boxShadow: "0 4px 20px rgba(251, 191, 36, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3)",
-                            zIndex: 8, // Below buttons (zIndex 4) but above content
-                            backdropFilter: "blur(3px)", // Enhanced backdrop blur
-                            transition: "all 0.3s ease-in-out",
-                            cursor: "pointer",
-                            userSelect: "text", // Allow text selection
+                            top: "calc(100% + 20px)", // 20px gap from white border
+                            left: 0,
+                            right: 0,
+                            height: "44px",
                           }}
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevent card click when clicking note
-                            // Open note editor when clicking the note
-                            setShowNoteInput(prev => ({ ...prev, [invoice.id]: true }));
-                          }}
-                          title="Click to edit note"
                         >
+                          {/* Delete button */}
+                          {user &&
+                            ["Supervisor", "Admin", "Owner"].includes(
+                              user.role
+                            ) && (
+                              <button
+                                className="btn"
+                                style={{
+                                  position: "absolute",
+                                  top: 0,
+                                  left: 16,
+                                  background: "#fff",
+                                  borderRadius: "50%",
+                                  width: 44,
+                                  height: 44,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                                  border: "none",
+                                  color: "#ef4444",
+                                  fontSize: 22,
+                                  zIndex: 4,
+                                  pointerEvents: "auto",
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(invoice);
+                                }}
+                                title="Delete"
+                                disabled={!!invoice.locked}
+                              >
+                                <i className="bi bi-trash" />
+                              </button>
+                            )}
+
+                          {/* Merge button */}
+                          {user &&
+                            ["Supervisor", "Admin", "Owner"].includes(
+                              user.role
+                            ) &&
+                            true && (
+                              <button
+                                className="btn"
+                                style={{
+                                  position: "absolute",
+                                  top: 0,
+                                  left: 70,
+                                  background: "#fff",
+                                  borderRadius: "50%",
+                                  width: 44,
+                                  height: 44,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                                  border: "none",
+                                  color: "#0ea5e9",
+                                  fontSize: 22,
+                                  zIndex: 4,
+                                  pointerEvents: "auto",
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  console.log(
+                                    "Merge button clicked for invoice:",
+                                    invoice.id
+                                  );
+                                  console.log(
+                                    "Mergeable invoices:",
+                                    getMergeableInvoices(invoice.id)
+                                  );
+                                  handleOpenMergeModal(invoice.id);
+                                }}
+                                title="Merge with another invoice from same client"
+                                disabled={!!invoice.locked}
+                              >
+                                <i className="bi bi-shuffle" />
+                              </button>
+                            )}
+
+                          {/* Invoice Number */}
                           <div
                             style={{
-                              fontSize: "11px",
-                              fontWeight: "700",
-                              marginBottom: "6px",
-                              textTransform: "uppercase",
+                              position: "absolute",
+                              top: 0,
+                              right: 16,
+                              background:
+                                "linear-gradient(135deg, #3b82f6, #1e40af)",
+                              borderRadius: "8px",
+                              padding: "8px 12px",
+                              boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
+                              border: "1px solid rgba(59, 130, 246, 0.2)",
+                              fontSize: 14,
+                              fontWeight: 700,
+                              color: "#ffffff",
                               letterSpacing: "0.5px",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: "4px",
+                              zIndex: 4,
+                              pointerEvents: "auto",
                             }}
                           >
-                            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                              📝 Note
-                            </span>
-                            <span style={{ 
-                              fontSize: "10px", 
-                              opacity: 0.7,
-                              fontStyle: "italic",
-                              fontWeight: "normal" 
-                            }}>
-                              Click to edit
-                            </span>
+                            #
+                            {invoice.invoiceNumber ||
+                              invoice.id.substring(0, 8)}
                           </div>
-                          <div style={{ 
-                            lineHeight: "1.4", 
-                            wordBreak: "break-word",
-                            whiteSpace: "pre-wrap" 
-                          }}>
-                            {invoice.note}
-                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Content area - positioned below client name tab, buttons, and sticky note */}
+                    <div
+                      style={{
+                        textAlign: "center",
+                        marginTop: invoice.note ? 220 : 140, // Extra space when note is present (130px note position + 80px max height + 10px padding)
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "#777",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Active Invoice
+                      </div>
+                      {/* Approval Status Badge */}
+                      {(isVerified ||
+                        isPartiallyVerified ||
+                        invoice.status === "completed") && (
+                        <div
+                          style={{
+                            display: "inline-block",
+                            padding: "4px 12px",
+                            borderRadius: "12px",
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                            marginTop: "8px",
+                            background: isVerified
+                              ? "#16a34a"
+                              : isPartiallyVerified
+                              ? "#eab308"
+                              : "#eab308", // Yellow for completed but not approved
+                            color: "white",
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                          }}
+                        >
+                          {isVerified
+                            ? "✓ APPROVED"
+                            : isPartiallyVerified
+                            ? "⚠ PARTIAL"
+                            : "📋 COMPLETED"}
                         </div>
                       )}
 
-                      {/* Social-style action buttons */}
+                      {/* Delivery Schedule Badge */}
+                      {invoice.deliveryDate && (
+                        <div
+                          style={{
+                            display: "inline-block",
+                            padding: "4px 12px",
+                            borderRadius: "12px",
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                            marginTop: "8px",
+                            marginLeft: "8px",
+                            background: "#3b82f6",
+                            color: "white",
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                          }}
+                        >
+                          {invoice.deliveryMethod === "client_pickup" ? (
+                            <>
+                              👤{" "}
+                              {new Date(
+                                invoice.deliveryDate
+                              ).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}{" "}
+                              - Client Pickup
+                            </>
+                          ) : (
+                            <>
+                              🚛{" "}
+                              {new Date(
+                                invoice.deliveryDate
+                              ).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}{" "}
+                              - Truck #{invoice.truckNumber || "TBD"}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {/* Product summary (total qty per product) */}
+                    <div style={{ margin: "12px 0 0 0", width: "100%" }}>
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 20, // Increased from 15 for product summary title
+                          color: "white",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Productos Total global
+                      </div>
+                      <ul
+                        style={{
+                          listStyle: "none",
+                          paddingLeft: 20,
+                          padding: 0,
+                          margin: 0,
+                          fontSize: 28, // Increased from 15 for product list
+                          marginBottom:
+                            invoice.verified || invoice.partiallyVerified
+                              ? 8
+                              : 80, // Conditional margin: small when approval info present, large when absent
+                        }}
+                      >
+                        {(() => {
+                          // Aggregate product totals across all carts
+                          const productTotals: {
+                            [productId: string]: {
+                              name: string;
+                              qty: number;
+                            };
+                          } = {};
+                          (invoice.carts || []).forEach((cart) => {
+                            cart.items.forEach((item) => {
+                              if (!productTotals[item.productId]) {
+                                productTotals[item.productId] = {
+                                  name: item.productName,
+                                  qty: 0,
+                                };
+                              }
+                              productTotals[item.productId].qty +=
+                                Number(item.quantity) || 0;
+                            });
+                          });
+                          const sorted = Object.values(productTotals).sort(
+                            (a, b) => a.name.localeCompare(b.name)
+                          );
+                          if (sorted.length === 0) {
+                            return (
+                              <li className="text-muted">No products yet.</li>
+                            );
+                          }
+                          return sorted.map((prod, idx) => (
+                            <li key={prod.name + idx}>
+                              <span style={{ fontSize: 18 }}>{prod.name}</span>{" "}
+                              <b style={{ fontSize: 18 }}>{prod.qty}</b>
+                            </li>
+                          ));
+                        })()}
+                      </ul>
+                    </div>
+
+                    {/* Sticky Note Display - Positioned below buttons to avoid overlap */}
+                    {invoice.note && (
                       <div
                         style={{
                           position: "absolute",
-                          bottom: 24,
-                          right: 24,
-                          display: "flex",
-                          flexDirection: "row",
-                          gap: 10,
-                          zIndex: 10,
+                          top: "130px", // Positioned below buttons (client tab ~70px + buttons ~44px + gap ~16px)
+                          left: "16px",
+                          right: "16px",
+                          background: "rgba(255, 241, 118, 0.98)",
+                          border: "2px solid #fbbf24",
+                          borderRadius: "10px",
+                          padding: "10px 14px",
+                          fontSize: "13px",
+                          fontWeight: "500",
+                          color: "#92400e",
+                          maxHeight: "80px", // Slightly reduced to fit better in card
+                          overflowY: "auto",
+                          boxShadow:
+                            "0 4px 20px rgba(251, 191, 36, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3)",
+                          zIndex: 8, // Below buttons (zIndex 4) but above content
+                          backdropFilter: "blur(3px)", // Enhanced backdrop blur
+                          transition: "all 0.3s ease-in-out",
+                          cursor: "pointer",
+                          userSelect: "text", // Allow text selection
                         }}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent card click when clicking note
+                          // Open note editor when clicking the note
+                          setShowNoteInput((prev) => ({
+                            ...prev,
+                            [invoice.id]: true,
+                          }));
+                        }}
+                        title="Click to edit note"
                       >
-                        {/* Sticky Note Button */}
-                        <button
-                          className={`btn btn-sm ${invoice.note ? "btn-warning" : "btn-outline-warning"}`}
+                        <div
                           style={{
-                            fontSize: 16,
-                            width: 44,
-                            height: 44,
-                            borderRadius: "50%",
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            marginBottom: "6px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "center",
-                            padding: 0,
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: invoice.note ? "2px solid #f59e0b" : "2px solid #fbbf24",
-                            background: invoice.note ? "#f59e0b" : "transparent",
-                          }}
-                          title={invoice.note ? `View/Edit Note: "${invoice.note.substring(0, 50)}${invoice.note.length > 50 ? '...' : ''}"` : "Add Note"}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowNoteInput(prev => ({ ...prev, [invoice.id]: true }));
+                            justifyContent: "space-between",
+                            gap: "4px",
                           }}
                         >
-                          <i 
-                            className="bi bi-sticky" 
-                            style={{ 
-                              fontSize: 22, 
-                              color: invoice.note ? "#fff" : "#f59e0b" 
-                            }} 
-                          />
-                        </button>
-                        {/* Schedule Delivery button - Step 0 - Only show when invoice is approved */}
-                        {(invoice.verified || invoice.partiallyVerified) && (
-                          <button
-                            className="btn btn-sm btn-outline-primary"
+                          <span
                             style={{
-                              fontSize: 16,
-                              width: 44,
-                              height: 44,
-                              borderRadius: "50%",
                               display: "flex",
                               alignItems: "center",
-                              justifyContent: "center",
-                              padding: 0,
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              border: "2px solid #3b82f6",
+                              gap: "4px",
                             }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleScheduleDelivery(invoice);
-                            }}
-                            title={`Schedule delivery date and truck assignment${invoice.deliveryDate ? `\nCurrent: ${new Date(invoice.deliveryDate).toLocaleDateString()} via Truck #${invoice.truckNumber}` : ''}`}
                           >
-                            <i
-                              className="bi bi-calendar-check"
-                              style={{
-                                color: invoice.deliveryDate ? "#22c55e" : "#3b82f6",
-                                fontSize: 22,
-                              }}
-                            />
-                          </button>
-                        )}
-                        {/* Complete button - Step 1 */}
+                            📝 Note
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              opacity: 0.7,
+                              fontStyle: "italic",
+                              fontWeight: "normal",
+                            }}
+                          >
+                            Click to edit
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            lineHeight: "1.4",
+                            wordBreak: "break-word",
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          {invoice.note}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Social-style action buttons */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: 24,
+                        right: 24,
+                        display: "flex",
+                        flexDirection: "row",
+                        gap: 10,
+                        zIndex: 10,
+                      }}
+                    >
+                      {/* Sticky Note Button */}
+                      <button
+                        className={`btn btn-sm ${
+                          invoice.note ? "btn-warning" : "btn-outline-warning"
+                        }`}
+                        style={{
+                          fontSize: 16,
+                          width: 44,
+                          height: 44,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                          border: invoice.note
+                            ? "2px solid #f59e0b"
+                            : "2px solid #fbbf24",
+                          background: invoice.note ? "#f59e0b" : "transparent",
+                        }}
+                        title={
+                          invoice.note
+                            ? `View/Edit Note: "${invoice.note.substring(
+                                0,
+                                50
+                              )}${invoice.note.length > 50 ? "..." : ""}"`
+                            : "Add Note"
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowNoteInput((prev) => ({
+                            ...prev,
+                            [invoice.id]: true,
+                          }));
+                        }}
+                      >
+                        <i
+                          className="bi bi-sticky"
+                          style={{
+                            fontSize: 22,
+                            color: invoice.note ? "#fff" : "#f59e0b",
+                          }}
+                        />
+                      </button>
+                      {/* Schedule Delivery button - Step 0 - Only show when invoice is approved */}
+                      {(invoice.verified || invoice.partiallyVerified) && (
                         <button
-                          className={`btn btn-sm ${
-                            invoice.status === "completed" ||
-                            invoice.verified ||
-                            invoice.status === "done"
-                              ? "btn-success"
-                              : "btn-warning"
-                          }`}
+                          className="btn btn-sm btn-outline-primary"
                           style={{
                             fontSize: 16,
                             width: 44,
@@ -2418,94 +2545,255 @@ export default function ActiveInvoices({
                             justifyContent: "center",
                             padding: 0,
                             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: "none",
+                            border: "2px solid #3b82f6",
                           }}
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.stopPropagation();
-                            if (hasUnnamedCart(invoice)) {
-                              alert(
-                                'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                              );
-                              return;
-                            }
-
-                            // Toggle completed status
-                            const isCurrentlyCompleted =
-                              invoice.status === "completed" ||
-                              invoice.verified ||
-                              invoice.status === "done";
-
-                            if (isCurrentlyCompleted) {
-                              // If shipping is done, cannot revert
-                              if (invoice.status === "done") {
-                                alert("Cannot uncomplete a shipped laundry ticket.");
-                                return;
-                              }
-                              // If approved, ask for confirmation to revert
-                              if (invoice.verified) {
-                                if (
-                                  !window.confirm(
-                                    "This will also remove the approval. Continue?"
-                                  )
-                                ) {
-                                  return;
-                                }
-                                // Remove approval and completion
-                                await onUpdateInvoice(invoice.id, {
-                                  status: "active",
-                                  verified: false,
-                                  verifiedBy: "",
-                                  verifiedAt: "",
-                                });
-                              } else {
-                                // Just remove completion parts
-                                await onUpdateInvoice(invoice.id, {
-                                  status: "active",
-                                  manglesCompleted: false,
-                                  dobladoCompleted: false,
-                                });
-                              }
-                              if (user?.username) {
-                                await logActivity({
-                                  type: "Invoice",
-                                  message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as active (uncompleted)`,
-                                  user: user.username,
-                                });
-                              }
-                            } else {
-                              // Open completion selection modal
-                              handleOpenCompletionModal(invoice.id);
-                            }
+                            handleScheduleDelivery(invoice);
                           }}
-                          disabled={hasUnnamedCart(invoice)}
-                          title={
-                            hasUnnamedCart(invoice)
-                              ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
-                              : invoice.status === "done"
-                              ? "Shipped (cannot uncomplete)"
-                              : invoice.status === "completed" ||
-                                invoice.verified
-                              ? "Click to mark as active"
-                              : "Select completion parts"
-                          }
+                          title={`Schedule delivery date and truck assignment${
+                            invoice.deliveryDate
+                              ? `\nCurrent: ${new Date(
+                                  invoice.deliveryDate
+                                ).toLocaleDateString()} via Truck #${
+                                  invoice.truckNumber
+                                }`
+                              : ""
+                          }`}
                         >
                           <i
-                            className="bi bi-clipboard-check"
+                            className="bi bi-calendar-check"
                             style={{
-                              color:
-                                invoice.status === "completed" ||
-                                invoice.verified ||
-                                invoice.status === "done"
-                                  ? "#fff"
-                                  : "#f59e0b",
+                              color: invoice.deliveryDate
+                                ? "#22c55e"
+                                : "#3b82f6",
                               fontSize: 22,
                             }}
                           />
                         </button>
-                        {/* Approved button - Step 2 */}
+                      )}
+                      {/* Complete button - Step 1 */}
+                      <button
+                        className={`btn btn-sm ${
+                          invoice.status === "completed" ||
+                          invoice.verified ||
+                          invoice.status === "done"
+                            ? "btn-success"
+                            : "btn-warning"
+                        }`}
+                        style={{
+                          fontSize: 16,
+                          width: 44,
+                          height: 44,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                          border: "none",
+                        }}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (hasUnnamedCart(invoice)) {
+                            alert(
+                              'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                            );
+                            return;
+                          }
+
+                          // Toggle completed status
+                          const isCurrentlyCompleted =
+                            invoice.status === "completed" ||
+                            invoice.verified ||
+                            invoice.status === "done";
+
+                          if (isCurrentlyCompleted) {
+                            // If shipping is done, cannot revert
+                            if (invoice.status === "done") {
+                              alert(
+                                "Cannot uncomplete a shipped laundry ticket."
+                              );
+                              return;
+                            }
+                            // If approved, ask for confirmation to revert
+                            if (invoice.verified) {
+                              if (
+                                !window.confirm(
+                                  "This will also remove the approval. Continue?"
+                                )
+                              ) {
+                                return;
+                              }
+                              // Remove approval and completion
+                              await onUpdateInvoice(invoice.id, {
+                                status: "active",
+                                verified: false,
+                                verifiedBy: "",
+                                verifiedAt: "",
+                              });
+                            } else {
+                              // Just remove completion parts
+                              await onUpdateInvoice(invoice.id, {
+                                status: "active",
+                                manglesCompleted: false,
+                                dobladoCompleted: false,
+                              });
+                            }
+                            if (user?.username) {
+                              await logActivity({
+                                type: "Invoice",
+                                message: `User ${
+                                  user.username
+                                } marked laundry ticket #${
+                                  invoice.invoiceNumber || invoice.id
+                                } as active (uncompleted)`,
+                                user: user.username,
+                              });
+                            }
+                          } else {
+                            // Open completion selection modal
+                            handleOpenCompletionModal(invoice.id);
+                          }
+                        }}
+                        disabled={hasUnnamedCart(invoice)}
+                        title={
+                          hasUnnamedCart(invoice)
+                            ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
+                            : invoice.status === "done"
+                            ? "Shipped (cannot uncomplete)"
+                            : invoice.status === "completed" || invoice.verified
+                            ? "Click to mark as active"
+                            : "Select completion parts"
+                        }
+                      >
+                        <i
+                          className="bi bi-clipboard-check"
+                          style={{
+                            color:
+                              invoice.status === "completed" ||
+                              invoice.verified ||
+                              invoice.status === "done"
+                                ? "#fff"
+                                : "#f59e0b",
+                            fontSize: 22,
+                          }}
+                        />
+                      </button>
+                      {/* Approved button - Step 2 */}
+                      <button
+                        className={`btn btn-sm ${
+                          invoice.verified
+                            ? "btn-success"
+                            : "btn-outline-success"
+                        }`}
+                        style={{
+                          fontSize: 16,
+                          width: 44,
+                          height: 44,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: 0,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                          border: invoice.verified
+                            ? "none"
+                            : "2px solid #22c55e",
+                        }}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (hasUnnamedCart(invoice)) {
+                            alert(
+                              'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                            );
+                            return;
+                          }
+                          if (invoice.status !== "completed") {
+                            alert(
+                              "Laundry Ticket must be completed before it can be approved."
+                            );
+                            return;
+                          }
+
+                          // Check if both parts are completed
+                          if (
+                            !invoice.manglesCompleted ||
+                            !invoice.dobladoCompleted
+                          ) {
+                            alert(
+                              "Both Mangles (top) and Doblado (bottom) parts must be completed before approval."
+                            );
+                            return;
+                          }
+
+                          // Toggle approval status
+                          if (invoice.verified) {
+                            // If shipped, cannot revert approval
+                            if ((invoice as any).status === "done") {
+                              alert(
+                                "Cannot unapprove a shipped laundry ticket."
+                              );
+                              return;
+                            }
+                            // Remove approval
+                            await onUpdateInvoice(invoice.id, {
+                              verified: false,
+                              verifiedBy: "",
+                              verifiedAt: "",
+                            });
+                            if (user?.username) {
+                              await logActivity({
+                                type: "Invoice",
+                                message: `User ${
+                                  user.username
+                                } removed approval from laundry ticket #${
+                                  invoice.invoiceNumber || invoice.id
+                                }`,
+                                user: user.username,
+                              });
+                            }
+                          } else {
+                            // Open verification modal to approve the invoice
+                            handleVerifyInvoice(invoice.id);
+                          }
+                        }}
+                        disabled={
+                          invoice.status !== "completed" ||
+                          !invoice.manglesCompleted ||
+                          !invoice.dobladoCompleted ||
+                          hasUnnamedCart(invoice)
+                        }
+                        title={
+                          invoice.status !== "completed"
+                            ? "Must be completed first"
+                            : !invoice.manglesCompleted ||
+                              !invoice.dobladoCompleted
+                            ? "Both Mangles (top) and Doblado (bottom) must be completed first"
+                            : hasUnnamedCart(invoice)
+                            ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
+                            : (invoice as any).status === "done" &&
+                              invoice.verified
+                            ? "Approved (cannot unapprove shipped laundry ticket)"
+                            : invoice.verified
+                            ? "Click to remove approval"
+                            : "Approve"
+                        }
+                      >
+                        <i
+                          className="bi bi-check-circle"
+                          style={{
+                            color: invoice.verified ? "#fff" : "#22c55e",
+                            fontSize: 22,
+                          }}
+                        />
+                      </button>
+                      {/* Shipping/Pickup button - Step 3 - Conditional based on delivery method */}
+                      {invoice.deliveryMethod === "client_pickup" ? (
+                        /* Mark as Picked Up button for client pickup orders */
                         <button
                           className={`btn btn-sm ${
-                            invoice.verified
+                            invoice.status === "done"
                               ? "btn-success"
                               : "btn-outline-success"
                           }`}
@@ -2519,9 +2807,10 @@ export default function ActiveInvoices({
                             justifyContent: "center",
                             padding: 0,
                             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                            border: invoice.verified
-                              ? "none"
-                              : "2px solid #22c55e",
+                            border:
+                              invoice.status === "done"
+                                ? "none"
+                                : "2px solid #22c55e",
                           }}
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -2531,415 +2820,371 @@ export default function ActiveInvoices({
                               );
                               return;
                             }
-                            if (invoice.status !== "completed") {
+                            if (!invoice.verified) {
                               alert(
-                                "Laundry Ticket must be completed before it can be approved."
-                              );
-                              return;
-                            }
-                            
-                            // Check if both parts are completed
-                            if (!invoice.manglesCompleted || !invoice.dobladoCompleted) {
-                              alert(
-                                "Both Mangles (top) and Doblado (bottom) parts must be completed before approval."
+                                "Laundry Ticket must be approved before it can be marked as picked up."
                               );
                               return;
                             }
 
-                            // Toggle approval status
-                            if (invoice.verified) {
-                              // If shipped, cannot revert approval
-                              if ((invoice as any).status === "done") {
-                                alert("Cannot unapprove a shipped laundry ticket.");
-                                return;
-                              }
-                              // Remove approval
-                              await onUpdateInvoice(invoice.id, {
-                                verified: false,
-                                verifiedBy: "",
-                                verifiedAt: "",
-                              });
-                              if (user?.username) {
-                                await                                logActivity({
-                                  type: "Invoice",
-                                  message: `User ${user.username} removed approval from laundry ticket #${invoice.invoiceNumber || invoice.id}`,
-                                  user: user.username,
+                            if (invoice.status === "done") {
+                              // Allow unmarking as picked up (revert to approved status)
+                              const confirmUnpickup = window.confirm(
+                                "Are you sure you want to mark this as not picked up? This will revert it to approved status."
+                              );
+                              if (confirmUnpickup) {
+                                await onUpdateInvoice(invoice.id, {
+                                  status: "completed",
                                 });
+                                if (user?.username) {
+                                  await logActivity({
+                                    type: "Invoice",
+                                    message: `User ${
+                                      user.username
+                                    } marked laundry ticket #${
+                                      invoice.invoiceNumber || invoice.id
+                                    } as not picked up`,
+                                    user: user.username,
+                                  });
+                                }
                               }
                             } else {
-                              // Open verification modal to approve the invoice
-                              handleVerifyInvoice(invoice.id);
+                              // Mark as picked up - show signature modal
+                              handleMarkAsPickedUp(invoice);
                             }
                           }}
                           disabled={
-                            invoice.status !== "completed" ||
-                            !invoice.manglesCompleted ||
-                            !invoice.dobladoCompleted ||
-                            hasUnnamedCart(invoice)
+                            !invoice.verified || hasUnnamedCart(invoice)
                           }
                           title={
-                            invoice.status !== "completed"
-                              ? "Must be completed first"
-                              : !invoice.manglesCompleted || !invoice.dobladoCompleted
-                              ? "Both Mangles (top) and Doblado (bottom) must be completed first"
+                            !invoice.verified
+                              ? "Must be approved first"
                               : hasUnnamedCart(invoice)
                               ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
-                              : (invoice as any).status === "done" &&
-                                invoice.verified
-                              ? "Approved (cannot unapprove shipped laundry ticket)"
-                              : invoice.verified
-                              ? "Click to remove approval"
-                              : "Approve"
+                              : invoice.status === "done"
+                              ? "Click to mark as not picked up"
+                              : "Mark as Picked Up"
                           }
                         >
                           <i
-                            className="bi bi-check-circle"
+                            className="bi bi-person-check"
                             style={{
-                              color: invoice.verified ? "#fff" : "#22c55e",
+                              color:
+                                invoice.status === "done" ? "#fff" : "#22c55e",
                               fontSize: 22,
                             }}
                           />
                         </button>
-                        {/* Shipping/Pickup button - Step 3 - Conditional based on delivery method */}
-                        {invoice.deliveryMethod === "client_pickup" ? (
-                          /* Mark as Picked Up button for client pickup orders */
-                          <button
-                            className={`btn btn-sm ${
+                      ) : (
+                        /* Shipped button for truck delivery orders */
+                        <button
+                          className={`btn btn-sm ${
+                            invoice.status === "done"
+                              ? "btn-info"
+                              : "btn-outline-info"
+                          }`}
+                          style={{
+                            fontSize: 16,
+                            width: 44,
+                            height: 44,
+                            borderRadius: "50%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 0,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                            border:
                               invoice.status === "done"
-                                ? "btn-success"
-                                : "btn-outline-success"
-                            }`}
-                            style={{
-                              fontSize: 16,
-                              width: 44,
-                              height: 44,
-                              borderRadius: "50%",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 0,
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              border:
-                                invoice.status === "done"
-                                  ? "none"
-                                  : "2px solid #22c55e",
-                            }}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (hasUnnamedCart(invoice)) {
-                                alert(
-                                  'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                                );
-                                return;
-                              }
-                              if (!invoice.verified) {
-                                alert(
-                                  "Laundry Ticket must be approved before it can be marked as picked up."
-                                );
-                                return;
-                              }
-
-                              if (invoice.status === "done") {
-                                // Allow unmarking as picked up (revert to approved status)
-                                const confirmUnpickup = window.confirm(
-                                  "Are you sure you want to mark this as not picked up? This will revert it to approved status."
-                                );
-                                if (confirmUnpickup) {
-                                  await onUpdateInvoice(invoice.id, {
-                                    status: "completed",
-                                  });
-                                  if (user?.username) {
-                                    await logActivity({
-                                      type: "Invoice",
-                                      message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as not picked up`,
-                                      user: user.username,
-                                    });
-                                  }
-                                }
-                              } else {
-                                // Mark as picked up - show signature modal
-                                handleMarkAsPickedUp(invoice);
-                              }
-                            }}
-                            disabled={
-                              !invoice.verified || hasUnnamedCart(invoice)
+                                ? "none"
+                                : "2px solid #0ea5e9",
+                          }}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (hasUnnamedCart(invoice)) {
+                              alert(
+                                'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                              );
+                              return;
                             }
-                            title={
-                              !invoice.verified
-                                ? "Must be approved first"
-                                : hasUnnamedCart(invoice)
-                                ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
-                                : invoice.status === "done"
-                                ? "Click to mark as not picked up"
-                                : "Mark as Picked Up"
+                            if (!invoice.verified) {
+                              alert(
+                                "Laundry Ticket must be approved before it can be shipped."
+                              );
+                              return;
                             }
-                          >
-                            <i
-                              className="bi bi-person-check"
-                              style={{
-                                color:
-                                  invoice.status === "done" ? "#fff" : "#22c55e",
-                                fontSize: 22,
-                              }}
-                            />
-                          </button>
-                        ) : (
-                          /* Shipped button for truck delivery orders */
-                          <button
-                            className={`btn btn-sm ${
-                              invoice.status === "done"
-                                ? "btn-info"
-                                : "btn-outline-info"
-                            }`}
-                            style={{
-                              fontSize: 16,
-                              width: 44,
-                              height: 44,
-                              borderRadius: "50%",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: 0,
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              border:
-                                invoice.status === "done"
-                                  ? "none"
-                                  : "2px solid #0ea5e9",
-                            }}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (hasUnnamedCart(invoice)) {
-                                alert(
-                                  'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                                );
-                                return;
-                              }
-                              if (!invoice.verified) {
-                                alert(
-                                  "Laundry Ticket must be approved before it can be shipped."
-                                );
-                                return;
-                              }
 
-                              // Toggle shipping status
-                              if (invoice.status === "done") {
-                                // Unship the invoice
-                                const confirmUnship = window.confirm(
-                                  "Are you sure you want to unship this invoice? This will revert it to approved status."
-                                );
-                                if (confirmUnship) {
-                                  await onUpdateInvoice(invoice.id, {
-                                    status: "completed",
-                                    truckNumber: "",
-                                    deliveryDate: "",
+                            // Toggle shipping status
+                            if (invoice.status === "done") {
+                              // Unship the invoice
+                              const confirmUnship = window.confirm(
+                                "Are you sure you want to unship this invoice? This will revert it to approved status."
+                              );
+                              if (confirmUnship) {
+                                await onUpdateInvoice(invoice.id, {
+                                  status: "completed",
+                                  truckNumber: "",
+                                  deliveryDate: "",
+                                });
+                                if (user?.username) {
+                                  await logActivity({
+                                    type: "Invoice",
+                                    message: `User ${
+                                      user.username
+                                    } unshipped laundry ticket #${
+                                      invoice.invoiceNumber || invoice.id
+                                    }`,
+                                    user: user.username,
                                   });
-                                  if (user?.username) {
-                                    await logActivity({
-                                      type: "Invoice",
-                                      message: `User ${user.username} unshipped laundry ticket #${invoice.invoiceNumber || invoice.id}`,
-                                      user: user.username,
-                                    });
-                                  }
                                 }
-                              } else {
-                                // Check for unconfirmed special items before shipping
-                                try {
-                                  const pendingSpecialItems = await getPendingSpecialItems() as ManualConventionalProduct[];
-                                  const invoiceSpecialItems = pendingSpecialItems.filter(item => 
-                                    item.invoiceId === invoice.id
+                              }
+                            } else {
+                              // Check for unconfirmed special items before shipping
+                              try {
+                                const pendingSpecialItems =
+                                  (await getPendingSpecialItems()) as ManualConventionalProduct[];
+                                const invoiceSpecialItems =
+                                  pendingSpecialItems.filter(
+                                    (item) => item.invoiceId === invoice.id
                                   );
-                                  
-                                  if (invoiceSpecialItems.length > 0) {
-                                    const itemNames = invoiceSpecialItems.map(item => 
-                                      `${item.productName} (${item.category})`
-                                    ).join(', ');
-                                    
-                                    alert(
-                                      `Cannot ship laundry ticket: ${invoiceSpecialItems.length} special item(s) require confirmation before shipping.\n\n` +
+
+                                if (invoiceSpecialItems.length > 0) {
+                                  const itemNames = invoiceSpecialItems
+                                    .map(
+                                      (item) =>
+                                        `${item.productName} (${item.category})`
+                                    )
+                                    .join(", ");
+
+                                  alert(
+                                    `Cannot ship laundry ticket: ${invoiceSpecialItems.length} special item(s) require confirmation before shipping.\n\n` +
                                       `Unconfirmed items: ${itemNames}\n\n` +
                                       `Please confirm or skip these items in the Washing section before shipping.`
-                                    );
-                                    return;
-                                  }
-                                } catch (error) {
-                                  console.error('Error checking special items:', error);
-                                  alert('Error checking special items. Please try again.');
-                                  return;
-                                }
-                                
-                                // Check if all carts are properly printed before shipping
-                                const areAllCartsPrinted = (invoice.carts || []).every(cart => {
-                                  // Cart must be printed at least once
-                                  if (!cart.lastPrintedAt) return false;
-                                  
-                                  // If cart was modified after printing, it needs reprint
-                                  if (cart.needsReprint) return false;
-                                  
-                                  // If cart was modified after last print, it needs reprint
-                                  if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                                      new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
-                                    return false;
-                                  }
-                                  
-                                  return true;
-                                });
-                                
-                                if (!areAllCartsPrinted) {
-                                  const unprintedCarts = (invoice.carts || []).filter(cart => {
-                                    if (!cart.lastPrintedAt) return true;
-                                    if (cart.needsReprint) return true;
-                                    if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                                        new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
-                                      return true;
-                                    }
-                                    return false;
-                                  });
-                                  
-                                  alert(
-                                    `Cannot ship laundry ticket: ${unprintedCarts.length} cart(s) need to be printed first.\n\n` +
-                                    `Carts requiring print: ${unprintedCarts.map(c => c.name).join(', ')}\n\n` +
-                                    `Please print all carts before shipping.`
                                   );
                                   return;
                                 }
-                                
-                                // Ship the invoice - show modal for truck number and delivery date
-                                setShowShippedModal(invoice.id);
-                                // Pre-fill with existing values if they exist
-                                setShippedTruckNumber(invoice.truckNumber?.toString() || "");
-                                const existingDeliveryDate = invoice.deliveryDate 
-                                  ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
-                                  : "";
-                                setShippedDeliveryDate(existingDeliveryDate);
+                              } catch (error) {
+                                console.error(
+                                  "Error checking special items:",
+                                  error
+                                );
+                                alert(
+                                  "Error checking special items. Please try again."
+                                );
+                                return;
                               }
-                            }}
-                            disabled={
-                              !invoice.verified || hasUnnamedCart(invoice)
-                            }
-                            title={(() => {
-                              if (!invoice.verified) return "Must be approved first";
-                              if (hasUnnamedCart(invoice)) return 'Cannot modify with "CARRO SIN NOMBRE" cart';
-                              if (invoice.status === "done") return "Click to unship";
-                              
-                              // Check cart print status
-                              const areAllCartsPrinted = (invoice.carts || []).every(cart => {
+
+                              // Check if all carts are properly printed before shipping
+                              const areAllCartsPrinted = (
+                                invoice.carts || []
+                              ).every((cart) => {
+                                // Cart must be printed at least once
                                 if (!cart.lastPrintedAt) return false;
+
+                                // If cart was modified after printing, it needs reprint
                                 if (cart.needsReprint) return false;
-                                if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                                    new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+
+                                // If cart was modified after last print, it needs reprint
+                                if (
+                                  cart.lastModifiedAt &&
+                                  cart.lastPrintedAt &&
+                                  new Date(cart.lastModifiedAt) >
+                                    new Date(cart.lastPrintedAt)
+                                ) {
                                   return false;
                                 }
+
                                 return true;
                               });
-                              
+
                               if (!areAllCartsPrinted) {
-                                const unprintedCarts = (invoice.carts || []).filter(cart => {
+                                const unprintedCarts = (
+                                  invoice.carts || []
+                                ).filter((cart) => {
                                   if (!cart.lastPrintedAt) return true;
                                   if (cart.needsReprint) return true;
-                                  if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                                      new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                  if (
+                                    cart.lastModifiedAt &&
+                                    cart.lastPrintedAt &&
+                                    new Date(cart.lastModifiedAt) >
+                                      new Date(cart.lastPrintedAt)
+                                  ) {
                                     return true;
                                   }
                                   return false;
                                 });
-                                return `${unprintedCarts.length} cart(s) need printing: ${unprintedCarts.map(c => c.name).join(', ')}`;
-                              }
-                              
-                              return "Mark as Shipped";
-                            })()}
-                          >
-                            <i
-                              className="bi bi-truck"
-                              style={{
-                                color:
-                                  invoice.status === "done" ? "#fff" : "#0ea5e9",
-                                fontSize: 22,
-                              }}
-                            />
-                          </button>
-                        )}
-                      </div>
-                      {/* Show approval status and details on invoice card */}
-                      {(invoice.verified || invoice.partiallyVerified) && (
-                        <div style={{ marginTop: 4, marginBottom: 80 }}> {/* Reduced top margin, keep bottom margin to prevent overlap with bottom buttons */}
-                          <div
-                            style={{
-                              background: "rgba(255, 255, 255, 0.9)", // Semi-transparent white background
-                              border: "1px solid #e5e7eb", // Light gray border
-                              borderRadius: "12px", // Rounded pill shape
-                              padding: "8px 16px", // Comfortable padding
-                              boxShadow: "0 2px 4px rgba(0,0,0,0.05)", // Subtle shadow
-                              display: "flex", // Use flex to center content
-                              alignItems: "center", // Center vertically
-                              justifyContent: "center", // Center horizontally
-                              textAlign: "center", // Center text
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontWeight: 700,
-                                color: "#000", // Black text
-                                fontSize: "14px", // Slightly smaller font
-                              }}
-                            >
-                              {invoice.verified
-                                ? "Fully Approved"
-                                : "Partially Approved"}
-                            </span>
-                            {invoice.verifiedBy && (
-                              <span
-                                style={{
-                                  marginLeft: 12,
-                                  color: "#000", // Black text
-                                  fontWeight: 500,
-                                  fontSize: "14px", // Consistent font size
-                                }}
-                              >
-                                Approved by: {getVerifierName(invoice.verifiedBy)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
 
-                      {/* Special Service Delivery Indicator */}
-                      {invoice.specialServiceRequested && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: 16,
-                            right: 16,
-                            background:
-                              "linear-gradient(135deg, #ff6b6b, #ee5a52)",
-                            color: "white",
-                            padding: "6px 12px",
-                            borderRadius: "20px",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                            boxShadow: "0 2px 8px rgba(255, 107, 107, 0.3)",
-                            zIndex: 5,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
+                                alert(
+                                  `Cannot ship laundry ticket: ${unprintedCarts.length} cart(s) need to be printed first.\n\n` +
+                                    `Carts requiring print: ${unprintedCarts
+                                      .map((c) => c.name)
+                                      .join(", ")}\n\n` +
+                                    `Please print all carts before shipping.`
+                                );
+                                return;
+                              }
+
+                              // Ship the invoice - show modal for truck number and delivery date
+                              setShowShippedModal(invoice.id);
+                              // Pre-fill with existing values if they exist
+                              setShippedTruckNumber(
+                                invoice.truckNumber?.toString() || ""
+                              );
+                              const existingDeliveryDate = invoice.deliveryDate
+                                ? new Date(invoice.deliveryDate)
+                                    .toISOString()
+                                    .slice(0, 10)
+                                : "";
+                              setShippedDeliveryDate(existingDeliveryDate);
+                            }
                           }}
-                          title={`Special Service Delivery - Cost: $${(
-                            invoice.specialServiceCost || 0
-                          ).toFixed(2)}`}
+                          disabled={
+                            !invoice.verified || hasUnnamedCart(invoice)
+                          }
+                          title={(() => {
+                            if (!invoice.verified)
+                              return "Must be approved first";
+                            if (hasUnnamedCart(invoice))
+                              return 'Cannot modify with "CARRO SIN NOMBRE" cart';
+                            if (invoice.status === "done")
+                              return "Click to unship";
+
+                            // Check cart print status
+                            const areAllCartsPrinted = (
+                              invoice.carts || []
+                            ).every((cart) => {
+                              if (!cart.lastPrintedAt) return false;
+                              if (cart.needsReprint) return false;
+                              if (
+                                cart.lastModifiedAt &&
+                                cart.lastPrintedAt &&
+                                new Date(cart.lastModifiedAt) >
+                                  new Date(cart.lastPrintedAt)
+                              ) {
+                                return false;
+                              }
+                              return true;
+                            });
+
+                            if (!areAllCartsPrinted) {
+                              const unprintedCarts = (
+                                invoice.carts || []
+                              ).filter((cart) => {
+                                if (!cart.lastPrintedAt) return true;
+                                if (cart.needsReprint) return true;
+                                if (
+                                  cart.lastModifiedAt &&
+                                  cart.lastPrintedAt &&
+                                  new Date(cart.lastModifiedAt) >
+                                    new Date(cart.lastPrintedAt)
+                                ) {
+                                  return true;
+                                }
+                                return false;
+                              });
+                              return `${
+                                unprintedCarts.length
+                              } cart(s) need printing: ${unprintedCarts
+                                .map((c) => c.name)
+                                .join(", ")}`;
+                            }
+
+                            return "Mark as Shipped";
+                          })()}
                         >
                           <i
-                            className="bi bi-star-fill"
-                            style={{ fontSize: 10 }}
+                            className="bi bi-truck"
+                            style={{
+                              color:
+                                invoice.status === "done" ? "#fff" : "#0ea5e9",
+                              fontSize: 22,
+                            }}
                           />
-                          Special Service
-                        </div>
+                        </button>
                       )}
                     </div>
+                    {/* Show approval status and details on invoice card */}
+                    {(invoice.verified || invoice.partiallyVerified) && (
+                      <div style={{ marginTop: 4, marginBottom: 80 }}>
+                        {" "}
+                        {/* Reduced top margin, keep bottom margin to prevent overlap with bottom buttons */}
+                        <div
+                          style={{
+                            background: "rgba(255, 255, 255, 0.9)", // Semi-transparent white background
+                            border: "1px solid #e5e7eb", // Light gray border
+                            borderRadius: "12px", // Rounded pill shape
+                            padding: "8px 16px", // Comfortable padding
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.05)", // Subtle shadow
+                            display: "flex", // Use flex to center content
+                            alignItems: "center", // Center vertically
+                            justifyContent: "center", // Center horizontally
+                            textAlign: "center", // Center text
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: "#000", // Black text
+                              fontSize: "14px", // Slightly smaller font
+                            }}
+                          >
+                            {invoice.verified
+                              ? "Fully Approved"
+                              : "Partially Approved"}
+                          </span>
+                          {invoice.verifiedBy && (
+                            <span
+                              style={{
+                                marginLeft: 12,
+                                color: "#000", // Black text
+                                fontWeight: 500,
+                                fontSize: "14px", // Consistent font size
+                              }}
+                            >
+                              Approved by: {getVerifierName(invoice.verifiedBy)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Special Service Delivery Indicator */}
+                    {invoice.specialServiceRequested && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 16,
+                          right: 16,
+                          background:
+                            "linear-gradient(135deg, #ff6b6b, #ee5a52)",
+                          color: "white",
+                          padding: "6px 12px",
+                          borderRadius: "20px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          boxShadow: "0 2px 8px rgba(255, 107, 107, 0.3)",
+                          zIndex: 5,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                        title={`Special Service Delivery - Cost: $${(
+                          invoice.specialServiceCost || 0
+                        ).toFixed(2)}`}
+                      >
+                        <i
+                          className="bi bi-star-fill"
+                          style={{ fontSize: 10 }}
+                        />
+                        Special Service
+                      </div>
+                    )}
                   </div>
-                </React.Fragment>
-              ); // <-- close map function
-            })}
+                </div>
+              </React.Fragment>
+            ); // <-- close map function
+          })}
         </div>
       ) : (
         // List View
@@ -2963,29 +3208,46 @@ export default function ActiveInvoices({
                 .map((invoice) => {
                   const client = clients.find((c) => c.id === invoice.clientId);
                   const isVerified = invoice.verified;
-                  const isPartiallyVerified = invoice.partiallyVerified || partialVerifiedInvoices[invoice.id];
-                  const isReady = invoice.status === "ready" || readyInvoices[invoice.id];
-                  
+                  const isPartiallyVerified =
+                    invoice.partiallyVerified ||
+                    partialVerifiedInvoices[invoice.id];
+                  const isReady =
+                    invoice.status === "ready" || readyInvoices[invoice.id];
+
                   // Calculate total items across all carts
-                  const totalItems = (invoice.carts || []).reduce((total, cart) => 
-                    total + cart.items.reduce((cartTotal, item) => cartTotal + item.quantity, 0), 0
+                  const totalItems = (invoice.carts || []).reduce(
+                    (total, cart) =>
+                      total +
+                      cart.items.reduce(
+                        (cartTotal, item) => cartTotal + item.quantity,
+                        0
+                      ),
+                    0
                   );
 
                   // Get row background color based on status
                   let rowClass = "";
                   if (isVerified) {
-                    rowClass = invoice.deliveryMethod === "client_pickup" ? "table-warning" : "table-success";
-                  } else if (isPartiallyVerified || invoice.status === "completed") {
+                    rowClass =
+                      invoice.deliveryMethod === "client_pickup"
+                        ? "table-warning"
+                        : "table-success";
+                  } else if (
+                    isPartiallyVerified ||
+                    invoice.status === "completed"
+                  ) {
                     rowClass = "table-warning";
                   } else if (isReady) {
                     rowClass = "table-info";
                   }
 
                   return (
-                    <tr 
-                      key={invoice.id} 
-                      className={`${rowClass} ${invoice.locked ? 'text-muted' : ''}`}
-                      style={{ cursor: 'pointer' }}
+                    <tr
+                      key={invoice.id}
+                      className={`${rowClass} ${
+                        invoice.locked ? "text-muted" : ""
+                      }`}
+                      style={{ cursor: "pointer" }}
                       onClick={() => handleInvoiceClick(invoice.id)}
                     >
                       <td>
@@ -2994,18 +3256,28 @@ export default function ActiveInvoices({
                             src={getClientAvatarUrl(client || {})}
                             alt={client?.name || invoice.clientName}
                             className="rounded-circle me-2"
-                            style={{ width: 32, height: 32, objectFit: 'cover' }}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              objectFit: "cover",
+                            }}
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
+                              target.style.display = "none";
                             }}
                           />
                           <div>
-                            <div className="fw-bold">{client?.name || invoice.clientName}</div>
+                            <div className="fw-bold">
+                              {client?.name || invoice.clientName}
+                            </div>
                             {(invoice.carts || []).some((c) =>
-                              c.name.toUpperCase().startsWith("CARRO SIN NOMBRE")
+                              c.name
+                                .toUpperCase()
+                                .startsWith("CARRO SIN NOMBRE")
                             ) && (
-                              <small className="text-danger">⚠ Unnamed cart</small>
+                              <small className="text-danger">
+                                ⚠ Unnamed cart
+                              </small>
                             )}
                           </div>
                         </div>
@@ -3020,53 +3292,70 @@ export default function ActiveInvoices({
                       </td>
                       <td>
                         <span className="badge bg-secondary">
-                          {invoice.carts?.length || 0} cart{(invoice.carts?.length || 0) !== 1 ? 's' : ''}
+                          {invoice.carts?.length || 0} cart
+                          {(invoice.carts?.length || 0) !== 1 ? "s" : ""}
                         </span>
                       </td>
                       <td>
                         <span className="badge bg-info">
-                          {totalItems} item{totalItems !== 1 ? 's' : ''}
+                          {totalItems} item{totalItems !== 1 ? "s" : ""}
                         </span>
                       </td>
                       <td>
                         <div className="d-flex flex-column gap-1">
                           {/* Status badge */}
-                          <span className={`badge ${
-                            invoice.status === "done" ? "bg-success" :
-                            isVerified ? "bg-success" :
-                            isPartiallyVerified ? "bg-warning" :
-                            invoice.status === "completed" ? "bg-warning" :
-                            isReady ? "bg-info" : "bg-secondary"
-                          }`}>
-                            {invoice.status === "done" ? "SHIPPED" :
-                             isVerified ? "APPROVED" :
-                             isPartiallyVerified ? "PARTIAL" :
-                             invoice.status === "completed" ? "COMPLETED" :
-                             isReady ? "READY" : "IN PROGRESS"}
+                          <span
+                            className={`badge ${
+                              invoice.status === "done"
+                                ? "bg-success"
+                                : isVerified
+                                ? "bg-success"
+                                : isPartiallyVerified
+                                ? "bg-warning"
+                                : invoice.status === "completed"
+                                ? "bg-warning"
+                                : isReady
+                                ? "bg-info"
+                                : "bg-secondary"
+                            }`}
+                          >
+                            {invoice.status === "done"
+                              ? "SHIPPED"
+                              : isVerified
+                              ? "APPROVED"
+                              : isPartiallyVerified
+                              ? "PARTIAL"
+                              : invoice.status === "completed"
+                              ? "COMPLETED"
+                              : isReady
+                              ? "READY"
+                              : "IN PROGRESS"}
                           </span>
-                          
+
                           {/* Verification info */}
-                          {(isVerified || isPartiallyVerified) && invoice.verifiedBy && (
-                            <small className="text-muted">
-                              by {getVerifierName(invoice.verifiedBy)}
-                            </small>
-                          )}
+                          {(isVerified || isPartiallyVerified) &&
+                            invoice.verifiedBy && (
+                              <small className="text-muted">
+                                by {getVerifierName(invoice.verifiedBy)}
+                              </small>
+                            )}
                         </div>
                       </td>
                       <td>
                         {invoice.deliveryDate ? (
                           <div>
                             <div className="small">
-                              {new Date(invoice.deliveryDate).toLocaleDateString("en-US", {
+                              {new Date(
+                                invoice.deliveryDate
+                              ).toLocaleDateString("en-US", {
                                 month: "short",
-                                day: "numeric"
+                                day: "numeric",
                               })}
                             </div>
                             <div className="small text-muted">
-                              {invoice.deliveryMethod === "client_pickup" ? 
-                                "👤 Pickup" : 
-                                `🚛 Truck #${invoice.truckNumber || "TBD"}`
-                              }
+                              {invoice.deliveryMethod === "client_pickup"
+                                ? "👤 Pickup"
+                                : `🚛 Truck #${invoice.truckNumber || "TBD"}`}
                             </div>
                           </div>
                         ) : (
@@ -3074,11 +3363,16 @@ export default function ActiveInvoices({
                         )}
                       </td>
                       <td>
-                        <div className="d-flex gap-1" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="d-flex gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {/* Complete/Approve button */}
                           <button
                             className={`btn btn-sm ${
-                              invoice.status === "completed" || isVerified ? "btn-success" : "btn-warning"
+                              invoice.status === "completed" || isVerified
+                                ? "btn-success"
+                                : "btn-warning"
                             }`}
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -3100,7 +3394,9 @@ export default function ActiveInvoices({
                                 if (isCurrentlyCompleted) {
                                   // If shipping is done, cannot revert
                                   if (invoice.status === "done") {
-                                    alert("Cannot uncomplete a shipped laundry ticket.");
+                                    alert(
+                                      "Cannot uncomplete a shipped laundry ticket."
+                                    );
                                     return;
                                   }
                                   // If approved, ask for confirmation to revert
@@ -3136,8 +3432,12 @@ export default function ActiveInvoices({
                                   await logActivity({
                                     type: "Invoice",
                                     message: `User ${user.username} ${
-                                      isCurrentlyCompleted ? "uncompleted" : "completed"
-                                    } laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+                                      isCurrentlyCompleted
+                                        ? "uncompleted"
+                                        : "completed"
+                                    } laundry ticket #${
+                                      invoice.invoiceNumber || invoice.id
+                                    }`,
                                     user: user.username,
                                   });
                                 }
@@ -3155,9 +3455,12 @@ export default function ActiveInvoices({
                                   );
                                   return;
                                 }
-                                
+
                                 // Check if both parts are completed
-                                if (!invoice.manglesCompleted || !invoice.dobladoCompleted) {
+                                if (
+                                  !invoice.manglesCompleted ||
+                                  !invoice.dobladoCompleted
+                                ) {
                                   alert(
                                     "Both Mangles (top) and Doblado (bottom) parts must be completed before approval."
                                   );
@@ -3168,7 +3471,9 @@ export default function ActiveInvoices({
                                 if (invoice.verified) {
                                   // If shipped, cannot revert approval
                                   if ((invoice as any).status === "done") {
-                                    alert("Cannot unapprove a shipped laundry ticket.");
+                                    alert(
+                                      "Cannot unapprove a shipped laundry ticket."
+                                    );
                                     return;
                                   }
                                   // Remove approval
@@ -3180,7 +3485,11 @@ export default function ActiveInvoices({
                                   if (user?.username) {
                                     await logActivity({
                                       type: "Invoice",
-                                      message: `User ${user.username} removed approval from laundry ticket #${invoice.invoiceNumber || invoice.id}`,
+                                      message: `User ${
+                                        user.username
+                                      } removed approval from laundry ticket #${
+                                        invoice.invoiceNumber || invoice.id
+                                      }`,
                                       user: user.username,
                                     });
                                   }
@@ -3195,199 +3504,276 @@ export default function ActiveInvoices({
                             }}
                             disabled={
                               hasUnnamedCart(invoice) ||
-                              (invoice.status !== "completed") ||
-                              (!invoice.manglesCompleted || !invoice.dobladoCompleted)
+                              invoice.status !== "completed" ||
+                              !invoice.manglesCompleted ||
+                              !invoice.dobladoCompleted
                             }
                             title={
-                              hasUnnamedCart(invoice) ? 'Cannot modify with "CARRO SIN NOMBRE" cart' :
-                              invoice.status !== "completed" ? "Mark as completed first" :
-                              (!invoice.manglesCompleted || !invoice.dobladoCompleted) ? "Both Mangles and Doblado parts must be completed first" :
-                              isVerified ? "Remove approval" : "Approve"
+                              hasUnnamedCart(invoice)
+                                ? 'Cannot modify with "CARRO SIN NOMBRE" cart'
+                                : invoice.status !== "completed"
+                                ? "Mark as completed first"
+                                : !invoice.manglesCompleted ||
+                                  !invoice.dobladoCompleted
+                                ? "Both Mangles and Doblado parts must be completed first"
+                                : isVerified
+                                ? "Remove approval"
+                                : "Approve"
                             }
                           >
-                            <i className={`bi ${
-                              invoice.status === "completed" || isVerified ? "bi-check-circle" : "bi-hourglass"
-                            }`}></i>
+                            <i
+                              className={`bi ${
+                                invoice.status === "completed" || isVerified
+                                  ? "bi-check-circle"
+                                  : "bi-hourglass"
+                              }`}
+                            ></i>
                           </button>
 
                           {/* Ship button */}
-                          {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
-                            <button
-                              className={`btn btn-sm ${
-                                invoice.status === "done" ? "btn-success" : "btn-outline-primary"
-                              }`}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (invoice.status === "done") {
-                                  // Unship
-                                  const confirmUnship = window.confirm(
-                                    "Are you sure you want to unship this invoice?"
-                                  );
-                                  if (confirmUnship) {
-                                    if (hasUnnamedCart(invoice)) {
+                          {user &&
+                            ["Supervisor", "Admin", "Owner"].includes(
+                              user.role
+                            ) && (
+                              <button
+                                className={`btn btn-sm ${
+                                  invoice.status === "done"
+                                    ? "btn-success"
+                                    : "btn-outline-primary"
+                                }`}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (invoice.status === "done") {
+                                    // Unship
+                                    const confirmUnship = window.confirm(
+                                      "Are you sure you want to unship this invoice?"
+                                    );
+                                    if (confirmUnship) {
+                                      if (hasUnnamedCart(invoice)) {
+                                        alert(
+                                          'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                        );
+                                        return;
+                                      }
+                                      if (!invoice.verified) {
+                                        alert(
+                                          "Laundry Ticket must be approved before it can be shipped."
+                                        );
+                                        return;
+                                      }
+
+                                      // Unship the invoice
+                                      await onUpdateInvoice(invoice.id, {
+                                        status: "completed",
+                                        truckNumber: "",
+                                        deliveryDate: "",
+                                      });
+                                      if (user?.username) {
+                                        await logActivity({
+                                          type: "Invoice",
+                                          message: `User ${
+                                            user.username
+                                          } unshipped laundry ticket #${
+                                            invoice.invoiceNumber || invoice.id
+                                          }`,
+                                          user: user.username,
+                                        });
+                                      }
+                                    }
+                                  } else {
+                                    // Ship
+                                    if (!invoice.verified) {
                                       alert(
-                                        'Cannot modify laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
+                                        "Invoice must be approved before shipping."
                                       );
                                       return;
                                     }
-                                    if (!invoice.verified) {
+                                    if (hasUnnamedCart(invoice)) {
                                       alert(
-                                        "Laundry Ticket must be approved before it can be shipped."
+                                        'Cannot ship laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
                                       );
                                       return;
                                     }
 
-                                    // Unship the invoice
-                                    await onUpdateInvoice(invoice.id, {
-                                      status: "completed",
-                                      truckNumber: "",
-                                      deliveryDate: "",
-                                    });
-                                    if (user?.username) {
-                                      await logActivity({
-                                        type: "Invoice",
-                                        message: `User ${user.username} unshipped laundry ticket #${invoice.invoiceNumber || invoice.id}`,
-                                        user: user.username,
-                                      });
-                                    }
-                                  }
-                                } else {
-                                  // Ship
-                                  if (!invoice.verified) {
-                                    alert("Invoice must be approved before shipping.");
-                                    return;
-                                  }
-                                  if (hasUnnamedCart(invoice)) {
-                                    alert(
-                                      'Cannot ship laundry ticket: A cart is named "CARRO SIN NOMBRE". Please rename all carts.'
-                                    );
-                                    return;
-                                  }
-                                  
-                                  // Check for unconfirmed special items before shipping
-                                  try {
-                                    const pendingSpecialItems = await getPendingSpecialItems() as ManualConventionalProduct[];
-                                    const invoiceSpecialItems = pendingSpecialItems.filter(item => 
-                                      item.invoiceId === invoice.id
-                                    );
-                                    
-                                    if (invoiceSpecialItems.length > 0) {
-                                      const itemNames = invoiceSpecialItems.map(item => 
-                                        `${item.productName} (${item.category})`
-                                      ).join(', ');
-                                      
+                                    // Check for unconfirmed special items before shipping
+                                    try {
+                                      const pendingSpecialItems =
+                                        (await getPendingSpecialItems()) as ManualConventionalProduct[];
+                                      const invoiceSpecialItems =
+                                        pendingSpecialItems.filter(
+                                          (item) =>
+                                            item.invoiceId === invoice.id
+                                        );
+
+                                      if (invoiceSpecialItems.length > 0) {
+                                        const itemNames = invoiceSpecialItems
+                                          .map(
+                                            (item) =>
+                                              `${item.productName} (${item.category})`
+                                          )
+                                          .join(", ");
+
+                                        alert(
+                                          `Cannot ship laundry ticket: ${invoiceSpecialItems.length} special item(s) require confirmation before shipping.\n\n` +
+                                            `Unconfirmed items: ${itemNames}\n\n` +
+                                            `Please confirm or skip these items in the Washing section before shipping.`
+                                        );
+                                        return;
+                                      }
+                                    } catch (error) {
+                                      console.error(
+                                        "Error checking special items:",
+                                        error
+                                      );
                                       alert(
-                                        `Cannot ship laundry ticket: ${invoiceSpecialItems.length} special item(s) require confirmation before shipping.\n\n` +
-                                        `Unconfirmed items: ${itemNames}\n\n` +
-                                        `Please confirm or skip these items in the Washing section before shipping.`
+                                        "Error checking special items. Please try again."
                                       );
                                       return;
                                     }
-                                  } catch (error) {
-                                    console.error('Error checking special items:', error);
-                                    alert('Error checking special items. Please try again.');
-                                    return;
+
+                                    // Check if all carts are properly printed before shipping
+                                    const areAllCartsPrinted = (
+                                      invoice.carts || []
+                                    ).every((cart) => {
+                                      // Cart must be printed at least once
+                                      if (!cart.lastPrintedAt) return false;
+
+                                      // If cart was modified after printing, it needs reprint
+                                      if (cart.needsReprint) return false;
+
+                                      // If cart was modified after last print, it needs reprint
+                                      if (
+                                        cart.lastModifiedAt &&
+                                        cart.lastPrintedAt &&
+                                        new Date(cart.lastModifiedAt) >
+                                          new Date(cart.lastPrintedAt)
+                                      ) {
+                                        return false;
+                                      }
+
+                                      return true;
+                                    });
+
+                                    if (!areAllCartsPrinted) {
+                                      const unprintedCarts = (
+                                        invoice.carts || []
+                                      ).filter((cart) => {
+                                        if (!cart.lastPrintedAt) return true;
+                                        if (cart.needsReprint) return true;
+                                        if (
+                                          cart.lastModifiedAt &&
+                                          cart.lastPrintedAt &&
+                                          new Date(cart.lastModifiedAt) >
+                                            new Date(cart.lastPrintedAt)
+                                        ) {
+                                          return true;
+                                        }
+                                        return false;
+                                      });
+
+                                      alert(
+                                        `Cannot ship laundry ticket: ${unprintedCarts.length} cart(s) need to be printed first.\n\n` +
+                                          `Carts requiring print: ${unprintedCarts
+                                            .map((c) => c.name)
+                                            .join(", ")}\n\n` +
+                                          `Please print all carts before shipping.`
+                                      );
+                                      return;
+                                    }
+
+                                    // Ship the invoice - show modal for truck number and delivery date
+                                    setShowShippedModal(invoice.id);
+                                    // Pre-fill with existing values if they exist
+                                    setShippedTruckNumber(
+                                      invoice.truckNumber?.toString() || ""
+                                    );
+                                    const existingDeliveryDate =
+                                      invoice.deliveryDate
+                                        ? new Date(invoice.deliveryDate)
+                                            .toISOString()
+                                            .slice(0, 10)
+                                        : "";
+                                    setShippedDeliveryDate(
+                                      existingDeliveryDate
+                                    );
                                   }
-                                  
-                                  // Check if all carts are properly printed before shipping
-                                  const areAllCartsPrinted = (invoice.carts || []).every(cart => {
-                                    // Cart must be printed at least once
+                                }}
+                                disabled={
+                                  invoice.status !== "done" &&
+                                  (!invoice.verified || hasUnnamedCart(invoice))
+                                }
+                                title={(() => {
+                                  if (invoice.status === "done")
+                                    return "Click to unship";
+                                  if (!invoice.verified)
+                                    return "Must be approved first";
+                                  if (hasUnnamedCart(invoice))
+                                    return 'Cannot ship with "CARRO SIN NOMBRE" cart';
+
+                                  // Check cart print status
+                                  const areAllCartsPrinted = (
+                                    invoice.carts || []
+                                  ).every((cart) => {
                                     if (!cart.lastPrintedAt) return false;
-                                    
-                                    // If cart was modified after printing, it needs reprint
                                     if (cart.needsReprint) return false;
-                                    
-                                    // If cart was modified after last print, it needs reprint
-                                    if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                                        new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                    if (
+                                      cart.lastModifiedAt &&
+                                      cart.lastPrintedAt &&
+                                      new Date(cart.lastModifiedAt) >
+                                        new Date(cart.lastPrintedAt)
+                                    ) {
                                       return false;
                                     }
-                                    
                                     return true;
                                   });
-                                  
+
                                   if (!areAllCartsPrinted) {
-                                    const unprintedCarts = (invoice.carts || []).filter(cart => {
+                                    const unprintedCarts = (
+                                      invoice.carts || []
+                                    ).filter((cart) => {
                                       if (!cart.lastPrintedAt) return true;
                                       if (cart.needsReprint) return true;
-                                      if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                                          new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
+                                      if (
+                                        cart.lastModifiedAt &&
+                                        cart.lastPrintedAt &&
+                                        new Date(cart.lastModifiedAt) >
+                                          new Date(cart.lastPrintedAt)
+                                      ) {
                                         return true;
                                       }
                                       return false;
                                     });
-                                    
-                                    alert(
-                                      `Cannot ship laundry ticket: ${unprintedCarts.length} cart(s) need to be printed first.\n\n` +
-                                      `Carts requiring print: ${unprintedCarts.map(c => c.name).join(', ')}\n\n` +
-                                      `Please print all carts before shipping.`
-                                    );
-                                    return;
+                                    return `${
+                                      unprintedCarts.length
+                                    } cart(s) need printing: ${unprintedCarts
+                                      .map((c) => c.name)
+                                      .join(", ")}`;
                                   }
-                                  
-                                  // Ship the invoice - show modal for truck number and delivery date
-                                  setShowShippedModal(invoice.id);
-                                  // Pre-fill with existing values if they exist
-                                  setShippedTruckNumber(invoice.truckNumber?.toString() || "");
-                                  const existingDeliveryDate = invoice.deliveryDate 
-                                    ? new Date(invoice.deliveryDate).toISOString().slice(0, 10)
-                                    : "";
-                                  setShippedDeliveryDate(existingDeliveryDate);
-                                }
-                              }}
-                              disabled={
-                                invoice.status !== "done" && (!invoice.verified || hasUnnamedCart(invoice))
-                              }
-                              title={(() => {
-                                if (invoice.status === "done") return "Click to unship";
-                                if (!invoice.verified) return "Must be approved first";
-                                if (hasUnnamedCart(invoice)) return 'Cannot ship with "CARRO SIN NOMBRE" cart';
-                                
-                                // Check cart print status
-                                const areAllCartsPrinted = (invoice.carts || []).every(cart => {
-                                  if (!cart.lastPrintedAt) return false;
-                                  if (cart.needsReprint) return false;
-                                  if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                                      new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
-                                    return false;
-                                  }
-                                  return true;
-                                });
-                                
-                                if (!areAllCartsPrinted) {
-                                  const unprintedCarts = (invoice.carts || []).filter(cart => {
-                                    if (!cart.lastPrintedAt) return true;
-                                    if (cart.needsReprint) return true;
-                                    if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                                        new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
-                                      return true;
-                                    }
-                                    return false;
-                                  });
-                                  return `${unprintedCarts.length} cart(s) need printing: ${unprintedCarts.map(c => c.name).join(', ')}`;
-                                }
-                                
-                                return "Mark as shipped";
-                              })()}
-                            >
-                              <i className="bi bi-truck"></i>
-                            </button>
-                          )}
+
+                                  return "Mark as shipped";
+                                })()}
+                              >
+                                <i className="bi bi-truck"></i>
+                              </button>
+                            )}
 
                           {/* Delete button */}
-                          {user && ["Supervisor", "Admin", "Owner"].includes(user.role) && (
-                            <button
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteClick(invoice);
-                              }}
-                              disabled={!!invoice.locked}
-                              title="Delete invoice"
-                            >
-                              <i className="bi bi-trash"></i>
-                            </button>
-                          )}
+                          {user &&
+                            ["Supervisor", "Admin", "Owner"].includes(
+                              user.role
+                            ) && (
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(invoice);
+                                }}
+                                disabled={!!invoice.locked}
+                                title="Delete invoice"
+                              >
+                                <i className="bi bi-trash"></i>
+                              </button>
+                            )}
                         </div>
                       </td>
                     </tr>
@@ -3531,20 +3917,30 @@ export default function ActiveInvoices({
                                   newName !== cart.name
                                 ) {
                                   try {
-                                    const updatedCarts = (carts || []).map((c) =>
-                                      c.id === cart.id
-                                        ? { ...c, name: newName.trim() }
-                                        : c
+                                    const updatedCarts = (carts || []).map(
+                                      (c) =>
+                                        c.id === cart.id
+                                          ? { ...c, name: newName.trim() }
+                                          : c
                                     );
                                     await onUpdateInvoice(invoice.id, {
                                       carts: updatedCarts,
                                     });
                                     // Small delay to ensure Firestore write is propagated
-                                    await new Promise(resolve => setTimeout(resolve, 100));
+                                    await new Promise((resolve) =>
+                                      setTimeout(resolve, 100)
+                                    );
                                     // The real-time listener will automatically update the UI
                                   } catch (error: any) {
-                                    console.error("Error updating cart name:", error);
-                                    alert(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
+                                    console.error(
+                                      "Error updating cart name:",
+                                      error
+                                    );
+                                    alert(
+                                      `Failed to update cart name: ${
+                                        error?.message || "Unknown error"
+                                      }`
+                                    );
                                   }
                                 }
                               }}
@@ -3899,25 +4295,34 @@ export default function ActiveInvoices({
                 {mergeError && (
                   <div className="alert alert-danger">{mergeError}</div>
                 )}
-                
+
                 <div className="mb-3">
                   <label className="form-label">
-                    <strong>Source Invoice (will be deleted after merge):</strong>
+                    <strong>
+                      Source Invoice (will be deleted after merge):
+                    </strong>
                   </label>
-                  {mergeSourceInvoiceId && (() => {
-                    const sourceInvoice = invoices.find(inv => inv.id === mergeSourceInvoiceId);
-                    return sourceInvoice ? (
-                      <div className="p-2 bg-light rounded">
-                        #{sourceInvoice.invoiceNumber || sourceInvoice.id} - {sourceInvoice.clientName}
-                        ({sourceInvoice.carts.length} cart{sourceInvoice.carts.length !== 1 ? 's' : ''})
-                      </div>
-                    ) : null;
-                  })()}
+                  {mergeSourceInvoiceId &&
+                    (() => {
+                      const sourceInvoice = invoices.find(
+                        (inv) => inv.id === mergeSourceInvoiceId
+                      );
+                      return sourceInvoice ? (
+                        <div className="p-2 bg-light rounded">
+                          #{sourceInvoice.invoiceNumber || sourceInvoice.id} -{" "}
+                          {sourceInvoice.clientName}(
+                          {sourceInvoice.carts.length} cart
+                          {sourceInvoice.carts.length !== 1 ? "s" : ""})
+                        </div>
+                      ) : null;
+                    })()}
                 </div>
 
                 <div className="mb-3">
                   <label htmlFor="mergeTarget" className="form-label">
-                    <strong>Target Invoice (carts will be merged into this invoice):</strong>
+                    <strong>
+                      Target Invoice (carts will be merged into this invoice):
+                    </strong>
                   </label>
                   <select
                     id="mergeTarget"
@@ -3927,18 +4332,24 @@ export default function ActiveInvoices({
                     disabled={mergeLoading}
                   >
                     <option value="">Select target invoice...</option>
-                    {mergeSourceInvoiceId && getMergeableInvoices(mergeSourceInvoiceId).map(invoice => (
-                      <option key={invoice.id} value={invoice.id}>
-                        #{invoice.invoiceNumber || invoice.id} - {invoice.clientName} 
-                        ({invoice.carts.length} cart{invoice.carts.length !== 1 ? 's' : ''})
-                      </option>
-                    ))}
+                    {mergeSourceInvoiceId &&
+                      getMergeableInvoices(mergeSourceInvoiceId).map(
+                        (invoice) => (
+                          <option key={invoice.id} value={invoice.id}>
+                            #{invoice.invoiceNumber || invoice.id} -{" "}
+                            {invoice.clientName}({invoice.carts.length} cart
+                            {invoice.carts.length !== 1 ? "s" : ""})
+                          </option>
+                        )
+                      )}
                   </select>
                 </div>
 
                 <div className="alert alert-info">
-                  <strong>Note:</strong> All carts from the source invoice will be merged into the target invoice. 
-                  If cart names conflict, they will be automatically renamed. The source invoice will be deleted after the merge.
+                  <strong>Note:</strong> All carts from the source invoice will
+                  be merged into the target invoice. If cart names conflict,
+                  they will be automatically renamed. The source invoice will be
+                  deleted after the merge.
                 </div>
               </div>
               <div className="modal-footer">
@@ -3958,11 +4369,15 @@ export default function ActiveInvoices({
                 >
                   {mergeLoading ? (
                     <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      <span
+                        className="spinner-border spinner-border-sm me-2"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
                       Merging...
                     </>
                   ) : (
-                    'Merge Invoices'
+                    "Merge Invoices"
                   )}
                 </button>
               </div>
@@ -4701,77 +5116,100 @@ export default function ActiveInvoices({
                       (inv) => inv.id === showShippedModal
                     );
                     if (!invoice) return;
-                    
+
                     // Check for unconfirmed special items before shipping
                     try {
-                      const pendingSpecialItems = await getPendingSpecialItems() as ManualConventionalProduct[];
-                      const invoiceSpecialItems = pendingSpecialItems.filter(item => 
-                        item.invoiceId === invoice.id
+                      const pendingSpecialItems =
+                        (await getPendingSpecialItems()) as ManualConventionalProduct[];
+                      const invoiceSpecialItems = pendingSpecialItems.filter(
+                        (item) => item.invoiceId === invoice.id
                       );
-                      
+
                       if (invoiceSpecialItems.length > 0) {
-                        const itemNames = invoiceSpecialItems.map(item => 
-                          `${item.productName} (${item.category})`
-                        ).join(', ');
-                        
+                        const itemNames = invoiceSpecialItems
+                          .map(
+                            (item) => `${item.productName} (${item.category})`
+                          )
+                          .join(", ");
+
                         alert(
                           `Cannot ship laundry ticket: ${invoiceSpecialItems.length} special item(s) require confirmation before shipping.\n\n` +
-                          `Unconfirmed items: ${itemNames}\n\n` +
-                          `Please confirm or skip these items in the Washing section before shipping.`
+                            `Unconfirmed items: ${itemNames}\n\n` +
+                            `Please confirm or skip these items in the Washing section before shipping.`
                         );
                         return;
                       }
                     } catch (error) {
-                      console.error('Error checking special items:', error);
-                      alert('Error checking special items. Please try again.');
+                      console.error("Error checking special items:", error);
+                      alert("Error checking special items. Please try again.");
                       return;
                     }
-                    
+
                     // Check if all carts are properly printed before shipping
-                    const areAllCartsPrinted = (invoice.carts || []).every(cart => {
-                      // Cart must be printed at least once
-                      if (!cart.lastPrintedAt) return false;
-                      
-                      // If cart was modified after printing, it needs reprint
-                      if (cart.needsReprint) return false;
-                      
-                      // If cart was modified after last print, it needs reprint
-                      if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                          new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
-                        return false;
-                      }
-                      
-                      return true;
-                    });
-                    
-                    if (!areAllCartsPrinted) {
-                      const unprintedCarts = (invoice.carts || []).filter(cart => {
-                        if (!cart.lastPrintedAt) return true;
-                        if (cart.needsReprint) return true;
-                        if (cart.lastModifiedAt && cart.lastPrintedAt && 
-                            new Date(cart.lastModifiedAt) > new Date(cart.lastPrintedAt)) {
-                          return true;
+                    const areAllCartsPrinted = (invoice.carts || []).every(
+                      (cart) => {
+                        // Cart must be printed at least once
+                        if (!cart.lastPrintedAt) return false;
+
+                        // If cart was modified after printing, it needs reprint
+                        if (cart.needsReprint) return false;
+
+                        // If cart was modified after last print, it needs reprint
+                        if (
+                          cart.lastModifiedAt &&
+                          cart.lastPrintedAt &&
+                          new Date(cart.lastModifiedAt) >
+                            new Date(cart.lastPrintedAt)
+                        ) {
+                          return false;
                         }
-                        return false;
-                      });
-                      
+
+                        return true;
+                      }
+                    );
+
+                    if (!areAllCartsPrinted) {
+                      const unprintedCarts = (invoice.carts || []).filter(
+                        (cart) => {
+                          if (!cart.lastPrintedAt) return true;
+                          if (cart.needsReprint) return true;
+                          if (
+                            cart.lastModifiedAt &&
+                            cart.lastPrintedAt &&
+                            new Date(cart.lastModifiedAt) >
+                              new Date(cart.lastPrintedAt)
+                          ) {
+                            return true;
+                          }
+                          return false;
+                        }
+                      );
+
                       alert(
                         `Cannot ship laundry ticket: ${unprintedCarts.length} cart(s) need to be printed first.\n\n` +
-                        `Carts requiring print: ${unprintedCarts.map(c => c.name).join(', ')}\n\n` +
-                        `Please print all carts before shipping.`
+                          `Carts requiring print: ${unprintedCarts
+                            .map((c) => c.name)
+                            .join(", ")}\n\n` +
+                          `Please print all carts before shipping.`
                       );
                       return;
                     }
-                    
+
                     await onUpdateInvoice(invoice.id, {
                       status: "done",
                       truckNumber: shippedTruckNumber.toString(),
-                      deliveryDate: new Date(shippedDeliveryDate + "T00:00:00").toISOString(),
+                      deliveryDate: new Date(
+                        shippedDeliveryDate + "T00:00:00"
+                      ).toISOString(),
                     });
                     if (user?.username) {
-                      await                      logActivity({
+                      await logActivity({
                         type: "Invoice",
-                        message: `User ${user.username} marked laundry ticket #${invoice.invoiceNumber || invoice.id} as shipped (Truck #${shippedTruckNumber}, Delivery Date: ${shippedDeliveryDate})`,
+                        message: `User ${
+                          user.username
+                        } marked laundry ticket #${
+                          invoice.invoiceNumber || invoice.id
+                        } as shipped (Truck #${shippedTruckNumber}, Delivery Date: ${shippedDeliveryDate})`,
                         user: user.username,
                       });
                     }
@@ -4929,12 +5367,15 @@ export default function ActiveInvoices({
               <div className="modal-body">
                 <div className="alert alert-info">
                   <i className="bi bi-info-circle-fill me-2"></i>
-                  <strong>Laundry Ticket Approved!</strong> Now schedule the delivery date and method. You can skip this step if you want to schedule later.
+                  <strong>Laundry Ticket Approved!</strong> Now schedule the
+                  delivery date and method. You can skip this step if you want
+                  to schedule later.
                 </div>
 
                 <div className="mb-3">
                   <label className="form-label">
-                    <strong>Delivery Method</strong> <span className="text-danger">*</span>
+                    <strong>Delivery Method</strong>{" "}
+                    <span className="text-danger">*</span>
                   </label>
                   <div className="d-flex gap-3">
                     <div className="form-check">
@@ -4945,9 +5386,16 @@ export default function ActiveInvoices({
                         id="deliveryMethodTruck"
                         value="truck"
                         checked={scheduleDeliveryMethod === "truck"}
-                        onChange={(e) => setScheduleDeliveryMethod(e.target.value as "truck" | "client_pickup")}
+                        onChange={(e) =>
+                          setScheduleDeliveryMethod(
+                            e.target.value as "truck" | "client_pickup"
+                          )
+                        }
                       />
-                      <label className="form-check-label" htmlFor="deliveryMethodTruck">
+                      <label
+                        className="form-check-label"
+                        htmlFor="deliveryMethodTruck"
+                      >
                         <i className="bi bi-truck me-1"></i>
                         Truck Delivery
                       </label>
@@ -4960,22 +5408,31 @@ export default function ActiveInvoices({
                         id="deliveryMethodPickup"
                         value="client_pickup"
                         checked={scheduleDeliveryMethod === "client_pickup"}
-                        onChange={(e) => setScheduleDeliveryMethod(e.target.value as "truck" | "client_pickup")}
+                        onChange={(e) =>
+                          setScheduleDeliveryMethod(
+                            e.target.value as "truck" | "client_pickup"
+                          )
+                        }
                       />
-                      <label className="form-check-label" htmlFor="deliveryMethodPickup">
+                      <label
+                        className="form-check-label"
+                        htmlFor="deliveryMethodPickup"
+                      >
                         <i className="bi bi-person-check me-1"></i>
                         Pick Up by Client
                       </label>
                     </div>
                   </div>
                   <small className="form-text text-muted">
-                    Choose whether to deliver via truck or have client pick up at facility
+                    Choose whether to deliver via truck or have client pick up
+                    at facility
                   </small>
                 </div>
-                
+
                 <div className="mb-3">
                   <label className="form-label">
-                    <strong>Delivery Date</strong> <span className="text-danger">*</span>
+                    <strong>Delivery Date</strong>{" "}
+                    <span className="text-danger">*</span>
                   </label>
                   <input
                     type="date"
@@ -4985,8 +5442,8 @@ export default function ActiveInvoices({
                     required
                   />
                   <small className="form-text text-muted">
-                    {scheduleDeliveryMethod === "truck" 
-                      ? "Select tomorrow or any future date for delivery" 
+                    {scheduleDeliveryMethod === "truck"
+                      ? "Select tomorrow or any future date for delivery"
                       : "Select date when client will pick up the order"}
                   </small>
                 </div>
@@ -4994,7 +5451,8 @@ export default function ActiveInvoices({
                 {scheduleDeliveryMethod === "truck" && (
                   <div className="mb-3">
                     <label className="form-label">
-                      <strong>Truck Number</strong> <span className="text-danger">*</span>
+                      <strong>Truck Number</strong>{" "}
+                      <span className="text-danger">*</span>
                     </label>
                     <select
                       className="form-select"
@@ -5003,9 +5461,13 @@ export default function ActiveInvoices({
                       required
                     >
                       <option value="">Select truck number...</option>
-                      {Array.from({ length: 10 }, (_, i) => 30 + i).map(num => (
-                        <option key={num} value={num}>Truck #{num}</option>
-                      ))}
+                      {Array.from({ length: 10 }, (_, i) => 30 + i).map(
+                        (num) => (
+                          <option key={num} value={num}>
+                            Truck #{num}
+                          </option>
+                        )
+                      )}
                     </select>
                     <small className="form-text text-muted">
                       Available trucks: #30 through #39
@@ -5013,27 +5475,43 @@ export default function ActiveInvoices({
                   </div>
                 )}
 
-                {scheduleDeliveryDate && (scheduleDeliveryMethod === "client_pickup" || scheduleTruckNumber) && (
-                  <div className="alert alert-success">
-                    <i className="bi bi-check-circle-fill me-2"></i>
-                    <strong>Ready to schedule:</strong><br />
-                    {scheduleDeliveryMethod === "truck" ? (
-                      <>Delivery on {new Date(scheduleDeliveryDate).toLocaleDateString("en-US", {
-                        weekday: "long",
-                        year: "numeric", 
-                        month: "long",
-                        day: "numeric"
-                      })} via Truck #{scheduleTruckNumber}</>
-                    ) : (
-                      <>Client pickup on {new Date(scheduleDeliveryDate).toLocaleDateString("en-US", {
-                        weekday: "long",
-                        year: "numeric", 
-                        month: "long",
-                        day: "numeric"
-                      })}</>
-                    )}
-                  </div>
-                )}
+                {scheduleDeliveryDate &&
+                  (scheduleDeliveryMethod === "client_pickup" ||
+                    scheduleTruckNumber) && (
+                    <div className="alert alert-success">
+                      <i className="bi bi-check-circle-fill me-2"></i>
+                      <strong>Ready to schedule:</strong>
+                      <br />
+                      {scheduleDeliveryMethod === "truck" ? (
+                        <>
+                          Delivery on{" "}
+                          {new Date(scheduleDeliveryDate).toLocaleDateString(
+                            "en-US",
+                            {
+                              weekday: "long",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            }
+                          )}{" "}
+                          via Truck #{scheduleTruckNumber}
+                        </>
+                      ) : (
+                        <>
+                          Client pickup on{" "}
+                          {new Date(scheduleDeliveryDate).toLocaleDateString(
+                            "en-US",
+                            {
+                              weekday: "long",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            }
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
               </div>
               <div className="modal-footer">
                 <button
@@ -5068,11 +5546,15 @@ export default function ActiveInvoices({
                 </button>
                 <button
                   className="btn btn-primary"
-                  disabled={!scheduleDeliveryDate || (scheduleDeliveryMethod === "truck" && !scheduleTruckNumber)}
+                  disabled={
+                    !scheduleDeliveryDate ||
+                    (scheduleDeliveryMethod === "truck" && !scheduleTruckNumber)
+                  }
                   onClick={handleConfirmScheduleDelivery}
                 >
                   <i className="bi bi-calendar-check me-1"></i>
-                  Schedule {scheduleDeliveryMethod === "truck" ? "Delivery" : "Pickup"}
+                  Schedule{" "}
+                  {scheduleDeliveryMethod === "truck" ? "Delivery" : "Pickup"}
                 </button>
               </div>
             </div>
@@ -5220,29 +5702,36 @@ export default function ActiveInvoices({
               try {
                 const [_, cartId, ...nameParts] = cartName.split("__");
                 const newName = nameParts.join("__");
-                
-                console.log("🔄 Processing cart name edit:", { 
-                  invoiceId: invoice.id, 
-                  cartId, 
+
+                console.log("🔄 Processing cart name edit:", {
+                  invoiceId: invoice.id,
+                  cartId,
                   newName,
-                  timestamp: new Date().toISOString()
+                  timestamp: new Date().toISOString(),
                 });
-                
+
                 const updatedCarts = invoice.carts.map((c) =>
                   c.id === cartId ? { ...c, name: newName } : c
                 );
-                
+
                 await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-                
+
                 // Small delay to ensure Firestore write propagation
-                await new Promise(resolve => setTimeout(resolve, 50));
-                
-                console.log("✅ Cart name edit completed successfully:", { cartId, newName });
-                
+                await new Promise((resolve) => setTimeout(resolve, 50));
+
+                console.log("✅ Cart name edit completed successfully:", {
+                  cartId,
+                  newName,
+                });
+
                 return { id: cartId, name: newName, isActive: true };
               } catch (error: any) {
                 console.error("❌ Error updating cart name:", error);
-                throw new Error(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
+                throw new Error(
+                  `Failed to update cart name: ${
+                    error?.message || "Unknown error"
+                  }`
+                );
               }
             }
             // --- Invoice Name Edit Logic ---
@@ -5281,22 +5770,34 @@ export default function ActiveInvoices({
               // Check if user wants to merge or create separate cart
               const userWantsToMerge = window.confirm(
                 `A cart named "${cartName}" already exists.\n\n` +
-                `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
+                  `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
               );
-              
+
               if (userWantsToMerge) {
                 // Find the existing cart and return its ID for merging
                 const existingCart = invoice.carts.find(
-                  (c) => c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
+                  (c) =>
+                    c.name.trim().toLowerCase() ===
+                    cartName.trim().toLowerCase()
                 );
                 if (existingCart) {
-                  return { id: existingCart.id, name: existingCart.name, isActive: true };
+                  return {
+                    id: existingCart.id,
+                    name: existingCart.name,
+                    isActive: true,
+                  };
                 }
               } else {
                 // Create a cart with numbered suffix
                 let suffix = 2;
                 let newCartName = `${cartName} (${suffix})`;
-                while (invoice.carts.some(c => c.name.trim().toLowerCase() === newCartName.trim().toLowerCase())) {
+                while (
+                  invoice.carts.some(
+                    (c) =>
+                      c.name.trim().toLowerCase() ===
+                      newCartName.trim().toLowerCase()
+                  )
+                ) {
                   suffix++;
                   newCartName = `${cartName} (${suffix})`;
                 }
@@ -5334,12 +5835,19 @@ export default function ActiveInvoices({
       {showInvoiceDetailsModal && selectedInvoice && (
         <InvoiceDetailsModal
           invoice={(() => {
-            const currentInvoice = invoicesState.find((inv) => inv.id === selectedInvoice.id) || selectedInvoice;
-            console.log("📤 Passing invoice to modal:", { 
-              invoiceId: currentInvoice.id, 
-              carts: currentInvoice.carts?.map(c => ({ id: c.id, name: c.name })),
-              fromState: !!invoicesState.find((inv) => inv.id === selectedInvoice.id),
-              selectedInvoiceId: selectedInvoice.id
+            const currentInvoice =
+              invoicesState.find((inv) => inv.id === selectedInvoice.id) ||
+              selectedInvoice;
+            console.log("📤 Passing invoice to modal:", {
+              invoiceId: currentInvoice.id,
+              carts: currentInvoice.carts?.map((c) => ({
+                id: c.id,
+                name: c.name,
+              })),
+              fromState: !!invoicesState.find(
+                (inv) => inv.id === selectedInvoice.id
+              ),
+              selectedInvoiceId: selectedInvoice.id,
             });
             return currentInvoice;
           })()}
@@ -5357,35 +5865,48 @@ export default function ActiveInvoices({
               try {
                 await onUpdateInvoice(invoice.id, { carts: updatedCarts });
                 // Small delay to ensure Firestore write is propagated
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise((resolve) => setTimeout(resolve, 100));
                 // The real-time listener will handle global updates
                 return { id: cartId, name: "", isActive: false };
               } catch (error: any) {
                 console.error("Error deleting cart:", error);
-                throw new Error(`Failed to delete cart: ${error?.message || 'Unknown error'}`);
+                throw new Error(
+                  `Failed to delete cart: ${error?.message || "Unknown error"}`
+                );
               }
             }
             if (cartName.startsWith("__edit__")) {
               const [_, cartId, ...nameParts] = cartName.split("__");
               const newName = nameParts.join("__");
-              console.log("🔧 Cart editing request:", { cartId, oldName: invoice.carts.find(c => c.id === cartId)?.name, newName });
-              
+              console.log("🔧 Cart editing request:", {
+                cartId,
+                oldName: invoice.carts.find((c) => c.id === cartId)?.name,
+                newName,
+              });
+
               const updatedCarts = invoice.carts.map((c) =>
                 c.id === cartId ? { ...c, name: newName } : c
               );
-              
+
               try {
-                console.log("💾 Updating cart in Firestore...", { invoiceId: invoice.id, updatedCarts });
+                console.log("💾 Updating cart in Firestore...", {
+                  invoiceId: invoice.id,
+                  updatedCarts,
+                });
                 await onUpdateInvoice(invoice.id, { carts: updatedCarts });
                 console.log("✅ Cart update successful in Firestore");
-                
+
                 // Small delay to ensure Firestore write is propagated before real-time listener updates
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise((resolve) => setTimeout(resolve, 100));
                 // The real-time listener will automatically update the UI
                 return { id: cartId, name: newName, isActive: true };
               } catch (error: any) {
                 console.error("❌ Error updating cart name:", error);
-                throw new Error(`Failed to update cart name: ${error?.message || 'Unknown error'}`);
+                throw new Error(
+                  `Failed to update cart name: ${
+                    error?.message || "Unknown error"
+                  }`
+                );
               }
             }
             // --- Invoice Name Edit Logic ---
@@ -5398,11 +5919,11 @@ export default function ActiveInvoices({
             // --- Delivery Date Edit Logic ---
             if (cartName.startsWith("__delivery_date__")) {
               const newDeliveryDate = cartName.replace("__delivery_date__", "");
-              const formattedDeliveryDate = newDeliveryDate 
+              const formattedDeliveryDate = newDeliveryDate
                 ? new Date(newDeliveryDate + "T00:00:00").toISOString()
                 : undefined;
-              await onUpdateInvoice(invoice.id, { 
-                deliveryDate: formattedDeliveryDate
+              await onUpdateInvoice(invoice.id, {
+                deliveryDate: formattedDeliveryDate,
               });
               await refreshInvoices();
               return { id: invoice.id, name: cartName, isActive: true };
@@ -5436,22 +5957,34 @@ export default function ActiveInvoices({
               // Check if user wants to merge or create separate cart
               const userWantsToMerge = window.confirm(
                 `A cart named "${cartName}" already exists.\n\n` +
-                `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
+                  `Click OK to merge the items with the existing cart, or Cancel to create a separate cart with a numbered suffix.`
               );
-              
+
               if (userWantsToMerge) {
                 // Find the existing cart and return its ID for merging
                 const existingCart = invoice.carts.find(
-                  (c) => c.name.trim().toLowerCase() === cartName.trim().toLowerCase()
+                  (c) =>
+                    c.name.trim().toLowerCase() ===
+                    cartName.trim().toLowerCase()
                 );
                 if (existingCart) {
-                  return { id: existingCart.id, name: existingCart.name, isActive: true };
+                  return {
+                    id: existingCart.id,
+                    name: existingCart.name,
+                    isActive: true,
+                  };
                 }
               } else {
                 // Create a cart with numbered suffix
                 let suffix = 2;
                 let newCartName = `${cartName} (${suffix})`;
-                while (invoice.carts.some(c => c.name.trim().toLowerCase() === newCartName.trim().toLowerCase())) {
+                while (
+                  invoice.carts.some(
+                    (c) =>
+                      c.name.trim().toLowerCase() ===
+                      newCartName.trim().toLowerCase()
+                  )
+                ) {
                   suffix++;
                   newCartName = `${cartName} (${suffix})`;
                 }
@@ -5512,7 +6045,7 @@ export default function ActiveInvoices({
                   },
                 ];
               }
-              
+
               // For item additions, mark cart as needing reprint
               const updatedCart = { ...cart, items: newItems };
               if (quantity > 0) {
@@ -5520,32 +6053,36 @@ export default function ActiveInvoices({
                 updatedCart.lastModifiedAt = new Date().toISOString();
                 updatedCart.lastModifiedBy = user?.username || "Unknown";
               }
-              
+
               return updatedCart;
             });
-            
+
             // Update local state immediately for instant UI feedback
-            setInvoicesState(prevInvoices => 
-              prevInvoices.map(inv => 
-                inv.id === invoice.id 
-                  ? { ...inv, carts: updatedCarts }
-                  : inv
+            setInvoicesState((prevInvoices) =>
+              prevInvoices.map((inv) =>
+                inv.id === invoice.id ? { ...inv, carts: updatedCarts } : inv
               )
             );
-            
+
             // Update selected invoice if modal is open
             if (showInvoiceDetailsModal && selectedInvoice?.id === invoice.id) {
-              setSelectedInvoice(prev => prev ? { ...prev, carts: updatedCarts } : null);
+              setSelectedInvoice((prev) =>
+                prev ? { ...prev, carts: updatedCarts } : null
+              );
             }
-            
+
             // Persist to Firestore
             await onUpdateInvoice(invoice.id, { carts: updatedCarts });
-            
+
             // Mark cart as modified for reprint tracking when adding items
             if (quantity > 0) {
-              await markCartAsModified(invoice.id, cartId, user?.username || "Unknown");
+              await markCartAsModified(
+                invoice.id,
+                cartId,
+                user?.username || "Unknown"
+              );
             }
-            
+
             await refreshInvoices();
           }}
           onUpdateInvoice={onUpdateInvoice}
@@ -5631,7 +6168,7 @@ export default function ActiveInvoices({
       {showCompletionModal && completionInvoiceId && (
         <div
           className="modal show"
-          style={{ 
+          style={{
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
@@ -5651,7 +6188,7 @@ export default function ActiveInvoices({
             }
           }}
         >
-          <div 
+          <div
             className="modal-dialog"
             style={{
               margin: "0 auto 80px auto", // Top margin handled by parent padding, add bottom margin
@@ -5673,9 +6210,10 @@ export default function ActiveInvoices({
               </div>
               <div className="modal-body">
                 <p className="text-muted mb-3">
-                  Select which parts of the work are completed for this laundry ticket:
+                  Select which parts of the work are completed for this laundry
+                  ticket:
                 </p>
-                
+
                 <div className="row g-3">
                   <div className="col-md-6">
                     <div className="card h-100">
@@ -5687,38 +6225,49 @@ export default function ActiveInvoices({
                             id="manglesCheckbox"
                             checked={selectedCompletionParts.mangles}
                             onChange={(e) =>
-                              setSelectedCompletionParts(prev => ({
+                              setSelectedCompletionParts((prev) => ({
                                 ...prev,
-                                mangles: e.target.checked
+                                mangles: e.target.checked,
                               }))
                             }
                           />
-                          <label className="form-check-label fs-5 fw-bold" htmlFor="manglesCheckbox">
+                          <label
+                            className="form-check-label fs-5 fw-bold"
+                            htmlFor="manglesCheckbox"
+                          >
                             Mangles - Arriba
                           </label>
                         </div>
-                        <p className="text-muted mt-2 small">Top part of the invoice</p>
+                        <p className="text-muted mt-2 small">
+                          Top part of the invoice
+                        </p>
                         <div className="mt-3">
-                          <div 
+                          <div
                             className="border rounded p-2"
-                            style={{ 
-                              backgroundColor: selectedCompletionParts.mangles ? '#fef3c7' : '#f8f9fa',
-                              borderColor: selectedCompletionParts.mangles ? '#f59e0b' : '#dee2e6',
-                              height: '40px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '12px',
-                              fontWeight: '600'
+                            style={{
+                              backgroundColor: selectedCompletionParts.mangles
+                                ? "#fef3c7"
+                                : "#f8f9fa",
+                              borderColor: selectedCompletionParts.mangles
+                                ? "#f59e0b"
+                                : "#dee2e6",
+                              height: "40px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "12px",
+                              fontWeight: "600",
                             }}
                           >
-                            {selectedCompletionParts.mangles ? 'TOP COMPLETED' : 'TOP SECTION'}
+                            {selectedCompletionParts.mangles
+                              ? "TOP COMPLETED"
+                              : "TOP SECTION"}
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="col-md-6">
                     <div className="card h-100">
                       <div className="card-body text-center">
@@ -5729,59 +6278,78 @@ export default function ActiveInvoices({
                             id="dobladoCheckbox"
                             checked={selectedCompletionParts.doblado}
                             onChange={(e) =>
-                              setSelectedCompletionParts(prev => ({
+                              setSelectedCompletionParts((prev) => ({
                                 ...prev,
-                                doblado: e.target.checked
+                                doblado: e.target.checked,
                               }))
                             }
                           />
-                          <label className="form-check-label fs-5 fw-bold" htmlFor="dobladoCheckbox">
+                          <label
+                            className="form-check-label fs-5 fw-bold"
+                            htmlFor="dobladoCheckbox"
+                          >
                             Doblado - Abajo
                           </label>
                         </div>
-                        <p className="text-muted mt-2 small">Bottom part of the invoice</p>
+                        <p className="text-muted mt-2 small">
+                          Bottom part of the invoice
+                        </p>
                         <div className="mt-3">
-                          <div 
+                          <div
                             className="border rounded p-2"
-                            style={{ 
-                              backgroundColor: selectedCompletionParts.doblado ? '#fef3c7' : '#f8f9fa',
-                              borderColor: selectedCompletionParts.doblado ? '#f59e0b' : '#dee2e6',
-                              height: '40px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '12px',
-                              fontWeight: '600'
+                            style={{
+                              backgroundColor: selectedCompletionParts.doblado
+                                ? "#fef3c7"
+                                : "#f8f9fa",
+                              borderColor: selectedCompletionParts.doblado
+                                ? "#f59e0b"
+                                : "#dee2e6",
+                              height: "40px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "12px",
+                              fontWeight: "600",
                             }}
                           >
-                            {selectedCompletionParts.doblado ? 'BOTTOM COMPLETED' : 'BOTTOM SECTION'}
+                            {selectedCompletionParts.doblado
+                              ? "BOTTOM COMPLETED"
+                              : "BOTTOM SECTION"}
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-4">
-                  {selectedCompletionParts.mangles && selectedCompletionParts.doblado && (
-                    <div className="alert alert-success" role="alert">
-                      <i className="bi bi-check-circle-fill me-2"></i>
-                      Both parts completed! This invoice will be marked as fully completed.
-                    </div>
-                  )}
-                  {(selectedCompletionParts.mangles || selectedCompletionParts.doblado) && 
-                   !(selectedCompletionParts.mangles && selectedCompletionParts.doblado) && (
-                    <div className="alert alert-warning" role="alert">
-                      <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                      Partial completion. The invoice will not be available for approval until both parts are completed.
-                    </div>
-                  )}
-                  {!selectedCompletionParts.mangles && !selectedCompletionParts.doblado && (
-                    <div className="alert alert-info" role="alert">
-                      <i className="bi bi-info-circle-fill me-2"></i>
-                      Select at least one part to mark as completed.
-                    </div>
-                  )}
+                  {selectedCompletionParts.mangles &&
+                    selectedCompletionParts.doblado && (
+                      <div className="alert alert-success" role="alert">
+                        <i className="bi bi-check-circle-fill me-2"></i>
+                        Both parts completed! This invoice will be marked as
+                        fully completed.
+                      </div>
+                    )}
+                  {(selectedCompletionParts.mangles ||
+                    selectedCompletionParts.doblado) &&
+                    !(
+                      selectedCompletionParts.mangles &&
+                      selectedCompletionParts.doblado
+                    ) && (
+                      <div className="alert alert-warning" role="alert">
+                        <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                        Partial completion. The invoice will not be available
+                        for approval until both parts are completed.
+                      </div>
+                    )}
+                  {!selectedCompletionParts.mangles &&
+                    !selectedCompletionParts.doblado && (
+                      <div className="alert alert-info" role="alert">
+                        <i className="bi bi-info-circle-fill me-2"></i>
+                        Select at least one part to mark as completed.
+                      </div>
+                    )}
                 </div>
               </div>
               <div className="modal-footer">
@@ -5827,8 +6395,8 @@ export default function ActiveInvoices({
                   </div>
                   <div className="modal-body">
                     <p>
-                      Laundry Ticket has been approved! Choose what you'd like to
-                      print:
+                      Laundry Ticket has been approved! Choose what you'd like
+                      to print:
                     </p>
 
                     <div className="d-grid gap-3">
@@ -5854,7 +6422,9 @@ export default function ActiveInvoices({
 
                       {/* Print Full Invoice */}
                       <div className="border rounded p-3">
-                        <h6 className="mb-3">Print/Email Complete Laundry Ticket</h6>
+                        <h6 className="mb-3">
+                          Print/Email Complete Laundry Ticket
+                        </h6>
                         <button
                           className="btn btn-primary me-2"
                           onClick={() => {
@@ -6157,12 +6727,12 @@ export default function ActiveInvoices({
                                 <img
                                   src={(printConfig as any).logoUrl}
                                   alt="Logo"
-                                  style={{ 
-                                    maxHeight: 80, 
-                                    maxWidth: 200, 
-                                    width: 'auto', 
-                                    height: 'auto',
-                                    objectFit: 'contain'
+                                  style={{
+                                    maxHeight: 80,
+                                    maxWidth: 200,
+                                    width: "auto",
+                                    height: "auto",
+                                    objectFit: "contain",
                                   }}
                                 />
                               ) : (
@@ -6482,12 +7052,12 @@ export default function ActiveInvoices({
                             <img
                               src={printConfig.logoUrl}
                               alt="Logo"
-                              style={{ 
-                                maxHeight: 80, 
-                                maxWidth: 200, 
-                                width: 'auto', 
-                                height: 'auto',
-                                objectFit: 'contain'
+                              style={{
+                                maxHeight: 80,
+                                maxWidth: 200,
+                                width: "auto",
+                                height: "auto",
+                                objectFit: "contain",
                               }}
                             />
                           ) : (
@@ -6921,9 +7491,9 @@ export default function ActiveInvoices({
       {/* Note Input Modal */}
       {Object.entries(showNoteInput).map(([invoiceId, show]) => {
         if (!show) return null;
-        const invoice = invoicesState.find(inv => inv.id === invoiceId);
+        const invoice = invoicesState.find((inv) => inv.id === invoiceId);
         if (!invoice) return null;
-        
+
         return (
           <div
             key={invoiceId}
@@ -6934,13 +7504,17 @@ export default function ActiveInvoices({
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">
-                    Note for Invoice #{invoice.invoiceNumber || invoice.id.substring(0, 8)}
+                    Note for Invoice #
+                    {invoice.invoiceNumber || invoice.id.substring(0, 8)}
                   </h5>
                   <button
                     type="button"
                     className="btn-close"
                     onClick={() => {
-                      setShowNoteInput(prev => ({ ...prev, [invoiceId]: false }));
+                      setShowNoteInput((prev) => ({
+                        ...prev,
+                        [invoiceId]: false,
+                      }));
                     }}
                   ></button>
                 </div>
@@ -6952,9 +7526,9 @@ export default function ActiveInvoices({
                     defaultValue={invoice.note || ""}
                     onChange={(e) => {
                       // Update the note immediately in local state
-                      setInvoicesState(prev => 
-                        prev.map(inv => 
-                          inv.id === invoiceId 
+                      setInvoicesState((prev) =>
+                        prev.map((inv) =>
+                          inv.id === invoiceId
                             ? { ...inv, note: e.target.value }
                             : inv
                         )
@@ -6966,7 +7540,10 @@ export default function ActiveInvoices({
                   <button
                     className="btn btn-secondary"
                     onClick={() => {
-                      setShowNoteInput(prev => ({ ...prev, [invoiceId]: false }));
+                      setShowNoteInput((prev) => ({
+                        ...prev,
+                        [invoiceId]: false,
+                      }));
                     }}
                   >
                     Cancel
@@ -6974,10 +7551,17 @@ export default function ActiveInvoices({
                   <button
                     className="btn btn-primary"
                     onClick={async () => {
-                      const updatedInvoice = invoicesState.find(inv => inv.id === invoiceId);
+                      const updatedInvoice = invoicesState.find(
+                        (inv) => inv.id === invoiceId
+                      );
                       if (updatedInvoice) {
-                        await onUpdateInvoice(invoiceId, { note: updatedInvoice.note || "" });
-                        setShowNoteInput(prev => ({ ...prev, [invoiceId]: false }));
+                        await onUpdateInvoice(invoiceId, {
+                          note: updatedInvoice.note || "",
+                        });
+                        setShowNoteInput((prev) => ({
+                          ...prev,
+                          [invoiceId]: false,
+                        }));
                       }
                     }}
                   >

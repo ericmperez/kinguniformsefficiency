@@ -83,6 +83,12 @@ const DailyProductAnalytics = lazy(
 const WeeklyProductionAnalytics = lazy(
   () => import("./components/WeeklyProductionAnalytics")
 );
+const ClientWeeklyAnalytics = lazy(
+  () => import("./components/ClientWeeklyAnalytics")
+);
+const ClientDailyAnalytics = lazy(
+  () => import("./components/ClientDailyAnalytics")
+);
 const GlobalActivityLog = lazy(() => import("./components/GlobalActivityLog"));
 const RealTimeActivityDashboard = lazy(
   () => import("./components/RealTimeActivityDashboard")
@@ -816,6 +822,12 @@ function App() {
           visible: true,
         },
         {
+          label: "Client Weekly Analytics",
+          page: "clientWeeklyAnalytics",
+          icon: <AssessmentIcon />,
+          visible: true,
+        },
+        {
           label: "Prediction Schedule",
           page: "predictionSchedule",
           icon: <AssessmentIcon />,
@@ -830,6 +842,12 @@ function App() {
         {
           label: "Historical Reports",
           page: "historicalReports",
+          icon: <AssessmentIcon />,
+          visible: true,
+        },
+        {
+          label: "Client Daily Analytics",
+          page: "clientDailyAnalytics",
           icon: <AssessmentIcon />,
           visible: true,
         },
@@ -1548,9 +1566,19 @@ function App() {
           <WeeklyProductionAnalytics />
         </Suspense>
       )}
+      {activePage === "clientWeeklyAnalytics" && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <ClientWeeklyAnalytics />
+        </Suspense>
+      )}
       {activePage === "predictionSchedule" && (
         <Suspense fallback={<LoadingSpinner />}>
           <PredictionScheduleDashboard />
+        </Suspense>
+      )}
+      {activePage === "clientDailyAnalytics" && (
+        <Suspense fallback={<LoadingSpinner />}>
+          <ClientDailyAnalytics />
         </Suspense>
       )}
       {activePage === "productionClassification" && (

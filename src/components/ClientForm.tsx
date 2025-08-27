@@ -279,15 +279,16 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                                 objectFit: "cover",
                               }}
                             />
-                          )}                                <span
-                                  className="product-name medium interactive"
-                                  style={{
-                                    display: "block",
-                                    width: "100%"
-                                  }}
-                                >
-                                  {product.name}
-                                </span>
+                          )}{" "}
+                          <span
+                            className="product-name medium interactive"
+                            style={{
+                              display: "block",
+                              width: "100%",
+                            }}
+                          >
+                            {product.name}
+                          </span>
                         </div>
                       </label>
                     </div>
@@ -526,8 +527,8 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                 </div>
               </div>
               <div className="form-text text-muted">
-                Choose where the completed option appears in the active invoice page
-                for this client.
+                Choose where the completed option appears in the active invoice
+                page for this client.
               </div>
             </div>
 
@@ -888,7 +889,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                                   className="product-name medium interactive"
                                   style={{
                                     display: "block",
-                                    width: "100%"
+                                    width: "100%",
                                   }}
                                 >
                                   {product.name}
@@ -1080,7 +1081,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   </div>
 
                   <div className="mb-3">
-                    <label className="form-label">Completed Option Position</label>
+                    <label className="form-label">
+                      Completed Option Position
+                    </label>
                     <div>
                       <div className="form-check form-check-inline">
                         <input
@@ -1096,7 +1099,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                               setIsSaving(true);
                               setSaveError(null);
                               try {
-                                await onUpdateClient(editingClient.id, { completedOptionPosition: "top" });
+                                await onUpdateClient(editingClient.id, {
+                                  completedOptionPosition: "top",
+                                });
                               } catch {
                                 setSaveError("Failed to save changes.");
                               } finally {
@@ -1106,7 +1111,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           }}
                           disabled={isSaving}
                         />
-                        <label className="form-check-label" htmlFor="completedPositionTopEdit">
+                        <label
+                          className="form-check-label"
+                          htmlFor="completedPositionTopEdit"
+                        >
                           Mangle
                         </label>
                       </div>
@@ -1124,7 +1132,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                               setIsSaving(true);
                               setSaveError(null);
                               try {
-                                await onUpdateClient(editingClient.id, { completedOptionPosition: "bottom" });
+                                await onUpdateClient(editingClient.id, {
+                                  completedOptionPosition: "bottom",
+                                });
                               } catch {
                                 setSaveError("Failed to save changes.");
                               } finally {
@@ -1134,7 +1144,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           }}
                           disabled={isSaving}
                         />
-                        <label className="form-check-label" htmlFor="completedPositionBottomEdit">
+                        <label
+                          className="form-check-label"
+                          htmlFor="completedPositionBottomEdit"
+                        >
                           Doblado
                         </label>
                       </div>
@@ -1152,7 +1165,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                               setIsSaving(true);
                               setSaveError(null);
                               try {
-                                await onUpdateClient(editingClient.id, { completedOptionPosition: "both" });
+                                await onUpdateClient(editingClient.id, {
+                                  completedOptionPosition: "both",
+                                });
                               } catch {
                                 setSaveError("Failed to save changes.");
                               } finally {
@@ -1162,7 +1177,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           }}
                           disabled={isSaving}
                         />
-                        <label className="form-check-label" htmlFor="completedPositionBothEdit">
+                        <label
+                          className="form-check-label"
+                          htmlFor="completedPositionBothEdit"
+                        >
                           Both (Mangle and Doblado)
                         </label>
                       </div>
@@ -1180,7 +1198,9 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                               setIsSaving(true);
                               setSaveError(null);
                               try {
-                                await onUpdateClient(editingClient.id, { completedOptionPosition: "uniformes" });
+                                await onUpdateClient(editingClient.id, {
+                                  completedOptionPosition: "uniformes",
+                                });
                               } catch {
                                 setSaveError("Failed to save changes.");
                               } finally {
@@ -1190,13 +1210,17 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                           }}
                           disabled={isSaving}
                         />
-                        <label className="form-check-label" htmlFor="completedPositionUniformsEdit">
+                        <label
+                          className="form-check-label"
+                          htmlFor="completedPositionUniformsEdit"
+                        >
                           Uniformes
                         </label>
                       </div>
                     </div>
                     <div className="form-text text-muted">
-                      Choose where the completed option appears in the active invoice page for this client.
+                      Choose where the completed option appears in the active
+                      invoice page for this client.
                     </div>
                   </div>
 
