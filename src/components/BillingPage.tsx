@@ -474,6 +474,11 @@ const BillingPage: React.FC = () => {
 
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
 
+  // Clear selected invoices when client selection changes
+  useEffect(() => {
+    setSelectedInvoiceIds([]);
+  }, [selectedClientId]);
+
   // State for invoice grouping
   const [showGroupInvoicesModal, setShowGroupInvoicesModal] =
     useState<boolean>(false);
