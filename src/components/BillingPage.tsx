@@ -809,8 +809,14 @@ const BillingPage: React.FC = () => {
       }
       
       // Add charge and total columns
-      csvRow["Subtotal (Base)"] = `$${baseSubtotalOnly.toFixed(2)}`;
-      csvRow["Minimum Billing"] = `$${minValue > 0 && baseSubtotal < minValue ? minValue.toFixed(2) : "0.00"}`;
+      // When minimum billing is applied, set base subtotal to 0 and show minimum as the effective subtotal
+      if (minValue > 0 && baseSubtotal < minValue) {
+        csvRow["Subtotal (Base)"] = "$0.00";
+        csvRow["Minimum Billing"] = `$${minValue.toFixed(2)}`;
+      } else {
+        csvRow["Subtotal (Base)"] = `$${baseSubtotalOnly.toFixed(2)}`;
+        csvRow["Minimum Billing"] = "$0.00";
+      }
       if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
       if (generalDeliveryChargeValue > 0) csvRow["General Delivery"] = `$${generalDeliveryChargeValue.toFixed(2)}`;
       if (serviceCharge > 0) csvRow["Service Charge"] = `$${serviceCharge.toFixed(2)}`;

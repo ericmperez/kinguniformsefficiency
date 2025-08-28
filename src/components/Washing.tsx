@@ -15,7 +15,6 @@ import { getManualConventionalProductsForDate } from "../services/firebaseServic
 import { logActivity } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
 import FlipMove from "react-flip-move";
-import { hardwareService, CartCountdownEvent } from '../services/hardwareService';
 
 interface WashingProps {
   setSelectedInvoiceId?: (id: string | null) => void;
@@ -1778,26 +1777,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     doc(db, "pickup_groups", group.id),
                                     { tunnelCartCount: newCount }
                                   );
-                                  
-                                  // Send signal to hardware
-                                  try {
-                                    const hardwareEvent: CartCountdownEvent = {
-                                      groupId: group.id,
-                                      clientName: group.clientName || 'Unknown Client',
-                                      previousCount,
-                                      newCount,
-                                      timestamp: new Date(),
-                                    };
-                                    
-                                    const success = await hardwareService.sendCartCountdown(hardwareEvent);
-                                    if (success) {
-                                      console.log('✅ Hardware signal sent for cart countdown');
-                                    } else {
-                                      console.log('⚠️ Hardware signal failed (hardware may be disabled)');
-                                    }
-                                  } catch (error) {
-                                    console.error('❌ Error sending hardware signal:', error);
-                                  }
                                 }}
                               >
                                 -
@@ -2219,26 +2198,6 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     doc(db, "pickup_groups", group.id),
                                     { tunnelCartCount: newCount }
                                   );
-                                  
-                                  // Send signal to hardware
-                                  try {
-                                    const hardwareEvent: CartCountdownEvent = {
-                                      groupId: group.id,
-                                      clientName: group.clientName || 'Unknown Client',
-                                      previousCount,
-                                      newCount,
-                                      timestamp: new Date(),
-                                    };
-                                    
-                                    const success = await hardwareService.sendCartCountdown(hardwareEvent);
-                                    if (success) {
-                                      console.log('✅ Hardware signal sent for cart countdown');
-                                    } else {
-                                      console.log('⚠️ Hardware signal failed (hardware may be disabled)');
-                                    }
-                                  } catch (error) {
-                                    console.error('❌ Error sending hardware signal:', error);
-                                  }
                                 }}
                               >
                                 -
