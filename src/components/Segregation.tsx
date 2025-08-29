@@ -228,6 +228,10 @@ const Segregation: React.FC<SegregationProps> = ({
   >([]);
   const [showErrorsSidebar, setShowErrorsSidebar] = useState<boolean>(false);
 
+  // Confirmation modal state for Done button
+  const [showDoneConfirmation, setShowDoneConfirmation] = useState<boolean>(false);
+  const [confirmingClient, setConfirmingClient] = useState<string | null>(null);
+
   // Today's date string for Firestore doc
   const todayStr = new Date().toISOString().slice(0, 10);
   const orderDocRef = doc(db, "segregation_orders", todayStr);
@@ -980,6 +984,11 @@ const Segregation: React.FC<SegregationProps> = ({
         segregatedCarts: segregatedCount,
         status: newStatus,
         ...orderUpdate,
+        // Clear verification status when segregation is completed
+        cartCountVerified: false,
+        verifiedAt: null,
+        verifiedBy: null,
+        verifiedCartCount: null,
       });
 
       // Clean up the override for this group since it's completed
@@ -1132,6 +1141,11 @@ const Segregation: React.FC<SegregationProps> = ({
         segregatedCarts: cartCount,
         status: newStatus,
         ...orderUpdate,
+        // Clear verification status when segregation is skipped
+        cartCountVerified: false,
+        verifiedAt: null,
+        verifiedBy: null,
+        verifiedCartCount: null,
       });
 
       // Clean up the override for this group since it's completed
@@ -1270,6 +1284,20 @@ const Segregation: React.FC<SegregationProps> = ({
     });
   }, [groups]);
 
+  // Load verified clients from Firestore on mount and when groups change
+  useEffect(() => {
+    if (groups.length > 0) {
+      const verifiedGroupIds = groups
+        .filter((group) => group.cartCountVerified === true)
+        .map((group) => group.id);
+      
+      if (verifiedGroupIds.length > 0) {
+        console.log(`📋 Loading ${verifiedGroupIds.length} verified clients from Firestore`);
+        setVerifiedClients(new Set(verifiedGroupIds));
+      }
+    }
+  }, [groups]);
+
   const { user } = useAuth();
 
   // Check if user can edit the alert banner
@@ -1278,6 +1306,27 @@ const Segregation: React.FC<SegregationProps> = ({
   // Check if user is employee (not supervisor or above)
   const isEmployee =
     user && !["Supervisor", "Admin", "Owner"].includes(user.role);
+
+  // Handler for showing confirmation modal before completing segregation
+  const showDoneConfirmationModal = (groupId: string) => {
+    setConfirmingClient(groupId);
+    setShowDoneConfirmation(true);
+  };
+
+  // Handler for confirming completion after user confirms quantity
+  const confirmDone = async () => {
+    if (confirmingClient) {
+      setShowDoneConfirmation(false);
+      await handleComplete(confirmingClient);
+      setConfirmingClient(null);
+    }
+  };
+
+  // Handler for canceling the confirmation modal
+  const cancelDoneConfirmation = () => {
+    setShowDoneConfirmation(false);
+    setConfirmingClient(null);
+  };
 
   // Helper functions for cart count verification system
   const startVerification = () => {
@@ -1298,16 +1347,20 @@ const Segregation: React.FC<SegregationProps> = ({
       return displayGroups.find((g) => g.id === verifyingClient);
     }
 
-    // Find first unverified client
+    // Return the first unverified client in the ordered list
     const unverified = displayGroups.find((g) => !verifiedClients.has(g.id));
-    return unverified;
+    if (unverified) {
+      return unverified;
+    }
+
+    // If all clients are verified, return the first one (they can work on any verified client)
+    return displayGroups.length > 0 ? displayGroups[0] : null;
   };
 
   // Check if we should show the full list (all clients verified) or single client mode
   const shouldShowSingleClient = () => {
-    return (
-      verifyingClient || displayGroups.some((g) => !verifiedClients.has(g.id))
-    );
+    // Show full list for employees so they can see all clients (but with names hidden until verified)
+    return false;
   };
 
   const sendVerificationErrorEmail = async (
@@ -1357,10 +1410,10 @@ const Segregation: React.FC<SegregationProps> = ({
   const verifyCartCount = async (groupId: string) => {
     const actualCount = getCartCount(groupId);
     const expectedCount = parseInt(expectedCartCount, 10);
+    const group = displayGroups.find((g) => g.id === groupId);
 
     if (expectedCount !== actualCount) {
       // Verification failed - create error record
-      const group = displayGroups.find((g) => g.id === groupId);
       const clientName = group?.clientName || "Unknown Client";
       const errorRecord = {
         id: Date.now().toString(),
@@ -1398,6 +1451,21 @@ const Segregation: React.FC<SegregationProps> = ({
       setExpectedCartCount("");
       setShowVerificationError(false);
       setVerificationErrorUser("");
+
+      // Save verification status to Firestore for persistence across sessions
+      await updateDoc(doc(db, "pickup_groups", groupId), {
+        cartCountVerified: true,
+        verifiedAt: new Date().toISOString(),
+        verifiedBy: user?.username || user?.id || "Unknown User",
+        verifiedCartCount: actualCount,
+      });
+
+      // Initialize segregated count to 0 for the verified client
+      setSegregatedCounts((prev) => ({ ...prev, [groupId]: "0" }));
+
+      // Don't move the client - keep them in their current position but now verified (green)
+      console.log(`✅ Client ${group?.clientName} verified and ready for segregation - status saved to Firestore`);
+
       return true;
     }
   };
@@ -2266,11 +2334,20 @@ const Segregation: React.FC<SegregationProps> = ({
                       color: "#495057",
                     }}
                   >
-                    Client{" "}
-                    {Math.min(verifiedClients.size + 1, displayGroups.length)}{" "}
-                    of {displayGroups.length}
-                    {verifiedClients.size === displayGroups.length &&
-                      " - All Verified! ✅"}
+                    {(() => {
+                      const currentClient = getCurrentClient();
+                      const isCurrentVerified = currentClient && verifiedClients.has(currentClient.id);
+                      const totalClients = displayGroups.length;
+                      const verifiedCount = verifiedClients.size;
+                      
+                      if (totalClients === 0) {
+                        return "No clients in segregation";
+                      } else if (isCurrentVerified) {
+                        return `✅ Working on: ${currentClient?.clientName} (Verified)`;
+                      } else {
+                        return "🔍 Verification in progress";
+                      }
+                    })()}
                   </div>
                 </div>
 
@@ -2304,11 +2381,11 @@ const Segregation: React.FC<SegregationProps> = ({
                         <div
                           className="list-group-item d-flex flex-row align-items-center justify-content-between py-4 mb-2 shadow-sm rounded"
                           style={{
-                            background: "#fff",
-                            border: "1.5px solid #e3e3e3",
+                            background: isVerified ? "#d1f2eb" : "#fff", // Green background for verified clients
+                            border: isVerified ? "1.5px solid #27ae60" : "1.5px solid #e3e3e3", // Green border for verified
                             fontSize: 16,
                             minHeight: 80,
-                            boxShadow: "0 1px 6px rgba(14,98,160,0.06)",
+                            boxShadow: isVerified ? "0 1px 6px rgba(39,174,96,0.06)" : "0 1px 6px rgba(14,98,160,0.06)",
                           }}
                         >
                           {/* Left side: Client info */}
@@ -2320,11 +2397,11 @@ const Segregation: React.FC<SegregationProps> = ({
                               style={{
                                 fontWeight: 700,
                                 fontSize: 28,
-                                color: "#007bff",
+                                color: isVerified ? "#27ae60" : "#007bff", // Green text for verified
                                 marginBottom: 4,
                               }}
                             >
-                              {currentClient.clientName}
+                              {isVerified && "🟢 "}{currentClient.clientName}
                             </span>
                             <div
                               style={{
@@ -2423,10 +2500,9 @@ const Segregation: React.FC<SegregationProps> = ({
                               // Verified state - show segregation controls like tunnel
                               <div className="d-flex align-items-center gap-2">
                                 <span
-                                  style={{ fontSize: "1.1rem", color: "#333" }}
+                                  style={{ fontSize: "1.4rem", color: "#333", fontWeight: "bold" }}
                                 >
-                                  {segregatedCounts[currentClient.id] || 0} /{" "}
-                                  {actualCartCount}
+                                  {segregatedCounts[currentClient.id] || 0}
                                 </span>
                                 <button
                                   className="btn btn-outline-primary btn-lg"
@@ -2437,23 +2513,17 @@ const Segregation: React.FC<SegregationProps> = ({
                                     borderRadius: 12,
                                   }}
                                   disabled={
-                                    parseInt(
-                                      segregatedCounts[currentClient.id] || "0"
-                                    ) >= actualCartCount ||
                                     completingGroup === currentClient.id
                                   }
                                   onClick={() =>
                                     handleInputChange(
                                       currentClient.id,
                                       String(
-                                        Math.min(
-                                          parseInt(
-                                            segregatedCounts[
-                                              currentClient.id
-                                            ] || "0"
-                                          ) + 1,
-                                          actualCartCount
-                                        )
+                                        parseInt(
+                                          segregatedCounts[
+                                            currentClient.id
+                                          ] || "0"
+                                        ) + 1
                                       )
                                     )
                                   }
@@ -2492,29 +2562,26 @@ const Segregation: React.FC<SegregationProps> = ({
                                 >
                                   -
                                 </button>
-                                {parseInt(
-                                  segregatedCounts[currentClient.id] || "0"
-                                ) === actualCartCount && (
-                                  <button
-                                    className="btn btn-success btn-lg ms-3 px-4"
-                                    style={{
-                                      fontSize: 28,
-                                      fontWeight: 800,
-                                      minWidth: 100,
-                                      borderRadius: 12,
-                                    }}
-                                    disabled={
-                                      completingGroup === currentClient.id
-                                    }
-                                    onClick={() =>
-                                      handleComplete(currentClient.id)
-                                    }
-                                  >
-                                    {completingGroup === currentClient.id
-                                      ? "Saving..."
-                                      : "Done"}
-                                  </button>
-                                )}
+                                {/* Done button always available for verified clients */}
+                                <button
+                                  className="btn btn-success btn-lg ms-3 px-4"
+                                  style={{
+                                    fontSize: 28,
+                                    fontWeight: 800,
+                                    minWidth: 100,
+                                    borderRadius: 12,
+                                  }}
+                                  disabled={
+                                    completingGroup === currentClient.id
+                                  }
+                                  onClick={() =>
+                                    showDoneConfirmationModal(currentClient.id)
+                                  }
+                                >
+                                  {completingGroup === currentClient.id
+                                    ? "Saving..."
+                                    : "Done"}
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2523,7 +2590,7 @@ const Segregation: React.FC<SegregationProps> = ({
                     );
                   })()
                 ) : (
-                  // Full List Mode (when all clients are verified) - matching tunnel list style
+                  // Full List Mode - Show all clients with names hidden until verified
                   <div
                     className="list-group list-group-flush w-100"
                     style={{ maxWidth: 1000, margin: "0 auto" }}
@@ -2531,17 +2598,22 @@ const Segregation: React.FC<SegregationProps> = ({
                     {displayGroups.map((group, idx) => {
                       const isVerified = verifiedClients.has(group.id);
                       const actualCartCount = getCartCount(group.id);
+                      const isVerifying = verifyingClient === group.id;
+                      
+                      // Determine if this client can be verified (first unverified client)
+                      const firstUnverifiedIndex = displayGroups.findIndex(g => !verifiedClients.has(g.id));
+                      const canVerify = idx === firstUnverifiedIndex && !isVerified && !verifyingClient;
 
                       return (
                         <div
                           key={group.id}
                           className="list-group-item d-flex flex-row align-items-center justify-content-between py-4 mb-2 shadow-sm rounded"
                           style={{
-                            background: "#fff",
-                            border: "1.5px solid #e3e3e3",
-                            fontSize: 16,
-                            minHeight: 80,
-                            boxShadow: "0 1px 6px rgba(14,98,160,0.06)",
+                            background: isVerified ? "#d1f2eb" : "#fff", // Green background for verified clients
+                            border: isVerified ? "1.5px solid #27ae60" : "1.5px solid #e3e3e3", // Green border for verified
+                            fontSize: isVerified ? 18 : 16, // Bigger font for verified clients
+                            minHeight: isVerified ? 120 : 80, // Bigger height for verified clients
+                            boxShadow: isVerified ? "0 1px 6px rgba(39,174,96,0.06)" : "0 1px 6px rgba(14,98,160,0.06)",
                           }}
                         >
                           {/* Left side: Client info */}
@@ -2552,12 +2624,18 @@ const Segregation: React.FC<SegregationProps> = ({
                             <span
                               style={{
                                 fontWeight: 700,
-                                fontSize: 28,
-                                color: "#007bff",
+                                fontSize: isVerified ? 32 : 28, // Bigger font for verified clients
+                                color: isVerified ? "#27ae60" : "#6c757d", // Green for verified, gray for unverified
                                 marginBottom: 4,
                               }}
                             >
-                              ✅ {group.clientName}
+                              {isVerified ? (
+                                `🟢 ${group.clientName}` // Show actual name for verified clients
+                              ) : idx === 0 ? (
+                                group.clientName // Show actual name for the first client (even if unverified)
+                              ) : (
+                                `Client #${idx + 1}` // Show numbered client for other unverified clients
+                              )}
                             </span>
                             <div
                               style={{
@@ -2567,11 +2645,19 @@ const Segregation: React.FC<SegregationProps> = ({
                               }}
                             >
                               <span style={{ fontSize: 14, color: "#666" }}>
-                                Verified: {actualCartCount} carts | Weight:{" "}
-                                {typeof group.totalWeight === "number"
-                                  ? group.totalWeight.toLocaleString()
-                                  : "?"}{" "}
-                                lbs
+                                {isVerified ? (
+                                  `Verified: ${actualCartCount} carts | Weight: ${
+                                    typeof group.totalWeight === "number"
+                                      ? group.totalWeight.toLocaleString()
+                                      : "?"
+                                  } lbs`
+                                ) : (
+                                  `Weight: ${
+                                    typeof group.totalWeight === "number"
+                                      ? group.totalWeight.toLocaleString()
+                                      : "?"
+                                  } lbs`
+                                )}
                               </span>
                               {group.lastMovedBy && (
                                 <span
@@ -2592,86 +2678,117 @@ const Segregation: React.FC<SegregationProps> = ({
                             </div>
                           </div>
 
-                          {/* Right side: Segregation controls */}
+                          {/* Right side: Controls */}
                           <div className="d-flex align-items-center gap-2">
-                            <span style={{ fontSize: "1.1rem", color: "#333" }}>
-                              {segregatedCounts[group.id] || 0} /{" "}
-                              {actualCartCount}
-                            </span>
-                            <button
-                              className="btn btn-outline-primary btn-lg"
-                              style={{
-                                fontSize: 30,
-                                minWidth: 60,
-                                minHeight: 60,
-                                borderRadius: 12,
-                              }}
-                              disabled={
-                                parseInt(segregatedCounts[group.id] || "0") >=
-                                  actualCartCount ||
-                                completingGroup === group.id
-                              }
-                              onClick={() =>
-                                handleInputChange(
-                                  group.id,
-                                  String(
-                                    Math.min(
-                                      parseInt(
-                                        segregatedCounts[group.id] || "0"
-                                      ) + 1,
-                                      actualCartCount
-                                    )
-                                  )
-                                )
-                              }
-                            >
-                              +
-                            </button>
-                            <button
-                              className="btn btn-outline-secondary btn-lg"
-                              style={{
-                                fontSize: 30,
-                                minWidth: 60,
-                                minHeight: 60,
-                                borderRadius: 12,
-                              }}
-                              disabled={
-                                parseInt(segregatedCounts[group.id] || "0") <=
-                                  0 || completingGroup === group.id
-                              }
-                              onClick={() =>
-                                handleInputChange(
-                                  group.id,
-                                  String(
-                                    Math.max(
-                                      parseInt(
-                                        segregatedCounts[group.id] || "0"
-                                      ) - 1,
-                                      0
-                                    )
-                                  )
-                                )
-                              }
-                            >
-                              -
-                            </button>
-                            {parseInt(segregatedCounts[group.id] || "0") ===
-                              actualCartCount && (
-                              <button
-                                className="btn btn-success btn-lg ms-3 px-4"
-                                style={{
-                                  fontSize: 28,
-                                  fontWeight: 800,
-                                  minWidth: 100,
-                                  borderRadius: 12,
-                                }}
-                                disabled={completingGroup === group.id}
-                                onClick={() => handleComplete(group.id)}
-                              >
-                                {completingGroup === group.id
-                                  ? "Saving..."
-                                  : "Done"}
-                              </button>
+                            {!isVerified ? (
+                              // Verification controls for unverified clients
+                              !isVerifying ? (
+                                <button
+                                  className="btn btn-outline-danger btn-lg d-flex align-items-center justify-content-center"
+                                  style={{
+                                    fontSize: 38,
+                                    minWidth: 60,
+                                    minHeight: 60,
+                                    borderRadius: 16,
+                                    background: canVerify ? "#ff3b3b" : "#f8f9fa",
+                                    color: canVerify ? "#fff" : "#6c757d",
+                                    fontWeight: 900,
+                                    boxShadow: canVerify ? "0 2px 8px rgba(255,59,59,0.18)" : "none",
+                                    border: "none",
+                                    cursor: canVerify ? "pointer" : "not-allowed",
+                                  }}
+                                  onClick={() => canVerify && startClientVerification(group.id)}
+                                  disabled={!canVerify}
+                                  aria-label="Verify Cart Count"
+                                >
+                                  ?
+                                </button>
+                              ) : (
+                                <div className="d-flex align-items-center gap-2">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    className="form-control form-control-sm"
+                                    style={{ width: 110, maxWidth: "100%" }}
+                                    placeholder="How many carts did you count?"
+                                    value={expectedCartCount}
+                                    onChange={(e) =>
+                                      setExpectedCartCount(e.target.value)
+                                    }
+                                    autoFocus
+                                  />
+                                  <button
+                                    className="btn btn-primary btn-sm ms-2"
+                                    onClick={() =>
+                                      verifyCartCount(group.id)
+                                    }
+                                    disabled={!expectedCartCount}
+                                  >
+                                    Verify
+                                  </button>
+                                  <button
+                                    className="btn btn-secondary btn-sm ms-2"
+                                    onClick={() => {
+                                      setVerifyingClient(null);
+                                      setExpectedCartCount("");
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              )
+                            ) : (
+                              // Segregation controls for verified clients - like tunnel interface
+                              <>
+                                <span style={{ fontSize: "1.4rem", color: "#333", fontWeight: "bold" }}>
+                                  {segregatedCounts[group.id] || 0}
+                                </span>
+                                <button
+                                  className="btn btn-outline-primary btn-lg"
+                                  style={{
+                                    fontSize: 30,
+                                    minWidth: 60,
+                                    minHeight: 60,
+                                    borderRadius: 12,
+                                  }}
+                                  disabled={completingGroup === group.id}
+                                  onClick={() => handleIncrement(group.id)}
+                                >
+                                  +
+                                </button>
+                                <button
+                                  className="btn btn-outline-secondary btn-lg"
+                                  style={{
+                                    fontSize: 30,
+                                    minWidth: 60,
+                                    minHeight: 60,
+                                    borderRadius: 12,
+                                  }}
+                                  disabled={
+                                    parseInt(segregatedCounts[group.id] || "0") <= 0 || 
+                                    completingGroup === group.id
+                                  }
+                                  onClick={() => handleDecrement(group.id)}
+                                >
+                                  -
+                                </button>
+                                {/* Done button always available for verified clients */}
+                                <button
+                                  className="btn btn-success btn-lg ms-3 px-4"
+                                  style={{
+                                    fontSize: 28,
+                                    fontWeight: 800,
+                                    minWidth: 100,
+                                    borderRadius: 12,
+                                  }}
+                                  disabled={completingGroup === group.id}
+                                  onClick={() => showDoneConfirmationModal(group.id)}
+                                >
+                                  {completingGroup === group.id
+                                    ? "Saving..."
+                                    : "Done"}
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
@@ -3165,6 +3282,91 @@ const Segregation: React.FC<SegregationProps> = ({
                 <div className="modal-body">
                   {/* TODO: Implement group log details here, or remove this modal if not needed */}
                   <div className="text-muted">No log data available.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Done Confirmation Modal */}
+        {showDoneConfirmation && confirmingClient && (
+          <div
+            className="modal show d-block"
+            tabIndex={-1}
+            style={{
+              background: "rgba(0,0,0,0.5)",
+              zIndex: 1050,
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header bg-success text-white">
+                  <h5 className="modal-title">
+                    🎯 Confirm Segregation Completion
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-white"
+                    onClick={cancelDoneConfirmation}
+                    aria-label="Close"
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  {(() => {
+                    const group = displayGroups.find(g => g.id === confirmingClient);
+                    const segregatedCount = parseInt(segregatedCounts[confirmingClient] || "0", 10);
+                    const actualCartCount = getCartCount(confirmingClient);
+                    
+                    return (
+                      <div className="text-center">
+                        <div className="mb-4">
+                          <h4 className="text-success mb-3">
+                            {group?.clientName || "Client"}
+                          </h4>
+                          <div className="alert alert-info">
+                            <h5 className="mb-2">
+                              📊 Final Segregation Count
+                            </h5>
+                            <div style={{ fontSize: "2rem", fontWeight: "bold" }}>
+                              {segregatedCount} carts segregated
+                            </div>
+                            <div style={{ fontSize: "1rem", color: "#666", marginTop: "10px" }}>
+                              (Original cart count: {actualCartCount})
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="alert alert-warning">
+                          <strong>⚠️ Please confirm:</strong>
+                          <br />
+                          You have segregated <strong>{segregatedCount} carts</strong> for this client.
+                          <br />
+                          This action will complete the segregation process.
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={cancelDoneConfirmation}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-success btn-lg"
+                    onClick={confirmDone}
+                    style={{
+                      fontSize: "1.2rem",
+                      fontWeight: "bold",
+                      padding: "10px 20px"
+                    }}
+                  >
+                    ✅ Confirm & Complete
+                  </button>
                 </div>
               </div>
             </div>

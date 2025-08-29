@@ -117,17 +117,22 @@ const BillingPage: React.FC = () => {
   // Test comment for pre-commit hook validation
   // Get selected client object
   const selectedClient = clients.find((c) => c.id === selectedClientId);
+  // Cache for client configurations to avoid repeated reads
+  const [clientConfigCache, setClientConfigCache] = useState<Record<string, any>>({});
+  
   // Get products for selected client
   const [allProducts, setAllProducts] = useState<Product[]>([]);
+  
   useEffect(() => {
-    if (!selectedClient) return;
+    // Load products only once, not per client change
     (async () => {
-      // Dynamically import getProducts to avoid circular deps
-      const { getProducts } = await import("../services/firebaseService");
-      const products = await getProducts();
-      setAllProducts(products);
+      if (allProducts.length === 0) {
+        const { getProducts } = await import("../services/firebaseService");
+        const products = await getProducts();
+        setAllProducts(products);
+      }
     })();
-  }, [selectedClientId]);
+  }, []); // Remove selectedClientId dependency
 
   useEffect(() => {
     (async () => {
@@ -138,7 +143,8 @@ const BillingPage: React.FC = () => {
             inv.status === "done" || inv.status === "completed" || inv.verified
         )
       );
-      setClients(await getClients());
+      const clientsData = await getClients();
+      setClients(clientsData);
     })();
   }, []);
 
@@ -163,28 +169,11 @@ const BillingPage: React.FC = () => {
     })();
   }, [selectedClientId]);
 
-  // Load minimum billing value for selected client
+  // Load all client configuration data in a single read (combines minimum billing, charges, surcharge, delivery charges, etc.)
   useEffect(() => {
     if (!selectedClient) {
+      // Reset all client-specific configuration to default values
       setMinBilling("");
-      return;
-    }
-    (async () => {
-      const { getDoc, doc } = await import("firebase/firestore");
-      const { db } = await import("../firebase");
-      const docRef = doc(db, "client_minimum_billing", selectedClient.id);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        setMinBilling(String(snap.data().minBilling ?? ""));
-      } else {
-        setMinBilling("");
-      }
-    })();
-  }, [selectedClientId]);
-
-  // Load both charges for selected client
-  useEffect(() => {
-    if (!selectedClient) {
       setServiceChargeEnabled(false);
       setServiceChargePercent("");
       setFuelChargeEnabled(false);
@@ -192,73 +181,9 @@ const BillingPage: React.FC = () => {
       setFuelChargeLabel("Fuel Charge");
       setServiceChargeFormula("percentage");
       setFuelChargeFormula("percentage");
-      return;
-    }
-    (async () => {
-      const { getDoc, doc } = await import("firebase/firestore");
-      const { db } = await import("../firebase");
-      const docRef = doc(db, "client_minimum_billing", selectedClient.id);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        setServiceChargeEnabled(!!snap.data().serviceChargeEnabled);
-        setServiceChargePercent(
-          snap.data().serviceChargePercent !== undefined
-            ? String(snap.data().serviceChargePercent)
-            : ""
-        );
-        setFuelChargeEnabled(!!snap.data().fuelChargeEnabled);
-        setFuelChargePercent(
-          snap.data().fuelChargePercent !== undefined
-            ? String(snap.data().fuelChargePercent)
-            : ""
-        );
-        setFuelChargeLabel(snap.data().fuelChargeLabel || "Fuel Charge");
-        setServiceChargeFormula(snap.data().serviceChargeFormula || "percentage");
-        setFuelChargeFormula(snap.data().fuelChargeFormula || "percentage");
-      } else {
-        setServiceChargeEnabled(false);
-        setServiceChargePercent("");
-        setFuelChargeEnabled(false);
-        setFuelChargePercent("");
-        setFuelChargeLabel("Fuel Charge");
-        setServiceChargeFormula("percentage");
-        setFuelChargeFormula("percentage");
-      }
-    })();
-  }, [selectedClientId]);
-
-  // Load surcharge for selected client
-  useEffect(() => {
-    if (!selectedClient) {
       setSurchargeEnabled(false);
       setSurchargePercent("");
       setSurchargeFormula("percentage");
-      return;
-    }
-    (async () => {
-      const { getDoc, doc } = await import("firebase/firestore");
-      const { db } = await import("../firebase");
-      const docRef = doc(db, "client_minimum_billing", selectedClient.id);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        setSurchargeEnabled(!!snap.data().surchargeEnabled);
-        setSurchargePercent(
-          snap.data().surchargePercent !== undefined
-            ? String(snap.data().surchargePercent)
-            : ""
-        );
-        setSurchargeFormula(snap.data().surchargeFormula || "percentage");
-      } else {
-        setSurchargeEnabled(false);
-        setSurchargePercent("");
-        setSurchargeFormula("percentage");
-      }
-    })();
-  }, [selectedClientId]);
-
-  // Load delivery charge, nudos sabanas, and disposable fee for selected client
-  useEffect(() => {
-    if (!selectedClient) {
       setDeliveryCharge("");
       setGeneralDeliveryCharge("");
       setNudosSabanasPrice("");
@@ -270,50 +195,70 @@ const BillingPage: React.FC = () => {
       setRequiredPricingProducts({});
       return;
     }
+    
+    // Check cache first to avoid Firebase read
+    if (clientConfigCache[selectedClient.id]) {
+      const data = clientConfigCache[selectedClient.id];
+      setMinBilling(String(data.minBilling ?? ""));
+      setServiceChargeEnabled(!!data.serviceChargeEnabled);
+      setServiceChargePercent(data.serviceChargePercent !== undefined ? String(data.serviceChargePercent) : "");
+      setFuelChargeEnabled(!!data.fuelChargeEnabled);
+      setFuelChargePercent(data.fuelChargePercent !== undefined ? String(data.fuelChargePercent) : "");
+      setFuelChargeLabel(data.fuelChargeLabel || "Fuel Charge");
+      setServiceChargeFormula(data.serviceChargeFormula || "percentage");
+      setFuelChargeFormula(data.fuelChargeFormula || "percentage");
+      setSurchargeEnabled(!!data.surchargeEnabled);
+      setSurchargePercent(data.surchargePercent !== undefined ? String(data.surchargePercent) : "");
+      setSurchargeFormula(data.surchargeFormula || "percentage");
+      setDeliveryCharge(data.deliveryCharge !== undefined ? String(data.deliveryCharge) : "");
+      setGeneralDeliveryCharge(data.generalDeliveryCharge !== undefined ? String(data.generalDeliveryCharge) : "");
+      setNudosSabanasPrice(data.nudosSabanasPrice !== undefined ? String(data.nudosSabanasPrice) : "");
+      setDisposableFee(data.disposableFee !== undefined ? String(data.disposableFee) : "");
+      setDeliveryChargeFormula(data.deliveryChargeFormula || "perInvoice");
+      setGeneralDeliveryChargeFormula(data.generalDeliveryChargeFormula || "fixed");
+      setNudosSabanasFormula(data.nudosSabanasFormula || "perUnit");
+      setDisposableFeeFormula(data.disposableFeeFormula || "fixed");
+      setRequiredPricingProducts(data.requiredPricingProducts || {});
+      return;
+    }
+    
     (async () => {
       const { getDoc, doc } = await import("firebase/firestore");
       const { db } = await import("../firebase");
       const docRef = doc(db, "client_minimum_billing", selectedClient.id);
       const snap = await getDoc(docRef);
+      
+      let data: any = {};
       if (snap.exists()) {
-        setDeliveryCharge(
-          snap.data().deliveryCharge !== undefined
-            ? String(snap.data().deliveryCharge)
-            : ""
-        );
-        setGeneralDeliveryCharge(
-          snap.data().generalDeliveryCharge !== undefined
-            ? String(snap.data().generalDeliveryCharge)
-            : ""
-        );
-        setNudosSabanasPrice(
-          snap.data().nudosSabanasPrice !== undefined
-            ? String(snap.data().nudosSabanasPrice)
-            : ""
-        );
-        setDisposableFee(
-          snap.data().disposableFee !== undefined
-            ? String(snap.data().disposableFee)
-            : ""
-        );
-        setDeliveryChargeFormula(snap.data().deliveryChargeFormula || "perInvoice");
-        setGeneralDeliveryChargeFormula(snap.data().generalDeliveryChargeFormula || "fixed");
-        setNudosSabanasFormula(snap.data().nudosSabanasFormula || "perUnit");
-        setDisposableFeeFormula(snap.data().disposableFeeFormula || "fixed");
-        setRequiredPricingProducts(snap.data().requiredPricingProducts || {});
-      } else {
-        setDeliveryCharge("");
-        setGeneralDeliveryCharge("");
-        setNudosSabanasPrice("");
-        setDisposableFee("");
-        setDeliveryChargeFormula("perInvoice");
-        setGeneralDeliveryChargeFormula("fixed");
-        setNudosSabanasFormula("perUnit");
-        setDisposableFeeFormula("fixed");
-        setRequiredPricingProducts({});
+        data = snap.data();
       }
+      
+      // Cache the data for future use
+      setClientConfigCache(prev => ({ ...prev, [selectedClient.id]: data }));
+      
+      // Set all configuration values from single document read
+      setMinBilling(String(data.minBilling ?? ""));
+      setServiceChargeEnabled(!!data.serviceChargeEnabled);
+      setServiceChargePercent(data.serviceChargePercent !== undefined ? String(data.serviceChargePercent) : "");
+      setFuelChargeEnabled(!!data.fuelChargeEnabled);
+      setFuelChargePercent(data.fuelChargePercent !== undefined ? String(data.fuelChargePercent) : "");
+      setFuelChargeLabel(data.fuelChargeLabel || "Fuel Charge");
+      setServiceChargeFormula(data.serviceChargeFormula || "percentage");
+      setFuelChargeFormula(data.fuelChargeFormula || "percentage");
+      setSurchargeEnabled(!!data.surchargeEnabled);
+      setSurchargePercent(data.surchargePercent !== undefined ? String(data.surchargePercent) : "");
+      setSurchargeFormula(data.surchargeFormula || "percentage");
+      setDeliveryCharge(data.deliveryCharge !== undefined ? String(data.deliveryCharge) : "");
+      setGeneralDeliveryCharge(data.generalDeliveryCharge !== undefined ? String(data.generalDeliveryCharge) : "");
+      setNudosSabanasPrice(data.nudosSabanasPrice !== undefined ? String(data.nudosSabanasPrice) : "");
+      setDisposableFee(data.disposableFee !== undefined ? String(data.disposableFee) : "");
+      setDeliveryChargeFormula(data.deliveryChargeFormula || "perInvoice");
+      setGeneralDeliveryChargeFormula(data.generalDeliveryChargeFormula || "fixed");
+      setNudosSabanasFormula(data.nudosSabanasFormula || "perUnit");
+      setDisposableFeeFormula(data.disposableFeeFormula || "fixed");
+      setRequiredPricingProducts(data.requiredPricingProducts || {});
     })();
-  }, [selectedClientId]);
+  }, [selectedClientId, clientConfigCache]);
 
   // Handler for price input
   const handlePriceChange = (productId: string, value: string) => {
@@ -375,6 +320,14 @@ const BillingPage: React.FC = () => {
         }
       );
       await Promise.all(updates);
+      
+      // Clear cache for this client since data was updated
+      setClientConfigCache(prev => {
+        const newCache = { ...prev };
+        delete newCache[selectedClient.id];
+        return newCache;
+      });
+      
       setSaveStatus("Prices saved successfully.");
     } catch (e) {
       setSaveStatus("Error saving prices.");
@@ -887,6 +840,318 @@ const BillingPage: React.FC = () => {
     }
   };
 
+  // Reports CSV Export Function
+  const exportReportsCSV = () => {
+    if (selectedInvoiceIds.length === 0) {
+      alert("Please select at least one invoice to export reports");
+      return;
+    }
+
+    // Get selected invoices
+    const selectedInvoices = invoices.filter((inv) => 
+      selectedInvoiceIds.includes(inv.id)
+    );
+
+    // Define CSV row type
+    type ReportsCSVRow = {
+      [key: string]: string | number;
+    };
+
+    // Get all unique products from selected invoices with their prices for headers
+    const allUniqueProductsWithPrices = new Map<string, number>();
+    selectedInvoices.forEach((inv) => {
+      const client = clients.find((c) => c.id === inv.clientId);
+      if (client) {
+        const productColumns = allProducts.filter((p) =>
+          client.selectedProducts.includes(p.id)
+        );
+        productColumns.forEach((prod) => {
+          if (!prod.name.toLowerCase().includes("peso")) {
+            const price = productPrices[prod.id] || 0;
+            allUniqueProductsWithPrices.set(prod.name, price);
+          }
+        });
+      }
+    });
+    
+    // Prepare Reports CSV data
+    const csvData: ReportsCSVRow[] = selectedInvoices.map((inv) => {
+      const client = clients.find((c) => c.id === inv.clientId);
+      const clientName = client?.name || inv.clientName || "Unknown";
+      
+      // Get product columns for this client
+      let productColumns: { id: string; name: string }[] = [];
+      if (client) {
+        productColumns = allProducts.filter((p) =>
+          client.selectedProducts.includes(p.id)
+        );
+      }
+      
+      // Calculate product quantities
+      let productQuantities: Record<string, number> = {};
+      let subtotal = 0;
+      
+      productColumns.forEach((prod) => {
+        if (!prod.name.toLowerCase().includes("peso")) {
+          const qty = (inv.carts || []).reduce((sum, cart) => {
+            return sum + (cart.items || [])
+              .filter((item) => item.productId === prod.id)
+              .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+          }, 0);
+          
+          const price = productPrices[prod.id] || 0;
+          const amount = qty > 0 && price > 0 ? qty * price : 0;
+          
+          productQuantities[prod.name] = qty;
+          if (qty > 0) {
+            subtotal += amount;
+          }
+        }
+      });
+      
+      // Handle peso calculations
+      const pesoProduct = productColumns.find((prod) =>
+        prod.name.toLowerCase().includes("peso")
+      );
+      
+      let pesoSubtotal = 0;
+      if (pesoProduct && typeof inv.totalWeight === "number") {
+        const pesoPrice = productPrices[pesoProduct.id];
+        if (pesoPrice && pesoPrice > 0) {
+          pesoSubtotal = inv.totalWeight * pesoPrice;
+        }
+      }
+      
+      const totalSubtotal = subtotal + pesoSubtotal;
+      
+      // Build the CSV row with basic invoice info
+      const csvRow: ReportsCSVRow = {
+        "Laundry Ticket": inv.invoiceNumber || inv.id,
+        "Date": inv.date ? formatDateOnlySpanish(inv.date) : "",
+        "Delivery Date": inv.deliveryDate ? formatDateOnlySpanish(inv.deliveryDate) : "",
+      };
+      
+      // Add product quantity columns (quantities only, prices are in headers)
+      Array.from(allUniqueProductsWithPrices.keys()).sort().forEach((productName) => {
+        const price = allUniqueProductsWithPrices.get(productName) || 0;
+        const qty = productQuantities[productName] || 0;
+        csvRow[`${productName} ($${price.toFixed(2)})`] = qty;
+      });
+      
+      // Add peso amount if applicable
+      if (pesoSubtotal > 0) {
+        const pesoPrice = pesoProduct ? (productPrices[pesoProduct.id] || 0) : 0;
+        csvRow[`Peso ($${pesoPrice.toFixed(2)}/lb)`] = typeof inv.totalWeight === "number" ? inv.totalWeight : 0;
+      }
+      
+      // Add subtotal
+      csvRow["Subtotal"] = `$${totalSubtotal.toFixed(2)}`;
+      
+      // Calculate all charges similar to billing CSV
+      const baseSubtotal = totalSubtotal;
+      let minValue = minBilling ? Number(minBilling) : 0;
+      let deliveryChargeValue = 0;
+      let generalDeliveryChargeValue = 0;
+      
+      // Only apply delivery charge if special service is requested
+      if (inv.specialServiceRequested) {
+        deliveryChargeValue = calculateCharge(
+          deliveryChargeFormula,
+          Number(deliveryCharge) || 0,
+          baseSubtotal,
+          1,
+          0
+        );
+      }
+      
+      // Apply general delivery charge to all invoices
+      if (generalDeliveryCharge && Number(generalDeliveryCharge) > 0) {
+        generalDeliveryChargeValue = calculateCharge(
+          generalDeliveryChargeFormula,
+          Number(generalDeliveryCharge) || 0,
+          baseSubtotal,
+          1,
+          0
+        );
+      }
+      
+      // Display subtotal (with minimum billing applied if needed, plus special delivery charges only)
+      let displaySubtotal = baseSubtotal + deliveryChargeValue;
+      if (minValue > 0 && baseSubtotal < minValue) {
+        displaySubtotal = minValue + deliveryChargeValue;
+      }
+      
+      // Calculate the higher subtotal value for service charge calculation
+      let subtotalForServiceCharge = baseSubtotal;
+      if (minValue > 0 && baseSubtotal < minValue) {
+        subtotalForServiceCharge = minValue;
+      }
+      
+      let serviceCharge = 0;
+      let fuelCharge = 0;
+      let surchargeValue = 0;
+      let nudosSabanasCharge = 0;
+      let disposableFeeValue = 0;
+      
+      if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
+        serviceCharge = calculateCharge(
+          serviceChargeFormula,
+          Number(serviceChargePercent),
+          subtotalForServiceCharge,
+          1,
+          0
+        );
+      }
+      
+      if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
+        fuelCharge = calculateCharge(
+          fuelChargeFormula,
+          Number(fuelChargePercent),
+          subtotalForServiceCharge,
+          1,
+          0
+        );
+      }
+      
+      if (surchargeEnabled && Number(surchargePercent) > 0) {
+        surchargeValue = calculateCharge(
+          surchargeFormula,
+          Number(surchargePercent),
+          subtotalForServiceCharge,
+          1,
+          0
+        );
+      }
+      
+      // Calculate Nudos (Sabanas) charge
+      if (nudosSabanasPrice && Number(nudosSabanasPrice) > 0) {
+        const sabanasProd = productColumns.find((p) =>
+          p.name.toLowerCase().includes("sabana") && 
+          !p.name.toLowerCase().includes("nudo")
+        );
+        
+        let sabanasQty = 0;
+        if (sabanasProd) {
+          sabanasQty = (inv.carts || []).reduce((sum, cart) => {
+            return sum + (cart.items || [])
+              .filter((item) => item.productId === sabanasProd.id)
+              .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+          }, 0);
+        }
+        
+        if (sabanasQty > 0) {
+          nudosSabanasCharge = calculateCharge(
+            nudosSabanasFormula,
+            Number(nudosSabanasPrice),
+            baseSubtotal,
+            1,
+            sabanasQty
+          );
+        }
+      }
+      
+      // Calculate Disposable Fee
+      if (disposableFee && Number(disposableFee) > 0) {
+        disposableFeeValue = calculateCharge(
+          disposableFeeFormula,
+          Number(disposableFee),
+          baseSubtotal,
+          1,
+          0
+        );
+      }
+      
+      // Add charge and total columns in same order as billing CSV
+      // When minimum billing is applied, set base subtotal to 0 and show minimum as the effective subtotal
+      if (minValue > 0 && baseSubtotal < minValue) {
+        csvRow["Subtotal (Base)"] = "$0.00";
+        csvRow["Minimum Billing"] = `$${minValue.toFixed(2)}`;
+      } else {
+        csvRow["Subtotal (Base)"] = `$${baseSubtotal.toFixed(2)}`;
+        csvRow["Minimum Billing"] = "$0.00";
+      }
+      if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
+      if (generalDeliveryChargeValue > 0) csvRow["General Delivery"] = `$${generalDeliveryChargeValue.toFixed(2)}`;
+      if (serviceCharge > 0) csvRow["Service Charge"] = `$${serviceCharge.toFixed(2)}`;
+      if (surchargeValue > 0) csvRow["Surcharge"] = `$${surchargeValue.toFixed(2)}`;
+      
+      // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
+      const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+      csvRow["Total"] = `$${grandTotal.toFixed(2)}`;
+      
+      // Add remaining charge columns after total (matching billing CSV order)
+      if (fuelCharge > 0) csvRow[fuelChargeLabel] = `$${fuelCharge.toFixed(2)}`;
+      if (nudosSabanasCharge > 0) csvRow["Nudos (Sabanas)"] = `$${nudosSabanasCharge.toFixed(2)}`;
+      if (disposableFeeValue > 0) csvRow["Disposable Fee"] = `$${disposableFeeValue.toFixed(2)}`;
+      
+      return csvRow;
+    });
+
+    // Create CSV content
+    if (csvData.length === 0) return;
+    
+    const headers = Object.keys(csvData[0]);
+    const csvContent = [
+      headers.join(","),
+      ...csvData.map((row) =>
+        headers.map((header) => {
+          const value = row[header];
+          // Escape commas and quotes in CSV values
+          if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        }).join(",")
+      ),
+    ].join("\n");
+
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    
+    // Generate filename with client name and date range
+    const clientName = selectedClientId 
+      ? clients.find(c => c.id === selectedClientId)?.name || "AllClients"
+      : "AllClients";
+    
+    // Format date range for filename
+    const startDateFormatted = new Date(startDate).toLocaleDateString('en-US', { 
+      month: '2-digit', 
+      day: '2-digit', 
+      year: 'numeric' 
+    }).replace(/\//g, '-');
+    const endDateFormatted = new Date(endDate).toLocaleDateString('en-US', { 
+      month: '2-digit', 
+      day: '2-digit', 
+      year: 'numeric' 
+    }).replace(/\//g, '-');
+    
+    const dateRange = startDate === endDate 
+      ? startDateFormatted 
+      : `${startDateFormatted}_to_${endDateFormatted}`;
+    
+    const filename = `${clientName} - ${dateRange} - Reports.csv`;
+    
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Log the export activity
+    try {
+      logActivity({
+        type: "export_reports_csv",
+        message: `Exported ${selectedInvoiceIds.length} invoices to Reports CSV: ${filename}`,
+        user: "Admin", // Replace with actual user when available
+      });
+    } catch (error) {
+      console.error("Failed to log Reports CSV export activity:", error);
+    }
+  };
+
   return (
     <div className="container py-4">
       {/* Client Dropdown Filter and Date Range Filter */}
@@ -1079,514 +1344,6 @@ const BillingPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-          {/* Billing Configuration Section */}
-          <div className="card mb-4">
-            <div className="card-body">
-              <h6 className="card-title mb-4">Billing Configuration</h6>
-
-              {/* Minimum Billing Value */}
-              <div className="row align-items-center mb-3">
-                <div className="col-md-4">
-                  <label className="form-label fw-medium mb-0">
-                    Minimum Billing Value
-                  </label>
-                </div>
-                <div className="col-md-4">
-                  <div className="input-group">
-                    <span className="input-group-text">$</span>
-                    <input
-                      type="number"
-                      className="form-control"
-                      min={0}
-                      step="0.01"
-                      value={minBilling}
-                      onChange={(e) => setMinBilling(e.target.value)}
-                      placeholder="Enter minimum billing value"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Delivery Charge */}
-              <div className="row align-items-center mb-3">
-                <div className="col-md-2">
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="deliveryChargeEnabled"
-                      checked={
-                        deliveryCharge !== "" && Number(deliveryCharge) > 0
-                      }
-                      onChange={(e) => {
-                        if (!e.target.checked) {
-                          setDeliveryCharge("");
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-medium mb-0"
-                    htmlFor="deliveryChargeEnabled"
-                  >
-                    Special Service Delivery Charge
-                  </label>
-                </div>
-                <div className="col-md-3">
-                  <select
-                    className="form-select"
-                    value={deliveryChargeFormula}
-                    onChange={(e) => setDeliveryChargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
-                    disabled={!deliveryCharge || Number(deliveryCharge) <= 0}
-                  >
-                    <option value="percentage">% of Subtotal</option>
-                    <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Laundry Ticket</option>
-                  </select>
-                </div>
-                <div className="col-md-3">
-                  <div className="input-group">
-                    {deliveryChargeFormula === "percentage" && <span className="input-group-text">%</span>}
-                    {(deliveryChargeFormula === "fixed" || deliveryChargeFormula === "perInvoice") && <span className="input-group-text">$</span>}
-                    <input
-                      type="number"
-                      className="form-control"
-                      min={0}
-                      max={deliveryChargeFormula === "percentage" ? 100 : undefined}
-                      step="0.01"
-                      value={deliveryCharge}
-                      onChange={(e) => setDeliveryCharge(e.target.value)}
-                      placeholder={deliveryChargeFormula === "percentage" ? "%" : "$"}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* General Delivery Charge */}
-              <div className="row align-items-center mb-3">
-                <div className="col-md-2">
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="generalDeliveryChargeEnabled"
-                      checked={
-                        generalDeliveryCharge !== "" && Number(generalDeliveryCharge) > 0
-                      }
-                      onChange={(e) => {
-                        if (!e.target.checked) {
-                          setGeneralDeliveryCharge("");
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-medium mb-0"
-                    htmlFor="generalDeliveryChargeEnabled"
-                  >
-                    General Delivery Charge
-                  </label>
-                </div>
-                <div className="col-md-3">
-                  <select
-                    className="form-select"
-                    value={generalDeliveryChargeFormula}
-                    onChange={(e) => setGeneralDeliveryChargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
-                    disabled={!generalDeliveryCharge || Number(generalDeliveryCharge) <= 0}
-                  >
-                    <option value="percentage">% of Subtotal</option>
-                    <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Laundry Ticket</option>
-                  </select>
-                </div>
-                <div className="col-md-3">
-                  <div className="input-group">
-                    {generalDeliveryChargeFormula === "percentage" && <span className="input-group-text">%</span>}
-                    {(generalDeliveryChargeFormula === "fixed" || generalDeliveryChargeFormula === "perInvoice") && <span className="input-group-text">$</span>}
-                    <input
-                      type="number"
-                      className="form-control"
-                      min={0}
-                      max={generalDeliveryChargeFormula === "percentage" ? 100 : undefined}
-                      step="0.01"
-                      value={generalDeliveryCharge}
-                      onChange={(e) => setGeneralDeliveryCharge(e.target.value)}
-                      placeholder={generalDeliveryChargeFormula === "percentage" ? "%" : "$"}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Surcharge */}
-              <div className="row align-items-center mb-3">
-                <div className="col-md-2">
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="surcharge"
-                      checked={surchargeEnabled}
-                      onChange={() => setSurchargeEnabled((v) => !v)}
-                    />
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-medium mb-0"
-                    htmlFor="surcharge"
-                  >
-                    Surcharge
-                  </label>
-                </div>
-                <div className="col-md-3">
-                  <select
-                    className="form-select"
-                    value={surchargeFormula}
-                    onChange={(e) => setSurchargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
-                    disabled={!surchargeEnabled}
-                  >
-                    <option value="percentage">% of Subtotal</option>
-                    <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Laundry Ticket</option>
-                  </select>
-                </div>
-                <div className="col-md-3">
-                  <div className="input-group">
-                    {surchargeFormula === "percentage" && <span className="input-group-text">%</span>}
-                    {(surchargeFormula === "fixed" || surchargeFormula === "perInvoice") && <span className="input-group-text">$</span>}
-                    <input
-                      type="number"
-                      className="form-control"
-                      min={0}
-                      max={surchargeFormula === "percentage" ? 100 : undefined}
-                      step="0.01"
-                      value={surchargePercent}
-                      onChange={(e) => setSurchargePercent(e.target.value)}
-                      placeholder={surchargeFormula === "percentage" ? "%" : "$"}
-                      disabled={!surchargeEnabled}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Service Charge */}
-              <div className="row align-items-center mb-3">
-                <div className="col-md-2">
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="serviceCharge"
-                      checked={serviceChargeEnabled}
-                      onChange={() => setServiceChargeEnabled((v) => !v)}
-                    />
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-medium mb-0"
-                    htmlFor="serviceCharge"
-                  >
-                    Service Charge
-                  </label>
-                </div>
-                <div className="col-md-3">
-                  <select
-                    className="form-select"
-                    value={serviceChargeFormula}
-                    onChange={(e) => setServiceChargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
-                    disabled={!serviceChargeEnabled}
-                  >
-                    <option value="percentage">% of Subtotal</option>
-                    <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Laundry Ticket</option>
-                  </select>
-                </div>
-                <div className="col-md-3">
-                  <div className="input-group">
-                    {serviceChargeFormula === "percentage" && <span className="input-group-text">%</span>}
-                    {(serviceChargeFormula === "fixed" || serviceChargeFormula === "perInvoice") && <span className="input-group-text">$</span>}
-                    <input
-                      type="number"
-                      className="form-control"
-                      min={0}
-                      max={serviceChargeFormula === "percentage" ? 100 : undefined}
-                      step="0.01"
-                      value={serviceChargePercent}
-                      onChange={(e) => setServiceChargePercent(e.target.value)}
-                      placeholder={serviceChargeFormula === "percentage" ? "%" : "$"}
-                      disabled={!serviceChargeEnabled}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Fuel Charge */}
-              <div className="row align-items-center mb-3">
-                <div className="col-md-2">
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="fuelCharge"
-                      checked={fuelChargeEnabled}
-                      onChange={() => setFuelChargeEnabled((v) => !v)}
-                    />
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-medium mb-0"
-                    htmlFor="fuelCharge"
-                  >
-                    {fuelChargeLabel}
-                  </label>
-                </div>
-                <div className="col-md-3">
-                  <select
-                    className="form-select"
-                    value={fuelChargeFormula}
-                    onChange={(e) => setFuelChargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
-                    disabled={!fuelChargeEnabled}
-                  >
-                    <option value="percentage">% of Subtotal</option>
-                    <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Laundry Ticket</option>
-                  </select>
-                </div>
-                <div className="col-md-3">
-                  <div className="input-group">
-                    {fuelChargeFormula === "percentage" && <span className="input-group-text">%</span>}
-                    {(fuelChargeFormula === "fixed" || fuelChargeFormula === "perInvoice") && <span className="input-group-text">$</span>}
-                    <input
-                      type="number"
-                      className="form-control"
-                      min={0}
-                      max={fuelChargeFormula === "percentage" ? 100 : undefined}
-                      step="0.01"
-                      value={fuelChargePercent}
-                      onChange={(e) => setFuelChargePercent(e.target.value)}
-                      placeholder={fuelChargeFormula === "percentage" ? "%" : "$"}
-                      disabled={!fuelChargeEnabled}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Fuel Charge Label Selection */}
-              {fuelChargeEnabled && (
-                <div className="row align-items-center mb-3">
-                  <div className="col-md-2"></div>
-                  <div className="col-md-3">
-                    <label className="form-label fw-medium mb-0">
-                      Label Wording
-                    </label>
-                  </div>
-                  <div className="col-md-6">
-                    <select
-                      className="form-select"
-                      value={fuelChargeLabel}
-                      onChange={(e) => setFuelChargeLabel(e.target.value as "Fuel Charge" | "Fuel Fee")}
-                    >
-                      <option value="Fuel Charge">Fuel Charge</option>
-                      <option value="Fuel Fee">Fuel Fee</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* Nudos (Sabanas) Price */}
-              <div className="row align-items-center mb-3">
-                <div className="col-md-2">
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="nudosSabanasEnabled"
-                      checked={
-                        nudosSabanasPrice !== "" &&
-                        Number(nudosSabanasPrice) > 0
-                      }
-                      onChange={(e) => {
-                        if (!e.target.checked) {
-                          setNudosSabanasPrice("");
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-medium mb-0"
-                    htmlFor="nudosSabanasEnabled"
-                  >
-                    Nudos (Sabanas)
-                  </label>
-                </div>
-                <div className="col-md-3">
-                  <select
-                    className="form-select"
-                    value={nudosSabanasFormula}
-                    onChange={(e) => setNudosSabanasFormula(e.target.value as "percentage" | "fixed" | "perInvoice" | "perUnit")}
-                    disabled={!nudosSabanasPrice || Number(nudosSabanasPrice) <= 0}
-                  >
-                    <option value="percentage">% of Subtotal</option>
-                    <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Laundry Ticket</option>
-                    <option value="perUnit">Per Unit</option>
-                  </select>
-                </div>
-                <div className="col-md-3">
-                  <div className="input-group">
-                    {nudosSabanasFormula === "percentage" && <span className="input-group-text">%</span>}
-                    {(nudosSabanasFormula === "fixed" || nudosSabanasFormula === "perInvoice" || nudosSabanasFormula === "perUnit") && <span className="input-group-text">$</span>}
-                    <input
-                      type="number"
-                      className="form-control"
-                      min={0}
-                      max={nudosSabanasFormula === "percentage" ? 100 : undefined}
-                      step="0.01"
-                      value={nudosSabanasPrice}
-                      onChange={(e) => setNudosSabanasPrice(e.target.value)}
-                      placeholder={nudosSabanasFormula === "percentage" ? "%" : nudosSabanasFormula === "perUnit" ? "per unit" : "$"}
-                      id="nudosSabanasPrice"
-                    />
-                    {nudosSabanasFormula === "perUnit" && <span className="input-group-text">$/u</span>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Disposable Fee */}
-              <div className="row align-items-center mb-3">
-                <div className="col-md-2">
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="disposableFeeEnabled"
-                      checked={
-                        disposableFee !== "" && Number(disposableFee) > 0
-                      }
-                      onChange={(e) => {
-                        if (!e.target.checked) {
-                          setDisposableFee("");
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-medium mb-0"
-                    htmlFor="disposableFeeEnabled"
-                  >
-                    Disposable Fee
-                  </label>
-                </div>
-                <div className="col-md-3">
-                  <select
-                    className="form-select"
-                    value={disposableFeeFormula}
-                    onChange={(e) => setDisposableFeeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
-                    disabled={!disposableFee || Number(disposableFee) <= 0}
-                  >
-                    <option value="percentage">% of Subtotal</option>
-                    <option value="fixed">Fixed Amount</option>
-                    <option value="perInvoice">Per Laundry Ticket</option>
-                  </select>
-                </div>
-                <div className="col-md-3">
-                  <div className="input-group">
-                    {disposableFeeFormula === "percentage" && <span className="input-group-text">%</span>}
-                    {(disposableFeeFormula === "fixed" || disposableFeeFormula === "perInvoice") && <span className="input-group-text">$</span>}
-                    <input
-                      type="number"
-                      className="form-control"
-                      min={0}
-                      max={disposableFeeFormula === "percentage" ? 100 : undefined}
-                      step="0.01"
-                      value={disposableFee}
-                      onChange={(e) => setDisposableFee(e.target.value)}
-                      placeholder={disposableFeeFormula === "percentage" ? "%" : "$"}
-                      id="disposableFee"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Required Pricing Configuration */}
-              <div className="row mb-3">
-                <div className="col-12">
-                  <hr className="my-3" />
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <h6 className="mb-0">Required Pricing Configuration</h6>
-                    <div className="btn-group btn-group-sm">
-                      <button
-                        type="button"
-                        className="btn btn-outline-primary"
-                        onClick={() => {
-                          if (!selectedClient) return;
-                          const allRequired: Record<string, boolean> = {};
-                          selectedClient.selectedProducts.forEach(productId => {
-                            allRequired[productId] = true;
-                          });
-                          setRequiredPricingProducts(allRequired);
-                        }}
-                      >
-                        Select All
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary"
-                        onClick={() => setRequiredPricingProducts({})}
-                      >
-                        Clear All
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-muted small mb-3">
-                    Select which products require pricing to trigger red row highlighting for missing prices. 
-                    Only products with quantities greater than 0 will be checked.
-                  </p>
-                  <div className="row">
-                    {selectedClient && allProducts
-                      .filter((p) => selectedClient.selectedProducts.includes(p.id))
-                      .map((product) => (
-                        <div key={product.id} className="col-md-4 col-sm-6 mb-2">
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id={`required-${product.id}`}
-                              checked={requiredPricingProducts[product.id] || false}
-                              onChange={(e) => {
-                                setRequiredPricingProducts(prev => ({
-                                  ...prev,
-                                  [product.id]: e.target.checked
-                                }));
-                              }}
-                            />
-                            <label
-                              className="form-check-label"
-                              htmlFor={`required-${product.id}`}
-                            >
-                              {product.name}
-                            </label>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                  {selectedClient && allProducts.filter((p) => selectedClient.selectedProducts.includes(p.id)).length === 0 && (
-                    <div className="text-muted">No products configured for this client.</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
           <button className="btn btn-success mt-2" onClick={handleSavePrices}>
             Save Prices
           </button>
@@ -1621,6 +1378,13 @@ const BillingPage: React.FC = () => {
           >
             <i className="bi bi-download me-1"></i> Export{" "}
             {selectedInvoiceIds.length} Selected to CSV
+          </button>
+          <button
+            className="btn btn-info"
+            onClick={exportReportsCSV}
+          >
+            <i className="bi bi-file-earmark-spreadsheet me-1"></i> Export{" "}
+            {selectedInvoiceIds.length} Reports CSV
           </button>
         </div>
       )}
@@ -3457,3 +3221,5 @@ const BillingPage: React.FC = () => {
 };
 
 export default BillingPage;
+
+
