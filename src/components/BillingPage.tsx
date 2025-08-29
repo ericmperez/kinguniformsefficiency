@@ -111,6 +111,9 @@ const BillingPage: React.FC = () => {
   // State for toggling product pricing table visibility
   const [showPricingTable, setShowPricingTable] = useState<boolean>(false);
 
+  // State for toggling charges configuration table visibility
+  const [showChargesTable, setShowChargesTable] = useState<boolean>(false);
+
   // State for required pricing configuration
   const [requiredPricingProducts, setRequiredPricingProducts] = useState<Record<string, boolean>>({});
 
@@ -1362,6 +1365,369 @@ const BillingPage: React.FC = () => {
           )}
         </div>
       )}
+      
+      {/* Charges Configuration Table for Selected Client */}
+      {selectedClient && (
+        <div className="mb-4">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5 className="mb-0">Configure Charges for {selectedClient.name}</h5>
+            <button
+              className={`btn btn-sm ${showChargesTable ? 'btn-outline-secondary' : 'btn-outline-primary'}`}
+              onClick={() => setShowChargesTable(!showChargesTable)}
+            >
+              {showChargesTable ? (
+                <>
+                  <i className="bi bi-eye-slash me-1"></i>
+                  Hide Charges
+                </>
+              ) : (
+                <>
+                  <i className="bi bi-eye me-1"></i>
+                  Show Charges
+                </>
+              )}
+            </button>
+          </div>
+          
+          {showChargesTable && (
+            <>
+              <div className="table-responsive" style={{ maxWidth: 800 }}>
+                <table className="table table-bordered align-middle">
+                  <thead>
+                    <tr>
+                      <th>Charge Type</th>
+                      <th style={{ width: 100 }}>Enabled</th>
+                      <th style={{ width: 120 }}>Value</th>
+                      <th style={{ width: 140 }}>Formula</th>
+                      <th>Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Minimum Billing */}
+                    <tr>
+                      <td style={nowrapCellStyle}>
+                        <strong>Minimum Billing</strong>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <span className={`badge ${minBilling && Number(minBilling) > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                          {minBilling && Number(minBilling) > 0 ? 'ON' : 'OFF'}
+                        </span>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min={0}
+                          step="0.01"
+                          value={minBilling}
+                          onChange={(e) => setMinBilling(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <span className="badge bg-info">Fixed</span>
+                      </td>
+                      <td>
+                        <small className="text-muted">Minimum charge per invoice regardless of actual total</small>
+                      </td>
+                    </tr>
+                    
+                    {/* Service Charge */}
+                    <tr>
+                      <td style={nowrapCellStyle}>
+                        <strong>Service Charge</strong>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <div className="form-check form-switch">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            checked={serviceChargeEnabled}
+                            onChange={(e) => setServiceChargeEnabled(e.target.checked)}
+                          />
+                        </div>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min={0}
+                          step="0.01"
+                          value={serviceChargePercent}
+                          onChange={(e) => setServiceChargePercent(e.target.value)}
+                          placeholder="0.00"
+                          disabled={!serviceChargeEnabled}
+                        />
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <select
+                          className="form-select form-select-sm"
+                          value={serviceChargeFormula}
+                          onChange={(e) => setServiceChargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
+                          disabled={!serviceChargeEnabled}
+                        >
+                          <option value="percentage">Percentage</option>
+                          <option value="fixed">Fixed</option>
+                          <option value="perInvoice">Per Invoice</option>
+                        </select>
+                      </td>
+                      <td>
+                        <small className="text-muted">Additional service charge applied to subtotal</small>
+                      </td>
+                    </tr>
+                    
+                    {/* Fuel Charge */}
+                    <tr>
+                      <td style={nowrapCellStyle}>
+                        <strong>{fuelChargeLabel}</strong>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <div className="form-check form-switch">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            checked={fuelChargeEnabled}
+                            onChange={(e) => setFuelChargeEnabled(e.target.checked)}
+                          />
+                        </div>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min={0}
+                          step="0.01"
+                          value={fuelChargePercent}
+                          onChange={(e) => setFuelChargePercent(e.target.value)}
+                          placeholder="0.00"
+                          disabled={!fuelChargeEnabled}
+                        />
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <select
+                          className="form-select form-select-sm"
+                          value={fuelChargeFormula}
+                          onChange={(e) => setFuelChargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
+                          disabled={!fuelChargeEnabled}
+                        >
+                          <option value="percentage">Percentage</option>
+                          <option value="fixed">Fixed</option>
+                          <option value="perInvoice">Per Invoice</option>
+                        </select>
+                      </td>
+                      <td>
+                        <small className="text-muted">Fuel surcharge applied to subtotal</small>
+                      </td>
+                    </tr>
+                    
+                    {/* Surcharge */}
+                    <tr>
+                      <td style={nowrapCellStyle}>
+                        <strong>Surcharge</strong>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <div className="form-check form-switch">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            checked={surchargeEnabled}
+                            onChange={(e) => setSurchargeEnabled(e.target.checked)}
+                          />
+                        </div>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min={0}
+                          step="0.01"
+                          value={surchargePercent}
+                          onChange={(e) => setSurchargePercent(e.target.value)}
+                          placeholder="0.00"
+                          disabled={!surchargeEnabled}
+                        />
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <select
+                          className="form-select form-select-sm"
+                          value={surchargeFormula}
+                          onChange={(e) => setSurchargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
+                          disabled={!surchargeEnabled}
+                        >
+                          <option value="percentage">Percentage</option>
+                          <option value="fixed">Fixed</option>
+                          <option value="perInvoice">Per Invoice</option>
+                        </select>
+                      </td>
+                      <td>
+                        <small className="text-muted">Additional surcharge applied to subtotal</small>
+                      </td>
+                    </tr>
+                    
+                    {/* General Delivery Charge */}
+                    <tr>
+                      <td style={nowrapCellStyle}>
+                        <strong>General Delivery</strong>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <span className={`badge ${generalDeliveryCharge && Number(generalDeliveryCharge) > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                          {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 ? 'ON' : 'OFF'}
+                        </span>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min={0}
+                          step="0.01"
+                          value={generalDeliveryCharge}
+                          onChange={(e) => setGeneralDeliveryCharge(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <select
+                          className="form-select form-select-sm"
+                          value={generalDeliveryChargeFormula}
+                          onChange={(e) => setGeneralDeliveryChargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
+                        >
+                          <option value="percentage">Percentage</option>
+                          <option value="fixed">Fixed</option>
+                          <option value="perInvoice">Per Invoice</option>
+                        </select>
+                      </td>
+                      <td>
+                        <small className="text-muted">Delivery charge applied to all invoices</small>
+                      </td>
+                    </tr>
+                    
+                    {/* Special Delivery Charge */}
+                    <tr>
+                      <td style={nowrapCellStyle}>
+                        <strong>Special Delivery</strong>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <span className={`badge ${deliveryCharge && Number(deliveryCharge) > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                          {deliveryCharge && Number(deliveryCharge) > 0 ? 'ON' : 'OFF'}
+                        </span>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min={0}
+                          step="0.01"
+                          value={deliveryCharge}
+                          onChange={(e) => setDeliveryCharge(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <select
+                          className="form-select form-select-sm"
+                          value={deliveryChargeFormula}
+                          onChange={(e) => setDeliveryChargeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
+                        >
+                          <option value="percentage">Percentage</option>
+                          <option value="fixed">Fixed</option>
+                          <option value="perInvoice">Per Invoice</option>
+                        </select>
+                      </td>
+                      <td>
+                        <small className="text-muted">Extra charge for special delivery requests</small>
+                      </td>
+                    </tr>
+                    
+                    {/* Nudos (Sabanas) Charge */}
+                    <tr>
+                      <td style={nowrapCellStyle}>
+                        <strong>Nudos (Sabanas)</strong>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <span className={`badge ${nudosSabanasPrice && Number(nudosSabanasPrice) > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                          {nudosSabanasPrice && Number(nudosSabanasPrice) > 0 ? 'ON' : 'OFF'}
+                        </span>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min={0}
+                          step="0.01"
+                          value={nudosSabanasPrice}
+                          onChange={(e) => setNudosSabanasPrice(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <select
+                          className="form-select form-select-sm"
+                          value={nudosSabanasFormula}
+                          onChange={(e) => setNudosSabanasFormula(e.target.value as "percentage" | "fixed" | "perInvoice" | "perUnit")}
+                        >
+                          <option value="percentage">Percentage</option>
+                          <option value="fixed">Fixed</option>
+                          <option value="perInvoice">Per Invoice</option>
+                          <option value="perUnit">Per Unit</option>
+                        </select>
+                      </td>
+                      <td>
+                        <small className="text-muted">Special charge for knotting bed sheets</small>
+                      </td>
+                    </tr>
+                    
+                    {/* Disposable Fee */}
+                    <tr>
+                      <td style={nowrapCellStyle}>
+                        <strong>Disposable Fee</strong>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <span className={`badge ${disposableFee && Number(disposableFee) > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                          {disposableFee && Number(disposableFee) > 0 ? 'ON' : 'OFF'}
+                        </span>
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min={0}
+                          step="0.01"
+                          value={disposableFee}
+                          onChange={(e) => setDisposableFee(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td style={nowrapCellStyle}>
+                        <select
+                          className="form-select form-select-sm"
+                          value={disposableFeeFormula}
+                          onChange={(e) => setDisposableFeeFormula(e.target.value as "percentage" | "fixed" | "perInvoice")}
+                        >
+                          <option value="percentage">Percentage</option>
+                          <option value="fixed">Fixed</option>
+                          <option value="perInvoice">Per Invoice</option>
+                        </select>
+                      </td>
+                      <td>
+                        <small className="text-muted">Fee for disposable items</small>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <button className="btn btn-success mt-2" onClick={handleSavePrices}>
+                Save Charges Configuration
+              </button>
+              <div className="mt-2">
+                <small className="text-muted">
+                  <strong>Formula Types:</strong> Percentage (% of subtotal), Fixed (flat amount), Per Invoice (amount per invoice), Per Unit (amount per item)
+                </small>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      
       {/* Buttons for selected invoices */}
       {selectedInvoiceIds.length > 0 && (
         <div className="mb-3 d-flex gap-2">
