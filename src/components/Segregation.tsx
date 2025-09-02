@@ -1427,6 +1427,20 @@ const Segregation: React.FC<SegregationProps> = ({
       // Add to verification errors list
       setVerificationErrors((prev) => [errorRecord, ...prev]);
 
+      // Persist failure to Firestore for supervisor visibility
+      try {
+        await addDoc(collection(db, "verificationFailures"), {
+          username: errorRecord.username,
+          clientName: errorRecord.clientName,
+          expectedCount: errorRecord.expectedCount,
+          actualCount: errorRecord.actualCount,
+          groupId,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.error("❌ Failed to log verification failure to Firestore:", e);
+      }
+
       // Show full screen red alert and errors sidebar
       setShowVerificationError(true);
       setVerificationErrorUser(user?.username || "Unknown User");
@@ -1679,6 +1693,7 @@ const Segregation: React.FC<SegregationProps> = ({
                         fontWeight: 700,
                         color: "#721c24",
                         marginBottom: "8px",
+                        fontSize: "16px",
                       }}
                     >
                       👤 {error.username}
@@ -1744,11 +1759,7 @@ const Segregation: React.FC<SegregationProps> = ({
       )}
 
       <div
-        className="container py-4"
-        style={{
-          marginLeft: showErrorsSidebar ? "350px" : "0",
-          transition: "margin-left 0.3s ease",
-        }}
+        className={`container py-4 segregation-page ${showErrorsSidebar ? "with-sidebar" : ""}`}
       >
         {/* Alert Banner */}
         {loadingAlert ? (
@@ -2218,7 +2229,7 @@ const Segregation: React.FC<SegregationProps> = ({
           </div>
         ) : (
           <div
-            className="card shadow p-3 mb-4 mx-auto"
+            className="card shadow p-3 mb-4 mx-auto full-viewport-card"
             style={{
               maxWidth: 720,
               minWidth: 320,
@@ -2411,11 +2422,7 @@ const Segregation: React.FC<SegregationProps> = ({
                               }}
                             >
                               <span style={{ fontSize: 14, color: "#666" }}>
-                                Weight:{" "}
-                                {typeof currentClient.totalWeight === "number"
-                                  ? currentClient.totalWeight.toLocaleString()
-                                  : "?"}{" "}
-                                lbs
+                                Weight: <span className="segregation-weight-badge">{typeof currentClient.totalWeight === "number" ? currentClient.totalWeight.toLocaleString() : "?"} lbs</span>
                               </span>
                               {currentClient.lastMovedBy && (
                                 <span
@@ -2500,6 +2507,7 @@ const Segregation: React.FC<SegregationProps> = ({
                               // Verified state - show segregation controls like tunnel
                               <div className="d-flex align-items-center gap-2">
                                 <span
+                                  className="cart-value"
                                   style={{ fontSize: "1.4rem", color: "#333", fontWeight: "bold" }}
                                 >
                                   {segregatedCounts[currentClient.id] || 0}
@@ -2646,17 +2654,13 @@ const Segregation: React.FC<SegregationProps> = ({
                             >
                               <span style={{ fontSize: 14, color: "#666" }}>
                                 {isVerified ? (
-                                  `Verified: ${actualCartCount} carts | Weight: ${
-                                    typeof group.totalWeight === "number"
-                                      ? group.totalWeight.toLocaleString()
-                                      : "?"
-                                  } lbs`
+                                  <>
+                                    Verified: {actualCartCount} carts | Weight: <span className="segregation-weight-badge">{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString() : "?"} lbs</span>
+                                  </>
                                 ) : (
-                                  `Weight: ${
-                                    typeof group.totalWeight === "number"
-                                      ? group.totalWeight.toLocaleString()
-                                      : "?"
-                                  } lbs`
+                                  <>
+                                    Weight: <span className="segregation-weight-badge">{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString() : "?"} lbs</span>
+                                  </>
                                 )}
                               </span>
                               {group.lastMovedBy && (
@@ -2665,9 +2669,7 @@ const Segregation: React.FC<SegregationProps> = ({
                                   title={`Moved by ${group.lastMovedBy}${
                                     group.lastMovedAt
                                       ? " at " +
-                                        new Date(
-                                          group.lastMovedAt
-                                        ).toLocaleString()
+                                        new Date(group.lastMovedAt).toLocaleString()
                                       : ""
                                   }`}
                                 >
@@ -2740,7 +2742,10 @@ const Segregation: React.FC<SegregationProps> = ({
                             ) : (
                               // Segregation controls for verified clients - like tunnel interface
                               <>
-                                <span style={{ fontSize: "1.4rem", color: "#333", fontWeight: "bold" }}>
+                                <span
+                                  className="cart-value"
+                                  style={{ fontSize: "1.4rem", color: "#333", fontWeight: "bold" }}
+                                >
                                   {segregatedCounts[group.id] || 0}
                                 </span>
                                 <button

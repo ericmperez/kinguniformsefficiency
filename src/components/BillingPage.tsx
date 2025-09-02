@@ -1936,13 +1936,17 @@ const BillingPage: React.FC = () => {
                     <tbody>
                       {clientInvoices
                         .sort((a, b) => {
-                          if (a.invoiceNumber && b.invoiceNumber)
-                            return a.invoiceNumber - b.invoiceNumber;
-                          if (a.date && b.date)
-                            return (
-                              new Date(a.date).getTime() -
-                              new Date(b.date).getTime()
-                            );
+                          // Primary: invoice date (oldest first)
+                          const aTime = a.date ? new Date(a.date).getTime() : Number.MAX_SAFE_INTEGER;
+                          const bTime = b.date ? new Date(b.date).getTime() : Number.MAX_SAFE_INTEGER;
+                          if (aTime !== bTime) return aTime - bTime;
+                          
+                          // Tie-breaker 1: invoiceNumber (ascending) when present
+                          if (typeof a.invoiceNumber === 'number' && typeof b.invoiceNumber === 'number') {
+                            if (a.invoiceNumber !== b.invoiceNumber) return a.invoiceNumber - b.invoiceNumber;
+                          }
+                          
+                          // Final fallback: compare IDs
                           return a.id.localeCompare(b.id);
                         })
                         .map((inv) => {

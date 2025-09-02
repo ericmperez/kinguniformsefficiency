@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { getAllPickupGroups } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
 import { Client, Invoice } from "../types";
+import { onSnapshot, collection, query, orderBy, limit } from "firebase/firestore";
+import { db } from "../firebase";
 
 const STATUS_STEPS = [
   { key: "Segregation", label: "Segregando" },
@@ -25,7 +27,24 @@ const Supervisor: React.FC<{ clients: Client[]; invoices: Invoice[] }> = ({
 }) => {
   const [pickupGroups, setPickupGroups] = useState<any[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(true);
+  const [verificationFailures, setVerificationFailures] = useState<any[]>([]);
   const { user } = useAuth();
+
+  // Real-time listener for recent verification failures so supervisors can inspect errors
+  useEffect(() => {
+    // Only subscribe if component is mounted and user is present
+    const q = query(
+      collection(db, "verificationFailures"),
+      orderBy("timestamp", "desc"),
+      limit(200)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      setVerificationFailures(items);
+    });
+
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -69,6 +88,40 @@ const Supervisor: React.FC<{ clients: Client[]; invoices: Invoice[] }> = ({
   return (
     <div className="container py-4">
       <h2 className="mb-4 text-center">Today's Client Groups Overview</h2>
+      {/* Recent verification failures for supervisors */}
+      {verificationFailures.length > 0 && (
+        <div className="card mb-4">
+          <div className="card-header bg-danger text-white">
+            Verification Failures (most recent)
+          </div>
+          <div className="card-body p-2">
+            <div className="table-responsive">
+              <table className="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Client</th>
+                    <th>Expected</th>
+                    <th>Actual</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {verificationFailures.map((f) => (
+                    <tr key={f.id}>
+                      <td style={{ fontWeight: 700 }}>{f.username}</td>
+                      <td>{f.clientName}</td>
+                      <td>{f.expectedCount}</td>
+                      <td>{f.actualCount}</td>
+                      <td>{formatDate(f.timestamp)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
       {groupsLoading ? (
         <div>Loading groups...</div>
       ) : visiblePickupGroups.length === 0 ? (

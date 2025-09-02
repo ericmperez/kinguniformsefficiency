@@ -142,6 +142,50 @@
   }
 }
 
+/* Center the main segregation page content */
+.segregation-page {
+  /* Use ~80% of the available viewport width but cap to the previous max for very large screens */
+  width: 80vw;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 16px;
+  padding-right: 16px;
+  transition: margin-left 0.3s ease, transform 0.3s ease;
+  box-sizing: border-box;
+}
+
+/* When the errors sidebar is visible, center the 80vw container within the remaining area to the right of the sidebar */
+.segregation-page.with-sidebar {
+  /* Sidebar is 350px wide; compute the left margin so the page appears centered in the remaining space */
+  margin-left: calc(350px + (100vw - 350px - 80vw) / 2);
+}
+
+/* On smaller screens, use full width with padding preserved */
+@media (max-width: 768px) {
+  .segregation-page {
+    width: calc(100% - 32px);
+    max-width: none;
+  }
+}
+
+/* Ensure list groups and key panels stay centered within the page */
+.list-group.list-group-flush.w-100 {
+  margin-left: auto !important;
+  margin-right: auto !important;
+  width: 100%;
+  max-width: 1000px;
+}
+
+/* Make sure summary and other top panels align to centered container */
+@media (min-width: 576px) {
+  .segregation-page .mb-4.p-4 {
+    max-width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 /* Verification interface styles */
 .verification-start-button {
   transition: all 0.3s ease;
@@ -353,5 +397,37 @@
   .user-move-badge {
     font-size: 9px;
     padding: 1px 3px;
+  }
+}
+
+/* Utility: make a card span the full viewport width while centered visually */
+.full-viewport-card {
+  position: relative;
+  /* Span the entire viewport reliably */
+  width: 100vw;
+  max-width: none !important;
+  /* Pull the element out of the centered container so it aligns with viewport edges */
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  box-sizing: border-box;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* When sidebar is visible, account for the sidebar offset so the card still starts at the left viewport edge */
+.segregation-page.with-sidebar .full-viewport-card {
+  /* Add the sidebar width to the left offset calculation */
+  margin-left: calc(350px + 50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+/* On small screens the page becomes nearly full width; revert to container sizing */
+@media (max-width: 768px) {
+  .full-viewport-card {
+    margin-left: 0;
+    margin-right: 0;
+    width: calc(100% - 32px);
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
   }
 }
