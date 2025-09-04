@@ -8,6 +8,8 @@ import {
   where,
   onSnapshot,
   Timestamp,
+  orderBy,
+  limit,
 } from "firebase/firestore";
 import type { Client, Product } from "../types";
 import { addManualConventionalProduct } from "../services/firebaseService";
@@ -78,7 +80,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   // Special item confirmation state
   const [showSpecialItemModal, setShowSpecialItemModal] = useState(false);
   const [selectedSpecialItem, setSelectedSpecialItem] = useState<any>(null);
-  const [specialItemCategory, setSpecialItemCategory] = useState<'blanket' | 'colcha' | 'uniform' | 'other'>('other');
+  const [specialItemCategory, setSpecialItemCategory] = useState<
+    "blanket" | "colcha" | "uniform" | "other"
+  >("other");
   const [skipReason, setSkipReason] = useState("");
   const [pendingSpecialItems, setPendingSpecialItems] = useState<any[]>([]);
   const [skippedSpecialItems, setSkippedSpecialItems] = useState<any[]>([]);
@@ -126,7 +130,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   }>({});
 
   const { user } = useAuth();
-  
+
   // Helper to get current user (from localStorage or context)
   const getCurrentUser = () => {
     try {
@@ -134,7 +138,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       if (user && user.username) {
         return user.username;
       }
-      
+
       // Fallback to localStorage with correct key
       const authUserStr = localStorage.getItem("auth_user");
       if (authUserStr) {
@@ -148,9 +152,124 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     }
     return "Unknown";
   };
-  
+
   const canReorder =
     user && ["Supervisor", "Admin", "Owner"].includes(user.role);
+
+  // Lint Collector pseudo-client constants & state
+  const LINT_COLLECTOR_ID = "lint-collector-task";
+  interface LintCollectorLog {
+    id?: string;
+    username: string;
+    date: string;
+    timestamp: any;
+  }
+  const [lintCollectorHistory, setLintCollectorHistory] = useState<LintCollectorLog[]>([]);
+  const [showLintCollectorModal, setShowLintCollectorModal] = useState(false);
+  const [lintCollectorSaving, setLintCollectorSaving] = useState(false);
+  const [lintCollectorOrder, setLintCollectorOrder] = useState<number | null>(null);
+  // Track if lint collector was completed today (hide for the rest of the day)
+  const [lintCollectorDoneToday, setLintCollectorDoneToday] = useState(false);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Subscribe to last 3 completions (live)
+  useEffect(() => {
+    try {
+      const q = query(
+        collection(db, "lint_collector_logs"),
+        orderBy("timestamp", "desc"),
+        limit(3)
+      );
+      const unsub = onSnapshot(q, (snap) => {
+        const logs = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id, // Include document ID for deletion
+            username: data.username || "Unknown",
+            date: data.date || "",
+            timestamp: data.timestamp || data.timestamp,
+          };
+        });
+        setLintCollectorHistory(logs);
+      });
+      return () => unsub();
+    } catch (e) {
+      // ignore if collection missing
+      console.error("Error subscribing to lint_collector_logs:", e);
+    }
+  }, []);
+
+  // Listen to lint collector meta (persisted order) - stored in lint_collector_meta/task
+  useEffect(() => {
+    const docRef = doc(db, "lint_collector_meta", "task");
+    const unsub = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as any;
+        if (typeof data.order === "number") setLintCollectorOrder(data.order);
+        else setLintCollectorOrder(null);
+
+        // Determine if lastDoneAt is today (supports ISO string, Date or Firestore Timestamp)
+        const lastDone = data.lastDoneAt;
+        let doneToday = false;
+        if (lastDone) {
+          try {
+            let lastDateStr = "";
+            if (lastDone?.toDate && typeof lastDone.toDate === "function") {
+              lastDateStr = lastDone.toDate().toISOString().slice(0, 10);
+            } else if (typeof lastDone === "string") {
+              lastDateStr = new Date(lastDone).toISOString().slice(0, 10);
+            } else if (lastDone instanceof Date) {
+              lastDateStr = lastDone.toISOString().slice(0, 10);
+            }
+            doneToday = lastDateStr === todayStr;
+          } catch (e) {
+            doneToday = false;
+          }
+        }
+        setLintCollectorDoneToday(doneToday);
+      } else {
+        setLintCollectorOrder(null);
+        setLintCollectorDoneToday(false);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Reset lint collector "done today" status on component mount and ensure daily reset
+  useEffect(() => {
+    const resetLintCollectorStatus = async () => {
+      try {
+        const { setDoc } = await import("firebase/firestore");
+        // Always reset on component load to ensure task appears
+        await setDoc(doc(db, "lint_collector_meta", "task"), { 
+          lastDoneAt: null,
+          lastResetDate: new Date().toISOString().slice(0, 10) // Track when we last reset
+        }, { merge: true });
+        setLintCollectorDoneToday(false);
+        console.log("🔄 Daily reset: lint collector task is now available");
+      } catch (error) {
+        console.error("Error resetting lint collector status:", error);
+      }
+    };
+    
+    resetLintCollectorStatus();
+    
+    // Set up daily auto-reset at midnight
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    const msUntilMidnight = tomorrow.getTime() - now.getTime();
+    
+    const midnightTimeout = setTimeout(() => {
+      resetLintCollectorStatus();
+      // Set up interval for subsequent days
+      const dailyInterval = setInterval(resetLintCollectorStatus, 24 * 60 * 60 * 1000);
+      return () => clearInterval(dailyInterval);
+    }, msUntilMidnight);
+    
+    return () => clearTimeout(midnightTimeout);
+  }, []);
 
   // Check if user can edit the alert banner
   const canEdit = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
@@ -179,12 +298,12 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     setIsEditingAlert(true);
     setEditValue(alertMessage);
   };
-  
+
   // Handle canceling the edit
   const handleCancelEdit = () => {
     setIsEditingAlert(false);
   };
-  
+
   // Save alert message to Firestore
   const handleSaveAlert = async () => {
     setLoadingAlert(true);
@@ -313,6 +432,31 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
     )
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)); // Always sort by order for smooth UI
+
+  // Inject pseudo-client into displayed tunnel list and sort by order
+  const displayedTunnelGroups = React.useMemo(() => {
+    const cloned = tunnelGroups.slice().filter((g) => g.id !== LINT_COLLECTOR_ID);
+    const maxOrder = cloned.reduce(
+      (m, g) => Math.max(m, typeof g.order === "number" ? g.order : -1),
+      -1
+    );
+    
+    // Always show the lint collector task (removed hiding logic)
+    const pseudoOrder =
+      lintCollectorOrder !== null && lintCollectorOrder !== undefined
+        ? lintCollectorOrder
+        : maxOrder + 1;
+    const pseudo = {
+      id: LINT_COLLECTOR_ID,
+      clientName: "Limpiar Lint Collector",
+      isLintCollector: true,
+      order: pseudoOrder,
+    } as any;
+    const merged = [...cloned, pseudo];
+    merged.sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+    return merged;
+  }, [tunnelGroups, lintCollectorOrder]);
+
   // Only show groups with status 'Conventional' and not 'Entregado' in Conventional tab
   const conventionalGroups = groups
     .filter((g) => g.status === "Conventional" && g.status !== "Entregado")
@@ -429,33 +573,44 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       );
       if (!client) throw new Error("Client not found");
       if (!product) throw new Error("Product not found");
-      
+
       // Check if this is a special item that requires confirmation
       const isSpecial = isSpecialItem(product.name);
       const category = getSpecialItemCategory(product.name);
-      
+
       // If it's a special item, create a manual conventional product entry
       if (isSpecial) {
-        const { addManualConventionalProduct } = await import("../services/firebaseService");
-        
+        const { addManualConventionalProduct } = await import(
+          "../services/firebaseService"
+        );
+
         await addManualConventionalProduct({
           clientId: client.id,
           clientName: client.name,
           productId: product.id,
           productName: product.name,
           quantity: conventionalProductQty,
-          type: conventionalAddMode === "cart" ? "cart" : conventionalAddMode === "quantity" ? "qty" : "lbs",
+          type:
+            conventionalAddMode === "cart"
+              ? "cart"
+              : conventionalAddMode === "quantity"
+              ? "qty"
+              : "lbs",
           isSpecialItem: true,
           category,
-          requiresConfirmation: true
+          requiresConfirmation: true,
         });
-        
+
         await logActivity({
           type: "Special Item",
-          message: `Special item '${product.name}' (${category}) added for client '${client.name}' by ${getCurrentUser()} - requires confirmation`,
+          message: `Special item '${
+            product.name
+          }' (${category}) added for client '${
+            client.name
+          }' by ${getCurrentUser()} - requires confirmation`,
           user: getCurrentUser(),
         });
-        
+
         // Reset form
         setShowAddConventionalModal(false);
         setSelectedConventionalClientId("");
@@ -464,8 +619,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         setConventionalProductQty(1);
         setConventionalModalError("");
         setConventionalModalLoading(false);
-        
-        alert(`Special item "${product.name}" has been added and will require confirmation before being included in invoices.`);
+
+        alert(
+          `Special item "${product.name}" has been added and will require confirmation before being included in invoices.`
+        );
         return;
       }
       // Instead of manual product, create a new group for this client
@@ -498,22 +655,30 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         ],
       };
       // Calculate the next order value to add to the bottom of conventional list
-      const existingConventionalGroups = groups.filter((g) => g.status === "Conventional" && g.status !== "Entregado");
-      const existingManualProducts = manualConventionalProducts.filter((p) => !p.invoiceId);
-      
+      const existingConventionalGroups = groups.filter(
+        (g) => g.status === "Conventional" && g.status !== "Entregado"
+      );
+      const existingManualProducts = manualConventionalProducts.filter(
+        (p) => !p.invoiceId
+      );
+
       // Find the maximum order value among all conventional items
-      const maxGroupOrder = existingConventionalGroups.reduce((max, g) => 
-        Math.max(max, g.order ?? -1), -1);
-      const maxManualOrder = existingManualProducts.reduce((max, p) => 
-        Math.max(max, p.order ?? -1), -1);
+      const maxGroupOrder = existingConventionalGroups.reduce(
+        (max, g) => Math.max(max, g.order ?? -1),
+        -1
+      );
+      const maxManualOrder = existingManualProducts.reduce(
+        (max, p) => Math.max(max, p.order ?? -1),
+        -1
+      );
       const nextOrder = Math.max(maxGroupOrder, maxManualOrder) + 1;
-      
+
       // Create the group with Conventional status and washingType
       await addDoc(collection(db, "pickup_groups"), {
         clientId: client.id,
         clientName: client.name,
         status: "Conventional",
-        washingType: "Conventional", 
+        washingType: "Conventional",
         carts: [cart],
         numCarts: numCarts,
         createdAt: Timestamp.now(),
@@ -528,7 +693,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       setConventionalModalLoading(false);
       await logActivity({
         type: "Washing",
-        message: `Conventional group with product '${product.name}' added for client '${client.name}' by ${getCurrentUser()}`,
+        message: `Conventional group with product '${
+          product.name
+        }' added for client '${client.name}' by ${getCurrentUser()}`,
         user: getCurrentUser(),
       });
     } catch (err: any) {
@@ -541,61 +708,89 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   // Ensure groups have an 'order' property for sorting - IMPROVED VERSION
   useEffect(() => {
     // If any conventional group is missing 'order', assign it the highest order + 1 to put at bottom
-    const conventionalGroupsNeedingOrder = conventionalGroups.filter((g) => typeof g.order !== "number");
-    
+    const conventionalGroupsNeedingOrder = conventionalGroups.filter(
+      (g) => typeof g.order !== "number"
+    );
+
     if (conventionalGroupsNeedingOrder.length > 0) {
       // Process all groups needing order in a single batch to prevent race conditions
-      const existingConventionalGroups = conventionalGroups.filter((g) => typeof g.order === "number");
-      let nextOrder = existingConventionalGroups.reduce((max, g) => Math.max(max, g.order!), -1) + 1;
-      
+      const existingConventionalGroups = conventionalGroups.filter(
+        (g) => typeof g.order === "number"
+      );
+      let nextOrder =
+        existingConventionalGroups.reduce(
+          (max, g) => Math.max(max, g.order!),
+          -1
+        ) + 1;
+
       // Batch update all groups that need order assignment
       const batchUpdates = conventionalGroupsNeedingOrder.map(async (group) => {
         const assignedOrder = nextOrder++;
-        await updateDoc(doc(db, "pickup_groups", group.id), { order: assignedOrder });
+        await updateDoc(doc(db, "pickup_groups", group.id), {
+          order: assignedOrder,
+        });
         return { ...group, order: assignedOrder };
       });
-      
+
       // Execute all updates and then update local state once
-      Promise.all(batchUpdates).then((updatedGroups) => {
-        setGroups((prev) => {
-          return prev.map((g) => {
-            const updated = updatedGroups.find(u => u.id === g.id);
-            return updated ? { ...g, order: updated.order } : g;
+      Promise.all(batchUpdates)
+        .then((updatedGroups) => {
+          setGroups((prev) => {
+            return prev.map((g) => {
+              const updated = updatedGroups.find((u) => u.id === g.id);
+              return updated ? { ...g, order: updated.order } : g;
+            });
           });
-        });
-      }).catch(console.error);
+        })
+        .catch(console.error);
     }
     // eslint-disable-next-line
-  }, [conventionalGroups.length, conventionalGroups.filter(g => typeof g.order !== "number").length]);
+  }, [
+    conventionalGroups.length,
+    conventionalGroups.filter((g) => typeof g.order !== "number").length,
+  ]);
 
   // Ensure Tunnel groups have an 'order' property for sorting - IMPROVED VERSION
   useEffect(() => {
-    const tunnelGroupsNeedingOrder = tunnelGroups.filter((g) => typeof g.order !== "number");
-    
+    const tunnelGroupsNeedingOrder = tunnelGroups.filter(
+      (g) => typeof g.order !== "number"
+    );
+
     if (tunnelGroupsNeedingOrder.length > 0) {
       // Process all groups needing order in a single batch to prevent race conditions
-      const existingTunnelGroups = tunnelGroups.filter((g) => typeof g.order === "number");
-      let nextOrder = existingTunnelGroups.reduce((max, g) => Math.max(max, g.order!), -1) + 1;
-      
+      const existingTunnelGroups = tunnelGroups.filter(
+        (g) => typeof g.order === "number"
+      );
+      let nextOrder =
+        existingTunnelGroups.reduce((max, g) => Math.max(max, g.order!), -1) +
+        1;
+
       // Batch update all groups with consecutive order values
       const batchUpdates = tunnelGroupsNeedingOrder.map(async (group) => {
         const assignedOrder = nextOrder++;
-        await updateDoc(doc(db, "pickup_groups", group.id), { order: assignedOrder });
+        await updateDoc(doc(db, "pickup_groups", group.id), {
+          order: assignedOrder,
+        });
         return { ...group, order: assignedOrder };
       });
-      
+
       // Execute all updates and then update local state once
-      Promise.all(batchUpdates).then((updatedGroups) => {
-        setGroups((prev) => {
-          return prev.map((g) => {
-            const updated = updatedGroups.find(u => u.id === g.id);
-            return updated ? { ...g, order: updated.order } : g;
+      Promise.all(batchUpdates)
+        .then((updatedGroups) => {
+          setGroups((prev) => {
+            return prev.map((g) => {
+              const updated = updatedGroups.find((u) => u.id === g.id);
+              return updated ? { ...g, order: updated.order } : g;
+            });
           });
-        });
-      }).catch(console.error);
+        })
+        .catch(console.error);
     }
     // eslint-disable-next-line
-  }, [tunnelGroups.length, tunnelGroups.filter(g => typeof g.order !== "number").length]);
+  }, [
+    tunnelGroups.length,
+    tunnelGroups.filter((g) => typeof g.order !== "number").length,
+  ]);
 
   // Move group up/down in order
   const moveConventionalGroup = async (
@@ -655,9 +850,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     const tunnelGroups = groups.filter(
       (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
     );
-    
+
     if (tunnelGroups.length === 0) return;
-    
+
     // Sort by current order, then by creation time for consistency
     const sorted = [...tunnelGroups].sort((a, b) => {
       if (typeof a.order === "number" && typeof b.order === "number") {
@@ -670,21 +865,25 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       const timeB = b.startTime?.getTime?.() || 0;
       return timeA - timeB;
     });
-    
+
     // Check if normalization is needed
-    const needsNormalization = sorted.some((group, index) => group.order !== index);
-    
+    const needsNormalization = sorted.some(
+      (group, index) => group.order !== index
+    );
+
     if (needsNormalization) {
       console.log("🔧 [TUNNEL ORDER] Normalizing tunnel group order values...");
-      
+
       // Batch update all tunnel groups with consecutive order values
       const batchUpdates = sorted.map(async (group, index) => {
         if (group.order !== index) {
           await updateDoc(doc(db, "pickup_groups", group.id), { order: index });
-          console.log(`   Updated ${group.clientName}: order ${group.order} → ${index}`);
+          console.log(
+            `   Updated ${group.clientName}: order ${group.order} → ${index}`
+          );
         }
       });
-      
+
       await Promise.all(batchUpdates);
       console.log("✅ [TUNNEL ORDER] Normalization complete");
     }
@@ -713,87 +912,83 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     });
     return [...others, ...sorted];
   };
-  // Move Tunnel group up/down in order (optimistic UI update)
+  // Move Tunnel group up/down in order (optimistic UI update) - handle pseudo-client
   const moveTunnelGroup = async (groupId: string, direction: "up" | "down") => {
     const currentUser = getCurrentUser();
-    
-    // Get the group being moved and its position before the move
-    const tunnel = groups.filter(
-      (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
-    );
-    const sorted = [...tunnel].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    // Use displayedTunnelGroups to include pseudo-client
+    const sorted = [...displayedTunnelGroups].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
     const oldIndex = sorted.findIndex((g) => g.id === groupId);
     const newIndex = direction === "up" ? oldIndex - 1 : oldIndex + 1;
-    
+
     if (oldIndex === -1 || newIndex < 0 || newIndex >= sorted.length) return;
-    
+
     const group = sorted[oldIndex];
     const swapGroup = sorted[newIndex];
-    
+
     console.log("🔄 [TUNNEL MOVE GROUP] ===================");
     console.log(`👤 Action performed by: ${currentUser}`);
     console.log(`📱 Moving: ${group?.clientName || groupId}`);
     console.log(`📍 From position: ${oldIndex + 1} → ${newIndex + 1}`);
-    console.log(`⬆️⬇️ Direction: ${direction === "up" ? 'UP' : 'DOWN'}`);
-    console.log(`🔄 Will swap with: ${swapGroup?.clientName || 'Unknown'}`);
-    
+    console.log(`⬆️⬇️ Direction: ${direction === "up" ? "UP" : "DOWN"}`);
+    console.log(`🔄 Will swap with: ${swapGroup?.clientName || "Unknown"}`);
+
+    // Enforce permissions: non-supervisors cannot move the lint collector
+    if (group.id === LINT_COLLECTOR_ID && !canReorder) return;
+    if (swapGroup.id === LINT_COLLECTOR_ID && !canReorder) return;
+
     setTunnelReorderLoading(groupId);
-    setGroups((prevGroups) => {
-      const tunnel = prevGroups.filter(
-        (g) => g.status === "Tunnel" && getWashingType(g.clientId) === "Tunnel"
-      );
-      const others = prevGroups.filter(
-        (g) => g.status !== "Tunnel" || getWashingType(g.clientId) !== "Tunnel"
-      );
-      const sorted = [...tunnel].sort(
-        (a, b) => (a.order ?? 0) - (b.order ?? 0)
-      );
-      const idx = sorted.findIndex((g) => g.id === groupId);
-      if (idx === -1) return prevGroups;
-      let newIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (newIdx < 0 || newIdx >= sorted.length) return prevGroups;
-      // Swap order values
-      [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
-      // Re-assign order values to be consecutive
-      sorted.forEach((g, i) => {
-        g.order = i;
+
+    // Build new order in-memory
+    const newSorted = [...sorted];
+    [newSorted[oldIndex], newSorted[newIndex]] = [newSorted[newIndex], newSorted[oldIndex]];
+    newSorted.forEach((g: any, i: number) => (g.order = i));
+
+    // Optimistically update UI by updating groups and lintCollectorOrder if needed
+    setGroups((prev) => {
+      // Update only real groups' order locally; pseudo-client order is kept in lintCollectorOrder
+      const updated = prev.map((g) => {
+        const found = newSorted.find((ns: any) => ns.id === g.id);
+        return found && !found.isLintCollector ? { ...g, order: found.order } : g;
       });
-      // Optimistically update UI
-      const newGroups = [...others, ...sorted];
-      // Persist order changes to Firestore in background
-      (async () => {
-        try {
-          await Promise.all(
-            sorted.map((g, i) =>
-              updateDoc(doc(db, "pickup_groups", g.id), { order: i })
-            )
-          );
-          
-          // Enhanced activity logging with user information
-          await logActivity({
-            type: "Tunnel",
-            message: `Group "${group?.clientName || groupId}" moved ${
-              direction === "up" ? "up" : "down"
-            } by ${currentUser} from position ${oldIndex + 1} to ${newIndex + 1} (swapped with "${swapGroup?.clientName || 'unknown'}")`,
-            user: currentUser,
-          });
-          
-          console.log("📝 [ACTIVITY LOGGED] Tunnel move operation saved to Firestore activity log");
-          console.log("✅ Move completed successfully");
-          console.log("🔄 [END TUNNEL MOVE GROUP] ==============");
-        } catch (e) {
-          console.error("Error in tunnel group move:", e);
-        }
-        setTunnelReorderLoading(null);
-      })();
-      return newGroups;
+      return updated;
     });
+
+    // Persist order changes: real groups -> pickup_groups, pseudo -> lint_collector_meta/task
+    (async () => {
+      try {
+        await Promise.all(
+          newSorted.map((g: any, i: number) => {
+            if (g.id === LINT_COLLECTOR_ID) {
+              // persist meta
+              return setDoc(doc(db, "lint_collector_meta", "task"), { order: i }, { merge: true });
+            } else {
+              return updateDoc(doc(db, "pickup_groups", g.id), { order: i });
+            }
+          })
+        );
+
+        // Enhanced activity logging with user information
+        await logActivity({
+          type: "Tunnel",
+          message: `Group "${group?.clientName || groupId}" moved ${
+            direction === "up" ? "up" : "down"
+          } by ${currentUser} from position ${oldIndex + 1} to ${newIndex + 1} (swapped with "${swapGroup?.clientName || "unknown"}")`,
+          user: currentUser,
+        });
+
+        console.log("✅ Move completed successfully");
+      } catch (e) {
+        console.error("Error in tunnel group move:", e);
+      }
+      setTunnelReorderLoading(null);
+    })();
   };
 
   // Move up/down for both manual products and client groups
   const moveConventionalRow = async (id: string, direction: "up" | "down") => {
     const currentUser = getCurrentUser();
-    
+
     // Build a combined list of all conventional rows (client groups + manual products)
     const allRows = [
       ...conventionalGroups.map((g) => ({ ...g, isManualProduct: false })),
@@ -805,18 +1000,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     if (idx === -1) return;
     let newIdx = direction === "up" ? idx - 1 : idx + 1;
     if (newIdx < 0 || newIdx >= allRows.length) return;
-    
+
     const movingItem = allRows[idx];
     const swapItem = allRows[newIdx];
-    
+
     console.log("🔄 [CONVENTIONAL MOVE] ===================");
     console.log(`👤 Action performed by: ${currentUser}`);
-    console.log(`📱 Moving: ${movingItem?.clientName || movingItem?.productName || id}`);
+    console.log(
+      `📱 Moving: ${movingItem?.clientName || movingItem?.productName || id}`
+    );
     console.log(`📍 From position: ${idx + 1} → ${newIdx + 1}`);
-    console.log(`⬆️⬇️ Direction: ${direction === "up" ? 'UP' : 'DOWN'}`);
-    console.log(`🏷️ Type: ${movingItem?.isManualProduct ? 'Manual Product' : 'Client Group'}`);
-    console.log(`🔄 Will swap with: ${swapItem?.clientName || swapItem?.productName || 'Unknown'}`);
-    
+    console.log(`⬆️⬇️ Direction: ${direction === "up" ? "UP" : "DOWN"}`);
+    console.log(
+      `🏷️ Type: ${
+        movingItem?.isManualProduct ? "Manual Product" : "Client Group"
+      }`
+    );
+    console.log(
+      `🔄 Will swap with: ${
+        swapItem?.clientName || swapItem?.productName || "Unknown"
+      }`
+    );
+
     // Swap order values
     [allRows[idx], allRows[newIdx]] = [allRows[newIdx], allRows[idx]];
     // Re-assign order values to be consecutive
@@ -838,20 +1043,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       }
     });
     await Promise.all(updates);
-    
+
     // Enhanced activity logging with user information
     await logActivity({
       type: "Conventional",
-      message: `${movingItem?.isManualProduct ? 'Manual product' : 'Group'} "${movingItem?.clientName || movingItem?.productName || id}" moved ${
+      message: `${movingItem?.isManualProduct ? "Manual product" : "Group"} "${
+        movingItem?.clientName || movingItem?.productName || id
+      }" moved ${
         direction === "up" ? "up" : "down"
-      } by ${currentUser} from position ${idx + 1} to ${newIdx + 1} (swapped with "${swapItem?.clientName || swapItem?.productName || 'unknown'}")`,
+      } by ${currentUser} from position ${idx + 1} to ${
+        newIdx + 1
+      } (swapped with "${
+        swapItem?.clientName || swapItem?.productName || "unknown"
+      }")`,
       user: currentUser,
     });
-    
-    console.log("📝 [ACTIVITY LOGGED] Conventional move operation saved to Firestore activity log");
+
+    console.log(
+      "📝 [ACTIVITY LOGGED] Conventional move operation saved to Firestore activity log"
+    );
     console.log("✅ Move completed successfully");
     console.log("🔄 [END CONVENTIONAL MOVE] ==============");
-    
+
     // Update local state
     setManualConventionalProducts((prev) =>
       prev.map((p) => {
@@ -913,15 +1126,17 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   // Fetch pending special items that need confirmation
   useEffect(() => {
     let mounted = true;
-    
+
     const fetchSpecialItems = async () => {
       try {
-        const { getPendingSpecialItems, getSkippedSpecialItems } = await import("../services/firebaseService");
+        const { getPendingSpecialItems, getSkippedSpecialItems } = await import(
+          "../services/firebaseService"
+        );
         const [pending, skipped] = await Promise.all([
           getPendingSpecialItems(),
-          getSkippedSpecialItems()
+          getSkippedSpecialItems(),
         ]);
-        
+
         if (mounted) {
           setPendingSpecialItems(pending);
           setSkippedSpecialItems(skipped);
@@ -932,10 +1147,10 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     };
 
     fetchSpecialItems();
-    
+
     // Refresh every 30 seconds to check for new special items
     const interval = setInterval(fetchSpecialItems, 30000);
-    
+
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -945,20 +1160,26 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   // Handler to confirm a special item for invoice inclusion
   const handleConfirmSpecialItem = async (item: any) => {
     try {
-      const { confirmSpecialItem } = await import("../services/firebaseService");
-      
+      const { confirmSpecialItem } = await import(
+        "../services/firebaseService"
+      );
+
       await confirmSpecialItem(item.id, getCurrentUser());
-      
+
       // Update local state
-      setPendingSpecialItems(prev => prev.filter(p => p.id !== item.id));
-      
+      setPendingSpecialItems((prev) => prev.filter((p) => p.id !== item.id));
+
       await logActivity({
         type: "Special Item",
-        message: `Special item "${item.productName}" for ${item.clientName} confirmed for invoice inclusion by ${getCurrentUser()}`,
+        message: `Special item "${item.productName}" for ${
+          item.clientName
+        } confirmed for invoice inclusion by ${getCurrentUser()}`,
         user: getCurrentUser(),
       });
-      
-      alert(`Special item "${item.productName}" confirmed for invoice inclusion.`);
+
+      alert(
+        `Special item "${item.productName}" confirmed for invoice inclusion.`
+      );
     } catch (error) {
       console.error("Error confirming special item:", error);
       alert("Error confirming special item. Please try again.");
@@ -969,19 +1190,24 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   const handleSkipSpecialItem = async (item: any, reason: string) => {
     try {
       const { skipSpecialItem } = await import("../services/firebaseService");
-      
+
       await skipSpecialItem(item.id, reason, getCurrentUser());
-      
+
       // Update local state
-      setPendingSpecialItems(prev => prev.filter(p => p.id !== item.id));
-      setSkippedSpecialItems(prev => [...prev, { ...item, skipReason: reason, skippedBy: getCurrentUser() }]);
-      
+      setPendingSpecialItems((prev) => prev.filter((p) => p.id !== item.id));
+      setSkippedSpecialItems((prev) => [
+        ...prev,
+        { ...item, skipReason: reason, skippedBy: getCurrentUser() },
+      ]);
+
       await logActivity({
         type: "Special Item",
-        message: `Special item "${item.productName}" for ${item.clientName} skipped by ${getCurrentUser()}. Reason: ${reason}`,
+        message: `Special item "${item.productName}" for ${
+          item.clientName
+        } skipped by ${getCurrentUser()}. Reason: ${reason}`,
         user: getCurrentUser(),
       });
-      
+
       alert(`Special item "${item.productName}" has been skipped.`);
     } catch (error) {
       console.error("Error skipping special item:", error);
@@ -992,19 +1218,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   // Check if a product is a special item that requires confirmation
   const isSpecialItem = (productName: string): boolean => {
     const name = productName.toLowerCase();
-    return name.includes('blanket') || 
-           name.includes('colcha') || 
-           name.includes('manta') ||
-           name.includes('frazada');
+    return (
+      name.includes("blanket") ||
+      name.includes("colcha") ||
+      name.includes("manta") ||
+      name.includes("frazada")
+    );
   };
 
   // Get special item category
-  const getSpecialItemCategory = (productName: string): 'blanket' | 'colcha' | 'uniform' | 'other' => {
+  const getSpecialItemCategory = (
+    productName: string
+  ): "blanket" | "colcha" | "uniform" | "other" => {
     const name = productName.toLowerCase();
-    if (name.includes('blanket') || name.includes('manta') || name.includes('frazada')) return 'blanket';
-    if (name.includes('colcha')) return 'colcha';
-    if (name.includes('uniform') || name.includes('scrub')) return 'uniform';
-    return 'other';
+    if (
+      name.includes("blanket") ||
+      name.includes("manta") ||
+      name.includes("frazada")
+    )
+      return "blanket";
+    if (name.includes("colcha")) return "colcha";
+    if (name.includes("uniform") || name.includes("scrub")) return "uniform";
+    return "other";
   };
 
   // Handler to mark manual product as washed (but keep in list until invoiced)
@@ -1077,7 +1312,9 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
       );
       await logActivity({
         type: "Washing",
-        message: `Group ${group.clientName} marked as washed by ${getCurrentUser()}`,
+        message: `Group ${
+          group.clientName
+        } marked as washed by ${getCurrentUser()}`,
         user: getCurrentUser(),
       });
     } catch (e) {
@@ -1208,42 +1445,73 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         console.error("Error loading priority flags:", error);
       }
     };
-    
+
     loadPriorityFlags();
   }, []);
 
   // Toggle priority status for a group
   const togglePriorityFlag = async (groupId: string) => {
     if (priorityLoading[groupId]) return;
-    
+
     try {
-      setPriorityLoading(prev => ({ ...prev, [groupId]: true }));
-      
+      setPriorityLoading((prev) => ({ ...prev, [groupId]: true }));
+
       const currentPriority = priorityFlags[groupId] || false;
       const newPriority = !currentPriority;
-      
+
       // Update Firestore
       const priorityRef = doc(db, "washing_priorities", groupId);
-      await setDoc(priorityRef, { 
-        isPriority: newPriority,
-        updatedAt: Timestamp.now(),
-        updatedBy: user?.username || "Unknown"
-      }, { merge: true });
-      
+      await setDoc(
+        priorityRef,
+        {
+          isPriority: newPriority,
+          updatedAt: Timestamp.now(),
+          updatedBy: user?.username || "Unknown",
+        },
+        { merge: true }
+      );
+
       // Log activity
       if (user) {
         await logActivity({
           type: newPriority ? "PRIORITY_ADDED" : "PRIORITY_REMOVED",
-          message: `${newPriority ? "Added" : "Removed"} priority flag for group ${groupId}`,
-          user: user.username
+          message: `${
+            newPriority ? "Added" : "Removed"
+          } priority flag for group ${groupId}`,
+          user: user.username,
         });
       }
-      
     } catch (error) {
       console.error("Error toggling priority flag:", error);
       alert("Error updating priority status");
     } finally {
-      setPriorityLoading(prev => ({ ...prev, [groupId]: false }));
+      setPriorityLoading((prev) => ({ ...prev, [groupId]: false }));
+    }
+  };
+
+  // Handler to mark lint collector as done and persist a log
+  const handleLintCollectorDone = async () => {
+    setLintCollectorSaving(true);
+    try {
+      // If already done today, ignore
+      if (lintCollectorDoneToday) {
+        setLintCollectorSaving(false);
+        setShowLintCollectorModal(false);
+        return;
+      }
+      await addDoc(collection(db, "lint_collector_logs"), {
+        username: getCurrentUser(),
+        date: new Date().toISOString().slice(0, 10),
+        timestamp: Timestamp.now(),
+      });
+      // Optionally bump lintCollector meta lastUpdated
+      await setDoc(doc(db, "lint_collector_meta", "task"), { lastDoneAt: new Date().toISOString() }, { merge: true });
+      setShowLintCollectorModal(false);
+    } catch (e) {
+      console.error("Error saving lint collector log:", e);
+      alert("Error saving lint collector log");
+    } finally {
+      setLintCollectorSaving(false);
     }
   };
 
@@ -1251,25 +1519,38 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     <div className="container py-4">
       {/* Alert Banner */}
       {loadingAlert ? (
-        <div style={{
-          width: "100%", background: "#f3f4f6", borderBottom: "2px solid #d1d5db",
-          padding: "8px 0", textAlign: "center", position: "sticky", top: 0, zIndex: 1000
-        }}>
+        <div
+          style={{
+            width: "100%",
+            background: "#f3f4f6",
+            borderBottom: "2px solid #d1d5db",
+            padding: "8px 0",
+            textAlign: "center",
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
+          }}
+        >
           <span>Loading...</span>
         </div>
       ) : (
-        <div style={{
-          width: "100%", 
-          background: alertMessage ? "#fef3c7" : "#f3f4f6", 
-          borderBottom: alertMessage ? "2px solid #f59e0b" : "2px solid #d1d5db",
-          padding: "12px 0", 
-          textAlign: "center", 
-          position: "sticky", 
-          top: 0, 
-          zIndex: 1000,
-          marginBottom: "16px",
-          display: (!alertMessage && !canEdit && !isEditingAlert) ? "none" : "block"
-        }}>
+        <div
+          style={{
+            width: "100%",
+            background: alertMessage ? "#fef3c7" : "#f3f4f6",
+            borderBottom: alertMessage
+              ? "2px solid #f59e0b"
+              : "2px solid #d1d5db",
+            padding: "12px 0",
+            textAlign: "center",
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
+            marginBottom: "16px",
+            display:
+              !alertMessage && !canEdit && !isEditingAlert ? "none" : "block",
+          }}
+        >
           {isEditingAlert ? (
             <div className="container">
               <div className="row justify-content-center">
@@ -1324,7 +1605,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             </div>
           ) : canEdit ? (
             <div className="container">
-              <button 
+              <button
                 className="btn btn-outline-primary"
                 onClick={handleStartEditing}
               >
@@ -1357,27 +1638,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
           </button>
         </li>
       </ul>
-      
+
       {/* Warning message about priority flags before 12:00 midday - always shown in conventional tab */}
       {activeTab === "conventional" && (
-        <div 
+        <div
           className="alert alert-warning mb-4 text-center mx-auto"
           style={{
             background: "#fff3cd",
             border: "2px solid #ffc107",
             borderRadius: 12,
-            padding: "16px",
+            padding: 16,
             fontWeight: 600,
             fontSize: 16,
             color: "#856404",
-            maxWidth: 820
+            maxWidth: 820,
           }}
         >
           <i className="bi bi-exclamation-triangle-fill me-2"></i>
-          <strong>⚠️ ADVERTENCIA:</strong> Antes de las 12:00 del mediodía no debería haber filas rojas (prioridad) presentes en la lista.
+          <strong>⚠️ ADVERTENCIA:</strong> Antes de las 12:00 del mediodía no
+          debería haber filas rojas (prioridad) presentes en la lista.
         </div>
       )}
-      
+
       <div>
         {activeTab === "tunnel" && (
           <div
@@ -1412,11 +1694,27 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
             >
               Groups for Tunnel Washing
             </h3>
+
+            {/* Lint Collector top-corner widget showing last 3 completers */}
+            <div style={{ position: "absolute", top: 12, right: 24, zIndex: 1200 }}>
+              <div style={{ background: "#ffffffcc", padding: 8, borderRadius: 10, border: "1px solid #ddd", minWidth: 220 }}>
+                <div style={{ fontWeight: 800, fontSize: 12, color: "#0E62A0" }}>Últimos que limpiaron</div>
+                <div style={{ marginTop: 6 }}>
+                  {lintCollectorHistory.length === 0 && <div style={{ fontSize: 12, color: "#666" }}>Nadie aún</div>}
+                  {lintCollectorHistory.map((h, i) => (
+                    <div key={h.id || i} style={{ fontSize: 13, color: "#222", marginBottom: 4 }}>
+                      <strong>{h.username}</strong> <span style={{ color: "#666", fontSize: 12 }}>({h.date})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             {loading ? (
               <div className="text-center py-5" style={{ fontSize: 22 }}>
                 Loading...
               </div>
-            ) : tunnelGroups.length === 0 ? (
+            ) : displayedTunnelGroups.length === 0 ? (
               <div
                 className="text-muted text-center py-5"
                 style={{ fontSize: 22 }}
@@ -1432,7 +1730,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                 }}
               >
                 <FlipMove duration={400} easing="ease-in-out">
-                  {tunnelGroups.map((group, idx) => {
+                  {displayedTunnelGroups.map((group, idx) => {
+                    const isLintCollector = !!(group as any).isLintCollector;
                     const isVerified = !!verifiedGroups[group.id];
                     const cartCounter = cartCounters[group.id] || 0;
                     const isLocked =
@@ -1453,18 +1752,24 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                     return (
                       <div
                         key={group.id}
-                        className="list-group-item d-flex flex-row align-items-center justify-content-between gap-4 shadow-sm rounded"
+                        className={`list-group-item d-flex flex-row align-items-center justify-content-between gap-4 shadow-sm rounded ${isLintCollector ? 'border-warning' : ''}`}
                         style={{
-                          background: needsMessageVerification
+                          background: isLintCollector 
+                            ? "#fff3cd" // Always light yellow for lint collector
+                            : needsMessageVerification
                             ? "#fffbe6"
                             : group.showInTunnel && group.segregationComplete
                             ? "#cce5ff"
                             : "#fff",
-                          border: "2px solid #e3e3e3",
+                          border: isLintCollector 
+                            ? "3px solid #ffc107" // Bold yellow border for lint collector
+                            : "2px solid #e3e3e3",
                           fontSize: 24,
                           minHeight: "1px",
                           height: "100%",
-                          boxShadow: "0 2px 12px rgba(14,98,160,0.07)",
+                          boxShadow: isLintCollector 
+                            ? "0 4px 16px rgba(255, 193, 7, 0.3)" // Yellow shadow for lint collector
+                            : "0 2px 12px rgba(14,98,160,0.07)",
                           color: "#000",
                           width: "100%",
                           borderRadius: 24,
@@ -1475,434 +1780,502 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           pointerEvents: "auto",
                         }}
                       >
-                        <div
-                          className="d-flex flex-column flex-md-row align-items-md-center gap-4 flex-grow-1"
-                          style={{ flex: 1, minWidth: 0, color: "#000" }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              width: "100%",
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: "1.5rem",
-                                fontWeight: 700,
-                                color: "#000",
-                                minWidth: 180,
-                              }}
-                            >
-                              {group.clientName}
-                            </span>
-                            {/* Tunnel Message Section - restored to box format for clarity and formatting */}
+                        {/* If this is the lint collector pseudo-row, render simplified UI */}
+                        {isLintCollector ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <div>
+                              <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#6f4e00' }}>
+                                {group.clientName}
+                              </span>
+                              <div style={{ fontSize: 13, color: "#666", marginTop: 6 }}>
+                                Tarea diaria disponible para completar
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              {canReorder && (
+                                <>
+                                  <button
+                                    className="btn btn-outline-secondary btn-sm"
+                                    title="Move up"
+                                    disabled={tunnelReorderLoading === group.id || idx === 0}
+                                    onClick={() => moveTunnelGroup(group.id, 'up')}
+                                    style={{ fontSize: 32, padding: '8px 16px', minWidth: 48 }}
+                                  >
+                                    <span aria-hidden="true">▲</span>
+                                  </button>
+                                  <button
+                                    className="btn btn-outline-secondary btn-sm"
+                                    title="Move down"
+                                    disabled={tunnelReorderLoading === group.id || idx === displayedTunnelGroups.length - 1}
+                                    onClick={() => moveTunnelGroup(group.id, 'down')}
+                                    style={{ fontSize: 32, padding: '8px 16px', minWidth: 48 }}
+                                  >
+                                    <span aria-hidden="true">▼</span>
+                                  </button>
+                                </>
+                              )}
+
+                              <button
+                                className="btn btn-success btn-sm"
+                                onClick={() => setShowLintCollectorModal(true)}
+                                title="Marcar como hecho"
+                              >
+                                Hecho
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          // ...existing group row rendering for normal groups...
+                          <>
                             <div
-                              style={{
-                                margin: "8px 0",
-                                padding: 8,
-                                background: "#eaf4ff",
-                                borderRadius: 8,
-                                border: "1.5px solid #0E62A0",
-                                maxWidth: 420,
-                              }}
+                              className="d-flex flex-column flex-md-row align-items-md-center gap-4 flex-grow-1"
+                              style={{ flex: 1, minWidth: 0, color: "#000" }}
                             >
-                              {canReorder ? (
-                                <form
-                                  onSubmit={async (e) => {
-                                    e.preventDefault();
-                                    const message =
-                                      tunnelMessageInputs[group.id] || "";
-                                    if (!message.trim()) {
-                                      alert("Message cannot be empty.");
-                                      return;
-                                    }
-                                    setTunnelMessageLoading((prev) => ({
-                                      ...prev,
-                                      [group.id]: true,
-                                    }));
-                                    try {
-                                      const { updateDoc, doc } = await import(
-                                        "firebase/firestore"
-                                      );
-                                      const { db } = await import(
-                                        "../firebase"
-                                      );
-                                      await updateDoc(
-                                        doc(db, "pickup_groups", group.id),
-                                        {
-                                          tunnelMessage: message,
-                                          tunnelMessageAuthor:
-                                            user?.username || "Supervisor",
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  width: "100%",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: "1.5rem",
+                                    fontWeight: 700,
+                                    color: "#000",
+                                    minWidth: 180,
+                                  }}
+                                >
+                                  {group.clientName}
+                                </span>
+                                {/* Tunnel Message Section - restored to box format for clarity and formatting */}
+                                <div
+                                  style={{
+                                    margin: "8px 0",
+                                    padding: 8,
+                                    background: "#eaf4ff",
+                                    borderRadius: 8,
+                                    border: "1.5px solid #0E62A0",
+                                    maxWidth: 420,
+                                  }}
+                                >
+                                  {canReorder ? (
+                                    <form
+                                      onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        const message =
+                                          tunnelMessageInputs[group.id] || "";
+                                        if (!message.trim()) {
+                                          alert("Message cannot be empty.");
+                                          return;
                                         }
-                                      );
-                                      setTunnelMessages((prev) => ({
-                                        ...prev,
-                                        [group.id]: message,
-                                      }));
-                                      setTunnelMessageSaved((prev) => ({
-                                        ...prev,
-                                        [group.id]: true,
-                                      }));
-                                      setTimeout(() => {
-                                        setTunnelMessageSaved((prev) => ({
+                                        setTunnelMessageLoading((prev) => ({
+                                          ...prev,
+                                          [group.id]: true,
+                                        }));
+                                        try {
+                                          const { updateDoc, doc } = await import(
+                                            "firebase/firestore"
+                                          );
+                                          const { db } = await import(
+                                            "../firebase"
+                                          );
+                                          await updateDoc(
+                                            doc(db, "pickup_groups", group.id),
+                                            {
+                                              tunnelMessage: message,
+                                              tunnelMessageAuthor:
+                                                user?.username || "Supervisor",
+                                            }
+                                          );
+                                          setTunnelMessages((prev) => ({
+                                            ...prev,
+                                            [group.id]: message,
+                                          }));
+                                          setTunnelMessageSaved((prev) => ({
+                                            ...prev,
+                                            [group.id]: true,
+                                          }));
+                                          setTimeout(() => {
+                                            setTunnelMessageSaved((prev) => ({
+                                              ...prev,
+                                              [group.id]: false,
+                                            }));
+                                          }, 2000);
+                                        } catch (e) {
+                                          alert("Error saving message");
+                                        }
+                                        setTunnelMessageLoading((prev) => ({
                                           ...prev,
                                           [group.id]: false,
                                         }));
-                                      }, 2000);
-                                    } catch (e) {
-                                      alert("Error saving message");
-                                    }
-                                    setTunnelMessageLoading((prev) => ({
-                                      ...prev,
-                                      [group.id]: false,
-                                    }));
-                                  }}
-                                  className="d-flex align-items-center gap-2"
-                                  style={{ marginTop: 2 }}
-                                >
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    placeholder="Deja un mensaje para este grupo..."
-                                    value={
-                                      tunnelMessageInputs[group.id] ??
-                                      tunnelMessages[group.id] ??
-                                      ""
-                                    }
-                                    onChange={(e) =>
-                                      setTunnelMessageInputs((prev) => ({
-                                        ...prev,
-                                        [group.id]: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      maxWidth: 260,
-                                      background: "#fff",
-                                    }}
-                                    disabled={
-                                      Boolean(tunnelMessageLoading[group.id]) ||
-                                      Boolean(rowControlsDisabled)
-                                    }
-                                  />
-                                  <button
-                                    type="submit"
-                                    className="btn btn-sm btn-primary"
-                                    disabled={
-                                      Boolean(tunnelMessageLoading[group.id]) ||
-                                      Boolean(rowControlsDisabled)
-                                    }
-                                    style={{ fontWeight: 700 }}
-                                  >
-                                    {tunnelMessageLoading[group.id]
-                                      ? "Guardando..."
-                                      : "Guardar"}
-                                  </button>
-                                  {tunnelMessageSaved[group.id] && (
-                                    <span
-                                      className="text-success ms-2"
-                                      style={{ fontWeight: 600, fontSize: 14 }}
-                                    >
-                                      ¡Mensaje guardado!
-                                    </span>
-                                  )}
-                                </form>
-                              ) : tunnelMessages[group.id] ? (
-                                <>
-                                  <div
-                                    className="text-secondary small mt-1"
-                                    style={{
-                                      maxWidth: 320,
-                                      wordBreak: "break-word",
-                                    }}
-                                  >
-                                    <strong>
-                                      {group.tunnelMessageAuthor
-                                        ? `${group.tunnelMessageAuthor}: `
-                                        : ""}
-                                    </strong>
-                                    {tunnelMessages[group.id]}
-                                  </div>
-                                  {/* Verification logic for employees */}
-                                  {!(
-                                    tunnelMessageVerifiedBy[group.id] || []
-                                  ).some((v) => v.id === user?.id) ? (
-                                    <button
-                                      className="btn btn-success btn-sm mt-2"
-                                      style={{
-                                        fontWeight: 700,
-                                        backgroundColor: "#176a1a",
-                                        borderColor: "#176a1a",
                                       }}
+                                      className="d-flex align-items-center gap-2"
+                                      style={{ marginTop: 2 }}
+                                    >
+                                      <input
+                                        type="text"
+                                        className="form-control form-control-sm"
+                                        placeholder="Deja un mensaje para este grupo..."
+                                        value={
+                                          tunnelMessageInputs[group.id] ??
+                                          tunnelMessages[group.id] ??
+                                          ""
+                                        }
+                                        onChange={(e) =>
+                                          setTunnelMessageInputs((prev) => ({
+                                            ...prev,
+                                            [group.id]: e.target.value,
+                                          }))
+                                        }
+                                        style={{
+                                          maxWidth: 260,
+                                          background: "#fff",
+                                        }}
+                                        disabled={
+                                          Boolean(tunnelMessageLoading[group.id]) ||
+                                          Boolean(rowControlsDisabled)
+                                        }
+                                      />
+                                      <button
+                                        type="submit"
+                                        className="btn btn-sm btn-primary"
+                                        disabled={
+                                          Boolean(tunnelMessageLoading[group.id]) ||
+                                          Boolean(rowControlsDisabled)
+                                        }
+                                        style={{ fontWeight: 700 }}
+                                      >
+                                        {tunnelMessageLoading[group.id]
+                                          ? "Guardando..."
+                                          : "Guardar"}
+                                      </button>
+                                      {tunnelMessageSaved[group.id] && (
+                                        <span
+                                          className="text-success ms-2"
+                                          style={{ fontWeight: 600, fontSize: 14 }}
+                                        >
+                                          ¡Mensaje guardado!
+                                        </span>
+                                      )}
+                                    </form>
+                                  ) : tunnelMessages[group.id] ? (
+                                    <>
+                                      <div
+                                        className="text-secondary small mt-1"
+                                        style={{
+                                          maxWidth: 320,
+                                          wordBreak: "break-word",
+                                        }}
+                                      >
+                                        <strong>
+                                          {group.tunnelMessageAuthor
+                                            ? `${group.tunnelMessageAuthor}: `
+                                            : ""}
+                                        </strong>
+                                        {tunnelMessages[group.id]}
+                                      </div>
+                                      {/* Verification logic for employees */}
+                                      {!(
+                                        tunnelMessageVerifiedBy[group.id] || []
+                                      ).some((v) => v.id === user?.id) ? (
+                                        <button
+                                          className="btn btn-success btn-sm mt-2"
+                                          style={{
+                                            fontWeight: 700,
+                                            backgroundColor: "#176a1a",
+                                            borderColor: "#176a1a",
+                                          }}
+                                          onClick={async () => {
+                                            if (!user) return;
+                                            const { updateDoc, arrayUnion, doc } =
+                                              await import("firebase/firestore");
+                                            const { db } = await import(
+                                              "../firebase"
+                                            );
+                                            await updateDoc(
+                                              doc(db, "pickup_groups", group.id),
+                                              {
+                                                tunnelMessageVerifiedBy: arrayUnion(
+                                                  {
+                                                    id: user.id,
+                                                    name:
+                                                      user.username || "Employee",
+                                                  }
+                                                ),
+                                              }
+                                            );
+                                          }}
+                                          disabled={false}
+                                        >
+                                          OK / Listo
+                                        </button>
+                                      ) : (
+                                        <div className="text-success small mt-2">
+                                          Ya verificaste este mensaje.
+                                        </div>
+                                      )}
+                                      {/* Show who has verified */}
+                                      {tunnelMessageVerifiedBy[group.id] &&
+                                        tunnelMessageVerifiedBy[group.id].length >
+                                          0 && (
+                                          <div
+                                            className="small mt-1"
+                                            style={{ color: "#0E62A0" }}
+                                          >
+                                            Verificado por:{" "}
+                                            {tunnelMessageVerifiedBy[group.id]
+                                              .map((v) => v.name)
+                                              .join(", ")}
+                                          </div>
+                                        )}
+                                      {/* Info for employees if controls are disabled */}
+                                      {needsMessageVerification && (
+                                        <div
+                                          className="small mt-2 text-success"
+                                          style={{ fontWeight: 500 }}
+                                        >
+                                          Los controles están deshabilitados hasta
+                                          que verifiques el mensaje.
+                                        </div>
+                                      )}
+                                    </>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  backgroundColor: "#28a745",
+                                  color: "white",
+                                  padding: "4px 12px",
+                                  borderRadius: "20px",
+                                  fontSize: "1rem",
+                                  fontWeight: "bold",
+                                  minWidth: "80px",
+                                  textAlign: "center",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {typeof group.totalWeight === "number"
+                                  ? Math.round(group.totalWeight)
+                                  : "?"}{" "}
+                                lbs
+                              </span>
+                              {/* If locked, skip verification and show counter directly */}
+                              {isLocked ? (
+                                <div className="d-flex align-items-center gap-2">
+                                  <span
+                                    style={{ fontSize: "1.1rem", color: "#333" }}
+                                  >
+                                    {cartCounter} / {maxCarts}
+                                  </span>
+                                  <button
+                                    className="btn btn-outline-primary btn-lg"
+                                    style={{
+                                      fontSize: 30,
+                                      minWidth: 60,
+                                      minHeight: 60,
+                                      borderRadius: 12,
+                                    }}
+                                    disabled={
+                                      cartCounter >= maxCarts ||
+                                      !canVerify ||
+                                      Boolean(rowControlsDisabled)
+                                    }
+                                    onClick={async () => {
+                                      if (!canVerify || rowControlsDisabled) return;
+                                      const newCount = Math.min(
+                                        cartCounter + 1,
+                                        maxCarts
+                                      );
+                                      setCartCounters((prev) => ({
+                                        ...prev,
+                                        [group.id]: newCount,
+                                      }));
+                                      await updateDoc(
+                                        doc(db, "pickup_groups", group.id),
+                                        { tunnelCartCount: newCount }
+                                      );
+                                    }}
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    className="btn btn-outline-secondary btn-lg"
+                                    style={{
+                                      fontSize: 30,
+                                      minWidth: 60,
+                                      minHeight: 60,
+                                      borderRadius: 12,
+                                    }}
+                                    disabled={
+                                      cartCounter <= 0 ||
+                                      !canVerify ||
+                                      Boolean(rowControlsDisabled)
+                                    }
+                                    onClick={async () => {
+                                      if (!canVerify || rowControlsDisabled) return;
+                                      const previousCount = cartCounter;
+                                      const newCount = Math.max(cartCounter - 1, 0);
+
+                                      // Update UI state
+                                      setCartCounters((prev) => ({
+                                        ...prev,
+                                        [group.id]: newCount,
+                                      }));
+
+                                      // Update database
+                                      await updateDoc(
+                                        doc(db, "pickup_groups", group.id),
+                                        { tunnelCartCount: newCount }
+                                      );
+                                    }}
+                                  >
+                                    -
+                                  </button>
+                                  {cartCounter === maxCarts && (
+                                    <button
+                                      className="btn btn-success btn-lg ms-3 px-4"
+                                      style={{
+                                        fontSize: 28,
+                                        fontWeight: 800,
+                                        minWidth: 100,
+                                        borderRadius: 12,
+                                      }}
+                                      disabled={
+                                        !canVerify || Boolean(rowControlsDisabled)
+                                      }
                                       onClick={async () => {
-                                        if (!user) return;
-                                        const { updateDoc, arrayUnion, doc } =
-                                          await import("firebase/firestore");
-                                        const { db } = await import(
-                                          "../firebase"
+                                        if (!canVerify || rowControlsDisabled)
+                                          return;
+                                        if (cartCounter !== maxCarts) {
+                                          return;
+                                        }
+                                        const { updatePickupGroupStatus } =
+                                          await import(
+                                            "../services/firebaseService"
+                                          );
+                                        await updatePickupGroupStatus(
+                                          group.id,
+                                          "procesandose"
                                         );
                                         await updateDoc(
                                           doc(db, "pickup_groups", group.id),
                                           {
-                                            tunnelMessageVerifiedBy: arrayUnion(
-                                              {
-                                                id: user.id,
-                                                name:
-                                                  user.username || "Employee",
-                                              }
-                                            ),
+                                            showInTunnel: false,
+                                            segregationComplete: false,
                                           }
                                         );
+                                        setSelectedTunnelGroup(null);
                                       }}
-                                      disabled={false}
                                     >
-                                      OK / Listo
+                                      Done
+                                    </button>
+                                  )}
+                                </div>
+                              ) : !isVerified ? (
+                                <div style={{ minWidth: 220 }}>
+                                  {/* Only show the button, and show the input if verifying */}
+                                  {!isVerifying ? (
+                                    <button
+                                      className="btn btn-outline-danger btn-lg d-flex align-items-center justify-content-center"
+                                      style={{
+                                        fontSize: 38,
+                                        minWidth: 60,
+                                        minHeight: 60,
+                                        borderRadius: 16,
+                                        background: "#ff3b3b",
+                                        color: "#fff",
+                                        fontWeight: 900,
+                                        boxShadow: "0 2px 12px rgba(255,59,59,0.18)",
+                                        border: "none",
+                                      }}
+                                      onClick={() =>
+                                        canVerify &&
+                                        !rowControlsDisabled &&
+                                        setVerifyingGroupIds((ids) => ({
+                                          ...ids,
+                                          [group.id]: true,
+                                        }))
+                                      }
+                                      disabled={
+                                        !canVerify || Boolean(rowControlsDisabled)
+                                      }
+                                      aria-label="Verify Cart Count"
+                                    >
+                                      ?
                                     </button>
                                   ) : (
-                                    <div className="text-success small mt-2">
-                                      Ya verificaste este mensaje.
-                                    </div>
-                                  )}
-                                  {/* Show who has verified */}
-                                  {tunnelMessageVerifiedBy[group.id] &&
-                                    tunnelMessageVerifiedBy[group.id].length >
-                                      0 && (
-                                      <div
-                                        className="small mt-1"
-                                        style={{ color: "#0E62A0" }}
-                                      >
-                                        Verificado por:{" "}
-                                        {tunnelMessageVerifiedBy[group.id]
-                                          .map((v) => v.name)
-                                          .join(", ")}
-                                      </div>
-                                    )}
-                                  {/* Info for employees if controls are disabled */}
-                                  {needsMessageVerification && (
-                                    <div
-                                      className="small mt-2 text-success"
-                                      style={{ fontWeight: 500 }}
-                                    >
-                                      Los controles están deshabilitados hasta
-                                      que verifiques el mensaje.
-                                    </div>
-                                  )}
-                                </>
-                              ) : null}
-                            </div>
-                          </div>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              backgroundColor: "#28a745",
-                              color: "white",
-                              padding: "4px 12px",
-                              borderRadius: "20px",
-                              fontSize: "1rem",
-                              fontWeight: "bold",
-                              minWidth: "80px",
-                              textAlign: "center",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {typeof group.totalWeight === "number"
-                              ? Math.round(group.totalWeight)
-                              : "?"} lbs
-                          </span>
-                          {/* If locked, skip verification and show counter directly */}
-                          {isLocked ? (
-                            <div className="d-flex align-items-center gap-2">
-                              <span
-                                style={{ fontSize: "1.1rem", color: "#333" }}
-                              >
-                                {cartCounter} / {maxCarts}
-                              </span>
-                              <button
-                                className="btn btn-outline-primary btn-lg"
-                                style={{
-                                  fontSize: 30,
-                                  minWidth: 60,
-                                  minHeight: 60,
-                                  borderRadius: 12,
-                                }}
-                                disabled={
-                                  cartCounter >= maxCarts ||
-                                  !canVerify ||
-                                  Boolean(rowControlsDisabled)
-                                }
-                                onClick={async () => {
-                                  if (!canVerify || rowControlsDisabled) return;
-                                  const newCount = Math.min(
-                                    cartCounter + 1,
-                                    maxCarts
-                                  );
-                                  setCartCounters((prev) => ({
-                                    ...prev,
-                                    [group.id]: newCount,
-                                  }));
-                                  await updateDoc(
-                                    doc(db, "pickup_groups", group.id),
-                                    { tunnelCartCount: newCount }
-                                  );
-                                }}
-                              >
-                                +
-                              </button>
-                              <button
-                                className="btn btn-outline-secondary btn-lg"
-                                style={{
-                                  fontSize: 30,
-                                  minWidth: 60,
-                                  minHeight: 60,
-                                  borderRadius: 12,
-                                }}
-                                disabled={
-                                  cartCounter <= 0 ||
-                                  !canVerify ||
-                                  Boolean(rowControlsDisabled)
-                                }
-                                onClick={async () => {
-                                  if (!canVerify || rowControlsDisabled) return;
-                                  const previousCount = cartCounter;
-                                  const newCount = Math.max(cartCounter - 1, 0);
-                                  
-                                  // Update UI state
-                                  setCartCounters((prev) => ({
-                                    ...prev,
-                                    [group.id]: newCount,
-                                  }));
-                                  
-                                  // Update database
-                                  await updateDoc(
-                                    doc(db, "pickup_groups", group.id),
-                                    { tunnelCartCount: newCount }
-                                  );
-                                }}
-                              >
-                                -
-                              </button>
-                              {cartCounter === maxCarts && (
-                                <button
-                                  className="btn btn-success btn-lg ms-3 px-4"
-                                  style={{
-                                    fontSize: 28,
-                                    fontWeight: 800,
-                                    minWidth: 100,
-                                    borderRadius: 12,
-                                  }}
-                                  disabled={
-                                    !canVerify || Boolean(rowControlsDisabled)
-                                  }
-                                  onClick={async () => {
-                                    if (!canVerify || rowControlsDisabled)
-                                      return;
-                                    if (cartCounter !== maxCarts) {
-                                      return;
-                                    }
-                                    const { updatePickupGroupStatus } =
-                                      await import(
-                                        "../services/firebaseService"
-                                      );
-                                    await updatePickupGroupStatus(
-                                      group.id,
-                                      "procesandose"
-                                    );
-                                    await updateDoc(
-                                      doc(db, "pickup_groups", group.id),
-                                      {
-                                        showInTunnel: false,
-                                        segregationComplete: false,
-                                      }
-                                    );
-                                    setSelectedTunnelGroup(null);
-                                  }}
-                                >
-                                  Done
-                                </button>
-                              )}
-                            </div>
-                          ) : !isVerified ? (
-                            <div style={{ minWidth: 220 }}>
-                              {/* Only show the button, and show the input if verifying */}
-                              {!isVerifying ? (
-                                <button
-                                  className="btn btn-outline-danger btn-lg d-flex align-items-center justify-content-center"
-                                  style={{
-                                    fontSize: 38,
-                                    minWidth: 60,
-                                    minHeight: 60,
-                                    borderRadius: 16,
-                                    background: "#ff3b3b",
-                                    color: "#fff",
-                                    fontWeight: 900,
-                                    boxShadow: "0 2px 8px rgba(255,59,59,0.18)",
-                                    border: "none",
-                                  }}
-                                  onClick={() =>
-                                    canVerify &&
-                                    !rowControlsDisabled &&
-                                    setVerifyingGroupIds((ids) => ({
-                                      ...ids,
-                                      [group.id]: true,
-                                    }))
-                                  }
-                                  disabled={
-                                    !canVerify || Boolean(rowControlsDisabled)
-                                  }
-                                  aria-label="Verify Cart Count"
-                                >
-                                  ?
-                                </button>
-                              ) : (
-                                <>
-                                  {/* Only show segregated carts value for Supervisor or higher */}
-                                  {canReorder && (
-                                    <div className="mb-2 text-secondary small">
-                                      {editingSegregatedCarts[group.id] ? (
-                                        <div className="d-flex align-items-center gap-2">
-                                          <span>Segregated Carts:</span>
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            className="form-control form-control-sm"
-                                            style={{ width: "80px" }}
-                                            value={
-                                              segregatedCartsInput[group.id] ??
-                                              getSegregatedCarts(
-                                                group
-                                              ).toString()
-                                            }
-                                            onChange={(e) =>
-                                              setSegregatedCartsInput(
-                                                (prev) => ({
-                                                  ...prev,
-                                                  [group.id]: e.target.value,
-                                                })
-                                              )
-                                            }
-                                            onKeyDown={async (e) => {
-                                              if (e.key === "Enter") {
-                                                const newValue = parseInt(
-                                                  segregatedCartsInput[
-                                                    group.id
-                                                  ] || "0"
-                                                );
-                                                if (
-                                                  !isNaN(newValue) &&
-                                                  newValue >= 0
-                                                ) {
-                                                  try {
-                                                    await updateDoc(
-                                                      doc(
-                                                        db,
-                                                        "pickup_groups",
+                                    <>
+                                      {/* Only show segregated carts value for Supervisor or higher */}
+                                      {canReorder && (
+                                        <div className="mb-2 text-secondary small">
+                                          {editingSegregatedCarts[group.id] ? (
+                                            <div className="d-flex align-items-center gap-2">
+                                              <span>Segregated Carts:</span>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                className="form-control form-control-sm"
+                                                style={{ width: "80px" }}
+                                                value={
+                                                  segregatedCartsInput[group.id] ??
+                                                  getSegregatedCarts(
+                                                    group
+                                                  ).toString()
+                                                }
+                                                onChange={(e) =>
+                                                  setSegregatedCartsInput(
+                                                    (prev) => ({
+                                                      ...prev,
+                                                      [group.id]: e.target.value,
+                                                    })
+                                                  )
+                                                }
+                                                onKeyDown={async (e) => {
+                                                  if (e.key === "Enter") {
+                                                    const newValue = parseInt(
+                                                      segregatedCartsInput[
                                                         group.id
-                                                      ),
-                                                      {
-                                                        segregatedCarts:
-                                                          newValue,
-                                                      }
+                                                      ] || "0"
                                                     );
+                                                    if (
+                                                      !isNaN(newValue) &&
+                                                      newValue >= 0
+                                                    ) {
+                                                      try {
+                                                        await updateDoc(
+                                                          doc(
+                                                            db,
+                                                            "pickup_groups",
+                                                            group.id
+                                                          ),
+                                                          {
+                                                            segregatedCarts:
+                                                              newValue,
+                                                          }
+                                                        );
+                                                        setEditingSegregatedCarts(
+                                                          (prev) => ({
+                                                            ...prev,
+                                                            [group.id]: false,
+                                                          })
+                                                        );
+                                                        setSegregatedCartsInput(
+                                                          (prev) => ({
+                                                            ...prev,
+                                                            [group.id]: "",
+                                                          })
+                                                        );
+                                                      } catch (error) {
+                                                        alert(
+                                                          "Error updating segregated carts"
+                                                        );
+                                                      }
+                                                    }
+                                                  } else if (e.key === "Escape") {
                                                     setEditingSegregatedCarts(
                                                       (prev) => ({
                                                         ...prev,
@@ -1915,53 +2288,61 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                                         [group.id]: "",
                                                       })
                                                     );
-                                                  } catch (error) {
-                                                    alert(
-                                                      "Error updating segregated carts"
-                                                    );
                                                   }
-                                                }
-                                              } else if (e.key === "Escape") {
-                                                setEditingSegregatedCarts(
-                                                  (prev) => ({
-                                                    ...prev,
-                                                    [group.id]: false,
-                                                  })
-                                                );
-                                                setSegregatedCartsInput(
-                                                  (prev) => ({
-                                                    ...prev,
-                                                    [group.id]: "",
-                                                  })
-                                                );
-                                              }
-                                            }}
-                                            autoFocus
-                                          />
-                                          <button
-                                            className="btn btn-success btn-sm px-2 py-0"
-                                            style={{ fontSize: "12px" }}
-                                            onClick={async () => {
-                                              const newValue = parseInt(
-                                                segregatedCartsInput[
-                                                  group.id
-                                                ] || "0"
-                                              );
-                                              if (
-                                                !isNaN(newValue) &&
-                                                newValue >= 0
-                                              ) {
-                                                try {
-                                                  await updateDoc(
-                                                    doc(
-                                                      db,
-                                                      "pickup_groups",
+                                                }}
+                                                autoFocus
+                                              />
+                                              <button
+                                                className="btn btn-success btn-sm px-2 py-0"
+                                                style={{ fontSize: "12px" }}
+                                                onClick={async () => {
+                                                  const newValue = parseInt(
+                                                    segregatedCartsInput[
                                                       group.id
-                                                    ),
-                                                    {
-                                                      segregatedCarts: newValue,
-                                                    }
+                                                    ] || "0"
                                                   );
+                                                  if (
+                                                    !isNaN(newValue) &&
+                                                    newValue >= 0
+                                                  ) {
+                                                    try {
+                                                      await updateDoc(
+                                                        doc(
+                                                          db,
+                                                          "pickup_groups",
+                                                          group.id
+                                                        ),
+                                                        {
+                                                          segregatedCarts: newValue,
+                                                        }
+                                                      );
+                                                      setEditingSegregatedCarts(
+                                                        (prev) => ({
+                                                          ...prev,
+                                                          [group.id]: false,
+                                                        })
+                                                      );
+                                                      setSegregatedCartsInput(
+                                                        (prev) => ({
+                                                          ...prev,
+                                                          [group.id]: "",
+                                                        })
+                                                      );
+                                                    } catch (error) {
+                                                      alert(
+                                                        "Error updating segregated carts"
+                                                      );
+                                                    }
+                                                  }
+                                                }}
+                                                title="Save"
+                                              >
+                                                ✓
+                                              </button>
+                                              <button
+                                                className="btn btn-secondary btn-sm px-2 py-0"
+                                                style={{ fontSize: "12px" }}
+                                                onClick={() => {
                                                   setEditingSegregatedCarts(
                                                     (prev) => ({
                                                       ...prev,
@@ -1974,411 +2355,388 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                                       [group.id]: "",
                                                     })
                                                   );
-                                                } catch (error) {
-                                                  alert(
-                                                    "Error updating segregated carts"
-                                                  );
+                                                }}
+                                                title="Cancel"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <div className="d-flex align-items-center gap-2">
+                                              <span>
+                                                Segregated Carts:{" "}
+                                                <strong>
+                                                  {getSegregatedCarts(group)}
+                                                </strong>
+                                              </span>
+                                              <button
+                                                className="btn btn-outline-primary btn-sm px-2 py-0"
+                                                style={{ fontSize: "12px" }}
+                                                onClick={() =>
+                                                  setEditingSegregatedCarts(
+                                                    (prev) => ({
+                                                      ...prev,
+                                                      [group.id]: true,
+                                                    })
+                                                  )
                                                 }
-                                              }
-                                            }}
-                                            title="Save"
-                                          >
-                                            ✓
-                                          </button>
-                                          <button
-                                            className="btn btn-secondary btn-sm px-2 py-0"
-                                            style={{ fontSize: "12px" }}
-                                            onClick={() => {
-                                              setEditingSegregatedCarts(
-                                                (prev) => ({
-                                                  ...prev,
-                                                  [group.id]: false,
-                                                })
-                                              );
-                                              setSegregatedCartsInput(
-                                                (prev) => ({
-                                                  ...prev,
-                                                  [group.id]: "",
-                                                })
-                                              );
-                                            }}
-                                            title="Cancel"
-                                          >
-                                            ✕
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <div className="d-flex align-items-center gap-2">
-                                          <span>
-                                            Segregated Carts:{" "}
-                                            <strong>
-                                              {getSegregatedCarts(group)}
-                                            </strong>
-                                          </span>
-                                          <button
-                                            className="btn btn-outline-primary btn-sm px-2 py-0"
-                                            style={{ fontSize: "12px" }}
-                                            onClick={() =>
-                                              setEditingSegregatedCarts(
-                                                (prev) => ({
-                                                  ...prev,
-                                                  [group.id]: true,
-                                                })
-                                              )
-                                            }
-                                            title="Edit segregated cart count"
-                                          >
-                                            ✏️
-                                          </button>
+                                                title="Edit segregated cart count"
+                                              >
+                                                ✏️
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
                                       )}
-                                    </div>
-                                  )}
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    className="form-control form-control-sm"
-                                    style={{ width: 110, maxWidth: "100%" }}
-                                    placeholder="How many carts did you count?"
-                                    value={tunnelCartInput}
-                                    onChange={(e) =>
-                                      setTunnelCartInput(e.target.value)
-                                    }
-                                    autoFocus
-                                    disabled={
-                                      !canVerify || Boolean(rowControlsDisabled)
-                                    }
-                                  />
-                                  {tunnelCartError && (
-                                    <div className="text-danger small">
-                                      {tunnelCartError}
-                                    </div>
-                                  )}
-                                  <button
-                                    className="btn btn-primary btn-sm ms-2"
-                                    onClick={async () => {
-                                      if (!canVerify) return;
-                                      const val = parseInt(tunnelCartInput);
-                                      if (isNaN(val)) {
-                                        setTunnelCartError(
-                                          "Please enter a valid number."
-                                        );
-                                        return;
-                                      }
-                                      if (val !== getSegregatedCarts(group)) {
-                                        setTunnelCartError(
-                                          canReorder
-                                            ? `Cart count does not match segregation value (${getSegregatedCarts(
-                                                group
-                                              )}).`
-                                            : "Cart count does not match segregation value."
-                                        );
-                                        setShowTunnelRedAlert(true);
-                                        if (tunnelRedAlertTimerRef.current)
-                                          clearTimeout(
-                                            tunnelRedAlertTimerRef.current
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        className="form-control form-control-sm"
+                                        style={{ width: 110, maxWidth: "100%" }}
+                                        placeholder="How many carts did you count?"
+                                        value={tunnelCartInput}
+                                        onChange={(e) =>
+                                          setTunnelCartInput(e.target.value)
+                                        }
+                                        autoFocus
+                                        disabled={
+                                          !canVerify || Boolean(rowControlsDisabled)
+                                        }
+                                      />
+                                      {tunnelCartError && (
+                                        <div className="text-danger small">
+                                          {tunnelCartError}
+                                        </div>
+                                      )}
+                                      <button
+                                        className="btn btn-primary btn-sm ms-2"
+                                        onClick={async () => {
+                                          if (!canVerify) return;
+                                          const val = parseInt(tunnelCartInput);
+                                          if (isNaN(val)) {
+                                            setTunnelCartError(
+                                              "Please enter a valid number."
+                                            );
+                                            return;
+                                          }
+                                          if (val !== getSegregatedCarts(group)) {
+                                            setTunnelCartError(
+                                              canReorder
+                                                ? `Cart count does not match segregation value (${getSegregatedCarts(
+                                                    group
+                                                  )}).`
+                                                : "Cart count does not match segregation value."
+                                            );
+                                            setShowTunnelRedAlert(true);
+                                            if (tunnelRedAlertTimerRef.current)
+                                              clearTimeout(
+                                                tunnelRedAlertTimerRef.current
+                                              );
+                                            tunnelRedAlertTimerRef.current =
+                                              setTimeout(() => {
+                                                setShowTunnelRedAlert(false);
+                                              }, 5000);
+                                            return;
+                                          }
+                                          setTunnelCartError("");
+                                          setVerifiedGroups((prev) => ({
+                                            ...prev,
+                                            [group.id]: true,
+                                          }));
+                                          setCartCounters((prev) => ({
+                                            ...prev,
+                                            [group.id]: 0,
+                                          }));
+                                          setVerifyingGroupIds((ids) => ({
+                                            ...ids,
+                                            [group.id]: false,
+                                          }));
+                                          setTunnelCartInput("");
+                                          // Save verification and counter to Firestore
+                                          await updateDoc(
+                                            doc(db, "pickup_groups", group.id),
+                                            {
+                                              tunnelVerified: true,
+                                              tunnelCartCount: 0,
+                                              segregatedCarts: val,
+                                            }
                                           );
-                                        tunnelRedAlertTimerRef.current =
-                                          setTimeout(() => {
-                                            setShowTunnelRedAlert(false);
-                                          }, 5000);
-                                        return;
-                                      }
-                                      setTunnelCartError("");
-                                      setVerifiedGroups((prev) => ({
-                                        ...prev,
-                                        [group.id]: true,
-                                      }));
+                                        }}
+                                        disabled={!canVerify}
+                                      >
+                                        Verify
+                                      </button>
+                                      <button
+                                        className="btn btn-secondary btn-sm ms-2"
+                                        onClick={() =>
+                                          canVerify &&
+                                          setVerifyingGroupIds((ids) => ({
+                                            ...ids,
+                                            [group.id]: false,
+                                          }))
+                                        }
+                                        disabled={!canVerify}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                // Counting step: show counter if verified
+                                <div className="d-flex align-items-center gap-2">
+                                  <span
+                                    style={{ fontSize: "1.1rem", color: "#333" }}
+                                  >
+                                    {cartCounter} / {getSegregatedCarts(group)}
+                                  </span>
+                                  <button
+                                    className="btn btn-outline-primary btn-lg"
+                                    style={{
+                                      fontSize: 30,
+                                      minWidth: 60,
+                                      minHeight: 60,
+                                      borderRadius: 12,
+                                    }}
+                                    disabled={
+                                      cartCounter >= getSegregatedCarts(group) ||
+                                      !canVerify ||
+                                      Boolean(rowControlsDisabled)
+                                    }
+                                    onClick={async () => {
+                                      if (!canVerify || rowControlsDisabled) return;
+                                      const newCount = Math.min(
+                                        cartCounter + 1,
+                                        getSegregatedCarts(group)
+                                      );
                                       setCartCounters((prev) => ({
                                         ...prev,
-                                        [group.id]: 0,
+                                        [group.id]: newCount,
                                       }));
-                                      setVerifyingGroupIds((ids) => ({
-                                        ...ids,
-                                        [group.id]: false,
-                                      }));
-                                      setTunnelCartInput("");
-                                      // Save verification and counter to Firestore
                                       await updateDoc(
                                         doc(db, "pickup_groups", group.id),
                                         {
-                                          tunnelVerified: true,
-                                          tunnelCartCount: 0,
-                                          segregatedCarts: val,
+                                          tunnelCartCount: newCount,
                                         }
                                       );
                                     }}
-                                    disabled={!canVerify}
                                   >
-                                    Verify
+                                    +
                                   </button>
                                   <button
-                                    className="btn btn-secondary btn-sm ms-2"
-                                    onClick={() =>
-                                      canVerify &&
-                                      setVerifyingGroupIds((ids) => ({
-                                        ...ids,
-                                        [group.id]: false,
-                                      }))
+                                    className="btn btn-outline-secondary btn-lg"
+                                    style={{
+                                      fontSize: 30,
+                                      minWidth: 60,
+                                      minHeight: 60,
+                                      borderRadius: 12,
+                                    }}
+                                    disabled={
+                                      cartCounter <= 0 ||
+                                      !canVerify ||
+                                      Boolean(rowControlsDisabled)
                                     }
-                                    disabled={!canVerify}
+                                    onClick={async () => {
+                                      if (!canVerify || rowControlsDisabled) return;
+                                      const previousCount = cartCounter;
+                                      const newCount = Math.max(cartCounter - 1, 0);
+
+                                      // Update UI state
+                                      setCartCounters((prev) => ({
+                                        ...prev,
+                                        [group.id]: newCount,
+                                      }));
+
+                                      // Update database
+                                      await updateDoc(
+                                        doc(db, "pickup_groups", group.id),
+                                        { tunnelCartCount: newCount }
+                                      );
+                                    }}
                                   >
-                                    Cancel
+                                    -
+                                  </button>
+                                  {cartCounter === getSegregatedCarts(group) && (
+                                    <button
+                                      className="btn btn-success btn-sm ms-2"
+                                      disabled={
+                                        !!group.invoiceId ||
+                                        group.washed ||
+                                        tunnelInvoiceInProgress[group.id] ||
+                                        !canVerify
+                                      }
+                                      onClick={async () => {
+                                        if (!canVerify) return;
+                                        if (
+                                          group.invoiceId ||
+                                          group.washed ||
+                                          tunnelInvoiceInProgress[group.id]
+                                        )
+                                          return;
+                                        setTunnelInvoiceInProgress((prev) => ({
+                                          ...prev,
+                                          [group.id]: true,
+                                        }));
+                                        try {
+                                          // Refetch group from Firestore to check for invoiceId/washed
+                                          const {
+                                            getDoc,
+                                            doc: firestoreDoc,
+                                            updateDoc,
+                                          } = await import("firebase/firestore");
+                                          const { db } = await import(
+                                            "../firebase"
+                                          );
+                                          const groupSnap = await getDoc(
+                                            firestoreDoc(
+                                              db,
+                                              "pickup_groups",
+                                              group.id
+                                            )
+                                          );
+                                          const latestGroup = groupSnap.exists()
+                                            ? groupSnap.data()
+                                            : {};
+                                          if (
+                                            latestGroup.invoiceId ||
+                                            latestGroup.washed
+                                          ) {
+                                            setTunnelInvoiceInProgress((prev) => ({
+                                              ...prev,
+                                              [group.id]: false,
+                                            }));
+                                            return;
+                                          }
+                                          // Create invoice
+                                          const {
+                                            addInvoice,
+                                            updatePickupGroupStatus,
+                                          } = await import(
+                                            "../services/firebaseService"
+                                          );
+                                          const newInvoice = {
+                                            clientId: group.clientId,
+                                            clientName: group.clientName,
+                                            date: new Date().toISOString(),
+                                            products: [],
+                                            total: 0,
+                                            carts: group.carts || [],
+                                            totalWeight: group.totalWeight || 0,
+                                            pickupGroupId: group.id,
+                                          };
+                                          const invoiceId = await addInvoice(
+                                            newInvoice
+                                          );
+                                          await updateDoc(
+                                            firestoreDoc(
+                                              db,
+                                              "pickup_groups",
+                                              group.id
+                                            ),
+                                            {
+                                              invoiceId,
+                                              washed: true,
+                                              status: "Empaque",
+                                            }
+                                          );
+                                          await updatePickupGroupStatus(
+                                            group.id,
+                                            "procesandose"
+                                          );
+                                          if (setSelectedInvoiceId)
+                                            setSelectedInvoiceId(invoiceId);
+                                          setGroups((prev) =>
+                                            prev.map((g) =>
+                                              g.id === group.id
+                                                ? {
+                                                    ...g,
+                                                    invoiceId,
+                                                    washed: true,
+                                                    status: "Empaque",
+                                                  }
+                                                : g
+                                            )
+                                          );
+                                        } catch (e) {
+                                          alert(
+                                            "Error marking group as washed and creating invoice"
+                                          );
+                                        } finally {
+                                          setTunnelInvoiceInProgress((prev) => ({
+                                            ...prev,
+                                            [group.id]: false,
+                                          }));
+                                        }
+                                      }}
+                                    >
+                                      Done
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div
+                              className="d-flex flex-row align-items-center justify-content-end gap-2"
+                              style={{
+                                minWidth: 220,
+                                maxWidth: 260,
+                                color: "#000",
+                              }} // Force text black
+                            >
+                              {/* Move up/down arrows - only for Supervisor or higher */}
+                              {canReorder && (
+                                <>
+                                  <button
+                                    className="btn btn-outline-secondary btn-sm"
+                                    title="Move up"
+                                    disabled={
+                                      tunnelReorderLoading === group.id || idx === 0
+                                    }
+                                    onClick={() => moveTunnelGroup(group.id, "up")}
+                                    style={{
+                                      fontSize: 32,
+                                      padding: "8px 16px",
+                                      minWidth: 48,
+                                    }}
+                                  >
+                                    <span aria-hidden="true">▲</span>
+                                  </button>
+                                  <button
+                                    className="btn btn-outline-secondary btn-sm"
+                                    title="Move down"
+                                    disabled={
+                                      tunnelReorderLoading === group.id ||
+                                      idx === displayedTunnelGroups.length - 1
+                                    }
+                                    onClick={() =>
+                                      moveTunnelGroup(group.id, "down")
+                                    }
+                                    style={{
+                                      fontSize: 32,
+                                      padding: "8px 16px",
+                                      minWidth: 48,
+                                    }}
+                                  >
+                                    <span aria-hidden="true">▼</span>
                                   </button>
                                 </>
                               )}
+                              {/* Delete group button */}
+                              <button
+                                className="btn btn-outline-danger btn-sm"
+                                title="Delete group"
+                                onClick={() => handleDeleteGroup(group.id)}
+                              >
+                                <span aria-hidden="true">🗑️</span>
+                              </button>
                             </div>
-                          ) : (
-                            // Counting step: show counter if verified
-                            <div className="d-flex align-items-center gap-2">
-                              <span
-                                style={{ fontSize: "1.1rem", color: "#333" }}
-                              >
-                                {cartCounter} / {getSegregatedCarts(group)}
-                              </span>
-                              <button
-                                className="btn btn-outline-primary btn-lg"
-                                style={{
-                                  fontSize: 30,
-                                  minWidth: 60,
-                                  minHeight: 60,
-                                  borderRadius: 12,
-                                }}
-                                disabled={
-                                  cartCounter >= getSegregatedCarts(group) ||
-                                  !canVerify ||
-                                  Boolean(rowControlsDisabled)
-                                }
-                                onClick={async () => {
-                                  if (!canVerify || rowControlsDisabled) return;
-                                  const newCount = Math.min(
-                                    cartCounter + 1,
-                                    getSegregatedCarts(group)
-                                  );
-                                  setCartCounters((prev) => ({
-                                    ...prev,
-                                    [group.id]: newCount,
-                                  }));
-                                  await updateDoc(
-                                    doc(db, "pickup_groups", group.id),
-                                    {
-                                      tunnelCartCount: newCount,
-                                    }
-                                  );
-                                }}
-                              >
-                                +
-                              </button>
-                              <button
-                                className="btn btn-outline-secondary btn-lg"
-                                style={{
-                                  fontSize: 30,
-                                  minWidth: 60,
-                                  minHeight: 60,
-                                  borderRadius: 12,
-                                }}
-                                disabled={
-                                  cartCounter <= 0 ||
-                                  !canVerify ||
-                                  Boolean(rowControlsDisabled)
-                                }
-                                onClick={async () => {
-                                  if (!canVerify || rowControlsDisabled) return;
-                                  const previousCount = cartCounter;
-                                  const newCount = Math.max(cartCounter - 1, 0);
-                                  
-                                  // Update UI state
-                                  setCartCounters((prev) => ({
-                                    ...prev,
-                                    [group.id]: newCount,
-                                  }));
-                                  
-                                  // Update database
-                                  await updateDoc(
-                                    doc(db, "pickup_groups", group.id),
-                                    { tunnelCartCount: newCount }
-                                  );
-                                }}
-                              >
-                                -
-                              </button>
-                              {cartCounter === getSegregatedCarts(group) && (
-                                <button
-                                  className="btn btn-success btn-sm ms-2"
-                                  disabled={
-                                    !!group.invoiceId ||
-                                    group.washed ||
-                                    tunnelInvoiceInProgress[group.id] ||
-                                    !canVerify
-                                  }
-                                  onClick={async () => {
-                                    if (!canVerify) return;
-                                    if (
-                                      group.invoiceId ||
-                                      group.washed ||
-                                      tunnelInvoiceInProgress[group.id]
-                                    )
-                                      return;
-                                    setTunnelInvoiceInProgress((prev) => ({
-                                      ...prev,
-                                      [group.id]: true,
-                                    }));
-                                    try {
-                                      // Refetch group from Firestore to check for invoiceId/washed
-                                      const {
-                                        getDoc,
-                                        doc: firestoreDoc,
-                                        updateDoc,
-                                      } = await import("firebase/firestore");
-                                      const { db } = await import(
-                                        "../firebase"
-                                      );
-                                      const groupSnap = await getDoc(
-                                        firestoreDoc(
-                                          db,
-                                          "pickup_groups",
-                                          group.id
-                                        )
-                                      );
-                                      const latestGroup = groupSnap.exists()
-                                        ? groupSnap.data()
-                                        : {};
-                                      if (
-                                        latestGroup.invoiceId ||
-                                        latestGroup.washed
-                                      ) {
-                                        setTunnelInvoiceInProgress((prev) => ({
-                                          ...prev,
-                                          [group.id]: false,
-                                        }));
-                                        return;
-                                      }
-                                      // Create invoice
-                                      const {
-                                        addInvoice,
-                                        updatePickupGroupStatus,
-                                      } = await import(
-                                        "../services/firebaseService"
-                                      );
-                                      const newInvoice = {
-                                        clientId: group.clientId,
-                                        clientName: group.clientName,
-                                        date: new Date().toISOString(),
-                                        products: [],
-                                        total: 0,
-                                        carts: group.carts || [],
-                                        totalWeight: group.totalWeight || 0,
-                                        pickupGroupId: group.id,
-                                      };
-                                      const invoiceId = await addInvoice(
-                                        newInvoice
-                                      );
-                                      await updateDoc(
-                                        firestoreDoc(
-                                          db,
-                                          "pickup_groups",
-                                          group.id
-                                        ),
-                                        {
-                                          invoiceId,
-                                          washed: true,
-                                          status: "Empaque",
-                                        }
-                                      );
-                                      await updatePickupGroupStatus(
-                                        group.id,
-                                        "procesandose"
-                                      );
-                                      if (setSelectedInvoiceId)
-                                        setSelectedInvoiceId(invoiceId);
-                                      setGroups((prev) =>
-                                        prev.map((g) =>
-                                          g.id === group.id
-                                            ? {
-                                                ...g,
-                                                invoiceId,
-                                                washed: true,
-                                                status: "Empaque",
-                                              }
-                                            : g
-                                        )
-                                      );
-                                    } catch (e) {
-                                      alert(
-                                        "Error marking group as washed and creating invoice"
-                                      );
-                                    } finally {
-                                      setTunnelInvoiceInProgress((prev) => ({
-                                        ...prev,
-                                        [group.id]: false,
-                                      }));
-                                    }
-                                  }}
-                                >
-                                  Done
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <div
-                          className="d-flex flex-row align-items-center justify-content-end gap-2"
-                          style={{
-                            minWidth: 220,
-                            maxWidth: 260,
-                            color: "#000",
-                          }} // Force text black
-                        >
-                          {/* Move up/down arrows - only for Supervisor or higher */}
-                          {canReorder && (
-                            <>
-                              <button
-                                className="btn btn-outline-secondary btn-sm"
-                                title="Move up"
-                                disabled={
-                                  tunnelReorderLoading === group.id || idx === 0
-                                }
-                                onClick={() => moveTunnelGroup(group.id, "up")}
-                                style={{
-                                  fontSize: 32,
-                                  padding: "8px 16px",
-                                  minWidth: 48,
-                                }}
-                              >
-                                <span aria-hidden="true">▲</span>
-                              </button>
-                              <button
-                                className="btn btn-outline-secondary btn-sm"
-                                title="Move down"
-                                disabled={
-                                  tunnelReorderLoading === group.id ||
-                                  idx === tunnelGroups.length - 1
-                                }
-                                onClick={() =>
-                                  moveTunnelGroup(group.id, "down")
-                                }
-                                style={{
-                                  fontSize: 32,
-                                  padding: "8px 16px",
-                                  minWidth: 48,
-                                }}
-                              >
-                                <span aria-hidden="true">▼</span>
-                              </button>
-                            </>
-                          )}
-                          {/* Delete group button */}
-                          <button
-                            className="btn btn-outline-danger btn-sm"
-                            title="Delete group"
-                            onClick={() => handleDeleteGroup(group.id)}
-                          >
-                            <span aria-hidden="true">🗑️</span>
-                          </button>
-                        </div>
+                          </>
+                        )}
                       </div>
                     );
                   })}
+                  {/* Always render a last empty row for spacing after the last item */}
+                  <div style={{ height: 32 }} />
                 </FlipMove>
               </div>
             )}
@@ -2629,8 +2987,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         className="list-group-item d-flex flex-row align-items-center justify-content-between gap-4 py-4 mb-3 shadow-sm rounded"
                         style={{
                           border: "2px solid #e3e3e3",
-                          background: priorityFlags[group.id] 
-                            ? "#d32f2f" 
+                          background: priorityFlags[group.id]
+                            ? "#d32f2f"
                             : group.isManualProduct
                             ? "#fffbe6"
                             : "#fff",
@@ -2640,8 +2998,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           alignItems: "center",
                           maxWidth: 1000,
                           width: "100%",
-                          borderColor: priorityFlags[group.id] 
-                            ? "#b71c1c" 
+                          borderColor: priorityFlags[group.id]
+                            ? "#b71c1c"
                             : "#e3e3e3",
                           color: priorityFlags[group.id] ? "#fff" : "inherit",
                         }}
@@ -2662,15 +3020,20 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 color: "#666",
                                 fontSize: "1rem",
                                 fontWeight: 500,
-                                whiteSpace: "nowrap"
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              {group.startTime ? new Date(group.startTime).toLocaleDateString() : 
-                               group.endTime ? new Date(group.endTime).toLocaleDateString() :
-                               group.createdAt ? new Date(group.createdAt.seconds * 1000).toLocaleDateString() : 
-                               new Date().toLocaleDateString()}
+                              {group.startTime
+                                ? new Date(group.startTime).toLocaleDateString()
+                                : group.endTime
+                                ? new Date(group.endTime).toLocaleDateString()
+                                : group.createdAt
+                                ? new Date(
+                                    group.createdAt.seconds * 1000
+                                  ).toLocaleDateString()
+                                : new Date().toLocaleDateString()}
                             </span>
-                            
+
                             {/* Client Name */}
                             <span
                               style={{
@@ -2684,7 +3047,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             >
                               {group.clientName}
                             </span>
-                            
+
                             {/* Group Weight */}
                             {!group.isManualProduct && (
                               <span
@@ -2698,16 +3061,17 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   fontWeight: "bold",
                                   minWidth: "80px",
                                   textAlign: "center",
-                                  whiteSpace: "nowrap"
+                                  whiteSpace: "nowrap",
                                 }}
                               >
                                 {typeof group.totalWeight === "number"
                                   ? Math.round(group.totalWeight)
-                                  : "?"} lbs
+                                  : "?"}{" "}
+                                lbs
                               </span>
                             )}
                           </div>
-                          
+
                           {/* Cart Count on Second Line */}
                           <span
                             style={{
@@ -2745,27 +3109,41 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                             </span>
                           )}
                           {/* Regular group product details */}
-                          {!group.isManualProduct && group.carts && Array.isArray(group.carts) && group.carts.length > 0 && (
-                            <span
-                              style={{
-                                color: "#888",
-                                fontSize: 15,
-                                marginTop: 1,
-                              }}
-                            >
-                              {group.carts.map((cart: any, cartIdx: number) => 
-                                cart.items && Array.isArray(cart.items) ? cart.items.map((item: any, itemIdx: number) => (
-                                  <span key={`${cartIdx}-${itemIdx}`}>
-                                    <b>{item.productName || item.productId}</b> x{item.quantity}{" "}
-                                    <span style={{ color: "#888" }}>
-                                      ({item.type || 'qty'})
-                                    </span>
-                                    {cartIdx < group.carts.length - 1 || itemIdx < cart.items.length - 1 ? ', ' : ''}
-                                  </span>
-                                )) : null
-                              )}
-                            </span>
-                          )}
+                          {!group.isManualProduct &&
+                            group.carts &&
+                            Array.isArray(group.carts) &&
+                            group.carts.length > 0 && (
+                              <span
+                                style={{
+                                  color: "#888",
+                                  fontSize: 15,
+                                  marginTop: 1,
+                                }}
+                              >
+                                {group.carts.map((cart: any, cartIdx: number) =>
+                                  cart.items && Array.isArray(cart.items)
+                                    ? cart.items.map(
+                                        (item: any, itemIdx: number) => (
+                                          <span key={`${cartIdx}-${itemIdx}`}>
+                                            <b>
+                                              {item.productName ||
+                                                item.productId}
+                                            </b>{" "}
+                                            x{item.quantity}{" "}
+                                            <span style={{ color: "#888" }}>
+                                              ({item.type || "qty"})
+                                            </span>
+                                            {cartIdx < group.carts.length - 1 ||
+                                            itemIdx < cart.items.length - 1
+                                              ? ", "
+                                              : ""}
+                                          </span>
+                                        )
+                                      )
+                                    : null
+                                )}
+                              </span>
+                            )}
                         </div>
                         {/* Actions section */}
                         <div
@@ -2776,25 +3154,29 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                           {canReorder && (
                             <button
                               className={`btn ${
-                                priorityFlags[group.id] 
-                                  ? "btn-danger" 
+                                priorityFlags[group.id]
+                                  ? "btn-danger"
                                   : "btn-outline-danger"
                               } btn-sm`}
                               title={
-                                priorityFlags[group.id] 
-                                  ? "Remove priority flag" 
+                                priorityFlags[group.id]
+                                  ? "Remove priority flag"
                                   : "Mark as priority"
                               }
                               onClick={() => togglePriorityFlag(group.id)}
                               disabled={priorityLoading[group.id]}
-                              style={{ 
-                                padding: "4px 8px", 
+                              style={{
+                                padding: "4px 8px",
                                 fontSize: 12,
-                                minWidth: 32
+                                minWidth: 32,
                               }}
                             >
                               {priorityLoading[group.id] ? (
-                                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                <span
+                                  className="spinner-border spinner-border-sm"
+                                  role="status"
+                                  aria-hidden="true"
+                                ></span>
                               ) : (
                                 <span aria-hidden="true">👕</span>
                               )}
@@ -2932,7 +3314,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
               {pendingSpecialItems.length > 0 && (
                 <div className="mb-4">
                   <h6 className="text-warning mb-3">
-                    ⚠️ Items Awaiting Confirmation ({pendingSpecialItems.length})
+                    ⚠️ Items Awaiting Confirmation ({pendingSpecialItems.length}
+                    )
                   </h6>
                   <div className="list-group">
                     {pendingSpecialItems.map((item) => (
@@ -2941,13 +3324,21 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         className="list-group-item d-flex justify-content-between align-items-center"
                       >
                         <div>
-                          <strong className="text-primary">{item.clientName}</strong>
+                          <strong className="text-primary">
+                            {item.clientName}
+                          </strong>
                           <br />
-                          <span className="badge bg-info me-2">{item.category}</span>
-                          <strong>{item.productName}</strong> x{item.quantity} ({item.type})
+                          <span className="badge bg-info me-2">
+                            {item.category}
+                          </span>
+                          <strong>{item.productName}</strong> x{item.quantity} (
+                          {item.type})
                           <br />
                           <small className="text-muted">
-                            Added: {new Date(item.createdAt.seconds * 1000).toLocaleDateString()}
+                            Added:{" "}
+                            {new Date(
+                              item.createdAt.seconds * 1000
+                            ).toLocaleDateString()}
                           </small>
                         </div>
                         <div className="btn-group">
@@ -2988,15 +3379,25 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                         className="list-group-item d-flex justify-content-between align-items-center bg-light"
                       >
                         <div>
-                          <strong className="text-secondary">{item.clientName}</strong>
+                          <strong className="text-secondary">
+                            {item.clientName}
+                          </strong>
                           <br />
-                          <span className="badge bg-secondary me-2">{item.category}</span>
-                          <strong>{item.productName}</strong> x{item.quantity} ({item.type})
+                          <span className="badge bg-secondary me-2">
+                            {item.category}
+                          </span>
+                          <strong>{item.productName}</strong> x{item.quantity} (
+                          {item.type})
                           <br />
                           <small className="text-muted">
                             Skipped: {item.skipReason}
                             <br />
-                            By: {item.skippedBy} on {item.skippedAt ? new Date(item.skippedAt.seconds * 1000).toLocaleDateString() : 'Unknown'}
+                            By: {item.skippedBy} on{" "}
+                            {item.skippedAt
+                              ? new Date(
+                                  item.skippedAt.seconds * 1000
+                                ).toLocaleDateString()
+                              : "Unknown"}
                           </small>
                         </div>
                         <div className="btn-group">
@@ -3042,7 +3443,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                 <div className="alert alert-warning">
                   <strong>⚠️ Skipping Special Item</strong>
                   <br />
-                  <strong>{selectedSpecialItem.productName}</strong> for <strong>{selectedSpecialItem.clientName}</strong>
+                  <strong>{selectedSpecialItem.productName}</strong> for{" "}
+                  <strong>{selectedSpecialItem.clientName}</strong>
                 </div>
                 <div className="mb-3">
                   <label className="form-label">Reason for skipping *</label>
@@ -3054,10 +3456,16 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                   >
                     <option value="">-- Select a reason --</option>
                     <option value="Item not ready">Item not ready</option>
-                    <option value="Still being washed">Still being washed</option>
+                    <option value="Still being washed">
+                      Still being washed
+                    </option>
                     <option value="Quality issue">Quality issue</option>
-                    <option value="Customer requested delay">Customer requested delay</option>
-                    <option value="Waiting for matching items">Waiting for matching items</option>
+                    <option value="Customer requested delay">
+                      Customer requested delay
+                    </option>
+                    <option value="Waiting for matching items">
+                      Waiting for matching items
+                    </option>
                     <option value="Item needs repair">Item needs repair</option>
                     <option value="Other">Other</option>
                   </select>
@@ -3100,6 +3508,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                 >
                   Skip Item
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Spanish confirmation modal for Lint Collector */}
+      {showLintCollectorModal && (
+        <div className="modal show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirmar limpieza</h5>
+                <button type="button" className="btn-close" onClick={() => setShowLintCollectorModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <p>¿Confirmas que has limpiado el <strong>Lint Collector</strong>?</p>
+                <p>Se registrará tu usuario y la fecha.</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowLintCollectorModal(false)}>Cancelar</button>
+                <button className="btn btn-primary" onClick={handleLintCollectorDone} disabled={lintCollectorSaving}>{lintCollectorSaving ? 'Guardando...' : 'Confirmar'}</button>
               </div>
             </div>
           </div>
