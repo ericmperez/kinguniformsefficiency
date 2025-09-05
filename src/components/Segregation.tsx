@@ -5,6 +5,7 @@ import {
   getClients,
   logActivity,
 } from "../services/firebaseService";
+import { AlertService } from "../services/AlertService";
 import type { Client } from "../types";
 // Add Firestore imports
 import {
@@ -1037,6 +1038,22 @@ const Segregation: React.FC<SegregationProps> = ({
     } catch (err) {
       console.error("❌ Error completing segregation:", err);
       alert("Error completing segregation for this group");
+      
+      // Create system alert for segregation completion error
+      try {
+        await AlertService.createAlert({
+          type: 'system_error',
+          severity: 'medium',
+          title: 'Segregation Completion Error',
+          message: `Failed to complete segregation for group ${groupId}. Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          component: 'Segregation',
+          userName: getCurrentUser(),
+          triggerData: { groupId, operation: 'complete_segregation' },
+          createdBy: 'System'
+        });
+      } catch (alertError) {
+        console.error("Failed to create alert for segregation completion error:", alertError);
+      }
     } finally {
       setCompletingGroup(null);
     }
@@ -1244,6 +1261,22 @@ const Segregation: React.FC<SegregationProps> = ({
           err instanceof Error ? err.message : "Unknown error"
         }`
       );
+      
+      // Create system alert for segregation skip error
+      try {
+        await AlertService.createAlert({
+          type: 'system_error',
+          severity: 'medium',
+          title: 'Segregation Skip Error',
+          message: `Failed to skip segregation for group ${groupId}. Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          component: 'Segregation',
+          userName: getCurrentUser(),
+          triggerData: { groupId, operation: 'skip_segregation' },
+          createdBy: 'System'
+        });
+      } catch (alertError) {
+        console.error("Failed to create alert for segregation skip error:", alertError);
+      }
     } finally {
       setCompletingGroup(null);
     }
@@ -1437,6 +1470,15 @@ const Segregation: React.FC<SegregationProps> = ({
           groupId,
           timestamp: new Date().toISOString(),
         });
+        
+        // Create system alert for this error
+        await AlertService.createSegregationErrorAlert(
+          clientName,
+          errorRecord.username,
+          expectedCount,
+          actualCount,
+          groupId
+        );
       } catch (e) {
         console.error("❌ Failed to log verification failure to Firestore:", e);
       }

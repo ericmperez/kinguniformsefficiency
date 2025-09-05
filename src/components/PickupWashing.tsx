@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Client } from "../types";
+import { AlertService } from "../services/AlertService";
 import {
   UserRecord,
   addPickupEntry,
@@ -280,6 +281,28 @@ export default function PickupWashing({
     } catch (err) {
       alert("Error al guardar la entrada en Firebase");
       setSubmitting(false);
+      
+      // Create system alert for pickup entry error
+      try {
+        await AlertService.createAlert({
+          type: 'system_error',
+          severity: 'medium',
+          title: 'Pickup Entry Save Error',
+          message: `Failed to save pickup entry for client ${client.name}, driver ${driver.name}, weight ${weight}lbs. Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          component: 'Pickup/Washing',
+          clientName: client.name,
+          userName: driver.name,
+          triggerData: { 
+            clientId: client.id,
+            driverId: driver.id,
+            weight: parseFloat(weight),
+            operation: 'save_pickup_entry'
+          },
+          createdBy: 'System'
+        });
+      } catch (alertError) {
+        console.error("Failed to create alert for pickup entry error:", alertError);
+      }
     }
   };
 

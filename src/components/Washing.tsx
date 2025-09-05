@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { getClients } from "../services/firebaseService";
+import { AlertService } from "../services/AlertService";
 import { doc, updateDoc, addDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import {
@@ -17,6 +18,7 @@ import { getManualConventionalProductsForDate } from "../services/firebaseServic
 import { logActivity } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
 import FlipMove from "react-flip-move";
+import "./Segregation.css"; // Import user badge styles
 
 interface WashingProps {
   setSelectedInvoiceId?: (id: string | null) => void;
@@ -957,16 +959,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     // Persist order changes: real groups -> pickup_groups, pseudo -> lint_collector_meta/task
     (async () => {
       try {
-        await Promise.all(
-          newSorted.map((g: any, i: number) => {
-            if (g.id === LINT_COLLECTOR_ID) {
-              // persist meta
-              return setDoc(doc(db, "lint_collector_meta", "task"), { order: i }, { merge: true });
+        // Update both moved groups with user tracking information (only for real groups, not pseudo)
+        const updatePromises = newSorted.map((g: any, i: number) => {
+          if (g.id === LINT_COLLECTOR_ID) {
+            // persist meta for pseudo-client
+            return setDoc(doc(db, "lint_collector_meta", "task"), { order: i }, { merge: true });
+          } else {
+            // For real groups, update order and add user tracking if they were part of the move
+            if (g.id === group.id || g.id === swapGroup?.id) {
+              return updateDoc(doc(db, "pickup_groups", g.id), { 
+                order: i,
+                lastMovedBy: currentUser,
+                lastMovedAt: new Date().toISOString()
+              });
             } else {
               return updateDoc(doc(db, "pickup_groups", g.id), { order: i });
             }
-          })
-        );
+          }
+        });
+
+        await Promise.all(updatePromises);
+
+        console.log(`📝 Updated move tracking: ${group?.clientName} and ${swapGroup?.clientName} moved by ${currentUser}`);
 
         // Enhanced activity logging with user information
         await logActivity({
@@ -1036,13 +1050,18 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
           order: row.order,
         });
       } else {
-        // Client group
-        return updateDoc(doc(db, "pickup_groups", row.id), {
-          order: row.order,
-        });
+        // Client group - add user tracking if this row was moved
+        const updateFields: any = { order: row.order };
+        if (row.id === movingItem?.id || row.id === swapItem?.id) {
+          updateFields.lastMovedBy = currentUser;
+          updateFields.lastMovedAt = new Date().toISOString();
+        }
+        return updateDoc(doc(db, "pickup_groups", row.id), updateFields);
       }
     });
     await Promise.all(updates);
+
+    console.log(`📝 Updated move tracking: ${movingItem?.clientName || movingItem?.productName} and ${swapItem?.clientName || swapItem?.productName} moved by ${currentUser}`);
 
     // Enhanced activity logging with user information
     await logActivity({
@@ -1183,6 +1202,27 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     } catch (error) {
       console.error("Error confirming special item:", error);
       alert("Error confirming special item. Please try again.");
+      
+      // Create system alert for special item confirmation error
+      try {
+        await AlertService.createAlert({
+          type: 'system_error',
+          severity: 'medium',
+          title: 'Special Item Confirmation Error',
+          message: `Failed to confirm special item "${item.productName}" for ${item.clientName}. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          component: 'Washing',
+          clientName: item.clientName,
+          userName: getCurrentUser(),
+          triggerData: { 
+            specialItemId: item.id,
+            productName: item.productName,
+            operation: 'confirm_special_item'
+          },
+          createdBy: 'System'
+        });
+      } catch (alertError) {
+        console.error("Failed to create alert for special item confirmation error:", alertError);
+      }
     }
   };
 
@@ -1212,6 +1252,28 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     } catch (error) {
       console.error("Error skipping special item:", error);
       alert("Error skipping special item. Please try again.");
+      
+      // Create system alert for special item skip error
+      try {
+        await AlertService.createAlert({
+          type: 'system_error',
+          severity: 'medium',
+          title: 'Special Item Skip Error',
+          message: `Failed to skip special item "${item.productName}" for ${item.clientName}. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          component: 'Washing',
+          clientName: item.clientName,
+          userName: getCurrentUser(),
+          triggerData: { 
+            specialItemId: item.id,
+            productName: item.productName,
+            skipReason: reason,
+            operation: 'skip_special_item'
+          },
+          createdBy: 'System'
+        });
+      } catch (alertError) {
+        console.error("Failed to create alert for special item skip error:", alertError);
+      }
     }
   };
 
@@ -1848,6 +1910,21 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   }}
                                 >
                                   {group.clientName}
+                                  {group.lastMovedBy && (
+                                    <span
+                                      className="user-move-badge"
+                                      style={{ marginLeft: "8px" }}
+                                      title={`Moved by ${group.lastMovedBy}${
+                                        group.lastMovedAt
+                                          ? " at " +
+                                            new Date(group.lastMovedAt).toLocaleString()
+                                          : ""
+                                      }`}
+                                    >
+                                      <span className="user-icon">👤</span>
+                                      {group.lastMovedBy}
+                                    </span>
+                                  )}
                                 </span>
                                 {/* Tunnel Message Section - restored to box format for clarity and formatting */}
                                 <div
@@ -2428,6 +2505,29 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                                 : "Cart count does not match segregation value."
                                             );
                                             setShowTunnelRedAlert(true);
+                                            
+                                            // Create system alert for cart count mismatch
+                                            try {
+                                              await AlertService.createAlert({
+                                                type: 'segregation_error',
+                                                severity: 'high',
+                                                title: `Tunnel Cart Count Mismatch - ${group.clientName}`,
+                                                message: `Cart count verification failed. Expected: ${getSegregatedCarts(group)}, Actual: ${val}. Employee: ${getCurrentUser()}`,
+                                                component: 'Washing/Tunnel',
+                                                clientName: group.clientName,
+                                                userName: getCurrentUser(),
+                                                triggerData: {
+                                                  expectedCount: getSegregatedCarts(group),
+                                                  actualCount: val,
+                                                  groupId: group.id,
+                                                  errorType: 'tunnel_cart_verification'
+                                                },
+                                                createdBy: 'System'
+                                              });
+                                            } catch (alertError) {
+                                              console.error("Failed to create alert for tunnel cart mismatch:", alertError);
+                                            }
+                                            
                                             if (tunnelRedAlertTimerRef.current)
                                               clearTimeout(
                                                 tunnelRedAlertTimerRef.current
@@ -3023,17 +3123,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                 whiteSpace: "nowrap",
                               }}
                             >
-                              {group.startTime
-                                ? new Date(group.startTime).toLocaleDateString()
-                                : group.endTime
-                                ? new Date(group.endTime).toLocaleDateString()
-                                : group.createdAt
-                                ? new Date(
-                                    group.createdAt.seconds * 1000
-                                  ).toLocaleDateString()
-                                : new Date().toLocaleDateString()}
+                              {/* Add date content here if needed */}
                             </span>
-
                             {/* Client Name */}
                             <span
                               style={{
@@ -3046,6 +3137,21 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                               title={group.clientName}
                             >
                               {group.clientName}
+                              {!group.isManualProduct && group.lastMovedBy && (
+                                <span
+                                  className="user-move-badge"
+                                  style={{ marginLeft: "8px" }}
+                                  title={`Moved by ${group.lastMovedBy}${
+                                    group.lastMovedAt
+                                      ? " at " +
+                                        new Date(group.lastMovedAt).toLocaleString()
+                                      : ""
+                                  }`}
+                                >
+                                  <span className="user-icon">👤</span>
+                                  {group.lastMovedBy}
+                                </span>
+                              )}
                             </span>
 
                             {/* Group Weight */}

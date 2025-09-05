@@ -20,6 +20,10 @@ export interface Client {
   needsInvoice?: boolean; // New field: does this client require invoice creation?
   printConfig?: PrintConfiguration; // Print configuration for this client
   completedOptionPosition?: 'top' | 'bottom' | 'both' | 'uniformes'; // Where to show completed option in invoice
+  /**
+   * Default report type for this client (for reporting and export)
+   */
+  defaultReportType?: string;
 }
 
 export interface PrintConfiguration {

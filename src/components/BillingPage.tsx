@@ -47,6 +47,17 @@ const calculateCharge = (
   }
 };
 
+// Add report types
+const REPORT_TYPES = [
+  { value: 'numero-boletas-totales', label: 'Numero de Boletas y Totales' },
+  { value: 'reportes-totales-con-precios', label: 'Reportes Totales con Precios' },
+  { value: 'encanto', label: 'Encanto Report' },
+  { value: 'detailed', label: 'Detailed Report' },
+  { value: 'products', label: 'Products Report' },
+  { value: 'charges', label: 'Charges Report' },
+  { value: 'custom', label: 'Custom Report' },
+];
+
 const BillingPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -126,6 +137,9 @@ const BillingPage: React.FC = () => {
   // Get products for selected client
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   
+  // Add state for report type and default per client
+  const [reportType, setReportType] = useState(REPORT_TYPES[0].value);
+
   useEffect(() => {
     // Load products only once, not per client change
     (async () => {
@@ -262,6 +276,26 @@ const BillingPage: React.FC = () => {
       setRequiredPricingProducts(data.requiredPricingProducts || {});
     })();
   }, [selectedClientId, clientConfigCache]);
+
+  // Add defaultReportType to each client if not present
+  useEffect(() => {
+    if (selectedClient && !selectedClient.defaultReportType) {
+      setClients((prev) => prev.map(c => c.id === selectedClient.id ? { ...c, defaultReportType: REPORT_TYPES[0].value } : c));
+    }
+  }, [selectedClient]);
+
+  // When client changes, set reportType to their default
+  useEffect(() => {
+    if (selectedClient && selectedClient.defaultReportType) {
+      setReportType(selectedClient.defaultReportType);
+    }
+  }, [selectedClient]);
+
+  // Handler to update default report type for client
+  const handleDefaultReportTypeChange = (clientId: string, value: string) => {
+    setClients((prev) => prev.map(c => c.id === clientId ? { ...c, defaultReportType: value } : c));
+    if (selectedClientId === clientId) setReportType(value);
+  };
 
   // Handler for price input
   const handlePriceChange = (productId: string, value: string) => {
@@ -860,6 +894,660 @@ const BillingPage: React.FC = () => {
       [key: string]: string | number;
     };
 
+    // Check if we're generating the simplified "Numero de Boletas y Totales" report
+    if (reportType === 'numero-boletas-totales') {
+      // Generate simplified CSV with only Invoice Number and Total columns
+      const csvData: ReportsCSVRow[] = selectedInvoices.map((inv) => {
+        const client = clients.find((c) => c.id === inv.clientId);
+        
+        // Get product columns for this client
+        let productColumns: { id: string; name: string }[] = [];
+        if (client) {
+          productColumns = allProducts.filter((p) =>
+            client.selectedProducts.includes(p.id)
+          );
+        }
+        
+        // Calculate product quantities and subtotal
+        let subtotal = 0;
+        
+        productColumns.forEach((prod) => {
+          if (!prod.name.toLowerCase().includes("peso")) {
+            const qty = (inv.carts || []).reduce((sum, cart) => {
+              return sum + (cart.items || [])
+                .filter((item) => item.productId === prod.id)
+                .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+            }, 0);
+            
+            const price = productPrices[prod.id] || 0;
+            const amount = qty > 0 && price > 0 ? qty * price : 0;
+            
+            if (qty > 0) {
+              subtotal += amount;
+            }
+          }
+        });
+        
+        // Handle peso calculations
+        const pesoProduct = productColumns.find((prod) =>
+          prod.name.toLowerCase().includes("peso")
+        );
+        
+        let pesoSubtotal = 0;
+        if (pesoProduct && typeof inv.totalWeight === "number") {
+          const pesoPrice = productPrices[pesoProduct.id];
+          if (pesoPrice && pesoPrice > 0) {
+            pesoSubtotal = inv.totalWeight * pesoPrice;
+          }
+        }
+        
+        const baseSubtotal = subtotal + pesoSubtotal;
+        let minValue = minBilling ? Number(minBilling) : 0;
+        let deliveryChargeValue = 0;
+        let generalDeliveryChargeValue = 0;
+        
+        // Only apply delivery charge if special service is requested
+        if (inv.specialServiceRequested) {
+          deliveryChargeValue = calculateCharge(
+            deliveryChargeFormula,
+            Number(deliveryCharge) || 0,
+            baseSubtotal,
+            1,
+            0
+          );
+        }
+        
+        // Apply general delivery charge to all invoices
+        if (generalDeliveryCharge && Number(generalDeliveryCharge) > 0) {
+          generalDeliveryChargeValue = calculateCharge(
+            generalDeliveryChargeFormula,
+            Number(generalDeliveryCharge) || 0,
+            baseSubtotal,
+            1,
+            0
+          );
+        }
+        
+        // Display subtotal (with minimum billing applied if needed, plus special delivery charges only)
+        let displaySubtotal = baseSubtotal + deliveryChargeValue;
+        if (minValue > 0 && baseSubtotal < minValue) {
+          displaySubtotal = minValue + deliveryChargeValue;
+        }
+        
+        // Calculate the higher subtotal value for service charge calculation
+        let subtotalForServiceCharge = baseSubtotal;
+        if (minValue > 0 && baseSubtotal < minValue) {
+          subtotalForServiceCharge = minValue;
+        }
+        
+        let serviceCharge = 0;
+        let surchargeValue = 0;
+        
+        if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
+          serviceCharge = calculateCharge(
+            serviceChargeFormula,
+            Number(serviceChargePercent),
+            subtotalForServiceCharge,
+            1,
+            0
+          );
+        }
+        
+        if (surchargeEnabled && Number(surchargePercent) > 0) {
+          surchargeValue = calculateCharge(
+            surchargeFormula,
+            Number(surchargePercent),
+            subtotalForServiceCharge,
+            1,
+            0
+          );
+        }
+        
+        // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
+        const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+        
+        // Return simplified CSV row with Boleta (marked if special service) and Total
+        const invoiceNumber = inv.invoiceNumber || inv.id;
+        const invoiceNumberWithIndicator = inv.specialServiceRequested 
+          ? `${invoiceNumber} *` 
+          : invoiceNumber;
+        
+        return {
+          "Boleta": invoiceNumberWithIndicator,
+          "Special Service": inv.specialServiceRequested ? "YES" : "NO",
+          "Total": `$${grandTotal.toFixed(2)}`
+        };
+      });
+
+      // Create CSV content for simplified report
+      if (csvData.length === 0) return;
+      
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map((row) =>
+          headers.map((header) => {
+            const value = row[header];
+            // Escape commas and quotes in CSV values
+            if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(",")
+        ),
+      ].join("\n");
+
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      
+      // Generate filename with client name and date range  
+      const clientName = selectedClientId 
+        ? clients.find(c => c.id === selectedClientId)?.name || "AllClients"
+        : "AllClients";
+      
+      // Format date range for filename
+      const startDateFormatted = new Date(startDate).toLocaleDateString('en-US', { 
+        month: '2-digit', 
+        day: '2-digit', 
+        year: 'numeric' 
+      }).replace(/\//g, '-');
+      const endDateFormatted = new Date(endDate).toLocaleDateString('en-US', { 
+        month: '2-digit', 
+        day: '2-digit', 
+        year: 'numeric' 
+      }).replace(/\//g, '-');
+      
+      const dateRange = startDate === endDate 
+        ? startDateFormatted 
+        : `${startDateFormatted}_to_${endDateFormatted}`;
+      
+      const filename = `${clientName} - ${dateRange} - Numero de Boletas y Totales.csv`;
+      
+      link.setAttribute("download", filename);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Log the export activity
+      try {
+        logActivity({
+          type: "export_reports_csv",
+          message: `Exported ${selectedInvoiceIds.length} invoices to Numero de Boletas y Totales CSV: ${filename}`,
+          user: "Admin", // Replace with actual user when available
+        });
+      } catch (error) {
+        console.error("Failed to log Numero de Boletas y Totales CSV export activity:", error);
+      }
+      
+      return; // Exit early for simplified report
+    }
+
+    // Check if we're generating the "Reportes Totales con Precios" report
+    if (reportType === 'reportes-totales-con-precios') {
+      // Generate CSV with Boleta, Delivery Date, Products with prices in headers, and totals
+      // Get all unique products from selected invoices with their prices for headers
+      const allUniqueProductsWithPrices = new Map<string, number>();
+      selectedInvoices.forEach((inv) => {
+        const client = clients.find((c) => c.id === inv.clientId);
+        if (client) {
+          const productColumns = allProducts.filter((p) =>
+            client.selectedProducts.includes(p.id)
+          );
+          productColumns.forEach((prod) => {
+            if (!prod.name.toLowerCase().includes("peso")) {
+              const price = productPrices[prod.id] || 0;
+              allUniqueProductsWithPrices.set(prod.name, price);
+            }
+          });
+        }
+      });
+
+      const csvData: ReportsCSVRow[] = selectedInvoices.map((inv) => {
+        const client = clients.find((c) => c.id === inv.clientId);
+        
+        // Get product columns for this client
+        let productColumns: { id: string; name: string }[] = [];
+        if (client) {
+          productColumns = allProducts.filter((p) =>
+            client.selectedProducts.includes(p.id)
+          );
+        }
+        
+        // Calculate product quantities
+        let productQuantities: Record<string, number> = {};
+        let subtotal = 0;
+        
+        productColumns.forEach((prod) => {
+          if (!prod.name.toLowerCase().includes("peso")) {
+            const qty = (inv.carts || []).reduce((sum, cart) => {
+              return sum + (cart.items || [])
+                .filter((item) => item.productId === prod.id)
+                .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+            }, 0);
+            
+            const price = productPrices[prod.id] || 0;
+            const amount = qty > 0 && price > 0 ? qty * price : 0;
+            
+            productQuantities[prod.name] = qty;
+            if (qty > 0) {
+              subtotal += amount;
+            }
+          }
+        });
+        
+        // Handle peso calculations
+        const pesoProduct = productColumns.find((prod) =>
+          prod.name.toLowerCase().includes("peso")
+        );
+        
+        let pesoSubtotal = 0;
+        if (pesoProduct && typeof inv.totalWeight === "number") {
+          const pesoPrice = productPrices[pesoProduct.id];
+          if (pesoPrice && pesoPrice > 0) {
+            pesoSubtotal = inv.totalWeight * pesoPrice;
+          }
+        }
+        
+        const baseSubtotal = subtotal + pesoSubtotal;
+        let minValue = minBilling ? Number(minBilling) : 0;
+        let deliveryChargeValue = 0;
+        let generalDeliveryChargeValue = 0;
+        
+        // Only apply delivery charge if special service is requested
+        if (inv.specialServiceRequested) {
+          deliveryChargeValue = calculateCharge(
+            deliveryChargeFormula,
+            Number(deliveryCharge) || 0,
+            baseSubtotal,
+            1,
+            0
+          );
+        }
+        
+        // Apply general delivery charge to all invoices
+        if (generalDeliveryCharge && Number(generalDeliveryCharge) > 0) {
+          generalDeliveryChargeValue = calculateCharge(
+            generalDeliveryChargeFormula,
+            Number(generalDeliveryCharge) || 0,
+            baseSubtotal,
+            1,
+            0
+          );
+        }
+        
+        // Display subtotal (with minimum billing applied if needed, plus special delivery charges only)
+        let displaySubtotal = baseSubtotal + deliveryChargeValue;
+        if (minValue > 0 && baseSubtotal < minValue) {
+          displaySubtotal = minValue + deliveryChargeValue;
+        }
+        
+        // Calculate the higher subtotal value for service charge calculation
+        let subtotalForServiceCharge = baseSubtotal;
+        if (minValue > 0 && baseSubtotal < minValue) {
+          subtotalForServiceCharge = minValue;
+        }
+        
+        let serviceCharge = 0;
+        let surchargeValue = 0;
+        
+        if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
+          serviceCharge = calculateCharge(
+            serviceChargeFormula,
+            Number(serviceChargePercent),
+            subtotalForServiceCharge,
+            1,
+            0
+          );
+        }
+        
+        if (surchargeEnabled && Number(surchargePercent) > 0) {
+          surchargeValue = calculateCharge(
+            surchargeFormula,
+            Number(surchargePercent),
+            subtotalForServiceCharge,
+            1,
+            0
+          );
+        }
+        
+        // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
+        const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+        
+        // Build the CSV row with basic invoice info
+        const csvRow: ReportsCSVRow = {
+          "Boleta": inv.invoiceNumber || inv.id,
+          "Delivery Date": inv.deliveryDate ? formatDateOnlySpanish(inv.deliveryDate) : "",
+        };
+        
+        // Add product quantity columns with prices in headers
+        Array.from(allUniqueProductsWithPrices.keys()).sort().forEach((productName) => {
+          const price = allUniqueProductsWithPrices.get(productName) || 0;
+          const qty = productQuantities[productName] || 0;
+          csvRow[`${productName} ($${price.toFixed(2)})`] = qty;
+        });
+        
+        // Add peso amount if applicable
+        if (pesoSubtotal > 0) {
+          const pesoPrice = pesoProduct ? (productPrices[pesoProduct.id] || 0) : 0;
+          csvRow[`Peso ($${pesoPrice.toFixed(2)}/lb)`] = typeof inv.totalWeight === "number" ? inv.totalWeight : 0;
+        }
+        
+        // Add subtotals and totals
+        csvRow["Subtotal"] = `$${baseSubtotal.toFixed(2)}`;
+        
+        // Add minimum billing if applicable
+        if (minValue > 0 && baseSubtotal < minValue) {
+          csvRow["Minimum Billing"] = `$${minValue.toFixed(2)}`;
+        }
+        
+        // Add delivery charges
+        if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
+        if (generalDeliveryChargeValue > 0) csvRow["General Delivery"] = `$${generalDeliveryChargeValue.toFixed(2)}`;
+        
+        // Add service charges
+        if (serviceCharge > 0) csvRow["Service Charge"] = `$${serviceCharge.toFixed(2)}`;
+        if (surchargeValue > 0) csvRow["Surcharge"] = `$${surchargeValue.toFixed(2)}`;
+        
+        // Add total
+        csvRow["Total"] = `$${grandTotal.toFixed(2)}`;
+        
+        return csvRow;
+      });
+
+      // Create CSV content for "Reportes Totales con Precios" report
+      if (csvData.length === 0) return;
+      
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map((row) =>
+          headers.map((header) => {
+            const value = row[header];
+            // Escape commas and quotes in CSV values
+            if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(",")
+        ),
+      ].join("\n");
+
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      
+      // Generate filename with client name and date range  
+      const clientName = selectedClientId 
+        ? clients.find(c => c.id === selectedClientId)?.name || "AllClients"
+        : "AllClients";
+      
+      // Format date range for filename
+      const startDateFormatted = new Date(startDate).toLocaleDateString('en-US', { 
+        month: '2-digit', 
+        day: '2-digit', 
+        year: 'numeric' 
+      }).replace(/\//g, '-');
+      const endDateFormatted = new Date(endDate).toLocaleDateString('en-US', { 
+        month: '2-digit', 
+        day: '2-digit', 
+        year: 'numeric' 
+      }).replace(/\//g, '-');
+      
+      const dateRange = startDate === endDate 
+        ? startDateFormatted 
+        : `${startDateFormatted}_to_${endDateFormatted}`;
+      
+      const filename = `${clientName} - ${dateRange} - Reportes Totales con Precios.csv`;
+      
+      link.setAttribute("download", filename);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Log the export activity
+      try {
+        logActivity({
+          type: "export_reports_csv",
+          message: `Exported ${selectedInvoiceIds.length} invoices to Reportes Totales con Precios CSV: ${filename}`,
+          user: "Admin", // Replace with actual user when available
+        });
+      } catch (error) {
+        console.error("Failed to log Reportes Totales con Precios CSV export activity:", error);
+      }
+      
+      return; // Exit early for this report type
+    }
+
+    // Check if we're generating the "Encanto" report
+    if (reportType === 'encanto') {
+      // Generate CSV with Boleta, Delivery Date, Servilletas quantity, Peso, and totals
+      const csvData: ReportsCSVRow[] = selectedInvoices.map((inv) => {
+        const client = clients.find((c) => c.id === inv.clientId);
+        
+        // Get product columns for this client
+        let productColumns: { id: string; name: string }[] = [];
+        if (client) {
+          productColumns = allProducts.filter((p) =>
+            client.selectedProducts.includes(p.id)
+          );
+        }
+        
+        // Find servilletas product
+        const servilletasProduct = productColumns.find((prod) =>
+          prod.name.toLowerCase().includes("servilleta")
+        );
+        
+        // Calculate servilletas quantity
+        let servilletasQty = 0;
+        if (servilletasProduct) {
+          servilletasQty = (inv.carts || []).reduce((sum, cart) => {
+            return sum + (cart.items || [])
+              .filter((item) => item.productId === servilletasProduct.id)
+              .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+          }, 0);
+        }
+        
+        // Calculate product quantities and subtotal
+        let subtotal = 0;
+        
+        productColumns.forEach((prod) => {
+          if (!prod.name.toLowerCase().includes("peso")) {
+            const qty = (inv.carts || []).reduce((sum, cart) => {
+              return sum + (cart.items || [])
+                .filter((item) => item.productId === prod.id)
+                .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+            }, 0);
+            
+            const price = productPrices[prod.id] || 0;
+            const amount = qty > 0 && price > 0 ? qty * price : 0;
+            
+            if (qty > 0) {
+              subtotal += amount;
+            }
+          }
+        });
+        
+        // Handle peso calculations
+        const pesoProduct = productColumns.find((prod) =>
+          prod.name.toLowerCase().includes("peso")
+        );
+        
+        let pesoSubtotal = 0;
+        if (pesoProduct && typeof inv.totalWeight === "number") {
+          const pesoPrice = productPrices[pesoProduct.id];
+          if (pesoPrice && pesoPrice > 0) {
+            pesoSubtotal = inv.totalWeight * pesoPrice;
+          }
+        }
+        
+        const baseSubtotal = subtotal + pesoSubtotal;
+        let minValue = minBilling ? Number(minBilling) : 0;
+        let deliveryChargeValue = 0;
+        let generalDeliveryChargeValue = 0;
+        
+        // Only apply delivery charge if special service is requested
+        if (inv.specialServiceRequested) {
+          deliveryChargeValue = calculateCharge(
+            deliveryChargeFormula,
+            Number(deliveryCharge) || 0,
+            baseSubtotal,
+            1,
+            0
+          );
+        }
+        
+        // Apply general delivery charge to all invoices
+        if (generalDeliveryCharge && Number(generalDeliveryCharge) > 0) {
+          generalDeliveryChargeValue = calculateCharge(
+            generalDeliveryChargeFormula,
+            Number(generalDeliveryCharge) || 0,
+            baseSubtotal,
+            1,
+            0
+          );
+        }
+        
+        // Display subtotal (with minimum billing applied if needed, plus special delivery charges only)
+        let displaySubtotal = baseSubtotal + deliveryChargeValue;
+        if (minValue > 0 && baseSubtotal < minValue) {
+          displaySubtotal = minValue + deliveryChargeValue;
+        }
+        
+        // Calculate the higher subtotal value for service charge calculation
+        let subtotalForServiceCharge = baseSubtotal;
+        if (minValue > 0 && baseSubtotal < minValue) {
+          subtotalForServiceCharge = minValue;
+        }
+        
+        let serviceCharge = 0;
+        let surchargeValue = 0;
+        
+        if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
+          serviceCharge = calculateCharge(
+            serviceChargeFormula,
+            Number(serviceChargePercent),
+            subtotalForServiceCharge,
+            1,
+            0
+          );
+        }
+        
+        if (surchargeEnabled && Number(surchargePercent) > 0) {
+          surchargeValue = calculateCharge(
+            surchargeFormula,
+            Number(surchargePercent),
+            subtotalForServiceCharge,
+            1,
+            0
+          );
+        }
+        
+        // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
+        const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+        
+        // Build the CSV row with Encanto report format
+        const csvRow: ReportsCSVRow = {
+          "Boleta": inv.invoiceNumber || inv.id,
+          "Delivery Date": inv.deliveryDate ? formatDateOnlySpanish(inv.deliveryDate) : "",
+          "Servilletas": servilletasQty,
+          "Peso": typeof inv.totalWeight === "number" ? inv.totalWeight : 0,
+          "Subtotal": `$${baseSubtotal.toFixed(2)}`,
+        };
+        
+        // Add minimum billing if applicable
+        if (minValue > 0 && baseSubtotal < minValue) {
+          csvRow["Minimum Billing"] = `$${minValue.toFixed(2)}`;
+        }
+        
+        // Add delivery charges
+        if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
+        if (generalDeliveryChargeValue > 0) csvRow["General Delivery"] = `$${generalDeliveryChargeValue.toFixed(2)}`;
+        
+        // Add service charges
+        if (serviceCharge > 0) csvRow["Service Charge"] = `$${serviceCharge.toFixed(2)}`;
+        if (surchargeValue > 0) csvRow["Surcharge"] = `$${surchargeValue.toFixed(2)}`;
+        
+        // Add total
+        csvRow["Total"] = `$${grandTotal.toFixed(2)}`;
+        
+        return csvRow;
+      });
+
+      // Create CSV content for Encanto report
+      if (csvData.length === 0) return;
+      
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map((row) =>
+          headers.map((header) => {
+            const value = row[header];
+            // Escape commas and quotes in CSV values
+            if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(",")
+        ),
+      ].join("\n");
+
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      
+      // Generate filename with client name and date range  
+      const clientName = selectedClientId 
+        ? clients.find(c => c.id === selectedClientId)?.name || "AllClients"
+        : "AllClients";
+      
+      // Format date range for filename
+      const startDateFormatted = new Date(startDate).toLocaleDateString('en-US', { 
+        month: '2-digit', 
+        day: '2-digit', 
+        year: 'numeric' 
+      }).replace(/\//g, '-');
+      const endDateFormatted = new Date(endDate).toLocaleDateString('en-US', { 
+        month: '2-digit', 
+        day: '2-digit', 
+        year: 'numeric' 
+      }).replace(/\//g, '-');
+      
+      const dateRange = startDate === endDate 
+        ? startDateFormatted 
+        : `${startDateFormatted}_to_${endDateFormatted}`;
+      
+      const filename = `${clientName} - ${dateRange} - Encanto Report.csv`;
+      
+      link.setAttribute("download", filename);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Log the export activity
+      try {
+        logActivity({
+          type: "export_reports_csv",
+          message: `Exported ${selectedInvoiceIds.length} invoices to Encanto Report CSV: ${filename}`,
+          user: "Admin", // Replace with actual user when available
+        });
+      } catch (error) {
+        console.error("Failed to log Encanto Report CSV export activity:", error);
+      }
+      
+      return; // Exit early for Encanto report
+    }
+
+    // Original detailed report generation for other report types
     // Get all unique products from selected invoices with their prices for headers
     const allUniqueProductsWithPrices = new Map<string, number>();
     selectedInvoices.forEach((inv) => {
@@ -1135,7 +1823,9 @@ const BillingPage: React.FC = () => {
       ? startDateFormatted 
       : `${startDateFormatted}_to_${endDateFormatted}`;
     
-    const filename = `${clientName} - ${dateRange} - Reports.csv`;
+    // Get report type label for filename
+    const reportTypeLabel = REPORT_TYPES.find(rt => rt.value === reportType)?.label || 'Detailed Report';
+    const filename = `${clientName} - ${dateRange} - ${reportTypeLabel}.csv`;
     
     link.setAttribute("download", filename);
     link.style.visibility = "hidden";
@@ -1147,7 +1837,7 @@ const BillingPage: React.FC = () => {
     try {
       logActivity({
         type: "export_reports_csv",
-        message: `Exported ${selectedInvoiceIds.length} invoices to Reports CSV: ${filename}`,
+        message: `Exported ${selectedInvoiceIds.length} invoices to ${reportTypeLabel} CSV: ${filename}`,
         user: "Admin", // Replace with actual user when available
       });
     } catch (error) {
@@ -1715,6 +2405,18 @@ const BillingPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              <div className="mb-2">
+                <label className="form-label">Default Report Type</label>
+                <select
+                  className="form-select"
+                  value={selectedClient.defaultReportType || reportType}
+                  onChange={e => handleDefaultReportTypeChange(selectedClient.id, e.target.value)}
+                >
+                  {REPORT_TYPES.map(rt => (
+                    <option key={rt.value} value={rt.value}>{rt.label}</option>
+                  ))}
+                </select>
+              </div>
               <button className="btn btn-success mt-2" onClick={handleSavePrices}>
                 Save Charges Configuration
               </button>
@@ -1730,7 +2432,7 @@ const BillingPage: React.FC = () => {
       
       {/* Buttons for selected invoices */}
       {selectedInvoiceIds.length > 0 && (
-        <div className="mb-3 d-flex gap-2">
+        <div className="mb-3 d-flex gap-2 align-items-end">
           <button
             className="btn btn-primary"
             onClick={() => setShowGroupInvoicesModal(true)}
@@ -1745,6 +2447,19 @@ const BillingPage: React.FC = () => {
             <i className="bi bi-download me-1"></i> Export{" "}
             {selectedInvoiceIds.length} Selected to CSV
           </button>
+          <div>
+            <label className="form-label mb-0">Report Type</label>
+            <select
+              className="form-select form-select-sm"
+              style={{ minWidth: 160 }}
+              value={reportType}
+              onChange={e => setReportType(e.target.value)}
+            >
+              {REPORT_TYPES.map(rt => (
+                <option key={rt.value} value={rt.value}>{rt.label}</option>
+              ))}
+            </select>
+          </div>
           <button
             className="btn btn-info"
             onClick={exportReportsCSV}

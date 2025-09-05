@@ -16,6 +16,7 @@ import InvoiceForm from "./InvoiceForm";
 import Report from "./Report";
 import WeightIntervalAnalytics from "./WeightIntervalAnalytics";
 import PieceIntervalAnalytics from "./PieceIntervalAnalytics";
+import AlertsDashboard from "./AlertsDashboard";
 import { useAuth } from "./AuthContext";
 
 const ReportsPage: React.FC = () => {
@@ -28,7 +29,7 @@ const ReportsPage: React.FC = () => {
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [activeSection, setActiveSection] = useState<
-    "boletas" | "reports" | "status" | "weightAnalytics" | "pieceAnalytics"
+    "boletas" | "reports" | "status" | "weightAnalytics" | "pieceAnalytics" | "alerts"
   >("boletas");
 
   // Status section query filter state
@@ -120,6 +121,16 @@ const ReportsPage: React.FC = () => {
           onClick={() => setActiveSection("pieceAnalytics")}
         >
           Piece Analytics
+        </button>
+        <button
+          className={`btn${
+            activeSection === "alerts"
+              ? " btn-primary"
+              : " btn-outline-primary"
+          }`}
+          onClick={() => setActiveSection("alerts")}
+        >
+          🚨 Alerts
         </button>
       </div>
       {activeSection === "boletas" && (
@@ -997,6 +1008,12 @@ const ReportsPage: React.FC = () => {
         <>
           <h2>Piece Interval Analytics (Mangle vs Doblado)</h2>
           <PieceIntervalAnalytics />
+        </>
+      )}
+
+      {activeSection === "alerts" && (
+        <>
+          <AlertsDashboard />
         </>
       )}
 
