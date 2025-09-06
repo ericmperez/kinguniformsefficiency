@@ -81,10 +81,31 @@ app.post('/api/send-test-email', async (req, res) => {
   if (!to) return res.status(400).json({ error: 'Recipient email is required' });
   
   try {
+    // Parse recipients - handle both string and array formats
+    let recipients = [];
+    if (typeof to === 'string') {
+      // Split comma-separated string and clean up whitespace
+      recipients = to.split(',').map(email => email.trim()).filter(email => email.length > 0);
+    } else if (Array.isArray(to)) {
+      recipients = to.filter(email => email && email.trim().length > 0);
+    } else {
+      recipients = [to];
+    }
+
+    // Parse CC recipients if provided
+    let ccRecipients = [];
+    if (cc) {
+      if (typeof cc === 'string') {
+        ccRecipients = cc.split(',').map(email => email.trim()).filter(email => email.length > 0);
+      } else if (Array.isArray(cc)) {
+        ccRecipients = cc.filter(email => email && email.trim().length > 0);
+      }
+    }
+    
     const msg = {
-      to,
+      to: recipients, // SendGrid accepts arrays for multiple recipients
       from: 'notifications@kinguniforms.net',
-      cc: cc || [],
+      cc: ccRecipients,
       subject,
       text: body
     };
@@ -102,8 +123,12 @@ app.post('/api/send-test-email', async (req, res) => {
     }
 
     await sgMail.send(msg);
-    console.log(`Test email sent successfully to ${to}${pdfBase64 ? ' with PDF attachment' : ''}`);
-    res.json({ success: true });
+    console.log(`Test email sent successfully to ${recipients.join(', ')}${pdfBase64 ? ' with PDF attachment' : ''}`);
+    res.json({ 
+      success: true,
+      recipients: recipients.length,
+      recipientList: recipients
+    });
   } catch (err) {
     console.error('Test email send error:', err);
     res.status(500).json({ error: 'Failed to send test email', details: err.message });

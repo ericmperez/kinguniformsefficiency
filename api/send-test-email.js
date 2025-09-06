@@ -30,10 +30,31 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Parse recipients - handle both string and array formats
+    let recipients = [];
+    if (typeof to === 'string') {
+      // Split comma-separated string and clean up whitespace
+      recipients = to.split(',').map(email => email.trim()).filter(email => email.length > 0);
+    } else if (Array.isArray(to)) {
+      recipients = to.filter(email => email && email.trim().length > 0);
+    } else {
+      recipients = [to];
+    }
+
+    // Parse CC recipients if provided
+    let ccRecipients = [];
+    if (cc) {
+      if (typeof cc === 'string') {
+        ccRecipients = cc.split(',').map(email => email.trim()).filter(email => email.length > 0);
+      } else if (Array.isArray(cc)) {
+        ccRecipients = cc.filter(email => email && email.trim().length > 0);
+      }
+    }
+
     const emailOptions = {
       from: 'notifications@kinguniforms.net',
-      to,
-      cc: cc || [],
+      to: recipients, // SendGrid accepts arrays for multiple recipients
+      cc: ccRecipients,
       subject,
       text: body
     };
@@ -58,9 +79,11 @@ export default async function handler(req, res) {
 
     await sgMail.send(emailOptions);
     
-    console.log(`Test email sent successfully to ${to}${pdfBase64 ? ' with PDF attachment' : ''}`);
+    console.log(`Test email sent successfully to ${recipients.join(', ')}${pdfBase64 ? ' with PDF attachment' : ''}`);
     return res.status(200).json({ 
       success: true,
+      recipients: recipients.length,
+      recipientList: recipients,
       pdfIncluded: !!pdfBase64
     });
   } catch (err) {
