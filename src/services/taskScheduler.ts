@@ -2,6 +2,7 @@
 // Runs daily at 8 PM to check for unassigned drivers
 
 import { checkAndNotifyUnassignedDrivers } from './driverAssignmentNotifier';
+import { getNotificationRecipients } from './notificationConfig';
 import MLTrainingScheduler from './MLTrainingScheduler';
 
 interface ScheduledTask {
@@ -154,13 +155,8 @@ class TaskScheduler {
    * Driver assignment check task action
    */
   private async runDriverAssignmentCheck(): Promise<void> {
-    // Recipients for the notification (can be configured)
-    const recipients = [
-      'emperez@kinguniforms.net', // Main supervisor email
-      // Add more recipients as needed
-      // 'manager@kinguniforms.net',
-      // 'operations@kinguniforms.net'
-    ];
+    // Get recipients from configuration (saved in database)
+    const recipients = await getNotificationRecipients();
 
     await checkAndNotifyUnassignedDrivers(recipients);
   }

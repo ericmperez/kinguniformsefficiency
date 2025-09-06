@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { triggerDriverAssignmentCheck, getSchedulerStatus } from '../services/taskScheduler';
 import { checkUnassignedDrivers, generateUnassignedTrucksEmail } from '../services/driverAssignmentNotifier';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface TaskStatus {
   id: string;
@@ -10,16 +12,26 @@ interface TaskStatus {
   nextRun?: string;
 }
 
+interface NotificationConfig {
+  emailRecipients: string[];
+  enabled: boolean;
+  lastUpdated: string;
+  updatedBy: string;
+}
+
 const DriverNotificationSettings: React.FC = () => {
   const [taskStatus, setTaskStatus] = useState<TaskStatus[]>([]);
   const [isTestingNotification, setIsTestingNotification] = useState(false);
   const [testResult, setTestResult] = useState<string>('');
-  const [emailRecipients, setEmailRecipients] = useState('emperez@kinguniforms.net');
+  const [emailRecipients, setEmailRecipients] = useState('rmperez@kinguniforms.net, eric.perez.pr@gmail.com, jperez@kinguniforms.net');
   const [previewEmail, setPreviewEmail] = useState<{subject: string, body: string} | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [saveResult, setSaveResult] = useState<string>('');
 
   useEffect(() => {
     loadTaskStatus();
+    loadNotificationConfig();
     // Refresh status every 30 seconds
     const interval = setInterval(loadTaskStatus, 30000);
     return () => clearInterval(interval);
@@ -31,6 +43,57 @@ const DriverNotificationSettings: React.FC = () => {
       setTaskStatus(status);
     } catch (error) {
       console.error('Error loading task status:', error);
+    }
+  };
+
+  const loadNotificationConfig = async () => {
+    try {
+      const configDoc = await getDoc(doc(db, 'settings', 'notificationConfig'));
+      if (configDoc.exists()) {
+        const config = configDoc.data() as NotificationConfig;
+        setEmailRecipients(config.emailRecipients.join(', '));
+      }
+    } catch (error) {
+      console.error('Error loading notification config:', error);
+    }
+  };
+
+  const saveNotificationConfig = async () => {
+    setIsSavingConfig(true);
+    setSaveResult('');
+
+    try {
+      const recipients = emailRecipients.split(',').map(email => email.trim()).filter(Boolean);
+      
+      if (recipients.length === 0) {
+        setSaveResult('❌ Please enter at least one email recipient');
+        return;
+      }
+
+      // Validate email addresses
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const invalidEmails = recipients.filter(email => !emailRegex.test(email));
+      
+      if (invalidEmails.length > 0) {
+        setSaveResult(`❌ Invalid email addresses: ${invalidEmails.join(', ')}`);
+        return;
+      }
+
+      const config: NotificationConfig = {
+        emailRecipients: recipients,
+        enabled: true,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: 'admin' // You can replace this with actual user info
+      };
+
+      await setDoc(doc(db, 'settings', 'notificationConfig'), config);
+      setSaveResult(`✅ Configuration saved successfully! ${recipients.length} recipient(s) configured.`);
+      
+    } catch (error) {
+      console.error('Error saving notification config:', error);
+      setSaveResult(`❌ Failed to save configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSavingConfig(false);
     }
   };
 
@@ -46,7 +109,9 @@ const DriverNotificationSettings: React.FC = () => {
         return;
       }
 
-      console.log('Testing driver assignment notification...');
+      console.log('Testing driver assignment notification with recipients:', recipients);
+      
+      // Use the current recipients from the form for testing
       await triggerDriverAssignmentCheck();
       setTestResult('✅ Test notification sent successfully! Check your email.');
       
@@ -170,6 +235,89 @@ const DriverNotificationSettings: React.FC = () => {
                       <small>Provides daily confirmation when all assigned</small>
                     </li>
                   </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Email Recipients Configuration Section */}
+          <div className="card mb-4">
+            <div className="card-header bg-success text-white">
+              <h5 className="mb-0">
+                <i className="bi bi-envelope-gear me-2"></i>
+                Email Recipients Configuration
+              </h5>
+            </div>
+            <div className="card-body">
+              <div className="row">
+                <div className="col-md-12">
+                  <div className="alert alert-info">
+                    <i className="bi bi-info-circle me-2"></i>
+                    <strong>Configure Notification Recipients:</strong> Enter email addresses that should receive driver assignment alerts and system notifications.
+                    <br />
+                    <small className="mt-1 d-block">
+                      <strong>Note:</strong> This configuration is saved persistently and will be used by the automated notification system.
+                    </small>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="form-label">
+                      <strong>Email Recipients</strong>
+                      <small className="text-muted ms-2">(comma-separated)</small>
+                    </label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={emailRecipients}
+                      onChange={(e) => setEmailRecipients(e.target.value)}
+                      placeholder="rmperez@kinguniforms.net, eric.perez.pr@gmail.com, jperez@kinguniforms.net"
+                    />
+                    <small className="form-text text-muted">
+                      These email addresses will receive:
+                      <ul className="mt-1 mb-0">
+                        <li>Daily driver assignment reports (8:00 PM)</li>
+                        <li>System error notifications</li>
+                        <li>Unassigned truck alerts</li>
+                        <li>Daily confirmation messages</li>
+                      </ul>
+                    </small>
+                  </div>
+
+                  <div className="d-flex gap-2">
+                    <button
+                      className="btn btn-success"
+                      onClick={saveNotificationConfig}
+                      disabled={isSavingConfig}
+                    >
+                      {isSavingConfig ? (
+                        <>
+                          <div className="spinner-border spinner-border-sm me-2" role="status">
+                            <span className="visually-hidden">Saving...</span>
+                          </div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-check-circle me-2"></i>
+                          Save Configuration
+                        </>
+                      )}
+                    </button>
+                    
+                    <button
+                      className="btn btn-outline-secondary"
+                      onClick={loadNotificationConfig}
+                    >
+                      <i className="bi bi-arrow-clockwise me-2"></i>
+                      Reload
+                    </button>
+                  </div>
+
+                  {saveResult && (
+                    <div className={`alert mt-3 ${saveResult.startsWith('✅') ? 'alert-success' : 'alert-danger'}`}>
+                      {saveResult}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

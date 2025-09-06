@@ -196,7 +196,7 @@ export function generateUnassignedTrucksEmail(alert) {
 /**
  * Main function to check and notify about unassigned trucks
  */
-export async function checkAndNotifyUnassignedDrivers(recipients = ["emperez@kinguniforms.net"]) {
+export async function checkAndNotifyUnassignedDrivers(recipients = ["rmperez@kinguniforms.net", "eric.perez.pr@gmail.com", "jperez@kinguniforms.net"]) {
   try {
     console.log("Checking for unassigned trucks...");
     

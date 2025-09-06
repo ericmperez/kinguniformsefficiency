@@ -294,7 +294,7 @@ export async function sendUnassignedTrucksAlert(
  * Main function to check and notify about unassigned trucks
  */
 export async function checkAndNotifyUnassignedDrivers(
-  recipients: string[] = ["emperez@kinguniforms.net"]
+  recipients: string[] = ["rmperez@kinguniforms.net", "eric.perez.pr@gmail.com", "jperez@kinguniforms.net"]
 ): Promise<void> {
   try {
     console.log("Checking for unassigned trucks...");

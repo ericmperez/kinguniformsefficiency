@@ -1,4 +1,5 @@
 import { checkAndNotifyUnassignedDrivers } from '../lib/truckAssignmentNotifier.js';
+import { getNotificationRecipients } from '../lib/notificationConfig.js';
 
 export default async function handler(req, res) {
   // Add CORS headers
@@ -21,13 +22,8 @@ export default async function handler(req, res) {
   try {
     console.log('Running scheduled truck assignment check...');
     
-    // Recipients for the notification
-    const recipients = [
-      'emperez@kinguniforms.net', // Main supervisor email
-      // Add more recipients as needed
-      // 'manager@kinguniforms.net',
-      // 'operations@kinguniforms.net'
-    ];
+    // Get recipients from configuration (saved in database)
+    const recipients = await getNotificationRecipients();
 
     const result = await checkAndNotifyUnassignedDrivers(recipients);
     
@@ -51,7 +47,7 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: 'emperez@kinguniforms.net',
+          to: 'rmperez@kinguniforms.net, eric.perez.pr@gmail.com, jperez@kinguniforms.net',
           subject: '🚨 King Uniforms - Truck Assignment Check Failed',
           body: `The automated truck assignment check failed at ${new Date().toLocaleString("en-US")}.\n\nError: ${error.message}\n\nPlease check the system manually and contact technical support if needed.`
         }),

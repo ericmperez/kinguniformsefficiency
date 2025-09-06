@@ -29,6 +29,26 @@ app.use(express.json({ limit: '30mb' })); // Increased limit to 30mb for large P
 // Configure SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
+// Debug endpoint to check email configuration
+app.get('/api/debug-email-config', (req, res) => {
+  const config = {
+    sendgridApiKeySet: !!process.env.SENDGRID_API_KEY,
+    sendgridApiKeyLength: process.env.SENDGRID_API_KEY?.length || 0,
+    emailUser: process.env.EMAIL_USER,
+    emailPasswordSet: !!process.env.EMAIL_PASSWORD,
+    nodeEnv: process.env.NODE_ENV
+  };
+  
+  console.log('📧 Email Configuration Debug:', config);
+  
+  res.json({
+    success: true,
+    sendgridConfigured: !!process.env.SENDGRID_API_KEY,
+    gmailSmtpConfigured: !!(process.env.EMAIL_USER && process.env.EMAIL_PASSWORD),
+    config
+  });
+});
+
 app.post('/api/send-invoice', async (req, res) => {
   const { to, subject, text, pdfBase64, invoiceNumber } = req.body;
   if (!to || !pdfBase64) return res.status(400).json({ error: 'Missing data' });
