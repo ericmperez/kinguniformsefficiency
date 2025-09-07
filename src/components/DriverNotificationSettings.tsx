@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { triggerDriverAssignmentCheck, getSchedulerStatus } from '../services/taskScheduler';
+import { triggerDriverAssignmentCheck } from '../services/taskScheduler';
 import { checkUnassignedDrivers, generateUnassignedTrucksEmail } from '../services/driverAssignmentNotifier';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-
-interface TaskStatus {
-  id: string;
-  name: string;
-  schedule: string;
-  enabled: boolean;
-  nextRun?: string;
-}
 
 interface NotificationConfig {
   emailRecipients: string[];
@@ -20,7 +12,6 @@ interface NotificationConfig {
 }
 
 const DriverNotificationSettings: React.FC = () => {
-  const [taskStatus, setTaskStatus] = useState<TaskStatus[]>([]);
   const [isTestingNotification, setIsTestingNotification] = useState(false);
   const [testResult, setTestResult] = useState<string>('');
   const [emailRecipients, setEmailRecipients] = useState('rmperez@kinguniforms.net, eric.perez.pr@gmail.com, jperez@kinguniforms.net');
@@ -30,21 +21,8 @@ const DriverNotificationSettings: React.FC = () => {
   const [saveResult, setSaveResult] = useState<string>('');
 
   useEffect(() => {
-    loadTaskStatus();
     loadNotificationConfig();
-    // Refresh status every 30 seconds
-    const interval = setInterval(loadTaskStatus, 30000);
-    return () => clearInterval(interval);
   }, []);
-
-  const loadTaskStatus = () => {
-    try {
-      const status = getSchedulerStatus();
-      setTaskStatus(status);
-    } catch (error) {
-      console.error('Error loading task status:', error);
-    }
-  };
 
   const loadNotificationConfig = async () => {
     try {
@@ -157,58 +135,7 @@ const DriverNotificationSettings: React.FC = () => {
 
           {/* System Overview */}
           <div className="row mb-4">
-            <div className="col-md-6">
-              <div className="card border-primary">
-                <div className="card-header bg-primary text-white">
-                  <h5 className="mb-0">
-                    <i className="bi bi-clock me-2"></i>
-                    Scheduled Tasks
-                  </h5>
-                </div>
-                <div className="card-body">
-                  {taskStatus.length === 0 ? (
-                    <p className="text-muted">No scheduled tasks found.</p>
-                  ) : (
-                    <div className="table-responsive">
-                      <table className="table table-sm">
-                        <thead>
-                          <tr>
-                            <th>Task</th>
-                            <th>Schedule</th>
-                            <th>Next Run</th>
-                            <th>Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {taskStatus.map(task => (
-                            <tr key={task.id}>
-                              <td>
-                                <small className="fw-bold">{task.name}</small>
-                              </td>
-                              <td>
-                                <span className="badge bg-info">{task.schedule}</span>
-                              </td>
-                              <td>
-                                <small className="text-muted">
-                                  {task.nextRun || 'Not scheduled'}
-                                </small>
-                              </td>
-                              <td>
-                                <span className={`badge ${task.enabled ? 'bg-success' : 'bg-secondary'}`}>
-                                  {task.enabled ? 'Enabled' : 'Disabled'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="col-md-6">
+            <div className="col-md-12">
               <div className="card border-info">
                 <div className="card-header bg-info text-white">
                   <h5 className="mb-0">

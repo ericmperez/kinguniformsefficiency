@@ -67,6 +67,9 @@ const Segregation = lazy(() => import("./components/Segregation"));
 const DriverNotificationSettings = lazy(
   () => import("./components/DriverNotificationSettings")
 );
+const AlertEmailManagement = lazy(
+  () => import("./components/AlertEmailManagement")
+);
 const BillingPage = lazy(() => import("./components/BillingPage"));
 const ShippingPage = lazy(() => import("./components/ShippingPage"));
 const UserManagement = lazy(() => import("./components/UserManagement"));
@@ -1972,9 +1975,18 @@ function App() {
             )}
             {activeSettingsTab === "notifications" && (
               <div className="col-md-12">
-                <Suspense fallback={<LoadingSpinner />}>
-                  <DriverNotificationSettings />
-                </Suspense>
+                <div className="row">
+                  <div className="col-md-6">
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <DriverNotificationSettings />
+                    </Suspense>
+                  </div>
+                  <div className="col-md-6">
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <AlertEmailManagement />
+                    </Suspense>
+                  </div>
+                </div>
               </div>
             )}
           </div>

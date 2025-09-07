@@ -1,4 +1,4 @@
-import { addDoc, collection, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { AlertType, AlertSeverity, SystemAlert } from '../components/AlertsDashboard';
 
@@ -32,11 +32,100 @@ export class AlertService {
 
       const docRef = await addDoc(collection(db, 'system_alerts'), alertData);
       console.log(`🚨 Alert created: ${params.title} (${docRef.id})`);
+      
+      // Send email notification if configured
+      await this.sendEmailNotification(params);
+      
       return docRef.id;
     } catch (error) {
       console.error('Error creating alert:', error);
       throw error;
     }
+  }
+
+  /**
+   * Send email notification for an alert if configured
+   */
+  static async sendEmailNotification(alertParams: CreateAlertParams): Promise<void> {
+    try {
+      // Get alert email configuration
+      const configDoc = await getDoc(doc(db, 'settings', 'alertEmailConfig'));
+      
+      if (!configDoc.exists()) {
+        console.log('No alert email configuration found');
+        return;
+      }
+
+      const config = configDoc.data();
+      
+      // Check if alerts are enabled globally
+      if (!config.enabled) {
+        console.log('Alert emails are disabled');
+        return;
+      }
+
+      // Check if this specific alert type is enabled
+      const alertTypeKey = this.getAlertTypeKey(alertParams.type);
+      if (!config.alertTypes[alertTypeKey]) {
+        console.log(`Alert type ${alertParams.type} is disabled for email notifications`);
+        return;
+      }
+
+      // Prepare email data
+      const emailData = {
+        recipients: config.emailRecipients,
+        subject: `🚨 System Alert: ${alertParams.title}`,
+        alertType: alertParams.type,
+        severity: alertParams.severity,
+        title: alertParams.title,
+        message: alertParams.message,
+        component: alertParams.component,
+        clientName: alertParams.clientName,
+        userName: alertParams.userName,
+        timestamp: new Date().toISOString(),
+        triggerData: alertParams.triggerData
+      };
+
+      // Send email via API
+      const response = await fetch('/api/send-alert-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emailData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to send alert email: ${response.statusText}`);
+      }
+
+      console.log(`📧 Alert email sent for: ${alertParams.title}`);
+    } catch (error) {
+      console.error('Error sending alert email:', error);
+      // Don't throw the error - we don't want email failures to prevent alert creation
+    }
+  }
+
+  /**
+   * Map alert types to configuration keys
+   */
+  static getAlertTypeKey(alertType: AlertType): string {
+    const typeMap: Record<string, string> = {
+      'segregation_error': 'segregationErrors',
+      'driver_assignment': 'driverAssignment',
+      'system_error': 'systemErrors',
+      'tunnel_issue': 'tunnelIssues',
+      'washing_alert': 'washingAlerts',
+      'conventional_issue': 'conventionalIssues',
+      'invoice_warning': 'invoiceWarnings',
+      'shipping_problem': 'shippingProblems',
+      'special_item': 'specialItems',
+      'end_of_shift': 'endOfShift',
+      'production_delay': 'general',
+      'general': 'general'
+    };
+    
+    return typeMap[alertType] || 'general';
   }
 
   /**
