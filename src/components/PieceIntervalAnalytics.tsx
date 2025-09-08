@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, getDocs, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, limit, Timestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { Line } from "react-chartjs-2";
 import {
@@ -126,13 +126,13 @@ const PieceIntervalAnalytics: React.FC = () => {
     return productClassificationService.getClassification(productName);
   };
 
-  // Load production entries from invoices
+  // Load production entries from invoices with optimized queries
   useEffect(() => {
     const loadProductionEntries = async () => {
       setLoading(true);
       try {
         console.log(
-          "📊 Loading production entries for piece interval analysis..."
+          "📊 Loading production entries for piece interval analysis with date constraints..."
         );
 
         const startDate = new Date(dateRange.start);
@@ -140,7 +140,21 @@ const PieceIntervalAnalytics: React.FC = () => {
         const endDate = new Date(dateRange.end);
         endDate.setHours(23, 59, 59, 999);
 
-        const invoicesSnapshot = await getDocs(collection(db, "invoices"));
+        // Use optimized query with date constraints to reduce data transfer
+        const startTimestamp = Timestamp.fromDate(startDate);
+        const endTimestamp = Timestamp.fromDate(endDate);
+
+        const invoicesQuery = query(
+          collection(db, "invoices"),
+          where("createdAt", ">=", startTimestamp),
+          where("createdAt", "<=", endTimestamp),
+          orderBy("createdAt", "desc"),
+          limit(2000) // Safety limit to prevent excessive reads
+        );
+
+        console.log(`📊 Querying invoices from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        
+        const invoicesSnapshot = await getDocs(invoicesQuery);
         const entries: ProductionEntry[] = [];
 
         invoicesSnapshot.docs.forEach((doc) => {

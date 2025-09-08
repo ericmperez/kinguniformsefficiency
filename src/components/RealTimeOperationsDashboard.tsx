@@ -30,6 +30,7 @@ interface PickupEntry {
   clientName: string;
   driverName: string;
   groupId: string;
+  cartId: string;
 }
 
 interface PickupGroup {
@@ -135,6 +136,7 @@ const RealTimeOperationsDashboard: React.FC = () => {
           clientName: data.clientName || "",
           driverName: data.driverName || "",
           groupId: data.groupId || "",
+          cartId: data.cartId || "",
         };
       });
 

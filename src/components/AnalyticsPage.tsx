@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, limit, Timestamp } from "firebase/firestore";
 import { db } from "../firebase";
 
 const AnalyticsPage: React.FC = () => {
@@ -53,6 +53,7 @@ const AnalyticsPage: React.FC = () => {
           clientName: data.clientName || data.clientId,
           groupId: data.groupId,
           timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp),
+          cartId: data.cartId || "",
         };
       }).filter(e => e.clientId && e.timestamp instanceof Date && !isNaN(e.timestamp.getTime()));
       // Group by date, then by client, then by group
@@ -117,6 +118,7 @@ const AnalyticsPage: React.FC = () => {
           clientName: data.clientName || data.clientId,
           timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp),
           groupId: data.groupId,
+          cartId: data.cartId || "",
         };
       }).filter(e => e.clientId && e.timestamp instanceof Date && !isNaN(e.timestamp.getTime()));
       // Group: clientId -> dayOfWeek (0=Sun) -> dateStr -> [first entry times]
@@ -169,49 +171,119 @@ const AnalyticsPage: React.FC = () => {
   useEffect(() => {
     async function fetchHourlyWeightAnalytics() {
       setHourlyWeightLoading(true);
-      const snap = await getDocs(collection(db, "pickup_entries"));
-      const entries = snap.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp),
-          weight: Number(data.weight) || 0,
-        };
-      }).filter(e => e.timestamp instanceof Date && !isNaN(e.timestamp.getTime()));
-      // Group: dayOfWeek (0=Sun) -> hour (0-23) -> dateStr -> total weight for that hour on that date
-      const byDayHour: Record<number, Record<number, Record<string, number>>> = {};
-      entries.forEach((e) => {
-        const d = e.timestamp;
-        const dayOfWeek = d.getDay();
-        const hour = d.getHours();
-        const dateStr = d.toISOString().slice(0, 10);
-        if (!byDayHour[dayOfWeek]) byDayHour[dayOfWeek] = {};
-        if (!byDayHour[dayOfWeek][hour]) byDayHour[dayOfWeek][hour] = {};
-        if (!byDayHour[dayOfWeek][hour][dateStr]) byDayHour[dayOfWeek][hour][dateStr] = 0;
-        byDayHour[dayOfWeek][hour][dateStr] += e.weight;
-      });
-      // For each dayOfWeek/hour, average the total weights per date
-      const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-      const hours = Array.from({ length: 24 }, (_, i) => i);
-      const table: any[][] = [];
-      for (let dow = 1; dow <= 7; dow++) { // 1=Mon ... 7=Sun (0=Sun)
-        const row: any[] = [];
-        const dowIdx = dow % 7; // 0=Sun, 1=Mon, ...
-        for (let h = 0; h < 24; h++) {
-          const dateTotals = byDayHour[dowIdx]?.[h] || {};
-          const totals = Object.values(dateTotals);
-          if (totals.length === 0) {
-            row.push("-");
-          } else {
-            const avg = totals.reduce((sum, v) => sum + v, 0) / totals.length;
-            row.push(avg.toFixed(1));
+      try {
+        // Optimize query with date constraints - only load last 180 days for analytics
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setDate(sixMonthsAgo.getDate() - 180);
+        const startTimestamp = Timestamp.fromDate(sixMonthsAgo);
+        
+        console.log("📊 Loading pickup entries for hourly weight analytics (last 180 days)...");
+        
+        const q = query(
+          collection(db, "pickup_entries"),
+          where("timestamp", ">=", startTimestamp),
+          orderBy("timestamp", "desc"),
+          limit(15000) // Safety limit to prevent excessive reads
+        );
+        
+        const snap = await getDocs(q);
+        const entries = snap.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp),
+            weight: Number(data.weight) || 0,
+            cartId: data.cartId || "",
+          };
+        }).filter((e: any) => e.timestamp instanceof Date && !isNaN(e.timestamp.getTime()));
+        
+        console.log(`📊 Loaded ${entries.length} pickup entries for hourly analytics (optimized)`);
+
+        // Group: dayOfWeek (0=Sun) -> hour (0-23) -> dateStr -> total weight for that hour on that date
+        const byDayHour: Record<number, Record<number, Record<string, number>>> = {};
+        entries.forEach((e: any) => {
+          const d = e.timestamp;
+          const dayOfWeek = d.getDay();
+          const hour = d.getHours();
+          const dateStr = d.toISOString().slice(0, 10);
+          if (!byDayHour[dayOfWeek]) byDayHour[dayOfWeek] = {};
+          if (!byDayHour[dayOfWeek][hour]) byDayHour[dayOfWeek][hour] = {};
+          if (!byDayHour[dayOfWeek][hour][dateStr]) byDayHour[dayOfWeek][hour][dateStr] = 0;
+          byDayHour[dayOfWeek][hour][dateStr] += e.weight;
+        });
+        // For each dayOfWeek/hour, average the total weights per date
+        const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        const hours = Array.from({ length: 24 }, (_, i) => i);
+        const table: any[][] = [];
+        for (let dow = 1; dow <= 7; dow++) { // 1=Mon ... 7=Sun (0=Sun)
+          const row: any[] = [];
+          const dowIdx = dow % 7; // 0=Sun, 1=Mon, ...
+          for (let h = 0; h < 24; h++) {
+            const dateTotals = byDayHour[dowIdx]?.[h] || {};
+            const totals = Object.values(dateTotals);
+            if (totals.length === 0) {
+              row.push("-");
+            } else {
+              const avg = totals.reduce((sum, v) => sum + (v as number), 0) / totals.length;
+              row.push(avg.toFixed(1));
+            }
           }
+          table.push(row);
         }
-        table.push(row);
+        setHourlyWeightTable(table);
+        setHourlyWeightDays(days);
+        setHourlyWeightHours(hours);
+      } catch (error) {
+        console.error("Error loading pickup entries for hourly analytics:", error);
+        // Fallback to unoptimized query if the optimized one fails
+        const snap = await getDocs(collection(db, "pickup_entries"));
+        const entries = snap.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            timestamp: data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date(data.timestamp),
+            weight: Number(data.weight) || 0,
+            cartId: data.cartId || "",
+          };
+        }).filter((e: any) => e.timestamp instanceof Date && !isNaN(e.timestamp.getTime()));
+        
+        console.log(`📊 Loaded ${entries.length} pickup entries (fallback unoptimized query)`);
+        
+        // Group: dayOfWeek (0=Sun) -> hour (0-23) -> dateStr -> total weight for that hour on that date
+        const byDayHour: Record<number, Record<number, Record<string, number>>> = {};
+        entries.forEach((e: any) => {
+          const d = e.timestamp;
+          const dayOfWeek = d.getDay();
+          const hour = d.getHours();
+          const dateStr = d.toISOString().slice(0, 10);
+          if (!byDayHour[dayOfWeek]) byDayHour[dayOfWeek] = {};
+          if (!byDayHour[dayOfWeek][hour]) byDayHour[dayOfWeek][hour] = {};
+          if (!byDayHour[dayOfWeek][hour][dateStr]) byDayHour[dayOfWeek][hour][dateStr] = 0;
+          byDayHour[dayOfWeek][hour][dateStr] += e.weight;
+        });
+        // For each dayOfWeek/hour, average the total weights per date
+        const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        const hours = Array.from({ length: 24 }, (_, i) => i);
+        const table: any[][] = [];
+        for (let dow = 1; dow <= 7; dow++) { // 1=Mon ... 7=Sun (0=Sun)
+          const row: any[] = [];
+          const dowIdx = dow % 7; // 0=Sun, 1=Mon, ...
+          for (let h = 0; h < 24; h++) {
+            const dateTotals = byDayHour[dowIdx]?.[h] || {};
+            const totals = Object.values(dateTotals);
+            if (totals.length === 0) {
+              row.push("-");
+            } else {
+              const avg = totals.reduce((sum, v) => sum + (v as number), 0) / totals.length;
+              row.push(avg.toFixed(1));
+            }
+          }
+          table.push(row);
+        }
+        setHourlyWeightTable(table);
+        setHourlyWeightDays(days);
+        setHourlyWeightHours(hours);
+      } finally {
+        setHourlyWeightLoading(false);
       }
-      setHourlyWeightTable(table);
-      setHourlyWeightDays(days);
-      setHourlyWeightHours(hours);
-      setHourlyWeightLoading(false);
     }
     fetchHourlyWeightAnalytics();
   }, []);

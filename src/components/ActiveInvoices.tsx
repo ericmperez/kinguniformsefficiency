@@ -36,7 +36,7 @@ import {
   validateEmailSettings,
   generateInvoicePDF,
 } from "../services/emailService";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query, where, Timestamp } from "firebase/firestore";
 import { formatDateSpanish } from "../utils/dateFormatter";
 
 interface ActiveInvoicesProps {
@@ -703,16 +703,31 @@ export default function ActiveInvoices({
     setInvoicesState(invoices);
   }, [invoices]);
 
-  // Real-time Firestore listener for invoices with debouncing
+  // Optimized real-time Firestore listener for active invoices only
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
-    const unsub = onSnapshot(
+    // Calculate date range for filtering (last 30 days to current + 7 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+
+    // Optimized query: Only listen to recent/active invoices
+    const optimizedQuery = query(
       collection(db, "invoices"),
+      where("status", "!=", "done"), // Exclude completed invoices
+      where("createdAt", ">=", Timestamp.fromDate(thirtyDaysAgo)),
+      where("createdAt", "<=", Timestamp.fromDate(sevenDaysFromNow))
+    );
+
+    const unsub = onSnapshot(
+      optimizedQuery,
       (snapshot) => {
         console.log(
-          "🔄 Real-time Firestore update received, docs:",
-          snapshot.docs.length
+          "🔄 Optimized Firestore update received, docs:",
+          snapshot.docs.length,
+          "(filtered from potentially thousands)"
         );
 
         // Clear any pending update
@@ -728,7 +743,7 @@ export default function ActiveInvoices({
           console.log(
             "📱 Updating invoicesState with",
             updated.length,
-            "invoices"
+            "active invoices"
           );
           setInvoicesState(updated);
 
@@ -751,7 +766,7 @@ export default function ActiveInvoices({
         }, 50); // 50ms debounce
       },
       (error) => {
-        console.error("Error listening to invoices:", error);
+        console.error("Error listening to active invoices:", error);
       }
     );
 
@@ -779,13 +794,42 @@ export default function ActiveInvoices({
     }, 2000);
   };
 
+  // Optimized pickup groups loading with reduced frequency
   useEffect(() => {
-    (async () => {
-      setGroupsLoading(true);
-      const groups = await getAllPickupGroups();
-      setPickupGroups(groups);
-      setGroupsLoading(false);
-    })();
+    let isMounted = true;
+    let refreshInterval: NodeJS.Timeout;
+
+    const loadPickupGroups = async () => {
+      if (!isMounted) return;
+      
+      try {
+        setGroupsLoading(true);
+        const groups = await getAllPickupGroups();
+        if (isMounted) {
+          setPickupGroups(groups);
+          console.log(`📦 Loaded ${groups.length} pickup groups (cached or filtered)`);
+        }
+      } catch (error) {
+        console.error("Error loading pickup groups:", error);
+      } finally {
+        if (isMounted) {
+          setGroupsLoading(false);
+        }
+      }
+    };
+
+    // Load initially
+    loadPickupGroups();
+
+    // Refresh every 2 minutes instead of on every change
+    refreshInterval = setInterval(loadPickupGroups, 2 * 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    };
   }, []);
 
   const handleAddInvoice = async () => {
@@ -917,17 +961,49 @@ export default function ActiveInvoices({
   };
 
   // --- Client Pickup Signature Saved Handler ---
+  // Cache for special items to avoid frequent database calls
+  const [specialItemsCache, setSpecialItemsCache] = useState<{
+    pending: ManualConventionalProduct[];
+    lastUpdated: number;
+  }>({ pending: [], lastUpdated: 0 });
+  
+  const SPECIAL_ITEMS_CACHE_DURATION = 30 * 1000; // 30 seconds
+
+  // Optimized function to check special items with caching
+  const checkSpecialItemsForInvoice = async (invoiceId: string): Promise<ManualConventionalProduct[]> => {
+    const now = Date.now();
+    
+    // Use cached data if it's fresh (less than 30 seconds old)
+    if (specialItemsCache.pending.length >= 0 && 
+        (now - specialItemsCache.lastUpdated) < SPECIAL_ITEMS_CACHE_DURATION) {
+      console.log("📦 Using cached special items for invoice check");
+      return specialItemsCache.pending.filter(item => item.invoiceId === invoiceId);
+    }
+
+    try {
+      console.log("🔄 Fetching fresh special items for invoice check");
+      const pendingSpecialItems = (await getPendingSpecialItems()) as ManualConventionalProduct[];
+      
+      // Update cache
+      setSpecialItemsCache({
+        pending: pendingSpecialItems,
+        lastUpdated: now
+      });
+      
+      return pendingSpecialItems.filter(item => item.invoiceId === invoiceId);
+    } catch (error) {
+      console.error("Error checking special items:", error);
+      return [];
+    }
+  };
+
   const handlePickupSignatureSaved = async () => {
     if (!pickupSignatureInvoice || !user) return;
 
     try {
       // Check for unconfirmed special items before marking as picked up
       try {
-        const pendingSpecialItems =
-          (await getPendingSpecialItems()) as ManualConventionalProduct[];
-        const invoiceSpecialItems = pendingSpecialItems.filter(
-          (item) => item.invoiceId === pickupSignatureInvoice.id
-        );
+        const invoiceSpecialItems = await checkSpecialItemsForInvoice(pickupSignatureInvoice.id);
 
         if (invoiceSpecialItems.length > 0) {
           const itemNames = invoiceSpecialItems
@@ -1302,16 +1378,40 @@ export default function ActiveInvoices({
   const [manualProducts, setManualProducts] = useState<any[]>([]);
   const [manualProductsLoading, setManualProductsLoading] = useState(true);
 
+  // Optimized manual products loading with caching and reduced frequency
   useEffect(() => {
     let mounted = true;
-    getManualConventionalProductsForDate(new Date()).then((products) => {
-      if (mounted) {
-        setManualProducts(products);
-        setManualProductsLoading(false);
+    let refreshInterval: NodeJS.Timeout;
+
+    const loadManualProducts = async () => {
+      if (!mounted) return;
+      
+      try {
+        const products = await getManualConventionalProductsForDate(new Date());
+        if (mounted) {
+          setManualProducts(products);
+          setManualProductsLoading(false);
+          console.log(`📦 Loaded ${products.length} manual products (cached or fresh)`);
+        }
+      } catch (error) {
+        console.error("Error loading manual products:", error);
+        if (mounted) {
+          setManualProductsLoading(false);
+        }
       }
-    });
+    };
+
+    // Load initially
+    loadManualProducts();
+
+    // Refresh every 3 minutes instead of being reactive to every change
+    refreshInterval = setInterval(loadManualProducts, 3 * 60 * 1000);
+
     return () => {
       mounted = false;
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
     };
   }, []);
 
@@ -2853,12 +2953,7 @@ export default function ActiveInvoices({
                             } else {
                               // Check for unconfirmed special items before shipping
                               try {
-                                const pendingSpecialItems =
-                                  (await getPendingSpecialItems()) as ManualConventionalProduct[];
-                                const invoiceSpecialItems =
-                                  pendingSpecialItems.filter(
-                                    (item) => item.invoiceId === invoice.id
-                                  );
+                                const invoiceSpecialItems = await checkSpecialItemsForInvoice(invoice.id);
 
                                 if (invoiceSpecialItems.length > 0) {
                                   const itemNames = invoiceSpecialItems
@@ -4436,11 +4531,7 @@ export default function ActiveInvoices({
 
                     // Check for unconfirmed special items before shipping
                     try {
-                      const pendingSpecialItems =
-                        (await getPendingSpecialItems()) as ManualConventionalProduct[];
-                      const invoiceSpecialItems = pendingSpecialItems.filter(
-                        (item) => item.invoiceId === invoice.id
-                      );
+                      const invoiceSpecialItems = await checkSpecialItemsForInvoice(invoice.id);
 
                       if (invoiceSpecialItems.length > 0) {
                         const itemNames = invoiceSpecialItems

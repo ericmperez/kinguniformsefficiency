@@ -1142,28 +1142,29 @@ function App() {
 
   return (
     <Router>
-      {/* Navigation Bar - always on top */}
-      <AppBar
-        position="fixed"
-        color="default"
-        elevation={2}
-        sx={{
-          background: {
-            xs: "linear-gradient(90deg, var(--ku-red) 80%, var(--ku-yellow) 100%)",
-            md: "linear-gradient(90deg, var(--ku-red) 70%, var(--ku-yellow) 100%)",
-          },
-          color: "#fff",
-          borderRadius: { xs: 0, md: "0 0 18px 18px" },
-          boxShadow: "0 4px 24px rgba(215,35,40,0.10)",
-          px: { xs: 1, md: 4 },
-          backdropFilter: "blur(8px)",
-          position: "fixed",
-          top: 0,
-          left: 0,
-          width: "100%",
-          zIndex: 1200,
-        }}
-      >
+      {/* Navigation Bar - conditionally hidden for pickup/entradas page */}
+      {activePage !== "entradas" && (
+        <AppBar
+          position="fixed"
+          color="default"
+          elevation={2}
+          sx={{
+            background: {
+              xs: "linear-gradient(90deg, var(--ku-red) 80%, var(--ku-yellow) 100%)",
+              md: "linear-gradient(90deg, var(--ku-red) 70%, var(--ku-yellow) 100%)",
+            },
+            color: "#fff",
+            borderRadius: { xs: 0, md: "0 0 18px 18px" },
+            boxShadow: "0 4px 24px rgba(215,35,40,0.10)",
+            px: { xs: 1, md: 4 },
+            backdropFilter: "blur(8px)",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            zIndex: 1200,
+          }}
+        >
         <Toolbar
           sx={{
             minHeight: { xs: 48, md: 56 },
@@ -1423,13 +1424,15 @@ function App() {
           </Box>
         </Toolbar>
       </AppBar>
-      {/* Add top margin to main content to prevent it from being hidden behind the fixed navbar */}
-      <div style={{ marginTop: 64 }} />
-      <Drawer
-        anchor="left"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-      >
+      )}
+      {/* Add top margin to main content to prevent it from being hidden behind the fixed navbar - only when navbar is visible */}
+      {activePage !== "entradas" && <div style={{ marginTop: 64 }} />}
+      {activePage !== "entradas" && (
+        <Drawer
+          anchor="left"
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+        >
         <Box
           sx={{ width: 240 }}
           role="presentation"
@@ -1503,6 +1506,7 @@ function App() {
           </List>
         </Box>
       </Drawer>
+      )}
       {/* Main content: only render components if user has permission */}
       {activePage === "home" && (
         <Suspense fallback={<LoadingSpinner />}>
@@ -1520,7 +1524,11 @@ function App() {
       )}
       {activePage === "entradas" && canSee("PickupWashing") && (
         <Suspense fallback={<LoadingSpinner />}>
-          <PickupWashing clients={clients} drivers={drivers} />
+          <PickupWashing 
+            clients={clients} 
+            drivers={drivers} 
+            onNavigateHome={() => setActivePage("home")}
+          />
         </Suspense>
       )}
       {activePage === "washing" && canSee("Washing") && (
@@ -1530,7 +1538,7 @@ function App() {
       )}
       {activePage === "segregation" && canSee("Segregation") && (
         <Suspense fallback={<LoadingSpinner />}>
-          <Segregation />
+          <Segregation onNavigateHome={() => setActivePage("home")} />
         </Suspense>
       )}
       {activePage === "reports" && (

@@ -41,6 +41,7 @@ interface ClientEntry {
   clientName: string;
   weight: number;
   timestamp: Date;
+  cartId: string;
   classification?: "Mangle" | "Doblado";
 }
 
@@ -222,6 +223,7 @@ const ClientDailyAnalytics: React.FC = () => {
           clientName: data.clientName || "Unknown Client",
           weight: weight,
           timestamp: timestampDate,
+          cartId: data.cartId || "",
         });
       });
 

@@ -910,7 +910,7 @@ export const addPickupEntry = async (entry: {
 };
 
 // Update a pickup entry
-export const updatePickupEntry = async (entryId: string, updates: Partial<{ weight: number }>) => {
+export const updatePickupEntry = async (entryId: string, updates: Partial<{ weight: number; cartId: string }>) => {
   try {
     await updateDoc(doc(db, "pickup_entries", entryId), updates);
   } catch (error) {
@@ -967,6 +967,10 @@ export const addPickupGroup = async (group: {
       startTime: group.startTime instanceof Timestamp ? group.startTime : Timestamp.fromDate(new Date(group.startTime)),
       endTime: group.endTime instanceof Timestamp ? group.endTime : Timestamp.fromDate(new Date(group.endTime)),
     });
+    
+    // Invalidate cache when new group is added
+    invalidatePickupGroupsCache();
+    
     return docRef;
   } catch (error) {
     console.error("Error adding pickup group:", error);
@@ -977,6 +981,8 @@ export const addPickupGroup = async (group: {
 export const updatePickupGroupStatus = async (groupId: string, status: string) => {
   try {
     await updateDoc(doc(db, "pickup_groups", groupId), { status });
+    // Invalidate cache when group status changes
+    invalidatePickupGroupsCache();
   } catch (error) {
     console.error("Error updating pickup group status:", error);
     throw error;
@@ -1005,9 +1011,36 @@ export const getTodayPickupGroups = async () => {
   });
 };
 
+// Cached pickup groups to reduce database reads
+let pickupGroupsCache: any[] = [];
+let pickupGroupsCacheTime = 0;
+const PICKUP_GROUPS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export const getAllPickupGroups = async () => {
-  const snap = await getDocs(collection(db, "pickup_groups"));
-  return snap.docs.map(doc => {
+  const now = Date.now();
+  
+  // Return cached data if it's fresh (less than 5 minutes old)
+  if (pickupGroupsCache.length > 0 && (now - pickupGroupsCacheTime) < PICKUP_GROUPS_CACHE_DURATION) {
+    console.log("📦 Using cached pickup groups, saved database read");
+    return pickupGroupsCache;
+  }
+
+  // Only fetch recent pickup groups (last 7 days + next 1 day)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  const q = query(
+    collection(db, "pickup_groups"),
+    where("startTime", ">=", Timestamp.fromDate(sevenDaysAgo)),
+    where("startTime", "<", Timestamp.fromDate(tomorrow))
+  );
+  
+  console.log("🔄 Fetching filtered pickup groups (last 7 days + tomorrow)");
+  const snap = await getDocs(q);
+  
+  const result = snap.docs.map(doc => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -1016,6 +1049,20 @@ export const getAllPickupGroups = async () => {
       endTime: data.endTime instanceof Timestamp ? data.endTime.toDate() : new Date(data.endTime),
     };
   });
+
+  // Update cache
+  pickupGroupsCache = result;
+  pickupGroupsCacheTime = now;
+  
+  console.log(`📦 Cached ${result.length} pickup groups`);
+  return result;
+};
+
+// Function to invalidate pickup groups cache when data changes
+export const invalidatePickupGroupsCache = () => {
+  pickupGroupsCache = [];
+  pickupGroupsCacheTime = 0;
+  console.log("🗑️ Pickup groups cache invalidated");
 };
 
 // Add a manual conventional product entry with enhanced special item tracking
@@ -1062,11 +1109,36 @@ export const addManualConventionalProduct = async (entry: {
     reminderCount: 0
   };
   
-  return await addDoc(collection(db, 'manual_conventional_products'), docData);
+  const result = await addDoc(collection(db, 'manual_conventional_products'), docData);
+  
+  // Invalidate relevant caches when new manual product is added
+  invalidateManualProductsCache();
+  if (isSpecialItem) {
+    invalidateSpecialItemsCache();
+  }
+  
+  return result;
 };
 
 // Get all manual conventional products for a given date (defaults to today)
+// Cached manual products to reduce frequent database reads
+let manualProductsCache: any[] = [];
+let manualProductsCacheTime = 0;
+let manualProductsCacheDate = '';
+const MANUAL_PRODUCTS_CACHE_DURATION = 3 * 60 * 1000; // 3 minutes
+
 export const getManualConventionalProductsForDate = async (date: Date = new Date()) => {
+  const now = Date.now();
+  const dateStr = date.toDateString();
+  
+  // Return cached data if it's for the same date and fresh
+  if (manualProductsCache.length > 0 && 
+      manualProductsCacheDate === dateStr && 
+      (now - manualProductsCacheTime) < MANUAL_PRODUCTS_CACHE_DURATION) {
+    console.log("📦 Using cached manual products, saved database read");
+    return manualProductsCache;
+  }
+
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
@@ -1076,13 +1148,35 @@ export const getManualConventionalProductsForDate = async (date: Date = new Date
     where('createdAt', '>=', start),
     where('createdAt', '<', end)
   );
+  
+  console.log(`🔄 Fetching manual products for ${dateStr}`);
   const snap = await getDocs(q);
-  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const result = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+  // Update cache
+  manualProductsCache = result;
+  manualProductsCacheTime = now;
+  manualProductsCacheDate = dateStr;
+  
+  console.log(`📦 Cached ${result.length} manual products for ${dateStr}`);
+  return result;
+};
+
+// Function to invalidate manual products cache when data changes
+export const invalidateManualProductsCache = () => {
+  manualProductsCache = [];
+  manualProductsCacheTime = 0;
+  manualProductsCacheDate = '';
+  console.log("🗑️ Manual products cache invalidated");
 };
 
 // Delete a manual conventional product by ID
 export const deleteManualConventionalProduct = async (manualProductId: string) => {
   await deleteDoc(doc(db, 'manual_conventional_products', manualProductId));
+  
+  // Invalidate caches when manual product is deleted
+  invalidateManualProductsCache();
+  invalidateSpecialItemsCache();
 };
 
 // Special Item Confirmation and Skip Tracking Functions
@@ -1096,6 +1190,9 @@ export const confirmSpecialItem = async (manualProductId: string, confirmedBy: s
     confirmedAt: Timestamp.now(),
     requiresConfirmation: false
   });
+  
+  // Invalidate special items cache when status changes
+  invalidateSpecialItemsCache();
 };
 
 // Skip a special item with reason
@@ -1108,10 +1205,29 @@ export const skipSpecialItem = async (manualProductId: string, skipReason: strin
     skippedAt: Timestamp.now(),
     requiresConfirmation: false
   });
+  
+  // Invalidate special items cache when status changes
+  invalidateSpecialItemsCache();
 };
 
 // Get pending special items requiring confirmation
+// Cached special items to reduce frequent database reads  
+let pendingSpecialItemsCache: any[] = [];
+let pendingSpecialItemsCacheTime = 0;
+let skippedSpecialItemsCache: any[] = [];
+let skippedSpecialItemsCacheTime = 0;
+const SPECIAL_ITEMS_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
 export const getPendingSpecialItems = async () => {
+  const now = Date.now();
+  
+  // Return cached data if it's fresh
+  if (pendingSpecialItemsCache.length >= 0 && 
+      (now - pendingSpecialItemsCacheTime) < SPECIAL_ITEMS_CACHE_DURATION) {
+    console.log("📦 Using cached pending special items, saved database read");
+    return pendingSpecialItemsCache;
+  }
+
   const q = query(
     collection(db, 'manual_conventional_products'),
     where('isSpecialItem', '==', true),
@@ -1119,19 +1235,55 @@ export const getPendingSpecialItems = async () => {
     where('washed', '==', true),
     where('delivered', '==', false)
   );
+  
+  console.log("🔄 Fetching pending special items");
   const snap = await getDocs(q);
-  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const result = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+  // Update cache
+  pendingSpecialItemsCache = result;
+  pendingSpecialItemsCacheTime = now;
+  
+  console.log(`📦 Cached ${result.length} pending special items`);
+  return result;
 };
 
 // Get skipped special items for reminder tracking
 export const getSkippedSpecialItems = async () => {
+  const now = Date.now();
+  
+  // Return cached data if it's fresh
+  if (skippedSpecialItemsCache.length >= 0 && 
+      (now - skippedSpecialItemsCacheTime) < SPECIAL_ITEMS_CACHE_DURATION) {
+    console.log("📦 Using cached skipped special items, saved database read");
+    return skippedSpecialItemsCache;
+  }
+
   const q = query(
     collection(db, 'manual_conventional_products'),
     where('confirmationStatus', '==', 'skipped'),
     where('delivered', '==', false)
   );
+  
+  console.log("🔄 Fetching skipped special items");
   const snap = await getDocs(q);
-  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const result = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+  // Update cache
+  skippedSpecialItemsCache = result;
+  skippedSpecialItemsCacheTime = now;
+  
+  console.log(`📦 Cached ${result.length} skipped special items`);
+  return result;
+};
+
+// Function to invalidate special items cache when data changes
+export const invalidateSpecialItemsCache = () => {
+  pendingSpecialItemsCache = [];
+  pendingSpecialItemsCacheTime = 0;
+  skippedSpecialItemsCache = [];
+  skippedSpecialItemsCacheTime = 0;
+  console.log("🗑️ Special items cache invalidated");
 };
 
 // Update reminder status for a special item

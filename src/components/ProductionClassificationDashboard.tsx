@@ -9,8 +9,8 @@ import {
   type ProductClassification,
 } from "../services/ProductClassificationService";
 import EndOfShiftDashboard from "./EndOfShiftDashboard";
-// Add segregation-related imports
-import { collection, query, where, getDocs } from "firebase/firestore";
+// Add segregation-related imports with query optimization
+import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface ClassifiedEntry extends ProductionEntry {
@@ -359,7 +359,9 @@ const ProductionClassificationDashboard: React.FC = () => {
 
           const recentQuery = query(
             collection(db, "segregation_done_logs"),
-            where("timestamp", ">=", Timestamp.fromDate(twoDaysAgo))
+            where("timestamp", ">=", Timestamp.fromDate(twoDaysAgo)),
+            orderBy("timestamp", "desc"),
+            limit(500) // Safety limit to prevent excessive reads
           );
 
           const recentSnapshot = await getDocs(recentQuery);
@@ -491,12 +493,16 @@ const ProductionClassificationDashboard: React.FC = () => {
         // Import Firebase functions dynamically
         const { Timestamp } = await import("firebase/firestore");
 
-        // Query pickup_entries for selected date
+        // Query pickup_entries for selected date with optimized constraints
         const pickupEntriesQuery = query(
           collection(db, "pickup_entries"),
           where("timestamp", ">=", Timestamp.fromDate(selectedDateObj)),
-          where("timestamp", "<", Timestamp.fromDate(nextDay))
+          where("timestamp", "<", Timestamp.fromDate(nextDay)),
+          orderBy("timestamp", "desc"),
+          limit(1000) // Safety limit to prevent excessive reads
         );
+
+        console.log(`🚛 [Pickup Entries] Querying with date constraints and limit for performance...`);
 
         const pickupEntriesSnapshot = await getDocs(pickupEntriesQuery);
         const pickupEntries: typeof pickupEntriesToday = [];

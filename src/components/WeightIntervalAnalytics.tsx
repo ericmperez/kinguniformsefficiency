@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, getDocs, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, limit, Timestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { Line, Bar } from "react-chartjs-2";
 import {
@@ -33,6 +33,7 @@ interface PickupEntry {
   timestamp: Date;
   weight: number;
   driverName: string;
+  cartId: string;
 }
 
 interface IntervalData {
@@ -69,13 +70,13 @@ const WeightIntervalAnalytics: React.FC = () => {
     };
   });
 
-  // Load pickup entries data
+  // Load pickup entries data with optimized Firestore queries
   useEffect(() => {
     const loadPickupEntries = async () => {
       setLoading(true);
       try {
         console.log(
-          "📊 Loading pickup entries for weight interval analysis..."
+          "📊 Loading pickup entries for weight interval analysis with date constraints..."
         );
 
         const startDate = new Date(dateRange.start);
@@ -83,7 +84,22 @@ const WeightIntervalAnalytics: React.FC = () => {
         const endDate = new Date(dateRange.end);
         endDate.setHours(23, 59, 59, 999);
 
-        const snapshot = await getDocs(collection(db, "pickup_entries"));
+        // Convert to Firestore Timestamp for query
+        const startTimestamp = Timestamp.fromDate(startDate);
+        const endTimestamp = Timestamp.fromDate(endDate);
+
+        // Use Firestore query with date constraints to reduce data transfer
+        const q = query(
+          collection(db, "pickup_entries"),
+          where("timestamp", ">=", startTimestamp),
+          where("timestamp", "<=", endTimestamp),
+          orderBy("timestamp", "desc"),
+          limit(10000) // Safety limit to prevent excessive reads
+        );
+
+        console.log(`📊 Querying pickup_entries from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        
+        const snapshot = await getDocs(q);
         const entries = snapshot.docs
           .map((doc) => {
             const data = doc.data();
@@ -99,19 +115,18 @@ const WeightIntervalAnalytics: React.FC = () => {
               timestamp,
               weight: Number(data.weight) || 0,
               driverName: data.driverName || "Unknown Driver",
+              cartId: data.cartId || "",
             } as PickupEntry;
           })
           .filter(
             (entry) =>
               entry.timestamp instanceof Date &&
               !isNaN(entry.timestamp.getTime()) &&
-              entry.timestamp >= startDate &&
-              entry.timestamp <= endDate &&
               entry.weight > 0
           );
 
         setPickupEntries(entries);
-        console.log(`📊 Loaded ${entries.length} pickup entries for analysis`);
+        console.log(`📊 Loaded ${entries.length} pickup entries for analysis (optimized query)`);
       } catch (error) {
         console.error("Error loading pickup entries:", error);
       } finally {

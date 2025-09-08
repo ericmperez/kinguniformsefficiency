@@ -39,6 +39,7 @@ interface PickupEntry {
   driverName: string;
   groupId: string;
   weight: number;
+  cartId: string; // New field for cart identification
   timestamp: Date | Timestamp;
 }
 
@@ -57,33 +58,86 @@ interface PickupGroup {
 interface PickupWashingProps {
   clients: Client[];
   drivers: Driver[];
+  onNavigateHome?: () => void; // New prop for navigation
 }
 
 export default function PickupWashing({
   clients,
   drivers,
+  onNavigateHome,
 }: PickupWashingProps) {
+  // Add responsive styles
+  const getResponsiveStyles = () => {
+    const isMobile = window.innerWidth <= 768;
+    const isTablet = window.innerWidth <= 1024;
+    
+    return {
+      fontSize: {
+        title: isMobile ? "1.8rem" : isTablet ? "2.2rem" : "2.8rem", // Reduced sizes
+        label: isMobile ? "1.1rem" : isTablet ? "1.3rem" : "1.5rem", // Reduced sizes
+        input: isMobile ? "1.1rem" : isTablet ? "1.2rem" : "1.4rem", // Reduced sizes
+        weightInput: isMobile ? "1.3rem" : isTablet ? "1.5rem" : "1.7rem", // Reduced sizes
+        button: isMobile ? "1.3rem" : isTablet ? "1.5rem" : "1.7rem", // Reduced sizes
+        keypad: isMobile ? "1.3rem" : isTablet ? "1.5rem" : "1.7rem"
+      },
+      padding: {
+        container: isMobile ? "8px" : isTablet ? "15px" : "20px", // Reduced padding
+        input: isMobile ? "10px" : isTablet ? "12px" : "15px", // Reduced padding
+        weightInput: isMobile ? "12px" : isTablet ? "15px" : "18px", // Reduced padding
+        button: isMobile ? "12px" : isTablet ? "15px" : "18px" // Reduced padding
+      },
+      keypadSize: {
+        width: isMobile ? 60 : isTablet ? 70 : 80,
+        height: isMobile ? 60 : isTablet ? 70 : 80
+      },
+      historyPanel: {
+        width: isMobile ? "90vw" : isTablet ? "70vw" : "60vw",
+        right: isMobile ? "-90vw" : isTablet ? "-70vw" : "-60vw"
+      }
+    };
+  };
+
+  const [responsiveStyles, setResponsiveStyles] = useState(getResponsiveStyles());
+
+  // Update responsive styles on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setResponsiveStyles(getResponsiveStyles());
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [clientId, setClientId] = useState("");
   const [weight, setWeight] = useState("");
+  const [cartId, setCartId] = useState(""); // New state for cart ID
   const [driverId, setDriverId] = useState("");
   const [success, setSuccess] = useState(false);
   const [entries, setEntries] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState<string>("");
+  const [editCartId, setEditCartId] = useState<string>(""); // New edit state for cart ID
   const [groupStatusUpdating, setGroupStatusUpdating] = useState<string | null>(
     null
   );
   const weightInputRef = useRef<HTMLInputElement>(null);
   const [showKeypad, setShowKeypad] = useState(false);
   const [showFullScreenSuccess, setShowFullScreenSuccess] = useState(false);
+  const [showCartPopup, setShowCartPopup] = useState(false); // New state for cart popup
+  const [showCartKeypad, setShowCartKeypad] = useState(false); // New state for cart ID keypad
   const [submitting, setSubmitting] = useState(false);
   const [showAddEntryGroupId, setShowAddEntryGroupId] = useState<string | null>(
     null
   );
   const [addEntryWeight, setAddEntryWeight] = useState("");
+  const [addEntryCartId, setAddEntryCartId] = useState(""); // New state for adding cart ID to group
   const [addEntryDriverId, setAddEntryDriverId] = useState("");
   const [addEntrySubmitting, setAddEntrySubmitting] = useState(false);
+
+  // State for side panel visibility
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
 
   // Fetch today's groups in real time
   useEffect(() => {
@@ -161,11 +215,24 @@ export default function PickupWashing({
     setSuccess(false);
     const client = sortedClients.find((c) => c.id === clientId);
     const driver = drivers.find((d) => d.id === driverId);
-    if (!client || !driver || !weight) {
+    if (!client || !driver || !weight || !cartId.trim()) {
       setSubmitting(false);
       return;
     }
     const now = new Date();
+    
+    // Check for duplicate cart ID across all entries for this client
+    const existingCartId = entries.find((e) => 
+      e.clientId === client.id && e.cartId === cartId.trim()
+    );
+    if (existingCartId) {
+      alert(
+        `El Cart ID "${cartId.trim()}" ya está registrado para este cliente. Por favor, use un Cart ID diferente.`
+      );
+      setSubmitting(false);
+      return;
+    }
+    
     // Change window from 2 minutes to 60 minutes (1 hour)
     const sixtyMinutesAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
@@ -178,10 +245,10 @@ export default function PickupWashing({
       )[0];
     let groupId: string | null = null;
     if (recentEntry && new Date(recentEntry.timestamp) >= sixtyMinutesAgo) {
-      // Check for duplicate entry in the last 60 minutes for this client, driver, group, and weight
-      if (recentEntry.weight === parseFloat(weight) && recentEntry.groupId) {
+      // Check for duplicate entry in the last 60 minutes for this client, driver, group, weight, and cart ID
+      if (recentEntry.weight === parseFloat(weight) && recentEntry.cartId === cartId.trim() && recentEntry.groupId) {
         alert(
-          "Ya existe una entrada similar registrada recientemente. Por favor, verifique."
+          "Ya existe una entrada similar registrada recientemente con el mismo Cart ID. Por favor, verifique."
         );
         setSubmitting(false);
         return;
@@ -232,6 +299,7 @@ export default function PickupWashing({
       driverName: driver.name,
       groupId: groupId!,
       weight: parseFloat(weight),
+      cartId: cartId.trim(),
       timestamp: now,
     };
     try {
@@ -273,6 +341,7 @@ export default function PickupWashing({
       setTimeout(() => setSuccess(false), 2000);
       // Do not clear clientId or driverId so they remain prepopulated
       setWeight("");
+      setCartId(""); // Clear cart ID after successful submission
       setShowKeypad(false); // Hide keypad on submit
       await logActivity({
         type: "Pickup",
@@ -353,17 +422,21 @@ export default function PickupWashing({
     return result;
   }, [groups, entries]);
 
-  // Edit an entry's weight inline
+  // Edit an entry's weight and cart ID inline
   const handleEditEntry = (entry: any) => {
     setEditEntryId(entry.id);
     setEditWeight(entry.weight.toString());
+    setEditCartId(entry.cartId || ""); // Set cart ID for editing
   };
   const handleEditSave = async (entry: PickupEntry) => {
-    if (isNaN(parseFloat(editWeight))) return;
+    if (isNaN(parseFloat(editWeight)) || !editCartId.trim()) return;
     try {
-      await updatePickupEntry(entry.id!, { weight: parseFloat(editWeight) });
+      await updatePickupEntry(entry.id!, { 
+        weight: parseFloat(editWeight),
+        cartId: editCartId.trim()
+      });
       const updatedEntries = entries.map((e) =>
-        e.id === entry.id ? { ...e, weight: parseFloat(editWeight) } : e
+        e.id === entry.id ? { ...e, weight: parseFloat(editWeight), cartId: editCartId.trim() } : e
       );
       setEntries(updatedEntries);
       // Update group totals
@@ -394,6 +467,7 @@ export default function PickupWashing({
       }
       setEditEntryId(null);
       setEditWeight("");
+      setEditCartId(""); // Clear cart ID after successful edit
       await logActivity({
         type: "Pickup",
         message: `Pickup entry edited for client '${entry.clientName}' by driver '${entry.driverName}'`,
@@ -405,6 +479,7 @@ export default function PickupWashing({
   const handleEditCancel = () => {
     setEditEntryId(null);
     setEditWeight("");
+    setEditCartId(""); // Clear cart ID when canceling edit
   };
 
   // Delete an entry
@@ -476,6 +551,7 @@ export default function PickupWashing({
           driverName: data.driverName,
           groupId: data.groupId,
           weight: data.weight,
+          cartId: data.cartId || "", // Include cart ID from database
           timestamp:
             data.timestamp instanceof Timestamp
               ? data.timestamp.toDate()
@@ -515,11 +591,28 @@ export default function PickupWashing({
     setWeight((prev) => {
       if (val === "C") return "";
       if (val === "←") return prev.slice(0, -1);
-      if (val === "." && prev.includes(".")) return prev;
-      if (val === "." && prev === "") return "0.";
       return prev + val;
     });
     if (weightInputRef.current) weightInputRef.current.focus();
+  };
+
+  // Handle weight confirmation and show cart popup
+  const handleWeightConfirmation = () => {
+    if (!clientId || !driverId || !weight) {
+      alert("Por favor complete Cliente, Chofer y Peso antes de continuar.");
+      return;
+    }
+    setShowKeypad(false);
+    setShowCartPopup(true);
+  };
+
+  // Cart ID keypad input handler
+  const handleCartKeypadInput = (val: string) => {
+    setCartId((prev) => {
+      if (val === "C") return "";
+      if (val === "←") return prev.slice(0, -1);
+      return prev + val;
+    });
   };
 
   // Add this handler below other handlers
@@ -551,7 +644,7 @@ export default function PickupWashing({
 
   // Handler to add entry directly to a group
   const handleAddEntryToGroup = async (group: any) => {
-    if (!addEntryWeight || !addEntryDriverId) return;
+    if (!addEntryWeight || !addEntryDriverId || !addEntryCartId.trim()) return;
     setAddEntrySubmitting(true);
     const driver = drivers.find((d) => d.id === addEntryDriverId);
     if (!driver) {
@@ -566,6 +659,7 @@ export default function PickupWashing({
       driverName: driver.name,
       groupId: group.id,
       weight: parseFloat(addEntryWeight),
+      cartId: addEntryCartId.trim(),
       timestamp: now,
     };
     try {
@@ -599,6 +693,7 @@ export default function PickupWashing({
       }
       setShowAddEntryGroupId(null);
       setAddEntryWeight("");
+      setAddEntryCartId(""); // Clear cart ID after adding entry to group
       setAddEntryDriverId("");
     } catch (err) {
       alert("Error al guardar la entrada en Firebase");
@@ -607,7 +702,18 @@ export default function PickupWashing({
   };
 
   return (
-    <div className="container py-4">
+    <div 
+      style={{ 
+        width: "100vw",
+        height: "100vh", 
+        background: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)",
+        padding: 0,
+        position: "fixed",
+        top: 0,
+        left: 0,
+        overflow: "hidden"
+      }}
+    >
       {/* Full-screen confirmation overlay */}
       {showFullScreenSuccess && (
         <div
@@ -635,335 +741,1090 @@ export default function PickupWashing({
           ¡Entrada registrada exitosamente!
         </div>
       )}
-      <h2 className="mb-4 text-center">Entradas Representantes de Servicios</h2>
-      <form
-        className="card p-4 mb-4"
-        onSubmit={handleSubmit}
-        style={{ maxWidth: 500, margin: "0 auto" }}
+
+      {/* History Side Panel */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          right: showHistoryPanel ? 0 : responsiveStyles.historyPanel.right,
+          width: responsiveStyles.historyPanel.width,
+          height: "100vh",
+          background: "#fff",
+          boxShadow: "-5px 0 20px rgba(0,0,0,0.3)",
+          zIndex: 1000,
+          transition: "right 0.3s ease-in-out",
+          overflowY: "auto",
+          padding: "30px"
+        }}
       >
-        <div className="mb-3">
-          <label className="form-label">Cliente</label>
-          <select
-            className="form-control"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            required
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <h3 style={{ fontSize: "2.5rem", fontWeight: "bold", color: "#333" }}>
+            Historial de Entradas
+          </h3>
+          <button
+            className="btn btn-outline-secondary btn-lg"
+            onClick={() => setShowHistoryPanel(false)}
+            style={{ fontSize: "1.8rem", padding: "15px 25px" }}
           >
-            <option value="">Seleccione un cliente</option>
-            {sortedClients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            ✕ Cerrar
+          </button>
         </div>
-        <div className="mb-3">
-          <label className="form-label">Chofer</label>
-          <select
-            className="form-control"
-            value={driverId}
-            onChange={(e) => setDriverId(e.target.value)}
-            required
+        
+        {/* Grouped entries table inside panel */}
+        {groupedEntries.length > 0 ? (
+          <div>
+            {groupedEntries.map((group, idx) => (
+              <div key={idx} className="mb-5 p-3 border rounded" style={{ background: "#f8f9fa" }}>
+                <div className="mb-3 d-flex align-items-center justify-content-between">
+                  <div>
+                    <div style={{ fontSize: "1.3rem", fontWeight: "bold", color: "#007bff" }}>
+                      {group.clientName}
+                    </div>
+                    <div style={{ fontSize: "1.1rem", fontWeight: "bold", color: "#28a745" }}>
+                      Chofer: {group.driverName}
+                    </div>
+                    <div style={{ fontSize: "1rem", color: "#6c757d" }}>
+                      Carros: {group.entries.length} | Peso total: {Math.round(group.totalWeight)} lbs
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => handleDeleteGroup(group.id)}
+                    style={{ fontSize: "0.9rem" }}
+                  >
+                    Eliminar Grupo
+                  </button>
+                </div>
+                
+                <div className="table-responsive">
+                  <table className="table table-sm table-bordered">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Peso (libras)</th>
+                        <th>Cart ID</th>
+                        <th>Hora</th>
+                        <th>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.entries
+                        .slice()
+                        .reverse()
+                        .map((entry: PickupEntry, i: number) => {
+                          let timeString = "";
+                          if (entry.timestamp instanceof Date) {
+                            timeString = entry.timestamp.toLocaleTimeString();
+                          } else if (
+                            entry.timestamp &&
+                            typeof entry.timestamp.toDate === "function"
+                          ) {
+                            timeString = entry.timestamp
+                              .toDate()
+                              .toLocaleTimeString();
+                          } else {
+                            timeString = new Date(
+                              entry.timestamp as any
+                            ).toLocaleTimeString();
+                          }
+                          return (
+                            <tr key={i}>
+                              <td>{i + 1}</td>
+                              <td>
+                                {editEntryId === entry.id ? (
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    value={editWeight}
+                                    onChange={(e) =>
+                                      setEditWeight(e.target.value)
+                                    }
+                                    style={{ width: 80, display: "inline-block" }}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  entry.weight
+                                )}
+                              </td>
+                              <td>
+                                {editEntryId === entry.id ? (
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    value={editCartId}
+                                    onChange={(e) =>
+                                      setEditCartId(e.target.value)
+                                    }
+                                    style={{ width: 100, display: "inline-block" }}
+                                    placeholder="Cart ID"
+                                  />
+                                ) : (
+                                  <span className="badge bg-info">{entry.cartId || "N/A"}</span>
+                                )}
+                              </td>
+                              <td>{timeString}</td>
+                              <td>
+                                {editEntryId === entry.id ? (
+                                  <>
+                                    <button
+                                      className="btn btn-success btn-sm me-2"
+                                      onClick={() => handleEditSave(entry)}
+                                    >
+                                      Guardar
+                                    </button>
+                                    <button
+                                      className="btn btn-secondary btn-sm"
+                                      onClick={handleEditCancel}
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      className="btn btn-outline-primary btn-sm me-2"
+                                      onClick={() => handleEditEntry(entry)}
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      className="btn btn-outline-danger btn-sm"
+                                      onClick={() =>
+                                        handleDeleteEntry(group, entry)
+                                      }
+                                    >
+                                      Eliminar
+                                    </button>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* Add Entry Button and Inline Form */}
+                {showAddEntryGroupId === group.id ? (
+                  <form
+                    className="d-flex align-items-end gap-2 mt-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleAddEntryToGroup(group);
+                    }}
+                  >
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Peso (libras)"
+                      value={addEntryWeight}
+                      min={0}
+                      step={0.1}
+                      onChange={(e) => setAddEntryWeight(e.target.value)}
+                      style={{ maxWidth: 120 }}
+                      required
+                    />
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Cart ID"
+                      value={addEntryCartId}
+                      onChange={(e) => setAddEntryCartId(e.target.value)}
+                      style={{ maxWidth: 120 }}
+                      required
+                    />
+                    <select
+                      className="form-control"
+                      value={addEntryDriverId}
+                      onChange={(e) => setAddEntryDriverId(e.target.value)}
+                      required
+                      style={{ maxWidth: 180 }}
+                    >
+                      <option value="">Seleccione chofer</option>
+                      {drivers.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn btn-success"
+                      type="submit"
+                      disabled={addEntrySubmitting}
+                    >
+                      Agregar
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => setShowAddEntryGroupId(null)}
+                    >
+                      Cancelar
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    className="btn btn-outline-primary btn-sm mt-2"
+                    onClick={() => {
+                      setShowAddEntryGroupId(group.id);
+                      setAddEntryWeight("");
+                      setAddEntryCartId(""); // Clear cart ID when opening add entry form
+                      setAddEntryDriverId(driverId || drivers[0]?.id || "");
+                    }}
+                  >
+                    + Añadir entrada a este grupo
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div 
+            className="text-center text-muted p-5"
+            style={{ fontSize: "1.2rem" }}
           >
-            <option value="">Seleccione un chofer</option>
-            {sortedDrivers.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+            <i className="fas fa-clipboard-list fa-3x mb-3"></i>
+            <div>No hay entradas registradas hoy</div>
+          </div>
+        )}
+      </div>
+
+      {/* Main Content - Full Width Layout */}
+      <div
+        style={{
+          display: "flex",
+          width: "100vw",
+          height: "100vh",
+          overflow: "hidden",
+          position: "relative"
+        }}
+      >
+        {/* Main Form - Centered */}
+        <div
+          style={{
+            width: "100%",
+            height: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "10px",
+            boxSizing: "border-box"
+          }}
+        >
+          <div 
+            style={{
+              background: "rgba(255,255,255,0.95)",
+              borderRadius: "15px",
+              padding: "10px",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+              width: "100%",
+              maxWidth: "600px",
+              height: "92vh", // Use viewport height
+              overflow: "hidden",
+              backdropFilter: "blur(15px)",
+              display: "grid",
+              gridTemplateRows: "auto 1fr auto", // Header, scrollable content, footer
+              gap: "5px"
+            }}
+          >
+          <h1 
+            className="text-center"
+            style={{
+              fontSize: window.innerWidth <= 768 ? "1.5rem" : "2rem",
+              fontWeight: "bold",
+              color: "#333",
+              textShadow: "2px 2px 4px rgba(0,0,0,0.1)",
+              margin: "0"
+            }}
+          >
+            🚛 Registro de Entradas
+          </h1>
+          
+          <form onSubmit={handleSubmit} style={{ 
+            overflow: "hidden",
+            display: "grid",
+            gridTemplateRows: "1fr auto", // Content, submit button
+            gap: "5px"
+          }}>
+            <div style={{ 
+              overflow: "auto",
+              display: "grid",
+              gridTemplateRows: "auto auto auto auto auto", // Fixed rows for form elements
+              gap: "3px", // Reduced gap between form elements
+              paddingRight: "3px"
+            }}>
+              {/* Cliente */}
+              <div>
+                <label 
+                  className="form-label"
+                  style={{ 
+                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem", 
+                    fontWeight: "bold", 
+                    color: "#555", 
+                    marginBottom: "2px",
+                    display: "block" 
+                  }}
+                >
+                  Cliente
+                </label>
+                <select
+                  className="form-control"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  required
+                  style={{
+                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                    padding: window.innerWidth <= 768 ? "12px" : "15px",
+                    borderRadius: "12px",
+                    border: "2px solid #ddd",
+                    background: "#fff",
+                    width: "100%",
+                    minHeight: "50px"
+                  }}
+                >
+                  <option value="">Seleccione un cliente</option>
+                  {sortedClients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Chofer */}
+              <div>
+                <label 
+                  className="form-label"
+                  style={{ 
+                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem", 
+                    fontWeight: "bold", 
+                    color: "#555", 
+                    marginBottom: "2px", 
+                    display: "block" 
+                  }}
+                >
+                  Chofer
+                </label>
+                <select
+                  className="form-control"
+                  value={driverId}
+                  onChange={(e) => setDriverId(e.target.value)}
+                  required
+                  style={{
+                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                    padding: window.innerWidth <= 768 ? "12px" : "15px",
+                    borderRadius: "12px",
+                    border: "2px solid #ddd",
+                    background: "#fff",
+                    width: "100%",
+                    minHeight: "50px"
+                  }}
+                >
+                  <option value="">Seleccione un chofer</option>
+                  {sortedDrivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Peso */}
+              <div>
+                <label 
+                  className="form-label"
+                  style={{ 
+                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem", 
+                    fontWeight: "bold", 
+                    color: "#555", 
+                    marginBottom: "2px", 
+                    display: "block" 
+                  }}
+                >
+                  Peso (libras)
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={weight}
+                  ref={weightInputRef}
+                  onFocus={() => setShowKeypad(true)}
+                  onChange={(e) => setWeight(e.target.value)}
+                  min={0}
+                  step={0.1}
+                  required
+                  placeholder="Ej: 12.5"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  style={{
+                    fontSize: window.innerWidth <= 768 ? "1.3rem" : "1.5rem",
+                    padding: window.innerWidth <= 768 ? "15px" : "18px",
+                    borderRadius: "12px",
+                    border: "2px solid #ddd",
+                    background: "#fff",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    width: "100%",
+                    minHeight: "55px"
+                  }}
+                />
+              </div>
+              
+              {/* Cart ID section - only show after popup is completed */}
+              {cartId && (
+                <div>
+                  <label 
+                    className="form-label"
+                    style={{ 
+                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem", 
+                      fontWeight: "bold", 
+                      color: "#555", 
+                      marginBottom: "2px", 
+                      display: "block" 
+                    }}
+                  >
+                    Cart ID
+                  </label>
+                  <div
+                    className="form-control d-flex align-items-center justify-content-between"
+                    style={{
+                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                      padding: window.innerWidth <= 768 ? "12px" : "15px",
+                      borderRadius: "12px",
+                      border: "2px solid #28a745",
+                      background: "#f8fff9",
+                      width: "100%",
+                      fontWeight: "bold",
+                      minHeight: "50px"
+                    }}
+                  >
+                    <span className="text-success">
+                      <i className="fas fa-check-circle me-2"></i>
+                      {cartId}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary btn-sm"
+                      onClick={() => setShowCartPopup(true)}
+                      style={{ fontSize: "0.8rem" }}
+                    >
+                      Cambiar
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Show Cart ID button if not set */}
+              {!cartId && (
+                <div>
+                  <button
+                    type="button"
+                    className="btn btn-warning btn-lg"
+                    onClick={() => {
+                      if (!clientId || !driverId || !weight) {
+                        alert("Por favor complete Cliente, Chofer y Peso antes de continuar.");
+                        return;
+                      }
+                      setShowCartPopup(true);
+                    }}
+                    style={{
+                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                      padding: window.innerWidth <= 768 ? "12px" : "15px",
+                      borderRadius: "12px",
+                      fontWeight: "bold",
+                      background: "linear-gradient(45deg, #ffc107, #ffb300)",
+                      border: "none",
+                      boxShadow: "0 5px 15px rgba(255,193,7,0.2)",
+                      transition: "all 0.3s ease",
+                      width: "100%",
+                      minHeight: "50px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
+                  >
+                    <i className="fas fa-barcode me-2"></i>
+                    Identificar Cart ID
+                  </button>
+                  <small 
+                    className="text-muted d-block mt-1"
+                    style={{ fontSize: "0.85rem" }}
+                  >
+                    Complete los datos anteriores y presione para identificar el cart
+                  </small>
+                </div>
+              )}
+            </div>
+            
+            {/* Submit Button - Fixed at bottom */}
+            <div style={{ paddingTop: "5px" }}>
+              <button
+                className="btn btn-primary w-100"
+                type="submit"
+                disabled={submitting}
+                style={{
+                  fontSize: window.innerWidth <= 768 ? "1.2rem" : "1.4rem",
+                  padding: window.innerWidth <= 768 ? "12px" : "15px",
+                  borderRadius: "12px",
+                  fontWeight: "bold",
+                  background: "linear-gradient(45deg, #007bff, #0056b3)",
+                  border: "none",
+                  boxShadow: "0 5px 15px rgba(0,123,255,0.2)",
+                  transition: "all 0.3s ease",
+                  minHeight: "50px"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,123,255,0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 5px 15px rgba(0,123,255,0.2)";
+                }}
+              >
+                {submitting ? (
+                  <>
+                    <div className="spinner-border spinner-border-sm me-2" role="status"></div>
+                    Registrando...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-plus-circle me-2"></i>
+                    Registrar Entrada
+                  </>
+                )}
+              </button>
+              
+              {success && (
+                <div 
+                  className="alert alert-success mt-2"
+                  style={{
+                    fontSize: "1rem",
+                    padding: "8px",
+                    borderRadius: "10px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    marginBottom: "0"
+                  }}
+                >
+                  <i className="fas fa-check-circle me-2"></i>
+                  ¡Entrada registrada exitosamente!
+                </div>
+              )}
+            </div>
+          </form>
         </div>
-        <div className="mb-3">
-          <label className="form-label">Peso (libras)</label>
-          <input
-            type="text"
-            className="form-control"
-            value={weight}
-            ref={weightInputRef}
-            onFocus={() => setShowKeypad(true)}
-            onChange={(e) => setWeight(e.target.value)}
-            min={0}
-            step={0.1}
-            required
-            placeholder="Ej: 12.5"
-            inputMode="decimal"
-            autoComplete="off"
-          />
-          {showKeypad && (
+        </div>
+
+        {/* Main Menu Button - Fixed Position */}
+        <button
+          onClick={() => onNavigateHome && onNavigateHome()}
+          style={{
+            position: "fixed",
+            top: "15px",
+            left: "15px",
+            zIndex: 500,
+            background: "linear-gradient(45deg, #28a745, #20c997)",
+            border: "none",
+            borderRadius: "20px",
+            padding: "10px 15px",
+            fontSize: "1rem",
+            fontWeight: "bold",
+            color: "#fff",
+            boxShadow: "0 4px 12px rgba(40,167,69,0.3)",
+            cursor: "pointer",
+            transition: "all 0.3s ease"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.05)";
+            e.currentTarget.style.boxShadow = "0 6px 16px rgba(40,167,69,0.4)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.boxShadow = "0 4px 12px rgba(40,167,69,0.3)";
+          }}
+          title="Volver al menú principal"
+        >
+          <i className="fas fa-home me-1"></i>
+          Menú
+        </button>
+
+        {/* Ver Todo Button - Fixed Position */}
+        <button
+          onClick={() => setShowHistoryPanel(true)}
+          style={{
+            position: "fixed",
+            top: "15px",
+            right: "15px",
+            zIndex: 500,
+            background: "linear-gradient(45deg, #007bff, #0056b3)",
+            border: "none",
+            borderRadius: "20px",
+            padding: "10px 15px",
+            fontSize: "1rem",
+            fontWeight: "bold",
+            color: "#fff",
+            boxShadow: "0 4px 12px rgba(0,123,255,0.3)",
+            cursor: "pointer",
+            transition: "all 0.3s ease"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.05)";
+            e.currentTarget.style.boxShadow = "0 6px 16px rgba(0,123,255,0.4)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,123,255,0.3)";
+          }}
+          title="Ver historial de entradas"
+        >
+          <i className="fas fa-list me-1"></i>
+          Ver Todo
+        </button>
+
+
+
+        {/* Modal Keypad */}
+        {showKeypad && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              background: "rgba(0, 0, 0, 0.7)",
+              zIndex: 1200,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(5px)"
+            }}
+            onClick={() => setShowKeypad(false)}
+          >
             <div
-              className="card p-2 mt-2"
-              style={{ maxWidth: 300, margin: "0 auto" }}
+              onClick={(e) => e.stopPropagation()}
+              className="card p-4"
+              style={{
+                background: "rgba(255,255,255,0.98)",
+                borderRadius: "25px",
+                border: "3px solid #fff",
+                boxShadow: "0 25px 50px rgba(0,0,0,0.4)",
+                maxWidth: "500px",
+                width: "90%",
+                backdropFilter: "blur(15px)"
+              }}
             >
-              <div className="d-flex flex-wrap justify-content-center gap-2">
+              <h3 
+                className="text-center mb-4"
+                style={{
+                  fontSize: "1.8rem",
+                  fontWeight: "bold",
+                  color: "#333"
+                }}
+              >
+                📱 Teclado Numérico
+              </h3>
+              
+              {/* Weight Display */}
+              <div 
+                className="text-center mb-4 p-3"
+                style={{
+                  background: "#f8f9fa",
+                  borderRadius: "15px",
+                  border: "2px solid #dee2e6",
+                  fontSize: "2rem",
+                  fontWeight: "bold",
+                  color: "#333",
+                  minHeight: "60px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                {weight || "0"} lbs
+              </div>
+              
+              <div className="d-flex flex-wrap justify-content-center gap-3 mb-4">
                 {[
-                  "7",
-                  "8",
-                  "9",
-                  "4",
-                  "5",
-                  "6",
-                  "1",
-                  "2",
-                  "3",
-                  "0",
-                  ".",
-                  "←",
-                  "C",
+                  "7", "8", "9",
+                  "4", "5", "6",
+                  "1", "2", "3",
+                  "0", "←", "C",
                 ].map((key) => (
                   <button
                     key={key}
                     type="button"
-                    className={`btn btn-outline-dark mb-2${
+                    className={`btn btn-outline-dark${
                       key === "C"
                         ? " btn-danger"
                         : key === "←"
                         ? " btn-warning"
                         : ""
                     }`}
-                    style={{ width: 60, height: 48, fontSize: 22 }}
+                    style={{
+                      width: responsiveStyles.keypadSize.width,
+                      height: responsiveStyles.keypadSize.height,
+                      fontSize: responsiveStyles.fontSize.keypad,
+                      fontWeight: "bold",
+                      borderRadius: "15px",
+                      transition: "all 0.2s ease"
+                    }}
                     onClick={() => handleKeypadInput(key)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "scale(1.05)";
+                      e.currentTarget.style.boxShadow = "0 5px 15px rgba(0,0,0,0.2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
                   >
                     {key === "←" ? <>&larr;</> : key}
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                className="btn btn-secondary w-100 mt-2"
-                onClick={() => setShowKeypad(false)}
-              >
-                Ocultar teclado
-              </button>
-            </div>
-          )}
-        </div>
-        <button
-          className="btn btn-primary w-100"
-          type="submit"
-          disabled={submitting}
-        >
-          Registrar Entrada
-        </button>
-        {success && (
-          <div className="alert alert-success mt-3">¡Entrada registrada!</div>
-        )}
-      </form>
-      {/* Grouped entries table */}
-      {groupedEntries.length > 0 && (
-        <div
-          className="card p-3 mb-4"
-          style={{ maxWidth: 700, margin: "0 auto" }}
-        >
-          <h5 className="mb-3">Entradas recientes agrupadas</h5>
-          {groupedEntries.map((group, idx) => (
-            <div key={idx} className="mb-4">
-              <div className="mb-2 d-flex align-items-center justify-content-between">
-                <div>
-                  <span
-                    style={{
-                      fontSize: "1.5rem",
-                      fontWeight: "bold",
-                      color: "#007bff",
-                    }}
-                  >
-                    {group.clientName}
-                  </span>{" "}
-                  &nbsp;|&nbsp;
-                  <span
-                    style={{
-                      fontSize: "1.5rem",
-                      fontWeight: "bold",
-                      color: "#28a745",
-                    }}
-                  >
-                    {group.driverName}
-                  </span>{" "}
-                  &nbsp;|&nbsp;
-                  <span
-                    style={{
-                      fontSize: "1.5rem",
-                      fontWeight: "bold",
-                      color: "#6c757d",
-                    }}
-                  >
-                    Carros: {group.entries.length}
-                  </span>
-                </div>
+              
+              {/* OK and Close buttons */}
+              <div className="d-flex gap-3">
                 <button
-                  className="btn btn-danger btn-sm ms-2"
-                  onClick={() => handleDeleteGroup(group.id)}
-                >
-                  Eliminar Grupo
-                </button>
-              </div>
-              <div className="table-responsive">
-                <table className="table table-sm table-bordered">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Peso (libras)</th>
-                      <th>Hora</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.entries
-                      .slice()
-                      .reverse()
-                      .map((entry: PickupEntry, i: number) => {
-                        let timeString = "";
-                        if (entry.timestamp instanceof Date) {
-                          timeString = entry.timestamp.toLocaleTimeString();
-                        } else if (
-                          entry.timestamp &&
-                          typeof entry.timestamp.toDate === "function"
-                        ) {
-                          timeString = entry.timestamp
-                            .toDate()
-                            .toLocaleTimeString();
-                        } else {
-                          timeString = new Date(
-                            entry.timestamp as any
-                          ).toLocaleTimeString();
-                        }
-                        return (
-                          <tr key={i}>
-                            <td>{i + 1}</td>
-                            <td>
-                              {editEntryId === entry.id ? (
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={editWeight}
-                                  onChange={(e) =>
-                                    setEditWeight(e.target.value)
-                                  }
-                                  style={{ width: 80, display: "inline-block" }}
-                                  autoFocus
-                                />
-                              ) : (
-                                entry.weight
-                              )}
-                            </td>
-                            <td>{timeString}</td>
-                            <td>
-                              {editEntryId === entry.id ? (
-                                <>
-                                  <button
-                                    className="btn btn-success btn-sm me-2"
-                                    onClick={() => handleEditSave(entry)}
-                                  >
-                                    Guardar
-                                  </button>
-                                  <button
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={handleEditCancel}
-                                  >
-                                    Cancelar
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    className="btn btn-outline-primary btn-sm me-2"
-                                    onClick={() => handleEditEntry(entry)}
-                                  >
-                                    Editar
-                                  </button>
-                                  <button
-                                    className="btn btn-outline-danger btn-sm"
-                                    onClick={() =>
-                                      handleDeleteEntry(group, entry)
-                                    }
-                                  >
-                                    Eliminar
-                                  </button>
-                                </>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-                <div
+                  type="button"
+                  className="btn btn-success flex-fill"
+                  onClick={handleWeightConfirmation}
+                  disabled={!weight || !clientId || !driverId}
                   style={{
-                    width: "100%",
-                    textAlign: "right",
-                    fontWeight: "bold",
-                    background: "#f8f9fa",
-                    padding: "8px 12px",
-                    borderTop: "1px solid #dee2e6",
+                    fontSize: "1.4rem",
+                    padding: "15px",
+                    borderRadius: "18px",
+                    fontWeight: "bold"
                   }}
                 >
-                  Peso total: {Math.round(group.totalWeight)} lbs
+                  <i className="fas fa-check me-2"></i>
+                  OK - Continuar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary flex-fill"
+                  onClick={() => setShowKeypad(false)}
+                  style={{
+                    fontSize: "1.4rem",
+                    padding: "15px",
+                    borderRadius: "18px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  <i className="fas fa-times me-2"></i>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cart ID Popup Modal */}
+        {showCartPopup && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              background: "rgba(0, 0, 0, 0.8)",
+              zIndex: 1300,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(5px)"
+            }}
+            onClick={() => setShowCartPopup(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="card p-4"
+              style={{
+                background: "rgba(255,255,255,0.98)",
+                borderRadius: "25px",
+                border: "3px solid #fff",
+                boxShadow: "0 25px 50px rgba(0,0,0,0.4)",
+                maxWidth: "600px",
+                width: "95%",
+                maxHeight: "90vh",
+                overflow: "auto",
+                backdropFilter: "blur(15px)"
+              }}
+            >
+              <h3 
+                className="text-center mb-4"
+                style={{
+                  fontSize: "2rem",
+                  fontWeight: "bold",
+                  color: "#333"
+                }}
+              >
+                🛒 Identificar Cart ID
+              </h3>
+              
+              {/* Cart Image */}
+              <div className="text-center mb-4">
+                <img 
+                  src="/images/cart-example.jpg" 
+                  alt="Ejemplo de Cart con ID" 
+                  style={{
+                    maxWidth: "100%",
+                    height: "auto",
+                    borderRadius: "15px",
+                    boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+                    border: "3px solid #ddd"
+                  }}
+                />
+                <p 
+                  className="mt-3"
+                  style={{
+                    fontSize: "1.2rem",
+                    color: "#666",
+                    fontWeight: "500"
+                  }}
+                >
+                  Busque el número de identificación en el cart como se muestra en la imagen
+                </p>
+              </div>
+              
+              {/* Cart ID Input */}
+              <div className="mb-4">
+                <label 
+                  className="form-label"
+                  style={{ 
+                    fontSize: "1.4rem", 
+                    fontWeight: "bold", 
+                    color: "#555", 
+                    marginBottom: "10px", 
+                    display: "block" 
+                  }}
+                >
+                  Ingrese el Cart ID:
+                </label>
+                <div className="d-flex gap-2">
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={cartId}
+                    readOnly
+                    placeholder="Presione el teclado para ingresar"
+                    style={{
+                      fontSize: "1.3rem",
+                      padding: "15px",
+                      borderRadius: "15px",
+                      border: "3px solid #ddd",
+                      background: "#f8f9fa",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      flex: 1,
+                      cursor: "pointer"
+                    }}
+                    onClick={() => setShowCartKeypad(true)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => setShowCartKeypad(true)}
+                    style={{
+                      fontSize: "1.2rem",
+                      padding: "15px 20px",
+                      borderRadius: "15px",
+                      fontWeight: "bold"
+                    }}
+                  >
+                    <i className="fas fa-keyboard"></i>
+                  </button>
                 </div>
               </div>
-              {/* Add Entry Button and Inline Form */}
-              {showAddEntryGroupId === group.id ? (
-                <form
-                  className="d-flex align-items-end gap-2 mt-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleAddEntryToGroup(group);
-                  }}
-                >
-                  <input
-                    type="number"
-                    className="form-control"
-                    placeholder="Peso (libras)"
-                    value={addEntryWeight}
-                    min={0}
-                    step={0.1}
-                    onChange={(e) => setAddEntryWeight(e.target.value)}
-                    style={{ maxWidth: 120 }}
-                    required
-                  />
-                  <select
-                    className="form-control"
-                    value={addEntryDriverId}
-                    onChange={(e) => setAddEntryDriverId(e.target.value)}
-                    required
-                    style={{ maxWidth: 180 }}
-                  >
-                    <option value="">Seleccione chofer</option>
-                    {drivers.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="btn btn-success"
-                    type="submit"
-                    disabled={addEntrySubmitting}
-                  >
-                    Agregar
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    type="button"
-                    onClick={() => setShowAddEntryGroupId(null)}
-                  >
-                    Cancelar
-                  </button>
-                </form>
-              ) : (
+              
+              {/* Action buttons */}
+              <div className="d-flex gap-3">
                 <button
-                  className="btn btn-outline-primary btn-sm mt-2"
+                  type="button"
+                  className="btn btn-success flex-fill"
                   onClick={() => {
-                    setShowAddEntryGroupId(group.id);
-                    setAddEntryWeight("");
-                    setAddEntryDriverId(driverId || drivers[0]?.id || "");
+                    if (cartId.trim()) {
+                      setShowCartPopup(false);
+                      // Focus back to form or submit
+                    } else {
+                      alert("Por favor ingrese un Cart ID válido");
+                    }
+                  }}
+                  style={{
+                    fontSize: "1.3rem",
+                    padding: "15px",
+                    borderRadius: "18px",
+                    fontWeight: "bold"
                   }}
                 >
-                  + Añadir entrada a este grupo
+                  <i className="fas fa-check me-2"></i>
+                  Continuar
                 </button>
-              )}
+                <button
+                  type="button"
+                  className="btn btn-secondary flex-fill"
+                  onClick={() => setShowCartPopup(false)}
+                  style={{
+                    fontSize: "1.3rem",
+                    padding: "15px",
+                    borderRadius: "18px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  <i className="fas fa-arrow-left me-2"></i>
+                  Volver
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* Cart ID Keypad Modal */}
+        {showCartKeypad && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              background: "rgba(0, 0, 0, 0.8)",
+              zIndex: 1400,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(5px)",
+              overflow: "auto"
+            }}
+            onClick={() => setShowCartKeypad(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="card"
+              style={{
+                background: "rgba(255,255,255,0.98)",
+                borderRadius: "20px",
+                border: "3px solid #fff",
+                boxShadow: "0 25px 50px rgba(0,0,0,0.4)",
+                maxWidth: "480px",
+                width: "95%",
+                maxHeight: "95vh",
+                padding: responsiveStyles.fontSize.title === "2rem" ? "20px" : "25px",
+                backdropFilter: "blur(15px)",
+                margin: "10px"
+              }}
+            >
+              <h3 
+                className="text-center mb-3"
+                style={{
+                  fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.5rem" : "1.7rem",
+                  fontWeight: "bold",
+                  color: "#333"
+                }}
+              >
+                ⌨️ Teclado para Cart ID
+              </h3>
+              
+              {/* Cart ID Display */}
+              <div 
+                className="text-center mb-3 p-2"
+                style={{
+                  background: "#f8f9fa",
+                  borderRadius: "12px",
+                  border: "2px solid #dee2e6",
+                  fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.4rem" : "1.6rem",
+                  fontWeight: "bold",
+                  color: "#333",
+                  minHeight: responsiveStyles.fontSize.title === "2rem" ? "45px" : "55px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                {cartId || "Cart ID"}
+              </div>
+              
+              {/* Numeric Keypad */}
+              <div className="d-flex flex-wrap justify-content-center gap-2 mb-3">
+                {[
+                  "7", "8", "9",
+                  "4", "5", "6", 
+                  "1", "2", "3",
+                  "0", "←", "C",
+                ].map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`btn btn-outline-dark${
+                      key === "C"
+                        ? " btn-danger"
+                        : key === "←"
+                        ? " btn-warning"
+                        : ""
+                    }`}
+                    style={{
+                      width: responsiveStyles.fontSize.title === "2rem" ? 50 : 60,
+                      height: responsiveStyles.fontSize.title === "2rem" ? 50 : 60,
+                      fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.1rem" : "1.3rem",
+                      fontWeight: "bold",
+                      borderRadius: "12px",
+                      transition: "all 0.2s ease"
+                    }}
+                    onClick={() => handleCartKeypadInput(key)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "scale(1.05)";
+                      e.currentTarget.style.boxShadow = "0 5px 15px rgba(0,0,0,0.2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    {key === "←" ? <>&larr;</> : key}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Action buttons */}
+              <div className="d-flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-success flex-fill"
+                  onClick={() => setShowCartKeypad(false)}
+                  style={{
+                    fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.1rem" : "1.2rem",
+                    padding: responsiveStyles.fontSize.title === "2rem" ? "12px" : "15px",
+                    borderRadius: "15px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  <i className="fas fa-check me-2"></i>
+                  Confirmar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary flex-fill"
+                  onClick={() => setShowCartKeypad(false)}
+                  style={{
+                    fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.1rem" : "1.2rem",
+                    padding: responsiveStyles.fontSize.title === "2rem" ? "12px" : "15px",
+                    borderRadius: "15px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  <i className="fas fa-times me-2"></i>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

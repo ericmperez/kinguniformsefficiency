@@ -19,6 +19,7 @@ import { logActivity } from "../services/firebaseService";
 import { useAuth } from "./AuthContext";
 import FlipMove from "react-flip-move";
 import "./Segregation.css"; // Import user badge styles
+import { tunnelCartAlertService } from "../utils/tunnelCartAlertService";
 
 interface WashingProps {
   setSelectedInvoiceId?: (id: string | null) => void;
@@ -2197,6 +2198,19 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                       const previousCount = cartCounter;
                                       const newCount = Math.max(cartCounter - 1, 0);
 
+                                      // Record button press for rapid press detection
+                                      try {
+                                        await tunnelCartAlertService.recordButtonPress(
+                                          group.id,
+                                          group.clientName,
+                                          'decrement',
+                                          user?.username || 'Unknown User',
+                                          newCount
+                                        );
+                                      } catch (alertError) {
+                                        console.error("Failed to record tunnel cart button press:", alertError);
+                                      }
+
                                       // Update UI state
                                       setCartCounters((prev) => ({
                                         ...prev,
@@ -2496,6 +2510,20 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                             );
                                             return;
                                           }
+
+                                          // Record button press for rapid press detection
+                                          try {
+                                            await tunnelCartAlertService.recordButtonPress(
+                                              group.id,
+                                              group.clientName,
+                                              'verify',
+                                              user?.username || 'Unknown User',
+                                              val
+                                            );
+                                          } catch (alertError) {
+                                            console.error("Failed to record tunnel cart button press:", alertError);
+                                          }
+
                                           if (val !== getSegregatedCarts(group)) {
                                             setTunnelCartError(
                                               canReorder
@@ -2609,6 +2637,20 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                         cartCounter + 1,
                                         getSegregatedCarts(group)
                                       );
+                                      
+                                      // Record button press for rapid press detection
+                                      try {
+                                        await tunnelCartAlertService.recordButtonPress(
+                                          group.id,
+                                          group.clientName,
+                                          'increment',
+                                          user?.username || 'Unknown User',
+                                          newCount
+                                        );
+                                      } catch (alertError) {
+                                        console.error("Failed to record tunnel cart button press:", alertError);
+                                      }
+                                      
                                       setCartCounters((prev) => ({
                                         ...prev,
                                         [group.id]: newCount,
@@ -2640,6 +2682,19 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                       if (!canVerify || rowControlsDisabled) return;
                                       const previousCount = cartCounter;
                                       const newCount = Math.max(cartCounter - 1, 0);
+
+                                      // Record button press for rapid press detection
+                                      try {
+                                        await tunnelCartAlertService.recordButtonPress(
+                                          group.id,
+                                          group.clientName,
+                                          'decrement',
+                                          user?.username || 'Unknown User',
+                                          newCount
+                                        );
+                                      } catch (alertError) {
+                                        console.error("Failed to record tunnel cart button press:", alertError);
+                                      }
 
                                       // Update UI state
                                       setCartCounters((prev) => ({

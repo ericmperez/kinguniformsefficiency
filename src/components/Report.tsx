@@ -17,6 +17,7 @@ interface PickupEntry {
   driverName: string;
   groupId: string;
   weight: number;
+  cartId: string; // Added cart ID field
   timestamp: Date;
 }
 
@@ -106,6 +107,7 @@ export default function Report() {
         driverName: data.driverName || "",
         groupId: data.groupId || "",
         weight: typeof data.weight === "number" ? data.weight : 0,
+        cartId: data.cartId || "", // Include cart ID from database
         timestamp:
           data.timestamp instanceof Timestamp
             ? data.timestamp.toDate()

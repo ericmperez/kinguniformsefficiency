@@ -27,11 +27,13 @@ import { useAuth } from "./AuthContext";
 interface SegregationProps {
   hideArrows?: boolean;
   onGroupComplete?: () => void;
+  onNavigateHome?: () => void; // New prop for navigation
 }
 
 const Segregation: React.FC<SegregationProps> = ({
   hideArrows,
   onGroupComplete,
+  onNavigateHome,
 }) => {
   const [groups, setGroups] = useState<any[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -1800,9 +1802,70 @@ const Segregation: React.FC<SegregationProps> = ({
         </div>
       )}
 
+      {/* Full-screen Layout Container */}
       <div
-        className={`container py-4 segregation-page ${showErrorsSidebar ? "with-sidebar" : ""}`}
+        style={{
+          width: "100vw",
+          height: "100vh",
+          background: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)",
+          position: "relative",
+          overflow: "auto",
+        }}
       >
+        {/* Main Menu Button */}
+        {onNavigateHome && (
+          <button
+            onClick={onNavigateHome}
+            style={{
+              position: "fixed",
+              top: "15px",
+              left: "15px",
+              zIndex: 1000,
+              background: "rgba(255, 255, 255, 0.95)",
+              border: "2px solid #0E62A0",
+              borderRadius: "12px",
+              padding: "12px 20px",
+              fontSize: "16px",
+              fontWeight: "600",
+              color: "#0E62A0",
+              cursor: "pointer",
+              backdropFilter: "blur(10px)",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#0E62A0";
+              e.currentTarget.style.color = "#fff";
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 6px 20px rgba(0, 0, 0, 0.25)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(255, 255, 255, 0.95)";
+              e.currentTarget.style.color = "#0E62A0";
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.15)";
+            }}
+          >
+            <i className="fas fa-home me-2"></i>
+            Main Menu
+          </button>
+        )}
+
+        {/* Content Container with backdrop */}
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            padding: "80px 20px 20px 20px",
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(10px)",
+            overflowY: "auto",
+          }}
+        >
+          <div
+            className={`container py-4 segregation-page ${showErrorsSidebar ? "with-sidebar" : ""}`}
+            style={{ maxWidth: "none", padding: "0" }}
+          >
         {/* Alert Banner */}
         {loadingAlert ? (
           <div
@@ -3419,6 +3482,8 @@ const Segregation: React.FC<SegregationProps> = ({
             </div>
           </div>
         )}
+          </div>
+        </div>
       </div>
     </>
   );

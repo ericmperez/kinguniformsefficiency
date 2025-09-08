@@ -68,6 +68,7 @@ interface PickupEntry {
   timestamp: Date;
   weight: number;
   driverName: string;
+  cartId: string;
 }
 
 interface WeeklyPattern {
@@ -190,6 +191,7 @@ const EnhancedPredictionScheduleDashboard: React.FC = () => {
           timestamp: parseTimestamp(data.timestamp),
           weight: data.weight || 0,
           driverName: data.driverName || "Unknown",
+          cartId: data.cartId || "",
         } as PickupEntry;
       });
 

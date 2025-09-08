@@ -71,7 +71,8 @@ export class AutoMLDataService {
           weight: data.weight || 0,
           groupId: data.groupId,
           timestamp,
-          date: timestamp.toISOString().split('T')[0]
+          date: timestamp.toISOString().split('T')[0],
+          cartId: data.cartId || "",
         };
       });
 
