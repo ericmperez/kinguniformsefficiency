@@ -70,7 +70,7 @@ export default function PickupWashing({
   const getResponsiveStyles = () => {
     const isMobile = window.innerWidth <= 768;
     const isTablet = window.innerWidth <= 1024;
-    
+
     return {
       fontSize: {
         title: isMobile ? "1.8rem" : isTablet ? "2.2rem" : "2.8rem", // Reduced sizes
@@ -78,26 +78,28 @@ export default function PickupWashing({
         input: isMobile ? "1.1rem" : isTablet ? "1.2rem" : "1.4rem", // Reduced sizes
         weightInput: isMobile ? "1.3rem" : isTablet ? "1.5rem" : "1.7rem", // Reduced sizes
         button: isMobile ? "1.3rem" : isTablet ? "1.5rem" : "1.7rem", // Reduced sizes
-        keypad: isMobile ? "1.3rem" : isTablet ? "1.5rem" : "1.7rem"
+        keypad: isMobile ? "1.3rem" : isTablet ? "1.5rem" : "1.7rem",
       },
       padding: {
         container: isMobile ? "8px" : isTablet ? "15px" : "20px", // Reduced padding
         input: isMobile ? "10px" : isTablet ? "12px" : "15px", // Reduced padding
         weightInput: isMobile ? "12px" : isTablet ? "15px" : "18px", // Reduced padding
-        button: isMobile ? "12px" : isTablet ? "15px" : "18px" // Reduced padding
+        button: isMobile ? "12px" : isTablet ? "15px" : "18px", // Reduced padding
       },
       keypadSize: {
         width: isMobile ? 60 : isTablet ? 70 : 80,
-        height: isMobile ? 60 : isTablet ? 70 : 80
+        height: isMobile ? 60 : isTablet ? 70 : 80,
       },
       historyPanel: {
         width: isMobile ? "90vw" : isTablet ? "70vw" : "60vw",
-        right: isMobile ? "-90vw" : isTablet ? "-70vw" : "-60vw"
-      }
+        right: isMobile ? "-90vw" : isTablet ? "-70vw" : "-60vw",
+      },
     };
   };
 
-  const [responsiveStyles, setResponsiveStyles] = useState(getResponsiveStyles());
+  const [responsiveStyles, setResponsiveStyles] = useState(
+    getResponsiveStyles()
+  );
 
   // Update responsive styles on window resize
   useEffect(() => {
@@ -105,8 +107,8 @@ export default function PickupWashing({
       setResponsiveStyles(getResponsiveStyles());
     };
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const [clientId, setClientId] = useState("");
@@ -127,6 +129,7 @@ export default function PickupWashing({
   const [showFullScreenSuccess, setShowFullScreenSuccess] = useState(false);
   const [showCartPopup, setShowCartPopup] = useState(false); // New state for cart popup
   const [showCartKeypad, setShowCartKeypad] = useState(false); // New state for cart ID keypad
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false); // New state for confirmation modal
   const [submitting, setSubmitting] = useState(false);
   const [showAddEntryGroupId, setShowAddEntryGroupId] = useState<string | null>(
     null
@@ -208,8 +211,7 @@ export default function PickupWashing({
   };
 
   // When adding a new entry, check if it fits an existing group or needs a new group
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleActualSubmit = async () => {
     if (submitting) return; // Prevent double submit
     setSubmitting(true);
     setSuccess(false);
@@ -220,10 +222,10 @@ export default function PickupWashing({
       return;
     }
     const now = new Date();
-    
+
     // Check for duplicate cart ID across all entries for this client
-    const existingCartId = entries.find((e) => 
-      e.clientId === client.id && e.cartId === cartId.trim()
+    const existingCartId = entries.find(
+      (e) => e.clientId === client.id && e.cartId === cartId.trim()
     );
     if (existingCartId) {
       alert(
@@ -232,7 +234,7 @@ export default function PickupWashing({
       setSubmitting(false);
       return;
     }
-    
+
     // Change window from 2 minutes to 60 minutes (1 hour)
     const sixtyMinutesAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
@@ -246,7 +248,11 @@ export default function PickupWashing({
     let groupId: string | null = null;
     if (recentEntry && new Date(recentEntry.timestamp) >= sixtyMinutesAgo) {
       // Check for duplicate entry in the last 60 minutes for this client, driver, group, weight, and cart ID
-      if (recentEntry.weight === parseFloat(weight) && recentEntry.cartId === cartId.trim() && recentEntry.groupId) {
+      if (
+        recentEntry.weight === parseFloat(weight) &&
+        recentEntry.cartId === cartId.trim() &&
+        recentEntry.groupId
+      ) {
         alert(
           "Ya existe una entrada similar registrada recientemente con el mismo Cart ID. Por favor, verifique."
         );
@@ -350,27 +356,34 @@ export default function PickupWashing({
     } catch (err) {
       alert("Error al guardar la entrada en Firebase");
       setSubmitting(false);
-      
+
       // Create system alert for pickup entry error
       try {
         await AlertService.createAlert({
-          type: 'system_error',
-          severity: 'medium',
-          title: 'Pickup Entry Save Error',
-          message: `Failed to save pickup entry for client ${client.name}, driver ${driver.name}, weight ${weight}lbs. Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          component: 'Pickup/Washing',
+          type: "system_error",
+          severity: "medium",
+          title: "Pickup Entry Save Error",
+          message: `Failed to save pickup entry for client ${
+            client.name
+          }, driver ${driver.name}, weight ${weight}lbs. Error: ${
+            err instanceof Error ? err.message : "Unknown error"
+          }`,
+          component: "Pickup/Washing",
           clientName: client.name,
           userName: driver.name,
-          triggerData: { 
+          triggerData: {
             clientId: client.id,
             driverId: driver.id,
             weight: parseFloat(weight),
-            operation: 'save_pickup_entry'
+            operation: "save_pickup_entry",
           },
-          createdBy: 'System'
+          createdBy: "System",
         });
       } catch (alertError) {
-        console.error("Failed to create alert for pickup entry error:", alertError);
+        console.error(
+          "Failed to create alert for pickup entry error:",
+          alertError
+        );
       }
     }
   };
@@ -431,12 +444,14 @@ export default function PickupWashing({
   const handleEditSave = async (entry: PickupEntry) => {
     if (isNaN(parseFloat(editWeight)) || !editCartId.trim()) return;
     try {
-      await updatePickupEntry(entry.id!, { 
+      await updatePickupEntry(entry.id!, {
         weight: parseFloat(editWeight),
-        cartId: editCartId.trim()
+        cartId: editCartId.trim(),
       });
       const updatedEntries = entries.map((e) =>
-        e.id === entry.id ? { ...e, weight: parseFloat(editWeight), cartId: editCartId.trim() } : e
+        e.id === entry.id
+          ? { ...e, weight: parseFloat(editWeight), cartId: editCartId.trim() }
+          : e
       );
       setEntries(updatedEntries);
       // Update group totals
@@ -606,6 +621,27 @@ export default function PickupWashing({
     setShowCartPopup(true);
   };
 
+  // Handle confirmation modal
+  const handleShowConfirmation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !driverId || !weight || !cartId.trim()) {
+      alert("Por favor complete todos los campos antes de continuar.");
+      return;
+    }
+    setShowConfirmationModal(true);
+  };
+
+  const handleConfirmSubmission = () => {
+    setShowConfirmationModal(false);
+    handleActualSubmit();
+  };
+
+  // New submit handler that shows confirmation modal first
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleShowConfirmation(e);
+  };
+
   // Cart ID keypad input handler
   const handleCartKeypadInput = (val: string) => {
     setCartId((prev) => {
@@ -702,16 +738,16 @@ export default function PickupWashing({
   };
 
   return (
-    <div 
-      style={{ 
+    <div
+      style={{
         width: "100vw",
-        height: "100vh", 
+        height: "100vh",
         background: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)",
         padding: 0,
         position: "fixed",
         top: 0,
         left: 0,
-        overflow: "hidden"
+        overflow: "hidden",
       }}
     >
       {/* Full-screen confirmation overlay */}
@@ -755,7 +791,7 @@ export default function PickupWashing({
           zIndex: 1000,
           transition: "right 0.3s ease-in-out",
           overflowY: "auto",
-          padding: "30px"
+          padding: "30px",
         }}
       >
         <div className="d-flex justify-content-between align-items-center mb-4">
@@ -770,22 +806,39 @@ export default function PickupWashing({
             ✕ Cerrar
           </button>
         </div>
-        
+
         {/* Grouped entries table inside panel */}
         {groupedEntries.length > 0 ? (
           <div>
             {groupedEntries.map((group, idx) => (
-              <div key={idx} className="mb-5 p-3 border rounded" style={{ background: "#f8f9fa" }}>
+              <div
+                key={idx}
+                className="mb-5 p-3 border rounded"
+                style={{ background: "#f8f9fa" }}
+              >
                 <div className="mb-3 d-flex align-items-center justify-content-between">
                   <div>
-                    <div style={{ fontSize: "1.3rem", fontWeight: "bold", color: "#007bff" }}>
+                    <div
+                      style={{
+                        fontSize: "1.3rem",
+                        fontWeight: "bold",
+                        color: "#007bff",
+                      }}
+                    >
                       {group.clientName}
                     </div>
-                    <div style={{ fontSize: "1.1rem", fontWeight: "bold", color: "#28a745" }}>
+                    <div
+                      style={{
+                        fontSize: "1.1rem",
+                        fontWeight: "bold",
+                        color: "#28a745",
+                      }}
+                    >
                       Chofer: {group.driverName}
                     </div>
                     <div style={{ fontSize: "1rem", color: "#6c757d" }}>
-                      Carros: {group.entries.length} | Peso total: {Math.round(group.totalWeight)} lbs
+                      Carros: {group.entries.length} | Peso total:{" "}
+                      {Math.round(group.totalWeight)} lbs
                     </div>
                   </div>
                   <button
@@ -796,7 +849,7 @@ export default function PickupWashing({
                     Eliminar Grupo
                   </button>
                 </div>
-                
+
                 <div className="table-responsive">
                   <table className="table table-sm table-bordered">
                     <thead>
@@ -840,10 +893,15 @@ export default function PickupWashing({
                                     onChange={(e) =>
                                       setEditWeight(e.target.value)
                                     }
-                                    style={{ width: 80, display: "inline-block" }}
+                                    style={{
+                                      width: 80,
+                                      display: "inline-block",
+                                    }}
                                     autoFocus
                                     inputMode="none"
-                                    readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
+                                    readOnly={/iPad|iPhone|iPod/.test(
+                                      navigator.userAgent
+                                    )}
                                   />
                                 ) : (
                                   entry.weight
@@ -858,13 +916,20 @@ export default function PickupWashing({
                                     onChange={(e) =>
                                       setEditCartId(e.target.value)
                                     }
-                                    style={{ width: 100, display: "inline-block" }}
+                                    style={{
+                                      width: 100,
+                                      display: "inline-block",
+                                    }}
                                     placeholder="Cart ID"
                                     inputMode="none"
-                                    readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
+                                    readOnly={/iPad|iPhone|iPod/.test(
+                                      navigator.userAgent
+                                    )}
                                   />
                                 ) : (
-                                  <span className="badge bg-info">{entry.cartId || "N/A"}</span>
+                                  <span className="badge bg-info">
+                                    {entry.cartId || "N/A"}
+                                  </span>
                                 )}
                               </td>
                               <td>{timeString}</td>
@@ -909,7 +974,7 @@ export default function PickupWashing({
                     </tbody>
                   </table>
                 </div>
-                
+
                 {/* Add Entry Button and Inline Form */}
                 {showAddEntryGroupId === group.id ? (
                   <form
@@ -989,7 +1054,7 @@ export default function PickupWashing({
             ))}
           </div>
         ) : (
-          <div 
+          <div
             className="text-center text-muted p-5"
             style={{ fontSize: "1.2rem" }}
           >
@@ -1006,7 +1071,7 @@ export default function PickupWashing({
           width: "100vw",
           height: "100vh",
           overflow: "hidden",
-          position: "relative"
+          position: "relative",
         }}
       >
         {/* Main Form - Centered */}
@@ -1018,10 +1083,10 @@ export default function PickupWashing({
             alignItems: "center",
             justifyContent: "center",
             padding: "10px",
-            boxSizing: "border-box"
+            boxSizing: "border-box",
           }}
         >
-          <div 
+          <div
             style={{
               background: "rgba(255,255,255,0.95)",
               borderRadius: "15px",
@@ -1034,297 +1099,313 @@ export default function PickupWashing({
               backdropFilter: "blur(15px)",
               display: "grid",
               gridTemplateRows: "auto 1fr auto", // Header, scrollable content, footer
-              gap: "5px"
+              gap: "5px",
             }}
           >
-          <h1 
-            className="text-center"
-            style={{
-              fontSize: window.innerWidth <= 768 ? "1.5rem" : "2rem",
-              fontWeight: "bold",
-              color: "#333",
-              textShadow: "2px 2px 4px rgba(0,0,0,0.1)",
-              margin: "0"
-            }}
-          >
-            🚛 Registro de Entradas
-          </h1>
-          
-          <form onSubmit={handleSubmit} style={{ 
-            overflow: "hidden",
-            display: "grid",
-            gridTemplateRows: "1fr auto", // Content, submit button
-            gap: "5px"
-          }}>
-            <div style={{ 
-              overflow: "auto",
-              display: "grid",
-              gridTemplateRows: "auto auto auto auto auto", // Fixed rows for form elements
-              gap: "3px", // Reduced gap between form elements
-              paddingRight: "3px"
-            }}>
-              {/* Cliente */}
-              <div>
-                <label 
-                  className="form-label"
-                  style={{ 
-                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem", 
-                    fontWeight: "bold", 
-                    color: "#555", 
-                    marginBottom: "2px",
-                    display: "block" 
-                  }}
-                >
-                  Cliente
-                </label>
-                <select
-                  className="form-control"
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  required
-                  style={{
-                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
-                    padding: window.innerWidth <= 768 ? "12px" : "15px",
-                    borderRadius: "12px",
-                    border: "2px solid #ddd",
-                    background: "#fff",
-                    width: "100%",
-                    minHeight: "50px"
-                  }}
-                >
-                  <option value="">Seleccione un cliente</option>
-                  {sortedClients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Chofer */}
-              <div>
-                <label 
-                  className="form-label"
-                  style={{ 
-                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem", 
-                    fontWeight: "bold", 
-                    color: "#555", 
-                    marginBottom: "2px", 
-                    display: "block" 
-                  }}
-                >
-                  Chofer
-                </label>
-                <select
-                  className="form-control"
-                  value={driverId}
-                  onChange={(e) => setDriverId(e.target.value)}
-                  required
-                  style={{
-                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
-                    padding: window.innerWidth <= 768 ? "12px" : "15px",
-                    borderRadius: "12px",
-                    border: "2px solid #ddd",
-                    background: "#fff",
-                    width: "100%",
-                    minHeight: "50px"
-                  }}
-                >
-                  <option value="">Seleccione un chofer</option>
-                  {sortedDrivers.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Peso */}
-              <div>
-                <label 
-                  className="form-label"
-                  style={{ 
-                    fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem", 
-                    fontWeight: "bold", 
-                    color: "#555", 
-                    marginBottom: "2px", 
-                    display: "block" 
-                  }}
-                >
-                  Peso (libras)
-                </label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={weight}
-                  ref={weightInputRef}
-                  onFocus={() => setShowKeypad(true)}
-                  onChange={(e) => setWeight(e.target.value)}
-                  min={0}
-                  step={0.1}
-                  required
-                  placeholder="Ej: 12.5"
-                  inputMode="none"
-                  autoComplete="off"
-                  readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
-                  style={{
-                    fontSize: window.innerWidth <= 768 ? "1.3rem" : "1.5rem",
-                    padding: window.innerWidth <= 768 ? "15px" : "18px",
-                    borderRadius: "12px",
-                    border: "2px solid #ddd",
-                    background: "#fff",
-                    textAlign: "center",
-                    fontWeight: "bold",
-                    width: "100%",
-                    minHeight: "55px"
-                  }}
-                />
-              </div>
-              
-              {/* Cart ID section - only show after popup is completed */}
-              {cartId && (
-                <div>
-                  <label 
-                    className="form-label"
-                    style={{ 
-                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem", 
-                      fontWeight: "bold", 
-                      color: "#555", 
-                      marginBottom: "2px", 
-                      display: "block" 
-                    }}
-                  >
-                    Cart ID
-                  </label>
-                  <div
-                    className="form-control d-flex align-items-center justify-content-between"
-                    style={{
-                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
-                      padding: window.innerWidth <= 768 ? "12px" : "15px",
-                      borderRadius: "12px",
-                      border: "2px solid #28a745",
-                      background: "#f8fff9",
-                      width: "100%",
-                      fontWeight: "bold",
-                      minHeight: "50px"
-                    }}
-                  >
-                    <span className="text-success">
-                      <i className="fas fa-check-circle me-2"></i>
-                      {cartId}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-outline-primary btn-sm"
-                      onClick={() => setShowCartPopup(true)}
-                      style={{ fontSize: "0.8rem" }}
-                    >
-                      Cambiar
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {/* Show Cart ID button if not set */}
-              {!cartId && (
-                <div>
-                  <button
-                    type="button"
-                    className="btn btn-warning btn-lg"
-                    onClick={() => {
-                      if (!clientId || !driverId || !weight) {
-                        alert("Por favor complete Cliente, Chofer y Peso antes de continuar.");
-                        return;
-                      }
-                      setShowCartPopup(true);
-                    }}
-                    style={{
-                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
-                      padding: window.innerWidth <= 768 ? "12px" : "15px",
-                      borderRadius: "12px",
-                      fontWeight: "bold",
-                      background: "linear-gradient(45deg, #ffc107, #ffb300)",
-                      border: "none",
-                      boxShadow: "0 5px 15px rgba(255,193,7,0.2)",
-                      transition: "all 0.3s ease",
-                      width: "100%",
-                      minHeight: "50px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center"
-                    }}
-                  >
-                    <i className="fas fa-barcode me-2"></i>
-                    Identificar Cart ID
-                  </button>
-                  <small 
-                    className="text-muted d-block mt-1"
-                    style={{ fontSize: "0.85rem" }}
-                  >
-                    Complete los datos anteriores y presione para identificar el cart
-                  </small>
-                </div>
-              )}
-            </div>
-            
-            {/* Submit Button - Fixed at bottom */}
-            <div style={{ paddingTop: "5px" }}>
-              <button
-                className="btn btn-primary w-100"
-                type="submit"
-                disabled={submitting}
+            <h1
+              className="text-center"
+              style={{
+                fontSize: window.innerWidth <= 768 ? "1.5rem" : "2rem",
+                fontWeight: "bold",
+                color: "#333",
+                textShadow: "2px 2px 4px rgba(0,0,0,0.1)",
+                margin: "0",
+              }}
+            >
+              🚛 Registro de Entradas
+            </h1>
+
+            <form
+              onSubmit={handleSubmit}
+              style={{
+                overflow: "hidden",
+                display: "grid",
+                gridTemplateRows: "1fr auto", // Content, submit button
+                gap: "5px",
+              }}
+            >
+              <div
                 style={{
-                  fontSize: window.innerWidth <= 768 ? "1.2rem" : "1.4rem",
-                  padding: window.innerWidth <= 768 ? "12px" : "15px",
-                  borderRadius: "12px",
-                  fontWeight: "bold",
-                  background: "linear-gradient(45deg, #007bff, #0056b3)",
-                  border: "none",
-                  boxShadow: "0 5px 15px rgba(0,123,255,0.2)",
-                  transition: "all 0.3s ease",
-                  minHeight: "50px"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,123,255,0.3)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 5px 15px rgba(0,123,255,0.2)";
+                  overflow: "auto",
+                  display: "grid",
+                  gridTemplateRows: "auto auto auto auto auto", // Fixed rows for form elements
+                  gap: "3px", // Reduced gap between form elements
+                  paddingRight: "3px",
                 }}
               >
-                {submitting ? (
-                  <>
-                    <div className="spinner-border spinner-border-sm me-2" role="status"></div>
-                    Registrando...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-plus-circle me-2"></i>
-                    Registrar Entrada
-                  </>
+                {/* Cliente */}
+                <div>
+                  <label
+                    className="form-label"
+                    style={{
+                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                      fontWeight: "bold",
+                      color: "#555",
+                      marginBottom: "2px",
+                      display: "block",
+                    }}
+                  >
+                    Cliente
+                  </label>
+                  <select
+                    className="form-control"
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    required
+                    style={{
+                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                      padding: window.innerWidth <= 768 ? "12px" : "15px",
+                      borderRadius: "12px",
+                      border: "2px solid #ddd",
+                      background: "#fff",
+                      width: "100%",
+                      minHeight: "50px",
+                    }}
+                  >
+                    <option value="">Seleccione un cliente</option>
+                    {sortedClients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Chofer */}
+                <div>
+                  <label
+                    className="form-label"
+                    style={{
+                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                      fontWeight: "bold",
+                      color: "#555",
+                      marginBottom: "2px",
+                      display: "block",
+                    }}
+                  >
+                    Chofer
+                  </label>
+                  <select
+                    className="form-control"
+                    value={driverId}
+                    onChange={(e) => setDriverId(e.target.value)}
+                    required
+                    style={{
+                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                      padding: window.innerWidth <= 768 ? "12px" : "15px",
+                      borderRadius: "12px",
+                      border: "2px solid #ddd",
+                      background: "#fff",
+                      width: "100%",
+                      minHeight: "50px",
+                    }}
+                  >
+                    <option value="">Seleccione un chofer</option>
+                    {sortedDrivers.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Peso */}
+                <div>
+                  <label
+                    className="form-label"
+                    style={{
+                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                      fontWeight: "bold",
+                      color: "#555",
+                      marginBottom: "2px",
+                      display: "block",
+                    }}
+                  >
+                    Peso (libras)
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={weight}
+                    ref={weightInputRef}
+                    onFocus={() => setShowKeypad(true)}
+                    onChange={(e) => setWeight(e.target.value)}
+                    min={0}
+                    step={0.1}
+                    required
+                    placeholder="FAVOR DE PONER LIBRAS"
+                    inputMode="none"
+                    autoComplete="off"
+                    readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
+                    style={{
+                      fontSize: window.innerWidth <= 768 ? "1.3rem" : "1.5rem",
+                      padding: window.innerWidth <= 768 ? "15px" : "18px",
+                      borderRadius: "12px",
+                      border: "2px solid #ddd",
+                      background: "#fff",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      width: "100%",
+                      minHeight: "55px",
+                    }}
+                  />
+                </div>
+
+                {/* Cart ID section - only show after popup is completed */}
+                {cartId && (
+                  <div>
+                    <label
+                      className="form-label"
+                      style={{
+                        fontSize:
+                          window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                        fontWeight: "bold",
+                        color: "#555",
+                        marginBottom: "2px",
+                        display: "block",
+                      }}
+                    >
+                      Cart ID
+                    </label>
+                    <div
+                      className="form-control d-flex align-items-center justify-content-between"
+                      style={{
+                        fontSize:
+                          window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                        padding: window.innerWidth <= 768 ? "12px" : "15px",
+                        borderRadius: "12px",
+                        border: "2px solid #28a745",
+                        background: "#f8fff9",
+                        width: "100%",
+                        fontWeight: "bold",
+                        minHeight: "50px",
+                      }}
+                    >
+                      <span className="text-success">
+                        <i className="fas fa-check-circle me-2"></i>
+                        {cartId}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary btn-sm"
+                        onClick={() => setShowCartPopup(true)}
+                        style={{ fontSize: "0.8rem" }}
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
-              
-              {success && (
-                <div 
-                  className="alert alert-success mt-2"
+
+                {/* Show Cart ID button if not set */}
+                {!cartId && (
+                  <div>
+                    <button
+                      type="button"
+                      className="btn btn-warning btn-lg"
+                      onClick={() => {
+                        if (!clientId || !driverId || !weight) {
+                          alert(
+                            "Por favor complete Cliente, Chofer y Peso antes de continuar."
+                          );
+                          return;
+                        }
+                        setShowCartPopup(true);
+                      }}
+                      style={{
+                        fontSize:
+                          window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                        padding: window.innerWidth <= 768 ? "12px" : "15px",
+                        borderRadius: "12px",
+                        fontWeight: "bold",
+                        background: "linear-gradient(45deg, #ffc107, #ffb300)",
+                        border: "none",
+                        boxShadow: "0 5px 15px rgba(255,193,7,0.2)",
+                        transition: "all 0.3s ease",
+                        width: "100%",
+                        minHeight: "50px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <i className="fas fa-barcode me-2"></i>
+                      Identificar Cart ID
+                    </button>
+                    <small
+                      className="text-muted d-block mt-1"
+                      style={{ fontSize: "0.85rem" }}
+                    >
+                      Complete los datos anteriores y presione para identificar
+                      el cart
+                    </small>
+                  </div>
+                )}
+              </div>
+
+              {/* Submit Button - Fixed at bottom */}
+              <div style={{ paddingTop: "5px" }}>
+                <button
+                  className="btn btn-primary w-100"
+                  type="submit"
+                  disabled={submitting}
                   style={{
-                    fontSize: "1rem",
-                    padding: "8px",
-                    borderRadius: "10px",
-                    textAlign: "center",
+                    fontSize: window.innerWidth <= 768 ? "1.2rem" : "1.4rem",
+                    padding: window.innerWidth <= 768 ? "12px" : "15px",
+                    borderRadius: "12px",
                     fontWeight: "bold",
-                    marginBottom: "0"
+                    background: "linear-gradient(45deg, #007bff, #0056b3)",
+                    border: "none",
+                    boxShadow: "0 5px 15px rgba(0,123,255,0.2)",
+                    transition: "all 0.3s ease",
+                    minHeight: "50px",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 8px 20px rgba(0,123,255,0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow =
+                      "0 5px 15px rgba(0,123,255,0.2)";
                   }}
                 >
-                  <i className="fas fa-check-circle me-2"></i>
-                  ¡Entrada registrada exitosamente!
-                </div>
-              )}
-            </div>
-          </form>
-        </div>
+                  {submitting ? (
+                    <>
+                      <div
+                        className="spinner-border spinner-border-sm me-2"
+                        role="status"
+                      ></div>
+                      Registrando...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-clipboard-check me-2"></i>
+                      Revisar y Confirmar
+                    </>
+                  )}
+                </button>
+
+                {success && (
+                  <div
+                    className="alert alert-success mt-2"
+                    style={{
+                      fontSize: "1rem",
+                      padding: "8px",
+                      borderRadius: "10px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      marginBottom: "0",
+                    }}
+                  >
+                    <i className="fas fa-check-circle me-2"></i>
+                    ¡Entrada registrada exitosamente!
+                  </div>
+                )}
+              </div>
+            </form>
+          </div>
         </div>
 
         {/* Main Menu Button - Fixed Position */}
@@ -1344,7 +1425,7 @@ export default function PickupWashing({
             color: "#fff",
             boxShadow: "0 4px 12px rgba(40,167,69,0.3)",
             cursor: "pointer",
-            transition: "all 0.3s ease"
+            transition: "all 0.3s ease",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "scale(1.05)";
@@ -1377,7 +1458,7 @@ export default function PickupWashing({
             color: "#fff",
             boxShadow: "0 4px 12px rgba(0,123,255,0.3)",
             cursor: "pointer",
-            transition: "all 0.3s ease"
+            transition: "all 0.3s ease",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "scale(1.05)";
@@ -1393,8 +1474,6 @@ export default function PickupWashing({
           Ver Todo
         </button>
 
-
-
         {/* Modal Keypad */}
         {showKeypad && (
           <div
@@ -1409,7 +1488,7 @@ export default function PickupWashing({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              backdropFilter: "blur(5px)"
+              backdropFilter: "blur(5px)",
             }}
             onClick={() => setShowKeypad(false)}
           >
@@ -1423,22 +1502,22 @@ export default function PickupWashing({
                 boxShadow: "0 25px 50px rgba(0,0,0,0.4)",
                 maxWidth: "500px",
                 width: "90%",
-                backdropFilter: "blur(15px)"
+                backdropFilter: "blur(15px)",
               }}
             >
-              <h3 
+              <h3
                 className="text-center mb-4"
                 style={{
                   fontSize: "1.8rem",
                   fontWeight: "bold",
-                  color: "#333"
+                  color: "#333",
                 }}
               >
                 📱 Teclado Numérico
               </h3>
-              
+
               {/* Weight Display */}
-              <div 
+              <div
                 className="text-center mb-4 p-3"
                 style={{
                   background: "#f8f9fa",
@@ -1450,18 +1529,26 @@ export default function PickupWashing({
                   minHeight: "60px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center"
+                  justifyContent: "center",
                 }}
               >
                 {weight || "0"} lbs
               </div>
-              
+
               <div className="d-flex flex-wrap justify-content-center gap-3 mb-4">
                 {[
-                  "7", "8", "9",
-                  "4", "5", "6",
-                  "1", "2", "3",
-                  "0", "←", "C",
+                  "7",
+                  "8",
+                  "9",
+                  "4",
+                  "5",
+                  "6",
+                  "1",
+                  "2",
+                  "3",
+                  "0",
+                  "←",
+                  "C",
                 ].map((key) => (
                   <button
                     key={key}
@@ -1479,12 +1566,13 @@ export default function PickupWashing({
                       fontSize: responsiveStyles.fontSize.keypad,
                       fontWeight: "bold",
                       borderRadius: "15px",
-                      transition: "all 0.2s ease"
+                      transition: "all 0.2s ease",
                     }}
                     onClick={() => handleKeypadInput(key)}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = "scale(1.05)";
-                      e.currentTarget.style.boxShadow = "0 5px 15px rgba(0,0,0,0.2)";
+                      e.currentTarget.style.boxShadow =
+                        "0 5px 15px rgba(0,0,0,0.2)";
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = "scale(1)";
@@ -1495,7 +1583,7 @@ export default function PickupWashing({
                   </button>
                 ))}
               </div>
-              
+
               {/* OK and Close buttons */}
               <div className="d-flex gap-3">
                 <button
@@ -1507,7 +1595,7 @@ export default function PickupWashing({
                     fontSize: "1.4rem",
                     padding: "15px",
                     borderRadius: "18px",
-                    fontWeight: "bold"
+                    fontWeight: "bold",
                   }}
                 >
                   <i className="fas fa-check me-2"></i>
@@ -1521,7 +1609,7 @@ export default function PickupWashing({
                     fontSize: "1.4rem",
                     padding: "15px",
                     borderRadius: "18px",
-                    fontWeight: "bold"
+                    fontWeight: "bold",
                   }}
                 >
                   <i className="fas fa-times me-2"></i>
@@ -1546,7 +1634,7 @@ export default function PickupWashing({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              backdropFilter: "blur(5px)"
+              backdropFilter: "blur(5px)",
             }}
             onClick={() => setShowCartPopup(false)}
           >
@@ -1562,55 +1650,56 @@ export default function PickupWashing({
                 width: "95%",
                 maxHeight: "90vh",
                 overflow: "auto",
-                backdropFilter: "blur(15px)"
+                backdropFilter: "blur(15px)",
               }}
             >
-              <h3 
+              <h3
                 className="text-center mb-4"
                 style={{
                   fontSize: "2rem",
                   fontWeight: "bold",
-                  color: "#333"
+                  color: "#333",
                 }}
               >
                 🛒 Identificar Cart ID
               </h3>
-              
+
               {/* Cart Image */}
               <div className="text-center mb-4">
-                <img 
-                  src="/images/cart-example.jpg" 
-                  alt="Ejemplo de Cart con ID" 
+                <img
+                  src="/images/cart-example.jpg"
+                  alt="Ejemplo de Cart con ID"
                   style={{
                     maxWidth: "100%",
                     height: "auto",
                     borderRadius: "15px",
                     boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
-                    border: "3px solid #ddd"
+                    border: "3px solid #ddd",
                   }}
                 />
-                <p 
+                <p
                   className="mt-3"
                   style={{
                     fontSize: "1.2rem",
                     color: "#666",
-                    fontWeight: "500"
+                    fontWeight: "500",
                   }}
                 >
-                  Busque el número de identificación en el cart como se muestra en la imagen
+                  Busque el número de identificación en el cart como se muestra
+                  en la imagen
                 </p>
               </div>
-              
+
               {/* Cart ID Input */}
               <div className="mb-4">
-                <label 
+                <label
                   className="form-label"
-                  style={{ 
-                    fontSize: "1.4rem", 
-                    fontWeight: "bold", 
-                    color: "#555", 
-                    marginBottom: "10px", 
-                    display: "block" 
+                  style={{
+                    fontSize: "1.4rem",
+                    fontWeight: "bold",
+                    color: "#555",
+                    marginBottom: "10px",
+                    display: "block",
                   }}
                 >
                   Ingrese el Cart ID:
@@ -1631,7 +1720,7 @@ export default function PickupWashing({
                       textAlign: "center",
                       fontWeight: "bold",
                       flex: 1,
-                      cursor: "pointer"
+                      cursor: "pointer",
                     }}
                     onClick={() => setShowCartKeypad(true)}
                   />
@@ -1643,14 +1732,14 @@ export default function PickupWashing({
                       fontSize: "1.2rem",
                       padding: "15px 20px",
                       borderRadius: "15px",
-                      fontWeight: "bold"
+                      fontWeight: "bold",
                     }}
                   >
                     <i className="fas fa-keyboard"></i>
                   </button>
                 </div>
               </div>
-              
+
               {/* Action buttons */}
               <div className="d-flex gap-3">
                 <button
@@ -1668,7 +1757,7 @@ export default function PickupWashing({
                     fontSize: "1.3rem",
                     padding: "15px",
                     borderRadius: "18px",
-                    fontWeight: "bold"
+                    fontWeight: "bold",
                   }}
                 >
                   <i className="fas fa-check me-2"></i>
@@ -1682,7 +1771,7 @@ export default function PickupWashing({
                     fontSize: "1.3rem",
                     padding: "15px",
                     borderRadius: "18px",
-                    fontWeight: "bold"
+                    fontWeight: "bold",
                   }}
                 >
                   <i className="fas fa-arrow-left me-2"></i>
@@ -1708,7 +1797,7 @@ export default function PickupWashing({
               alignItems: "center",
               justifyContent: "center",
               backdropFilter: "blur(5px)",
-              overflow: "auto"
+              overflow: "auto",
             }}
             onClick={() => setShowCartKeypad(false)}
           >
@@ -1723,48 +1812,66 @@ export default function PickupWashing({
                 maxWidth: "480px",
                 width: "95%",
                 maxHeight: "95vh",
-                padding: responsiveStyles.fontSize.title === "2rem" ? "20px" : "25px",
+                padding:
+                  responsiveStyles.fontSize.title === "2rem" ? "20px" : "25px",
                 backdropFilter: "blur(15px)",
-                margin: "10px"
+                margin: "10px",
               }}
             >
-              <h3 
+              <h3
                 className="text-center mb-3"
                 style={{
-                  fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.5rem" : "1.7rem",
+                  fontSize:
+                    responsiveStyles.fontSize.title === "2rem"
+                      ? "1.5rem"
+                      : "1.7rem",
                   fontWeight: "bold",
-                  color: "#333"
+                  color: "#333",
                 }}
               >
                 ⌨️ Teclado para Cart ID
               </h3>
-              
+
               {/* Cart ID Display */}
-              <div 
+              <div
                 className="text-center mb-3 p-2"
                 style={{
                   background: "#f8f9fa",
                   borderRadius: "12px",
                   border: "2px solid #dee2e6",
-                  fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.4rem" : "1.6rem",
+                  fontSize:
+                    responsiveStyles.fontSize.title === "2rem"
+                      ? "1.4rem"
+                      : "1.6rem",
                   fontWeight: "bold",
                   color: "#333",
-                  minHeight: responsiveStyles.fontSize.title === "2rem" ? "45px" : "55px",
+                  minHeight:
+                    responsiveStyles.fontSize.title === "2rem"
+                      ? "45px"
+                      : "55px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center"
+                  justifyContent: "center",
                 }}
               >
                 {cartId || "Cart ID"}
               </div>
-              
+
               {/* Numeric Keypad */}
               <div className="d-flex flex-wrap justify-content-center gap-2 mb-3">
                 {[
-                  "7", "8", "9",
-                  "4", "5", "6", 
-                  "1", "2", "3",
-                  "0", "←", "C",
+                  "7",
+                  "8",
+                  "9",
+                  "4",
+                  "5",
+                  "6",
+                  "1",
+                  "2",
+                  "3",
+                  "0",
+                  "←",
+                  "C",
                 ].map((key) => (
                   <button
                     key={key}
@@ -1777,17 +1884,23 @@ export default function PickupWashing({
                         : ""
                     }`}
                     style={{
-                      width: responsiveStyles.fontSize.title === "2rem" ? 50 : 60,
-                      height: responsiveStyles.fontSize.title === "2rem" ? 50 : 60,
-                      fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.1rem" : "1.3rem",
+                      width:
+                        responsiveStyles.fontSize.title === "2rem" ? 50 : 60,
+                      height:
+                        responsiveStyles.fontSize.title === "2rem" ? 50 : 60,
+                      fontSize:
+                        responsiveStyles.fontSize.title === "2rem"
+                          ? "1.1rem"
+                          : "1.3rem",
                       fontWeight: "bold",
                       borderRadius: "12px",
-                      transition: "all 0.2s ease"
+                      transition: "all 0.2s ease",
                     }}
                     onClick={() => handleCartKeypadInput(key)}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = "scale(1.05)";
-                      e.currentTarget.style.boxShadow = "0 5px 15px rgba(0,0,0,0.2)";
+                      e.currentTarget.style.boxShadow =
+                        "0 5px 15px rgba(0,0,0,0.2)";
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = "scale(1)";
@@ -1798,7 +1911,7 @@ export default function PickupWashing({
                   </button>
                 ))}
               </div>
-              
+
               {/* Action buttons */}
               <div className="d-flex gap-2">
                 <button
@@ -1806,10 +1919,16 @@ export default function PickupWashing({
                   className="btn btn-success flex-fill"
                   onClick={() => setShowCartKeypad(false)}
                   style={{
-                    fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.1rem" : "1.2rem",
-                    padding: responsiveStyles.fontSize.title === "2rem" ? "12px" : "15px",
+                    fontSize:
+                      responsiveStyles.fontSize.title === "2rem"
+                        ? "1.1rem"
+                        : "1.2rem",
+                    padding:
+                      responsiveStyles.fontSize.title === "2rem"
+                        ? "12px"
+                        : "15px",
                     borderRadius: "15px",
-                    fontWeight: "bold"
+                    fontWeight: "bold",
                   }}
                 >
                   <i className="fas fa-check me-2"></i>
@@ -1820,14 +1939,314 @@ export default function PickupWashing({
                   className="btn btn-secondary flex-fill"
                   onClick={() => setShowCartKeypad(false)}
                   style={{
-                    fontSize: responsiveStyles.fontSize.title === "2rem" ? "1.1rem" : "1.2rem",
-                    padding: responsiveStyles.fontSize.title === "2rem" ? "12px" : "15px",
+                    fontSize:
+                      responsiveStyles.fontSize.title === "2rem"
+                        ? "1.1rem"
+                        : "1.2rem",
+                    padding:
+                      responsiveStyles.fontSize.title === "2rem"
+                        ? "12px"
+                        : "15px",
                     borderRadius: "15px",
-                    fontWeight: "bold"
+                    fontWeight: "bold",
                   }}
                 >
                   <i className="fas fa-times me-2"></i>
                   Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirmation Modal */}
+        {showConfirmationModal && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              background: "rgba(0, 0, 0, 0.8)",
+              zIndex: 1500,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(5px)",
+            }}
+            onClick={() => setShowConfirmationModal(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="card"
+              style={{
+                background: "rgba(255,255,255,0.98)",
+                borderRadius: "20px",
+                border: "3px solid #fff",
+                boxShadow: "0 25px 50px rgba(0,0,0,0.4)",
+                maxWidth: "600px",
+                width: "95%",
+                padding: "30px",
+                backdropFilter: "blur(15px)",
+              }}
+            >
+              <div className="text-center mb-4">
+                <h3
+                  style={{
+                    fontSize: "2rem",
+                    fontWeight: "bold",
+                    color: "#333",
+                    marginBottom: "10px",
+                  }}
+                >
+                  📋 Confirmar Información
+                </h3>
+                <p
+                  style={{
+                    fontSize: "1.1rem",
+                    color: "#666",
+                    marginBottom: "0",
+                  }}
+                >
+                  Por favor revise que toda la información sea correcta antes de
+                  registrar la entrada
+                </p>
+              </div>
+
+              {/* Summary Information */}
+              <div
+                className="mb-4"
+                style={{
+                  background: "#f8f9fa",
+                  borderRadius: "15px",
+                  padding: "20px",
+                  border: "2px solid #dee2e6",
+                }}
+              >
+                <div className="row g-3">
+                  <div className="col-12">
+                    <div className="d-flex align-items-center mb-2">
+                      <i
+                        className="fas fa-building text-primary me-3"
+                        style={{ fontSize: "1.2rem" }}
+                      ></i>
+                      <div>
+                        <strong style={{ fontSize: "1.1rem", color: "#333" }}>
+                          Cliente:
+                        </strong>
+                        <div
+                          style={{
+                            fontSize: "1.3rem",
+                            fontWeight: "bold",
+                            color: "#007bff",
+                          }}
+                        >
+                          {sortedClients.find((c) => c.id === clientId)?.name ||
+                            ""}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-12">
+                    <div className="d-flex align-items-center mb-2">
+                      <i
+                        className="fas fa-user text-success me-3"
+                        style={{ fontSize: "1.2rem" }}
+                      ></i>
+                      <div>
+                        <strong style={{ fontSize: "1.1rem", color: "#333" }}>
+                          Chofer:
+                        </strong>
+                        <div
+                          style={{
+                            fontSize: "1.3rem",
+                            fontWeight: "bold",
+                            color: "#28a745",
+                          }}
+                        >
+                          {sortedDrivers.find((d) => d.id === driverId)?.name ||
+                            ""}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-6">
+                    <div className="d-flex align-items-center mb-2">
+                      <i
+                        className="fas fa-weight text-warning me-3"
+                        style={{ fontSize: "1.2rem" }}
+                      ></i>
+                      <div>
+                        <strong style={{ fontSize: "1.1rem", color: "#333" }}>
+                          Peso:
+                        </strong>
+                        <div
+                          style={{
+                            fontSize: "1.3rem",
+                            fontWeight: "bold",
+                            color: "#ffc107",
+                          }}
+                        >
+                          {weight} libras
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-6">
+                    <div className="d-flex align-items-center mb-2">
+                      <i
+                        className="fas fa-barcode text-info me-3"
+                        style={{ fontSize: "1.2rem" }}
+                      ></i>
+                      <div>
+                        <strong style={{ fontSize: "1.1rem", color: "#333" }}>
+                          Cart ID:
+                        </strong>
+                        <div
+                          style={{
+                            fontSize: "1.3rem",
+                            fontWeight: "bold",
+                            color: "#17a2b8",
+                          }}
+                        >
+                          {cartId}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-6">
+                    <div className="d-flex align-items-center mb-2">
+                      <i
+                        className="fas fa-cogs text-secondary me-3"
+                        style={{ fontSize: "1.2rem" }}
+                      ></i>
+                      <div>
+                        <strong style={{ fontSize: "1.1rem", color: "#333" }}>
+                          Tipo de Lavado:
+                        </strong>
+                        <div
+                          style={{
+                            fontSize: "1.1rem",
+                            fontWeight: "bold",
+                            color: "#6c757d",
+                          }}
+                        >
+                          {sortedClients.find((c) => c.id === clientId)
+                            ?.washingType || "N/A"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-6">
+                    <div className="d-flex align-items-center mb-2">
+                      <i
+                        className="fas fa-layer-group text-secondary me-3"
+                        style={{ fontSize: "1.2rem" }}
+                      ></i>
+                      <div>
+                        <strong style={{ fontSize: "1.1rem", color: "#333" }}>
+                          Segregación:
+                        </strong>
+                        <div
+                          style={{
+                            fontSize: "1.1rem",
+                            fontWeight: "bold",
+                            color: "#6c757d",
+                          }}
+                        >
+                          {sortedClients.find((c) => c.id === clientId)
+                            ?.segregation
+                            ? "Sí"
+                            : "No"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-12">
+                    <div className="d-flex align-items-center">
+                      <i
+                        className="fas fa-clock text-muted me-3"
+                        style={{ fontSize: "1.2rem" }}
+                      ></i>
+                      <div>
+                        <strong style={{ fontSize: "1.1rem", color: "#333" }}>
+                          Fecha y Hora:
+                        </strong>
+                        <div
+                          style={{
+                            fontSize: "1.1rem",
+                            fontWeight: "bold",
+                            color: "#6c757d",
+                          }}
+                        >
+                          {new Date().toLocaleString("es-ES", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="d-flex gap-3">
+                <button
+                  type="button"
+                  className="btn btn-success flex-fill"
+                  onClick={handleConfirmSubmission}
+                  disabled={submitting}
+                  style={{
+                    fontSize: "1.3rem",
+                    padding: "15px",
+                    borderRadius: "15px",
+                    fontWeight: "bold",
+                    background: "linear-gradient(45deg, #28a745, #20c997)",
+                    border: "none",
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  {submitting ? (
+                    <>
+                      <div
+                        className="spinner-border spinner-border-sm me-2"
+                        role="status"
+                      ></div>
+                      Registrando...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-check-circle me-2"></i>
+                      Confirmar y Registrar
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary flex-fill"
+                  onClick={() => setShowConfirmationModal(false)}
+                  disabled={submitting}
+                  style={{
+                    fontSize: "1.3rem",
+                    padding: "15px",
+                    borderRadius: "15px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  <i className="fas fa-arrow-left me-2"></i>
+                  Volver a Editar
                 </button>
               </div>
             </div>
