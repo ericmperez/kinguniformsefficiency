@@ -625,7 +625,7 @@ export default function PickupWashing({
   const handleShowConfirmation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientId || !driverId || !weight || !cartId.trim()) {
-      alert("Por favor complete todos los campos antes de continuar.");
+      alert("Por favor complete todos los campos requeridos (Cliente, Chofer, Peso y Cart ID) antes de continuar.");
       return;
     }
     setShowConfirmationModal(true);
@@ -1145,7 +1145,7 @@ export default function PickupWashing({
                       display: "block",
                     }}
                   >
-                    Cliente
+                    Cliente <span style={{ color: "#dc3545" }}>*</span>
                   </label>
                   <select
                     className="form-control"
@@ -1183,7 +1183,7 @@ export default function PickupWashing({
                       display: "block",
                     }}
                   >
-                    Chofer
+                    Chofer <span style={{ color: "#dc3545" }}>*</span>
                   </label>
                   <select
                     className="form-control"
@@ -1221,7 +1221,7 @@ export default function PickupWashing({
                       display: "block",
                     }}
                   >
-                    Peso (libras)
+                    Peso (libras) <span style={{ color: "#dc3545" }}>*</span>
                   </label>
                   <input
                     type="text"
@@ -1251,27 +1251,25 @@ export default function PickupWashing({
                   />
                 </div>
 
-                {/* Cart ID section - only show after popup is completed */}
-                {cartId && (
-                  <div>
-                    <label
-                      className="form-label"
-                      style={{
-                        fontSize:
-                          window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
-                        fontWeight: "bold",
-                        color: "#555",
-                        marginBottom: "2px",
-                        display: "block",
-                      }}
-                    >
-                      Cart ID
-                    </label>
+                {/* Cart ID section - Always visible and required */}
+                <div>
+                  <label
+                    className="form-label"
+                    style={{
+                      fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                      fontWeight: "bold",
+                      color: "#555",
+                      marginBottom: "2px",
+                      display: "block",
+                    }}
+                  >
+                    Cart ID <span style={{ color: "#dc3545" }}>*</span>
+                  </label>
+                  {cartId ? (
                     <div
                       className="form-control d-flex align-items-center justify-content-between"
                       style={{
-                        fontSize:
-                          window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                        fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
                         padding: window.innerWidth <= 768 ? "12px" : "15px",
                         borderRadius: "12px",
                         border: "2px solid #28a745",
@@ -1294,33 +1292,27 @@ export default function PickupWashing({
                         Cambiar
                       </button>
                     </div>
-                  </div>
-                )}
-
-                {/* Show Cart ID button if not set */}
-                {!cartId && (
-                  <div>
+                  ) : (
                     <button
                       type="button"
-                      className="btn btn-warning btn-lg"
+                      className="btn btn-danger btn-lg"
                       onClick={() => {
                         if (!clientId || !driverId || !weight) {
                           alert(
-                            "Por favor complete Cliente, Chofer y Peso antes de continuar."
+                            "Por favor complete Cliente, Chofer y Peso antes de ingresar el Cart ID."
                           );
                           return;
                         }
                         setShowCartPopup(true);
                       }}
                       style={{
-                        fontSize:
-                          window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
+                        fontSize: window.innerWidth <= 768 ? "1.1rem" : "1.3rem",
                         padding: window.innerWidth <= 768 ? "12px" : "15px",
                         borderRadius: "12px",
                         fontWeight: "bold",
-                        background: "linear-gradient(45deg, #ffc107, #ffb300)",
+                        background: "linear-gradient(45deg, #dc3545, #c82333)",
                         border: "none",
-                        boxShadow: "0 5px 15px rgba(255,193,7,0.2)",
+                        boxShadow: "0 5px 15px rgba(220,53,69,0.2)",
                         transition: "all 0.3s ease",
                         width: "100%",
                         minHeight: "50px",
@@ -1330,17 +1322,16 @@ export default function PickupWashing({
                       }}
                     >
                       <i className="fas fa-barcode me-2"></i>
-                      Identificar Cart ID
+                      Cart ID Requerido - Presione para Ingresar
                     </button>
-                    <small
-                      className="text-muted d-block mt-1"
-                      style={{ fontSize: "0.85rem" }}
-                    >
-                      Complete los datos anteriores y presione para identificar
-                      el cart
-                    </small>
-                  </div>
-                )}
+                  )}
+                  <small
+                    className="text-muted d-block mt-1"
+                    style={{ fontSize: "0.85rem" }}
+                  >
+                    {cartId ? "Cart ID ingresado correctamente" : "Este campo es obligatorio para registrar la entrada"}
+                  </small>
+                </div>
               </div>
 
               {/* Submit Button - Fixed at bottom */}
@@ -1348,7 +1339,7 @@ export default function PickupWashing({
                 <button
                   className="btn btn-primary w-100"
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !clientId || !driverId || !weight || !cartId.trim()}
                   style={{
                     fontSize: window.innerWidth <= 768 ? "1.2rem" : "1.4rem",
                     padding: window.innerWidth <= 768 ? "12px" : "15px",
