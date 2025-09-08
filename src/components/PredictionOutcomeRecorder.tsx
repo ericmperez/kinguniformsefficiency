@@ -599,6 +599,8 @@ const ActualWeightInput: React.FC<{
         onChange={(e) => setWeight(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
         autoFocus
+        inputMode="none"
+        readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
       />
       <button
         className="btn btn-success"

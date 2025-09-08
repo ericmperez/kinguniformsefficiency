@@ -2029,6 +2029,8 @@ const BillingPage: React.FC = () => {
                               handlePriceChange(product.id, e.target.value)
                             }
                             placeholder="Enter price"
+                            inputMode="none"
+                            readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                           />
                         </td>
                       </tr>
@@ -2112,6 +2114,8 @@ const BillingPage: React.FC = () => {
                           value={minBilling}
                           onChange={(e) => setMinBilling(e.target.value)}
                           placeholder="0.00"
+                          inputMode="none"
+                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2147,6 +2151,8 @@ const BillingPage: React.FC = () => {
                           onChange={(e) => setServiceChargePercent(e.target.value)}
                           placeholder="0.00"
                           disabled={!serviceChargeEnabled}
+                          inputMode="none"
+                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2191,6 +2197,8 @@ const BillingPage: React.FC = () => {
                           onChange={(e) => setFuelChargePercent(e.target.value)}
                           placeholder="0.00"
                           disabled={!fuelChargeEnabled}
+                          inputMode="none"
+                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2235,6 +2243,8 @@ const BillingPage: React.FC = () => {
                           onChange={(e) => setSurchargePercent(e.target.value)}
                           placeholder="0.00"
                           disabled={!surchargeEnabled}
+                          inputMode="none"
+                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2273,6 +2283,8 @@ const BillingPage: React.FC = () => {
                           value={generalDeliveryCharge}
                           onChange={(e) => setGeneralDeliveryCharge(e.target.value)}
                           placeholder="0.00"
+                          inputMode="none"
+                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2310,6 +2322,8 @@ const BillingPage: React.FC = () => {
                           value={deliveryCharge}
                           onChange={(e) => setDeliveryCharge(e.target.value)}
                           placeholder="0.00"
+                          inputMode="none"
+                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2347,6 +2361,8 @@ const BillingPage: React.FC = () => {
                           value={nudosSabanasPrice}
                           onChange={(e) => setNudosSabanasPrice(e.target.value)}
                           placeholder="0.00"
+                          inputMode="none"
+                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2385,6 +2401,8 @@ const BillingPage: React.FC = () => {
                           value={disposableFee}
                           onChange={(e) => setDisposableFee(e.target.value)}
                           placeholder="0.00"
+                          inputMode="none"
+                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2966,6 +2984,8 @@ const BillingPage: React.FC = () => {
                                     borderRadius: 6,
                                     border: "1px solid #ccc",
                                   }}
+                                  inputMode="none"
+                                  readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                                   onChange={async (e) => {
                                     const newWeight =
                                       e.target.value === ""

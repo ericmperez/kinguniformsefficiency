@@ -2119,6 +2119,8 @@ const ShippingPage: React.FC = () => {
                                 onChange={(e) => setActualCartCount(Number(e.target.value))}
                                 min="0"
                                 disabled={verifyingTruckLoading !== null}
+                                inputMode="none"
+                                readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                                 placeholder="Enter count"
                                 required
                               />

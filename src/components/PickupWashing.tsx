@@ -842,6 +842,8 @@ export default function PickupWashing({
                                     }
                                     style={{ width: 80, display: "inline-block" }}
                                     autoFocus
+                                    inputMode="none"
+                                    readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                                   />
                                 ) : (
                                   entry.weight
@@ -858,6 +860,8 @@ export default function PickupWashing({
                                     }
                                     style={{ width: 100, display: "inline-block" }}
                                     placeholder="Cart ID"
+                                    inputMode="none"
+                                    readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                                   />
                                 ) : (
                                   <span className="badge bg-info">{entry.cartId || "N/A"}</span>
@@ -925,6 +929,8 @@ export default function PickupWashing({
                       onChange={(e) => setAddEntryWeight(e.target.value)}
                       style={{ maxWidth: 120 }}
                       required
+                      inputMode="none"
+                      readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                     />
                     <input
                       type="text"
@@ -934,6 +940,8 @@ export default function PickupWashing({
                       onChange={(e) => setAddEntryCartId(e.target.value)}
                       style={{ maxWidth: 120 }}
                       required
+                      inputMode="none"
+                      readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                     />
                     <select
                       className="form-control"
@@ -1156,8 +1164,9 @@ export default function PickupWashing({
                   step={0.1}
                   required
                   placeholder="Ej: 12.5"
-                  inputMode="decimal"
+                  inputMode="none"
                   autoComplete="off"
+                  readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                   style={{
                     fontSize: window.innerWidth <= 768 ? "1.3rem" : "1.5rem",
                     padding: window.innerWidth <= 768 ? "15px" : "18px",

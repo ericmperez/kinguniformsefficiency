@@ -2325,6 +2325,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                                     })
                                                   )
                                                 }
+                                                inputMode="none"
+                                                readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                                                 onKeyDown={async (e) => {
                                                   if (e.key === "Enter") {
                                                     const newValue = parseInt(
@@ -2493,6 +2495,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                         disabled={
                                           !canVerify || Boolean(rowControlsDisabled)
                                         }
+                                        inputMode="none"
+                                        readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                                       />
                                       {tunnelCartError && (
                                         <div className="text-danger small">
@@ -3045,6 +3049,8 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                       setConventionalProductQty(Number(e.target.value))
                     }
                     required
+                    inputMode="none"
+                    readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                   />
                 </div>
                 <div className="col-12 col-md-4 d-flex align-items-end">
