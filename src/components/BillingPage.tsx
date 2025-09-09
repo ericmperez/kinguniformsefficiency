@@ -776,9 +776,13 @@ const BillingPage: React.FC = () => {
         );
       }
       
-      // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
-      // (excludes fuel, nudos, disposable fee - these appear as separate columns)
-      const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+      // Calculate grand total using baseSubtotal (excluding special delivery charges from total)
+      // but special delivery charges still appear in their own column
+      let totalForGrandTotal = baseSubtotal;
+      if (minValue > 0 && baseSubtotal < minValue) {
+        totalForGrandTotal = minValue;
+      }
+      const grandTotal = totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
       
       // Build the CSV row with basic invoice info
       const csvRow: CSVRow = {
@@ -812,7 +816,7 @@ const BillingPage: React.FC = () => {
         csvRow["Subtotal (Base)"] = `$${baseSubtotalOnly.toFixed(2)}`;
         csvRow["Minimum Billing"] = "$0.00";
       }
-      if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
+      if (deliveryChargeValue > 0) csvRow["Special Delivery"] = `$${deliveryChargeValue.toFixed(2)}`;
       if (generalDeliveryChargeValue > 0) csvRow["General Delivery"] = `$${generalDeliveryChargeValue.toFixed(2)}`;
       if (serviceCharge > 0) csvRow["Service Charge"] = `$${serviceCharge.toFixed(2)}`;
       if (surchargeValue > 0) csvRow["Surcharge"] = `$${surchargeValue.toFixed(2)}`;
@@ -1003,8 +1007,12 @@ const BillingPage: React.FC = () => {
           );
         }
         
-        // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
-        const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+        // Calculate grand total using baseSubtotal (excluding special delivery charges from total)
+        let totalForGrandTotal = baseSubtotal;
+        if (minValue > 0 && baseSubtotal < minValue) {
+          totalForGrandTotal = minValue;
+        }
+        const grandTotal = totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
         
         // Return simplified CSV row with Boleta (marked if special service) and Total
         const invoiceNumber = inv.invoiceNumber || inv.id;
@@ -1214,8 +1222,12 @@ const BillingPage: React.FC = () => {
           );
         }
         
-        // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
-        const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+        // Calculate grand total using baseSubtotal (excluding special delivery charges from total)
+        let totalForGrandTotal = baseSubtotal;
+        if (minValue > 0 && baseSubtotal < minValue) {
+          totalForGrandTotal = minValue;
+        }
+        const grandTotal = totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
         
         // Build the CSV row with basic invoice info
         const csvRow: ReportsCSVRow = {
@@ -1245,7 +1257,7 @@ const BillingPage: React.FC = () => {
         }
         
         // Add delivery charges
-        if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
+        if (deliveryChargeValue > 0) csvRow["Special Delivery"] = `$${deliveryChargeValue.toFixed(2)}`;
         if (generalDeliveryChargeValue > 0) csvRow["General Delivery"] = `$${generalDeliveryChargeValue.toFixed(2)}`;
         
         // Add service charges
@@ -1449,8 +1461,12 @@ const BillingPage: React.FC = () => {
           );
         }
         
-        // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
-        const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+        // Calculate grand total using baseSubtotal (excluding special delivery charges from total)
+        let totalForGrandTotal = baseSubtotal;
+        if (minValue > 0 && baseSubtotal < minValue) {
+          totalForGrandTotal = minValue;
+        }
+        const grandTotal = totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
         
         // Build the CSV row with Encanto report format
         const csvRow: ReportsCSVRow = {
@@ -1467,7 +1483,7 @@ const BillingPage: React.FC = () => {
         }
         
         // Add delivery charges
-        if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
+        if (deliveryChargeValue > 0) csvRow["Special Delivery"] = `$${deliveryChargeValue.toFixed(2)}`;
         if (generalDeliveryChargeValue > 0) csvRow["General Delivery"] = `$${generalDeliveryChargeValue.toFixed(2)}`;
         
         // Add service charges
@@ -1761,19 +1777,24 @@ const BillingPage: React.FC = () => {
         csvRow["Subtotal (Base)"] = `$${baseSubtotal.toFixed(2)}`;
         csvRow["Minimum Billing"] = "$0.00";
       }
-      if (deliveryChargeValue > 0) csvRow["Delivery Charge"] = `$${deliveryChargeValue.toFixed(2)}`;
+      if (deliveryChargeValue > 0) csvRow["Special Delivery"] = `$${deliveryChargeValue.toFixed(2)}`;
       if (generalDeliveryChargeValue > 0) csvRow["General Delivery"] = `$${generalDeliveryChargeValue.toFixed(2)}`;
       if (serviceCharge > 0) csvRow["Service Charge"] = `$${serviceCharge.toFixed(2)}`;
       if (surchargeValue > 0) csvRow["Surcharge"] = `$${surchargeValue.toFixed(2)}`;
       
-      // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
-      const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+      // Calculate grand total using baseSubtotal (excluding special delivery charges from total)
+      let totalForGrandTotal = baseSubtotal;
+      if (minValue > 0 && baseSubtotal < minValue) {
+        totalForGrandTotal = minValue;
+      }
+      const grandTotal = totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
       csvRow["Total"] = `$${grandTotal.toFixed(2)}`;
       
       // Add remaining charge columns after total (matching billing CSV order)
       if (fuelCharge > 0) csvRow[fuelChargeLabel] = `$${fuelCharge.toFixed(2)}`;
       if (nudosSabanasCharge > 0) csvRow["Nudos (Sabanas)"] = `$${nudosSabanasCharge.toFixed(2)}`;
       if (disposableFeeValue > 0) csvRow["Disposable Fee"] = `$${disposableFeeValue.toFixed(2)}`;
+      if (deliveryChargeValue > 0) csvRow["Special Delivery"] = `$${deliveryChargeValue.toFixed(2)}`;
       
       return csvRow;
     });
@@ -2917,9 +2938,13 @@ const BillingPage: React.FC = () => {
                             );
                           }
                           
-                          // Calculate grand total: displaySubtotal + surcharge + service + general delivery charge
-                          // (excludes fuel, nudos, disposable fee - these appear as separate columns)
-                          const grandTotal = displaySubtotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+                          // Calculate grand total: baseSubtotal (or minimum billing) + surcharge + service + general delivery charge
+                          // (excludes special delivery, fuel, nudos, disposable fee - these appear as separate columns)
+                          let totalForGrandTotal = baseSubtotal;
+                          if (minValue > 0 && (subtotal + pesoSubtotal) < minValue) {
+                            totalForGrandTotal = minValue;
+                          }
+                          const grandTotal = totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
                           return (
                             <tr
                               key={inv.id}
@@ -3697,6 +3722,155 @@ const BillingPage: React.FC = () => {
                                       surchargeFormula,
                                       Number(surchargePercent),
                                       subtotalForSurcharge,
+                                      1,
+                                      0
+                                    );
+                                  }
+                                });
+                              return total > 0 ? `$${total.toFixed(2)}` : "";
+                            })()}
+                          </td>
+                        )}
+                        {/* Total column */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let grandTotal = 0;
+                            clientInvoices
+                              .filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              )
+                              .forEach((inv) => {
+                                let subtotal = 0;
+                                let pesoSubtotal = 0;
+                                
+                                // Calculate product subtotals
+                                productColumns.forEach((prod) => {
+                                  if (prod.name.toLowerCase().includes("peso")) {
+                                    const pesoPrice = productPrices[prod.id];
+                                    if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
+                                      pesoSubtotal += inv.totalWeight * pesoPrice;
+                                    }
+                                  } else {
+                                    const qty = (inv.carts || []).reduce((sum, cart) => {
+                                      return sum + (cart.items || [])
+                                        .filter((item) => item.productId === prod.id)
+                                        .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                    }, 0);
+                                    const price = productPrices[prod.id];
+                                    if (qty > 0 && price > 0) subtotal += qty * price;
+                                  }
+                                });
+                                
+                                // Calculate base subtotal and apply minimum billing if needed
+                                let baseSubtotal = subtotal + pesoSubtotal;
+                                let minValue = minBilling ? Number(minBilling) : 0;
+                                let totalForGrandTotal = baseSubtotal;
+                                if (minValue > 0 && baseSubtotal < minValue) {
+                                  totalForGrandTotal = minValue;
+                                }
+                                
+                                // Calculate charges
+                                let serviceCharge = 0;
+                                let surchargeValue = 0;
+                                let generalDeliveryChargeValue = 0;
+                                
+                                if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
+                                  serviceCharge = calculateCharge(
+                                    serviceChargeFormula,
+                                    Number(serviceChargePercent),
+                                    totalForGrandTotal,
+                                    1,
+                                    0
+                                  );
+                                }
+                                
+                                if (surchargeEnabled && Number(surchargePercent) > 0) {
+                                  surchargeValue = calculateCharge(
+                                    surchargeFormula,
+                                    Number(surchargePercent),
+                                    totalForGrandTotal,
+                                    1,
+                                    0
+                                  );
+                                }
+                                
+                                if (generalDeliveryCharge && Number(generalDeliveryCharge) > 0) {
+                                  generalDeliveryChargeValue = calculateCharge(
+                                    generalDeliveryChargeFormula,
+                                    Number(generalDeliveryCharge),
+                                    baseSubtotal,
+                                    1,
+                                    0
+                                  );
+                                }
+                                
+                                // Sum grand total (excluding special delivery charges)
+                                grandTotal += totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+                              });
+                            return grandTotal > 0 ? `$${grandTotal.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Fuel Charge total */}
+                        {fuelChargeEnabled && (
+                          <td style={nowrapCellStyle}>
+                            {(() => {
+                              let total = 0;
+                              clientInvoices
+                                .filter((inv) =>
+                                  selectedInvoiceIds.includes(inv.id)
+                                )
+                                .forEach((inv) => {
+                                  let subtotal = 0;
+                                  let pesoSubtotal = 0;
+                                  productColumns.forEach((prod) => {
+                                    if (
+                                      prod.name.toLowerCase().includes("peso")
+                                    ) {
+                                      const pesoPrice = productPrices[prod.id];
+                                      if (
+                                        typeof inv.totalWeight === "number" &&
+                                        pesoPrice > 0
+                                      ) {
+                                        pesoSubtotal +=
+                                          inv.totalWeight * pesoPrice;
+                                      }
+                                    } else {
+                                      const qty = (inv.carts || []).reduce(
+                                        (sum, cart) => {
+                                          return (
+                                            sum +
+                                            (cart.items || [])
+                                              .filter(
+                                                (item) =>
+                                                  item.productId === prod.id
+                                              )
+                                              .reduce(
+                                                (s, item) =>
+                                                  s +
+                                                  (Number(item.quantity) || 0),
+                                                0
+                                              )
+                                          );
+                                        },
+                                        0
+                                      );
+                                      const price = productPrices[prod.id];
+                                      if (qty > 0 && price > 0)
+                                        subtotal += qty * price;
+                                    }
+                                  });
+                                  // Calculate the higher subtotal value for fuel charge calculation (without delivery charge)
+                                  let baseSubtotal = subtotal + pesoSubtotal;
+                                  let subtotalForServiceCharge = baseSubtotal;
+                                  let minValue = minBilling ? Number(minBilling) : 0;
+                                  if (minValue > 0 && baseSubtotal < minValue) {
+                                    subtotalForServiceCharge = minValue;
+                                  }
+                                  if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
+                                    total += calculateCharge(
+                                      fuelChargeFormula,
+                                      Number(fuelChargePercent),
+                                      subtotalForServiceCharge,
                                       1,
                                       0
                                     );
