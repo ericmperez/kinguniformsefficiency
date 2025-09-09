@@ -2,6 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, deleteDoc, Timestamp, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
+import ProductionTrackingService, { ProductionEntry } from '../services/ProductionTrackingService';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartOptions,
+} from 'chart.js';
+import { Bar, Line } from 'react-chartjs-2';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 // Alert types that can occur in the system
 export type AlertType = 
@@ -40,6 +66,28 @@ export interface SystemAlert {
   createdBy: string;
 }
 
+// Analytics interfaces
+export interface EmployeeAlertStats {
+  employeeName: string;
+  totalAlerts: number;
+  totalEntries: number;
+  alertToEntryRatio: number;
+  alertsByMonth: { [key: string]: number };
+  alertsByDay: { [key: string]: number };
+  alertsByType: { [key: string]: number };
+  averageResolutionTime?: number; // in hours
+}
+
+export interface AlertAnalytics {
+  employeeStats: EmployeeAlertStats[];
+  timeSeriesData: {
+    labels: string[];
+    datasets: any[];
+  };
+  topEmployeesByAlerts: EmployeeAlertStats[];
+  topEmployeesByRatio: EmployeeAlertStats[];
+}
+
 interface AlertsDashboardProps {
   maxAlerts?: number;
   showCreateAlert?: boolean;
@@ -59,6 +107,13 @@ const AlertsDashboard: React.FC<AlertsDashboardProps> = ({
   const [showOnlyUnresolved, setShowOnlyUnresolved] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState<string>('today');
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
+  // Analytics state
+  const [analytics, setAnalytics] = useState<AlertAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsTimeframe, setAnalyticsTimeframe] = useState<'day' | 'month' | 'year'>('month');
+  const [productionEntries, setProductionEntries] = useState<ProductionEntry[]>([]);
 
   // New alert form state
   const [newAlert, setNewAlert] = useState({
@@ -209,6 +264,251 @@ const AlertsDashboard: React.FC<AlertsDashboardProps> = ({
     }
   };
 
+  // Load production entries for analytics
+  useEffect(() => {
+    if (!showAnalytics) return;
+
+    const productionService = ProductionTrackingService.getInstance();
+    productionService.startTracking();
+
+    const unsubscribe = productionService.subscribe((summary) => {
+      setProductionEntries(summary.allEntriesToday || []);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [showAnalytics]);
+
+  // Generate analytics data
+  const generateAnalytics = async () => {
+    if (!showAnalytics || analyticsLoading) return;
+    
+    setAnalyticsLoading(true);
+    
+    try {
+      console.log('🔍 Generating alert analytics...');
+      // Get all alerts from the selected timeframe
+      const now = new Date();
+      let startDate = new Date();
+      
+      switch (analyticsTimeframe) {
+        case 'day':
+          startDate.setDate(now.getDate() - 30); // Last 30 days
+          break;
+        case 'month':
+          startDate.setMonth(now.getMonth() - 12); // Last 12 months
+          break;
+        case 'year':
+          startDate.setFullYear(now.getFullYear() - 3); // Last 3 years
+          break;
+      }
+
+      // Query all alerts in timeframe
+      const alertsQuery = query(
+        collection(db, 'system_alerts'),
+        where('timestamp', '>=', Timestamp.fromDate(startDate)),
+        orderBy('timestamp', 'desc')
+      );
+
+      const alertsSnapshot = await getDocs(alertsQuery);
+      const allAlertsData = alertsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp || Timestamp.now()
+      })) as SystemAlert[];
+
+      // Query production entries in same timeframe
+      const entriesQuery = query(
+        collection(db, 'invoices'),
+        orderBy('date', 'desc')
+      );
+      
+      const entriesSnapshot = await getDocs(entriesQuery);
+      const allProductionEntries: ProductionEntry[] = [];
+      
+      entriesSnapshot.docs.forEach(doc => {
+        const invoiceData = doc.data();
+        const carts = invoiceData.carts || [];
+        
+        carts.forEach((cart: any) => {
+          const items = cart.items || [];
+          items.forEach((item: any) => {
+            if (item.addedAt && item.addedBy) {
+              const addedDate = item.addedAt.toDate ? item.addedAt.toDate() : new Date(item.addedAt);
+              if (addedDate >= startDate) {
+                allProductionEntries.push({
+                  id: `${doc.id}_${cart.id}_${item.id}`,
+                  invoiceId: doc.id,
+                  clientId: invoiceData.clientId || '',
+                  clientName: invoiceData.clientName || 'Unknown Client',
+                  cartId: cart.id,
+                  cartName: cart.name || cart.cartName,
+                  productId: item.id,
+                  productName: item.name || item.productName,
+                  quantity: item.quantity || 0,
+                  price: item.price || 0,
+                  addedBy: item.addedBy,
+                  addedAt: addedDate,
+                  source: 'invoice_item'
+                });
+              }
+            }
+          });
+        });
+      });
+
+      // Process employee statistics
+      const employeeMap = new Map<string, EmployeeAlertStats>();
+
+      // Initialize employee data from production entries
+      allProductionEntries.forEach(entry => {
+        if (!employeeMap.has(entry.addedBy)) {
+          employeeMap.set(entry.addedBy, {
+            employeeName: entry.addedBy,
+            totalAlerts: 0,
+            totalEntries: 0,
+            alertToEntryRatio: 0,
+            alertsByMonth: {},
+            alertsByDay: {},
+            alertsByType: {}
+          });
+        }
+        
+        const stats = employeeMap.get(entry.addedBy)!;
+        stats.totalEntries++;
+      });
+
+      // Process alerts data
+      allAlertsData.forEach(alert => {
+        const employeeName = alert.createdBy || 'Unknown';
+        
+        if (!employeeMap.has(employeeName)) {
+          employeeMap.set(employeeName, {
+            employeeName,
+            totalAlerts: 0,
+            totalEntries: 0,
+            alertToEntryRatio: 0,
+            alertsByMonth: {},
+            alertsByDay: {},
+            alertsByType: {}
+          });
+        }
+
+        const stats = employeeMap.get(employeeName)!;
+        stats.totalAlerts++;
+
+        // Time-based categorization
+        const alertDate = alert.timestamp.toDate();
+        let timeKey = '';
+        
+        switch (analyticsTimeframe) {
+          case 'day':
+            timeKey = alertDate.toISOString().split('T')[0]; // YYYY-MM-DD
+            stats.alertsByDay[timeKey] = (stats.alertsByDay[timeKey] || 0) + 1;
+            break;
+          case 'month':
+            timeKey = `${alertDate.getFullYear()}-${String(alertDate.getMonth() + 1).padStart(2, '0')}`;
+            stats.alertsByMonth[timeKey] = (stats.alertsByMonth[timeKey] || 0) + 1;
+            break;
+          case 'year':
+            timeKey = alertDate.getFullYear().toString();
+            stats.alertsByMonth[timeKey] = (stats.alertsByMonth[timeKey] || 0) + 1;
+            break;
+        }
+
+        // Alert type tracking
+        stats.alertsByType[alert.type] = (stats.alertsByType[alert.type] || 0) + 1;
+
+        // Calculate resolution time if resolved
+        if (alert.isResolved && alert.resolvedAt) {
+          const resolutionTimeMs = alert.resolvedAt.toDate().getTime() - alert.timestamp.toDate().getTime();
+          const resolutionTimeHours = resolutionTimeMs / (1000 * 60 * 60);
+          stats.averageResolutionTime = stats.averageResolutionTime 
+            ? (stats.averageResolutionTime + resolutionTimeHours) / 2 
+            : resolutionTimeHours;
+        }
+      });
+
+      // Calculate ratios and finalize stats
+      const employeeStats: EmployeeAlertStats[] = Array.from(employeeMap.values()).map(stats => ({
+        ...stats,
+        alertToEntryRatio: stats.totalEntries > 0 ? (stats.totalAlerts / stats.totalEntries) * 100 : 0
+      }));
+
+      // Generate time series data
+      const timeLabels = new Set<string>();
+      employeeStats.forEach(emp => {
+        Object.keys(analyticsTimeframe === 'day' ? emp.alertsByDay : emp.alertsByMonth).forEach(date => {
+          timeLabels.add(date);
+        });
+      });
+
+      const sortedLabels = Array.from(timeLabels).sort();
+      
+      const datasets = employeeStats
+        .filter(emp => emp.totalAlerts > 0)
+        .slice(0, 10) // Top 10 employees
+        .map((emp, index) => {
+          const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'];
+          const data = sortedLabels.map(label => {
+            const alerts = analyticsTimeframe === 'day' ? emp.alertsByDay : emp.alertsByMonth;
+            return alerts[label] || 0;
+          });
+
+          return {
+            label: emp.employeeName,
+            data,
+            backgroundColor: colors[index % colors.length],
+            borderColor: colors[index % colors.length],
+            borderWidth: 2,
+            fill: false
+          };
+        });
+
+      const analytics: AlertAnalytics = {
+        employeeStats,
+        timeSeriesData: {
+          labels: sortedLabels,
+          datasets
+        },
+        topEmployeesByAlerts: employeeStats
+          .filter(emp => emp.totalAlerts > 0)
+          .sort((a, b) => b.totalAlerts - a.totalAlerts)
+          .slice(0, 10),
+        topEmployeesByRatio: employeeStats
+          .filter(emp => emp.totalEntries > 0 && emp.totalAlerts > 0)
+          .sort((a, b) => b.alertToEntryRatio - a.alertToEntryRatio)
+          .slice(0, 10)
+      };
+
+      setAnalytics(analytics);
+      console.log('✅ Analytics generated successfully:', {
+        employeesCount: analytics.employeeStats.length,
+        totalAlerts: analytics.employeeStats.reduce((sum, emp) => sum + emp.totalAlerts, 0),
+        totalEntries: analytics.employeeStats.reduce((sum, emp) => sum + emp.totalEntries, 0)
+      });
+    } catch (error) {
+      console.error('❌ Error generating analytics:', error);
+      // Set empty analytics data to show error state
+      setAnalytics({
+        employeeStats: [],
+        timeSeriesData: { labels: [], datasets: [] },
+        topEmployeesByAlerts: [],
+        topEmployeesByRatio: []
+      });
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  // Generate analytics when analytics view is opened
+  useEffect(() => {
+    if (showAnalytics) {
+      generateAnalytics();
+    }
+  }, [showAnalytics, analyticsTimeframe]);
+
   // Get alert icon and color
   const getAlertDisplay = (alert: SystemAlert) => {
     const severityColors = {
@@ -266,15 +566,24 @@ const AlertsDashboard: React.FC<AlertsDashboardProps> = ({
                 <span className="badge bg-danger ms-2">{stats.unresolved} Unresolved</span>
               )}
             </h2>
-            {showCreateAlert && ['Admin', 'Supervisor', 'Owner'].includes(user?.role || '') && (
+            <div className="d-flex gap-2">
+              {showCreateAlert && ['Admin', 'Supervisor', 'Owner'].includes(user?.role || '') && (
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => setShowCreateForm(true)}
+                >
+                  <i className="bi bi-plus-circle me-1"></i>
+                  Create Alert
+                </button>
+              )}
               <button 
-                className="btn btn-primary"
-                onClick={() => setShowCreateForm(true)}
+                className={`btn ${showAnalytics ? 'btn-success' : 'btn-outline-success'}`}
+                onClick={() => setShowAnalytics(!showAnalytics)}
               >
-                <i className="bi bi-plus-circle me-1"></i>
-                Create Alert
+                <i className="bi bi-graph-up me-1"></i>
+                {showAnalytics ? 'Hide Analytics' : 'Show Analytics'}
               </button>
-            )}
+            </div>
           </div>
 
           {/* Statistics Cards */}
@@ -426,6 +735,331 @@ const AlertsDashboard: React.FC<AlertsDashboardProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Analytics Section */}
+          {showAnalytics && (
+            <div className="card mb-4 border-success">
+              <div className="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">📊 Employee Alert Analytics</h5>
+                <div className="d-flex gap-2 align-items-center">
+                  <label className="form-label text-white mb-0 me-2">Time Period:</label>
+                  <select 
+                    className="form-select form-select-sm"
+                    value={analyticsTimeframe}
+                    onChange={(e) => setAnalyticsTimeframe(e.target.value as 'day' | 'month' | 'year')}
+                    style={{ width: 'auto' }}
+                  >
+                    <option value="day">Daily (30 days)</option>
+                    <option value="month">Monthly (12 months)</option>
+                    <option value="year">Yearly (3 years)</option>
+                  </select>
+                  <button 
+                    className="btn btn-sm btn-light"
+                    onClick={generateAnalytics}
+                    disabled={analyticsLoading}
+                  >
+                    {analyticsLoading ? (
+                      <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                    ) : (
+                      <i className="bi bi-arrow-clockwise me-1"></i>
+                    )}
+                    Refresh
+                  </button>
+                </div>
+              </div>
+              <div className="card-body">
+                {analyticsLoading ? (
+                  <div className="text-center py-5">
+                    <div className="spinner-border text-success" role="status">
+                      <span className="visually-hidden">Loading analytics...</span>
+                    </div>
+                    <p className="mt-3 text-muted">Generating analytics data...</p>
+                  </div>
+                ) : analytics ? (
+                  <div>
+                    {/* Summary Cards */}
+                    <div className="row mb-4">
+                      <div className="col-md-3 col-6 mb-2">
+                        <div className="card border-primary">
+                          <div className="card-body text-center py-2">
+                            <h4 className="text-primary mb-1">{analytics.employeeStats.length}</h4>
+                            <small className="text-muted">Total Employees</small>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-md-3 col-6 mb-2">
+                        <div className="card border-warning">
+                          <div className="card-body text-center py-2">
+                            <h4 className="text-warning mb-1">
+                              {analytics.employeeStats.reduce((sum, emp) => sum + emp.totalAlerts, 0)}
+                            </h4>
+                            <small className="text-muted">Total Alerts</small>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-md-3 col-6 mb-2">
+                        <div className="card border-info">
+                          <div className="card-body text-center py-2">
+                            <h4 className="text-info mb-1">
+                              {analytics.employeeStats.reduce((sum, emp) => sum + emp.totalEntries, 0)}
+                            </h4>
+                            <small className="text-muted">Total Entries</small>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-md-3 col-6 mb-2">
+                        <div className="card border-success">
+                          <div className="card-body text-center py-2">
+                            <h4 className="text-success mb-1">
+                              {analytics.employeeStats.length > 0 
+                                ? (analytics.employeeStats.reduce((sum, emp) => sum + emp.alertToEntryRatio, 0) / analytics.employeeStats.length).toFixed(2)
+                                : '0.00'
+                              }%
+                            </h4>
+                            <small className="text-muted">Avg Alert Ratio</small>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Charts Section */}
+                    <div className="row">
+                      {/* Time Series Chart */}
+                      <div className="col-12 mb-4">
+                        <div className="card">
+                          <div className="card-header">
+                            <h6 className="mb-0">
+                              📈 Alert Trends by Employee ({analyticsTimeframe === 'day' ? 'Last 30 Days' : 
+                                analyticsTimeframe === 'month' ? 'Last 12 Months' : 'Last 3 Years'})
+                            </h6>
+                          </div>
+                          <div className="card-body">
+                            {analytics.timeSeriesData.datasets.length > 0 ? (
+                              <div style={{ height: '400px' }}>
+                                <Line
+                                  data={analytics.timeSeriesData}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                      title: {
+                                        display: true,
+                                        text: 'Employee Alert Trends Over Time'
+                                      },
+                                      legend: {
+                                        position: 'top',
+                                      },
+                                    },
+                                    scales: {
+                                      x: {
+                                        display: true,
+                                        title: {
+                                          display: true,
+                                          text: analyticsTimeframe === 'day' ? 'Date' : 
+                                                analyticsTimeframe === 'month' ? 'Month' : 'Year'
+                                        }
+                                      },
+                                      y: {
+                                        display: true,
+                                        title: {
+                                          display: true,
+                                          text: 'Number of Alerts'
+                                        },
+                                        beginAtZero: true
+                                      }
+                                    },
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="text-center py-4 text-muted">
+                                <i className="bi bi-graph-up" style={{ fontSize: '3rem' }}></i>
+                                <p className="mt-2">No alert data available for the selected timeframe</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Top Employees by Alert Count */}
+                      <div className="col-md-6 mb-4">
+                        <div className="card">
+                          <div className="card-header">
+                            <h6 className="mb-0">🔝 Top Employees by Alert Count</h6>
+                          </div>
+                          <div className="card-body">
+                            {analytics.topEmployeesByAlerts.length > 0 ? (
+                              <div className="table-responsive">
+                                <table className="table table-sm">
+                                  <thead>
+                                    <tr>
+                                      <th>Employee</th>
+                                      <th>Alerts</th>
+                                      <th>Entries</th>
+                                      <th>Ratio %</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {analytics.topEmployeesByAlerts.map((emp, index) => (
+                                      <tr key={emp.employeeName}>
+                                        <td>
+                                          <span className={`badge ${index < 3 ? 'bg-warning' : 'bg-secondary'} me-2`}>
+                                            #{index + 1}
+                                          </span>
+                                          {emp.employeeName}
+                                        </td>
+                                        <td>
+                                          <span className="badge bg-danger">{emp.totalAlerts}</span>
+                                        </td>
+                                        <td>
+                                          <span className="badge bg-info">{emp.totalEntries}</span>
+                                        </td>
+                                        <td>
+                                          <span className={`badge ${emp.alertToEntryRatio > 5 ? 'bg-danger' : 
+                                            emp.alertToEntryRatio > 2 ? 'bg-warning' : 'bg-success'}`}>
+                                            {emp.alertToEntryRatio.toFixed(2)}%
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="text-center py-3 text-muted">
+                                <i className="bi bi-people" style={{ fontSize: '2rem' }}></i>
+                                <p className="mt-2">No employee alert data available</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Top Employees by Alert-to-Entry Ratio */}
+                      <div className="col-md-6 mb-4">
+                        <div className="card">
+                          <div className="card-header">
+                            <h6 className="mb-0">⚠️ Highest Alert-to-Entry Ratios</h6>
+                          </div>
+                          <div className="card-body">
+                            {analytics.topEmployeesByRatio.length > 0 ? (
+                              <div className="table-responsive">
+                                <table className="table table-sm">
+                                  <thead>
+                                    <tr>
+                                      <th>Employee</th>
+                                      <th>Ratio %</th>
+                                      <th>Alerts</th>
+                                      <th>Entries</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {analytics.topEmployeesByRatio.map((emp, index) => (
+                                      <tr key={emp.employeeName}>
+                                        <td>
+                                          <span className={`badge ${index < 3 ? 'bg-danger' : 'bg-secondary'} me-2`}>
+                                            #{index + 1}
+                                          </span>
+                                          {emp.employeeName}
+                                        </td>
+                                        <td>
+                                          <span className={`badge ${emp.alertToEntryRatio > 5 ? 'bg-danger' : 
+                                            emp.alertToEntryRatio > 2 ? 'bg-warning' : 'bg-success'}`}>
+                                            {emp.alertToEntryRatio.toFixed(2)}%
+                                          </span>
+                                        </td>
+                                        <td>
+                                          <span className="badge bg-warning">{emp.totalAlerts}</span>
+                                        </td>
+                                        <td>
+                                          <span className="badge bg-info">{emp.totalEntries}</span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="text-center py-3 text-muted">
+                                <i className="bi bi-graph-down" style={{ fontSize: '2rem' }}></i>
+                                <p className="mt-2">No ratio data available</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Performance Insights */}
+                    <div className="row">
+                      <div className="col-12">
+                        <div className="card border-info">
+                          <div className="card-header bg-info text-white">
+                            <h6 className="mb-0">💡 Performance Insights</h6>
+                          </div>
+                          <div className="card-body">
+                            <div className="row">
+                              <div className="col-md-4">
+                                <h6>🎯 Best Performers</h6>
+                                <ul className="list-unstyled">
+                                  {analytics.employeeStats
+                                    .filter(emp => emp.totalEntries > 0)
+                                    .sort((a, b) => a.alertToEntryRatio - b.alertToEntryRatio)
+                                    .slice(0, 3)
+                                    .map(emp => (
+                                      <li key={emp.employeeName} className="mb-1">
+                                        <span className="badge bg-success me-2">{emp.alertToEntryRatio.toFixed(2)}%</span>
+                                        {emp.employeeName}
+                                      </li>
+                                    ))
+                                  }
+                                </ul>
+                              </div>
+                              <div className="col-md-4">
+                                <h6>📈 Most Productive</h6>
+                                <ul className="list-unstyled">
+                                  {analytics.employeeStats
+                                    .sort((a, b) => b.totalEntries - a.totalEntries)
+                                    .slice(0, 3)
+                                    .map(emp => (
+                                      <li key={emp.employeeName} className="mb-1">
+                                        <span className="badge bg-primary me-2">{emp.totalEntries}</span>
+                                        {emp.employeeName}
+                                      </li>
+                                    ))
+                                  }
+                                </ul>
+                              </div>
+                              <div className="col-md-4">
+                                <h6>⚠️ Needs Attention</h6>
+                                <ul className="list-unstyled">
+                                  {analytics.employeeStats
+                                    .filter(emp => emp.alertToEntryRatio > 3 && emp.totalEntries > 0)
+                                    .sort((a, b) => b.alertToEntryRatio - a.alertToEntryRatio)
+                                    .slice(0, 3)
+                                    .map(emp => (
+                                      <li key={emp.employeeName} className="mb-1">
+                                        <span className="badge bg-warning me-2">{emp.alertToEntryRatio.toFixed(2)}%</span>
+                                        {emp.employeeName}
+                                      </li>
+                                    ))
+                                  }
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted">Click "Refresh" to generate analytics data</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Create Alert Form */}
           {showCreateForm && (
