@@ -42,6 +42,21 @@ export function formatDateOnlySpanish(dateString: string | Date): string {
   return `${month} ${day}, ${year}`;
 }
 
+// Format date as "M/D/YYYY" for CSV exports (e.g., "8/22/2022")
+export function formatDateForCSV(dateString: string | Date): string {
+  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  
+  if (isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const day = date.getDate();
+  const month = date.getMonth() + 1; // getMonth() returns 0-11, so add 1
+  const year = date.getFullYear();
+
+  return `${month}/${day}/${year}`;
+}
+
 // English date formatter - formats as "Month Day, Year" (e.g., "August 13, 2025")
 export function formatDateEnglish(dateString: string | Date): string {
   const date = typeof dateString === 'string' ? new Date(dateString) : dateString;

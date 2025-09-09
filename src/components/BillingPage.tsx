@@ -18,7 +18,7 @@ import {
 import { db } from "../firebase";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
 import html2pdf from "html2pdf.js";
-import { formatDateOnlySpanish } from "../utils/dateFormatter";
+import { formatDateOnlySpanish, formatDateForCSV } from "../utils/dateFormatter";
 import { API_BASE_URL } from '../config/api';
 
 const nowrapCellStyle = { whiteSpace: "nowrap" };
@@ -589,7 +589,7 @@ const BillingPage: React.FC = () => {
       .filter((inv) => selectedInvoiceIds.includes(inv.id))
       .filter((inv) => {
         if (!inv.deliveryDate) return false;
-        const invDeliveryDate = new Date(inv.deliveryDate).toISOString().split('T')[0];
+        const invDeliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
         return invDeliveryDate >= startDate && invDeliveryDate <= endDate;
       })
       .sort((a, b) => {
@@ -734,10 +734,102 @@ const BillingPage: React.FC = () => {
       }
       
       if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
+        // For Colinas clients, use Total amount instead of subtotal
+        let fuelChargeBase = subtotalForServiceCharge;
+        if (client?.name?.toLowerCase().includes('colinas')) {
+          // Calculate the Total amount (Colinas Subtotal + Nuevo Subtotal Colinas)
+          if (inv.deliveryDate) {
+            const deliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+            let colinasSubtotal = 0;
+            
+            // Calculate Colinas subtotal for same delivery date
+            selectedInvoices
+              .filter(otherInv => {
+                if (!otherInv.deliveryDate) return false;
+                const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                const otherClient = clients.find(c => c.id === otherInv.clientId);
+                return otherDeliveryDate === deliveryDate && 
+                       otherClient?.name?.toLowerCase().includes('colinas');
+              })
+              .forEach(colinasInv => {
+                const colinasClient = clients.find(c => c.id === colinasInv.clientId);
+                if (colinasClient) {
+                  const colinasProducts = allProducts.filter(p => colinasClient.selectedProducts.includes(p.id));
+                  let invSubtotal = 0;
+                  let invPesoSubtotal = 0;
+                  
+                  colinasProducts.forEach(prod => {
+                    if (prod.name.toLowerCase().includes("peso")) {
+                      const pesoPrice = productPrices[prod.id];
+                      if (typeof colinasInv.totalWeight === "number" && pesoPrice > 0) {
+                        invPesoSubtotal += colinasInv.totalWeight * pesoPrice;
+                      }
+                    } else {
+                      const qty = (colinasInv.carts || []).reduce((sum, cart) => {
+                        return sum + (cart.items || [])
+                          .filter(item => item.productId === prod.id)
+                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                      }, 0);
+                      const price = productPrices[prod.id];
+                      if (qty > 0 && price > 0) invSubtotal += qty * price;
+                    }
+                  });
+                  
+                  colinasSubtotal += invSubtotal + invPesoSubtotal;
+                }
+              });
+            
+            // Calculate Marbella subtotal for same delivery date
+            let marbellaSubtotal = 0;
+            selectedInvoices
+              .filter(otherInv => {
+                if (!otherInv.deliveryDate) return false;
+                const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                const otherClient = clients.find(c => c.id === otherInv.clientId);
+                return otherDeliveryDate === deliveryDate && 
+                       otherClient?.name?.toLowerCase().includes('marbella');
+              })
+              .forEach(marbellaInv => {
+                const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                if (marbellaClient) {
+                  const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                  let invSubtotal = 0;
+                  let invPesoSubtotal = 0;
+                  
+                  marbellaProducts.forEach(prod => {
+                    if (prod.name.toLowerCase().includes("peso")) {
+                      const pesoPrice = productPrices[prod.id];
+                      if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                        invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                      }
+                    } else {
+                      const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                        return sum + (cart.items || [])
+                          .filter(item => item.productId === prod.id)
+                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                      }, 0);
+                      const price = productPrices[prod.id];
+                      if (qty > 0 && price > 0) invSubtotal += qty * price;
+                    }
+                  });
+                  
+                  marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                }
+              });
+            
+            // Calculate Nuevo Subtotal Colinas and Total
+            const combinedSubtotal = colinasSubtotal + marbellaSubtotal;
+            const nuevoSubtotalColinas = combinedSubtotal < 400 ? (400 - combinedSubtotal) : 0;
+            const totalColinasSubtotal = colinasSubtotal + nuevoSubtotalColinas;
+            
+            fuelChargeBase = totalColinasSubtotal;
+          }
+        }
+        
         fuelCharge = calculateCharge(
           fuelChargeFormula,
           Number(fuelChargePercent),
-          subtotalForServiceCharge,
+          fuelChargeBase,
           1,
           0
         );
@@ -755,17 +847,22 @@ const BillingPage: React.FC = () => {
       
       // Calculate Nudos (Sabanas) charge
       if (nudosSabanasPrice && Number(nudosSabanasPrice) > 0) {
-        const sabanasProd = productColumns.find((p) =>
+        // Find sabanas products (any product with "sabana" in name, excluding "nudo")
+        const sabanasProducts = productColumns.filter((p) =>
           p.name.toLowerCase().includes("sabana") && 
           !p.name.toLowerCase().includes("nudo")
         );
         
         let sabanasQty = 0;
-        if (sabanasProd) {
-          sabanasQty = (inv.carts || []).reduce((sum, cart) => {
-            return sum + (cart.items || [])
-              .filter((item) => item.productId === sabanasProd.id)
-              .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+        if (sabanasProducts.length > 0) {
+          // Sum up quantities from all sabanas products in this invoice
+          sabanasQty = sabanasProducts.reduce((totalQty, sabanasProd) => {
+            const productQty = (inv.carts || []).reduce((sum, cart) => {
+              return sum + (cart.items || [])
+                .filter((item) => item.productId === sabanasProd.id)
+                .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+            }, 0);
+            return totalQty + productQty;
           }, 0);
         }
         
@@ -804,7 +901,8 @@ const BillingPage: React.FC = () => {
         "Invoice #": inv.invoiceNumber || inv.id,
         "Grouped Invoice #": inv.groupedInvoiceNumber || "",
         "Client Name": clientName,
-        "Date": inv.date ? formatDateOnlySpanish(inv.date) : "",
+        "Date": inv.date ? formatDateForCSV(inv.date) : "",
+        "Delivery Date": inv.deliveryDate ? formatDateForCSV(inv.deliveryDate) : "",
         "Truck #": inv.truckNumber || "",
         "Verifier": inv.verifiedBy || "",
         "Total Weight (lbs)": typeof inv.totalWeight === "number" ? inv.totalWeight.toString() : "",
@@ -913,7 +1011,7 @@ const BillingPage: React.FC = () => {
       .filter((inv) => selectedInvoiceIds.includes(inv.id))
       .filter((inv) => {
         if (!inv.deliveryDate) return false;
-        const invDeliveryDate = new Date(inv.deliveryDate).toISOString().split('T')[0];
+        const invDeliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
         return invDeliveryDate >= startDate && invDeliveryDate <= endDate;
       })
       .sort((a, b) => {
@@ -1269,7 +1367,7 @@ const BillingPage: React.FC = () => {
         // Build the CSV row with basic invoice info
         const csvRow: ReportsCSVRow = {
           "Boleta": inv.invoiceNumber || inv.id,
-          "Delivery Date": inv.deliveryDate ? formatDateOnlySpanish(inv.deliveryDate) : "",
+          "Delivery Date": inv.deliveryDate ? formatDateForCSV(inv.deliveryDate) : "",
         };
         
         // Add product quantity columns with prices in headers
@@ -1513,7 +1611,7 @@ const BillingPage: React.FC = () => {
         // Build the CSV row with Encanto report format
         const csvRow: ReportsCSVRow = {
           "Boleta": inv.invoiceNumber || inv.id,
-          "Delivery Date": inv.deliveryDate ? formatDateOnlySpanish(inv.deliveryDate) : "",
+          "Delivery Date": inv.deliveryDate ? formatDateForCSV(inv.deliveryDate) : "",
           "Servilletas": servilletasQty,
           "Peso": typeof inv.totalWeight === "number" ? inv.totalWeight : 0,
           "Subtotal": `$${baseSubtotal.toFixed(2)}`,
@@ -1681,8 +1779,8 @@ const BillingPage: React.FC = () => {
       // Build the CSV row with basic invoice info
       const csvRow: ReportsCSVRow = {
         "Laundry Ticket": inv.invoiceNumber || inv.id,
-        "Date": inv.date ? formatDateOnlySpanish(inv.date) : "",
-        "Delivery Date": inv.deliveryDate ? formatDateOnlySpanish(inv.deliveryDate) : "",
+        "Date": inv.date ? formatDateForCSV(inv.date) : "",
+        "Delivery Date": inv.deliveryDate ? formatDateForCSV(inv.deliveryDate) : "",
       };
       
       // Add product quantity columns (quantities only, prices are in headers)
@@ -1758,10 +1856,102 @@ const BillingPage: React.FC = () => {
       }
       
       if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
+        // For Colinas clients, use Total amount instead of subtotal
+        let fuelChargeBase = subtotalForServiceCharge;
+        if (client?.name?.toLowerCase().includes('colinas')) {
+          // Calculate the Total amount (Colinas Subtotal + Nuevo Subtotal Colinas)
+          if (inv.deliveryDate) {
+            const deliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+            let colinasSubtotal = 0;
+            
+            // Calculate Colinas subtotal for same delivery date
+            selectedInvoices
+              .filter(otherInv => {
+                if (!otherInv.deliveryDate) return false;
+                const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                const otherClient = clients.find(c => c.id === otherInv.clientId);
+                return otherDeliveryDate === deliveryDate && 
+                       otherClient?.name?.toLowerCase().includes('colinas');
+              })
+              .forEach(colinasInv => {
+                const colinasClient = clients.find(c => c.id === colinasInv.clientId);
+                if (colinasClient) {
+                  const colinasProducts = allProducts.filter(p => colinasClient.selectedProducts.includes(p.id));
+                  let invSubtotal = 0;
+                  let invPesoSubtotal = 0;
+                  
+                  colinasProducts.forEach(prod => {
+                    if (prod.name.toLowerCase().includes("peso")) {
+                      const pesoPrice = productPrices[prod.id];
+                      if (typeof colinasInv.totalWeight === "number" && pesoPrice > 0) {
+                        invPesoSubtotal += colinasInv.totalWeight * pesoPrice;
+                      }
+                    } else {
+                      const qty = (colinasInv.carts || []).reduce((sum, cart) => {
+                        return sum + (cart.items || [])
+                          .filter(item => item.productId === prod.id)
+                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                      }, 0);
+                      const price = productPrices[prod.id];
+                      if (qty > 0 && price > 0) invSubtotal += qty * price;
+                    }
+                  });
+                  
+                  colinasSubtotal += invSubtotal + invPesoSubtotal;
+                }
+              });
+            
+            // Calculate Marbella subtotal for same delivery date
+            let marbellaSubtotal = 0;
+            selectedInvoices
+              .filter(otherInv => {
+                if (!otherInv.deliveryDate) return false;
+                const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                const otherClient = clients.find(c => c.id === otherInv.clientId);
+                return otherDeliveryDate === deliveryDate && 
+                       otherClient?.name?.toLowerCase().includes('marbella');
+              })
+              .forEach(marbellaInv => {
+                const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                if (marbellaClient) {
+                  const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                  let invSubtotal = 0;
+                  let invPesoSubtotal = 0;
+                  
+                  marbellaProducts.forEach(prod => {
+                    if (prod.name.toLowerCase().includes("peso")) {
+                      const pesoPrice = productPrices[prod.id];
+                      if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                        invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                      }
+                    } else {
+                      const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                        return sum + (cart.items || [])
+                          .filter(item => item.productId === prod.id)
+                          .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                      }, 0);
+                      const price = productPrices[prod.id];
+                      if (qty > 0 && price > 0) invSubtotal += qty * price;
+                    }
+                  });
+                  
+                  marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                }
+              });
+            
+            // Calculate Nuevo Subtotal Colinas and Total
+            const combinedSubtotal = colinasSubtotal + marbellaSubtotal;
+            const nuevoSubtotalColinas = combinedSubtotal < 400 ? (400 - combinedSubtotal) : 0;
+            const totalColinasSubtotal = colinasSubtotal + nuevoSubtotalColinas;
+            
+            fuelChargeBase = totalColinasSubtotal;
+          }
+        }
+        
         fuelCharge = calculateCharge(
           fuelChargeFormula,
           Number(fuelChargePercent),
-          subtotalForServiceCharge,
+          fuelChargeBase,
           1,
           0
         );
@@ -1779,17 +1969,22 @@ const BillingPage: React.FC = () => {
       
       // Calculate Nudos (Sabanas) charge
       if (nudosSabanasPrice && Number(nudosSabanasPrice) > 0) {
-        const sabanasProd = productColumns.find((p) =>
+        // Find sabanas products (any product with "sabana" in name, excluding "nudo")
+        const sabanasProducts = productColumns.filter((p) =>
           p.name.toLowerCase().includes("sabana") && 
           !p.name.toLowerCase().includes("nudo")
         );
         
         let sabanasQty = 0;
-        if (sabanasProd) {
-          sabanasQty = (inv.carts || []).reduce((sum, cart) => {
-            return sum + (cart.items || [])
-              .filter((item) => item.productId === sabanasProd.id)
-              .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+        if (sabanasProducts.length > 0) {
+          // Sum up quantities from all sabanas products in this invoice
+          sabanasQty = sabanasProducts.reduce((totalQty, sabanasProd) => {
+            const productQty = (inv.carts || []).reduce((sum, cart) => {
+              return sum + (cart.items || [])
+                .filter((item) => item.productId === sabanasProd.id)
+                .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+            }, 0);
+            return totalQty + productQty;
           }, 0);
         }
         
@@ -2720,6 +2915,12 @@ const BillingPage: React.FC = () => {
                         ))}
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Subtotal (Base)</th>
                         <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Minimum Billing</th>
+                        {/* Colinas Subtotal column */}
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Colinas Subtotal</th>
+                        {/* Marbella Subtotal column */}
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Marbella Subtotal</th>
+                        {/* Nuevo Subtotal Colinas column */}
+                        <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>Nuevo Subtotal Colinas</th>
                         {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
                           <th style={{ backgroundColor: "#f8f9fa", position: "sticky", top: 0, zIndex: 11 }}>General Delivery</th>
                         )}
@@ -2782,30 +2983,34 @@ const BillingPage: React.FC = () => {
                             return qty > 0 && (!price || price <= 0);
                           });
                           // Calculate sabanas quantity for this invoice
-                          const sabanasProd = productColumns.find(
+                          const sabanasProducts = productColumns.filter(
                             (p) =>
                               p.name.toLowerCase().includes("sabana") &&
                               !p.name.toLowerCase().includes("nudo")
                           );
                           let sabanasQty = 0;
-                          if (sabanasProd) {
-                            sabanasQty = (inv.carts || []).reduce(
-                              (sum, cart) => {
-                                return (
-                                  sum +
-                                  (cart.items || [])
-                                    .filter(
-                                      (item) => item.productId === sabanasProd.id
-                                    )
-                                    .reduce(
-                                      (s, item) =>
-                                        s + (Number(item.quantity) || 0),
-                                      0
-                                    )
-                                );
-                              },
-                              0
-                            );
+                          if (sabanasProducts.length > 0) {
+                            // Sum up quantities from all sabanas products in this invoice
+                            sabanasQty = sabanasProducts.reduce((totalQty, sabanasProd) => {
+                              const productQty = (inv.carts || []).reduce(
+                                (sum, cart) => {
+                                  return (
+                                    sum +
+                                    (cart.items || [])
+                                      .filter(
+                                        (item) => item.productId === sabanasProd.id
+                                      )
+                                      .reduce(
+                                        (s, item) =>
+                                          s + (Number(item.quantity) || 0),
+                                        0
+                                      )
+                                  );
+                                },
+                                0
+                              );
+                              return totalQty + productQty;
+                            }, 0);
                           }
                           
                           // Initialize subtotal variables first
@@ -2935,10 +3140,102 @@ const BillingPage: React.FC = () => {
                             );
                           }
                           if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
+                            // For Colinas clients, use Total amount instead of subtotal
+                            let fuelChargeBase = subtotalForServiceCharge;
+                            if (client?.name?.toLowerCase().includes('colinas')) {
+                              // Calculate the Total amount (Colinas Subtotal + Nuevo Subtotal Colinas)
+                              if (inv.deliveryDate) {
+                                const deliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                let colinasSubtotal = 0;
+                                
+                                // Calculate Colinas subtotal for same delivery date
+                                invoices
+                                  .filter(otherInv => {
+                                    if (!otherInv.deliveryDate) return false;
+                                    const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                    const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                    return otherDeliveryDate === deliveryDate && 
+                                           otherClient?.name?.toLowerCase().includes('colinas');
+                                  })
+                                  .forEach(colinasInv => {
+                                    const colinasClient = clients.find(c => c.id === colinasInv.clientId);
+                                    if (colinasClient) {
+                                      const colinasProducts = allProducts.filter(p => colinasClient.selectedProducts.includes(p.id));
+                                      let invSubtotal = 0;
+                                      let invPesoSubtotal = 0;
+                                      
+                                      colinasProducts.forEach(prod => {
+                                        if (prod.name.toLowerCase().includes("peso")) {
+                                          const pesoPrice = productPrices[prod.id];
+                                          if (typeof colinasInv.totalWeight === "number" && pesoPrice > 0) {
+                                            invPesoSubtotal += colinasInv.totalWeight * pesoPrice;
+                                          }
+                                        } else {
+                                          const qty = (colinasInv.carts || []).reduce((sum, cart) => {
+                                            return sum + (cart.items || [])
+                                              .filter(item => item.productId === prod.id)
+                                              .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                          }, 0);
+                                          const price = productPrices[prod.id];
+                                          if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                        }
+                                      });
+                                      
+                                      colinasSubtotal += invSubtotal + invPesoSubtotal;
+                                    }
+                                  });
+                                
+                                // Calculate Marbella subtotal for same delivery date
+                                let marbellaSubtotal = 0;
+                                invoices
+                                  .filter(otherInv => {
+                                    if (!otherInv.deliveryDate) return false;
+                                    const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                    const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                    return otherDeliveryDate === deliveryDate && 
+                                           otherClient?.name?.toLowerCase().includes('marbella');
+                                  })
+                                  .forEach(marbellaInv => {
+                                    const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                                    if (marbellaClient) {
+                                      const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                                      let invSubtotal = 0;
+                                      let invPesoSubtotal = 0;
+                                      
+                                      marbellaProducts.forEach(prod => {
+                                        if (prod.name.toLowerCase().includes("peso")) {
+                                          const pesoPrice = productPrices[prod.id];
+                                          if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                                            invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                                          }
+                                        } else {
+                                          const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                                            return sum + (cart.items || [])
+                                              .filter(item => item.productId === prod.id)
+                                              .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                          }, 0);
+                                          const price = productPrices[prod.id];
+                                          if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                        }
+                                      });
+                                      
+                                      marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                                    }
+                                  });
+                                
+                                // Calculate Nuevo Subtotal Colinas and Total
+                                const combinedSubtotal = colinasSubtotal + marbellaSubtotal;
+                                const nuevoSubtotalColinas = combinedSubtotal < 400 ? (400 - combinedSubtotal) : 0;
+                                const totalColinasSubtotal = colinasSubtotal + nuevoSubtotalColinas;
+                                
+                                fuelChargeBase = totalColinasSubtotal;
+                              }
+                            }
+                            
                             fuelCharge = calculateCharge(
                               fuelChargeFormula,
                               Number(fuelChargePercent),
-                              subtotalForServiceCharge,
+                              fuelChargeBase,
                               1,
                               0
                             );
@@ -2955,28 +3252,35 @@ const BillingPage: React.FC = () => {
                           
                           // Calculate Nudos (Sabanas) charge
                           if (nudosSabanasPrice && Number(nudosSabanasPrice) > 0) {
-                            const sabanasProd = productColumns.find((p) =>
+                            // Find sabanas products (any product with "sabana" in name, excluding "nudo")
+                            const sabanasProducts = productColumns.filter((p) =>
                               p.name.toLowerCase().includes("sabana") && 
                               !p.name.toLowerCase().includes("nudo")
                             );
                             
                             let sabanasQty = 0;
-                            if (sabanasProd) {
-                              sabanasQty = (inv.carts || []).reduce((sum, cart) => {
-                                return sum + (cart.items || [])
-                                  .filter((item) => item.productId === sabanasProd.id)
-                                  .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                            if (sabanasProducts.length > 0) {
+                              // Sum up quantities from all sabanas products in this invoice
+                              sabanasQty = sabanasProducts.reduce((totalQty, sabanasProd) => {
+                                const productQty = (inv.carts || []).reduce((sum, cart) => {
+                                  return sum + (cart.items || [])
+                                    .filter((item) => item.productId === sabanasProd.id)
+                                    .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                }, 0);
+                                return totalQty + productQty;
                               }, 0);
                             }
                             
                             // Calculate Nudos (Sabanas) charge using formula after subtotals are known
-                            nudosSabanasCharge = calculateCharge(
-                              nudosSabanasFormula,
-                              Number(nudosSabanasPrice),
-                              subtotal + pesoSubtotal,
-                              1,
-                              sabanasQty
-                            );
+                            if (sabanasQty > 0) {
+                              nudosSabanasCharge = calculateCharge(
+                                nudosSabanasFormula,
+                                Number(nudosSabanasPrice),
+                                subtotal + pesoSubtotal,
+                                1,
+                                sabanasQty
+                              );
+                            }
                           }
                           
                           // Calculate Disposable Fee
@@ -3160,6 +3464,225 @@ const BillingPage: React.FC = () => {
                                     : ""}
                                 </b>
                               </td>
+                              {/* Colinas Subtotal - NOW SHOWS GRAND TOTAL (swapped with Total column) */}
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {(() => {
+                                    // Calculate grand total (what was previously in Total column)
+                                    let grandTotal = 0;
+                                    let subtotal = 0;
+                                    let pesoSubtotal = 0;
+                                    
+                                    // Calculate product subtotals
+                                    productColumns.forEach(prod => {
+                                      if (prod.name.toLowerCase().includes("peso")) {
+                                        const pesoPrice = productPrices[prod.id];
+                                        if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
+                                          pesoSubtotal += inv.totalWeight * pesoPrice;
+                                        }
+                                      } else {
+                                        const qty = (inv.carts || []).reduce((sum, cart) => {
+                                          return sum + (cart.items || [])
+                                            .filter(item => item.productId === prod.id)
+                                            .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                        }, 0);
+                                        const price = productPrices[prod.id];
+                                        if (qty > 0 && price > 0) subtotal += qty * price;
+                                      }
+                                    });
+                                    
+                                    // Calculate base subtotal and apply minimum billing if needed
+                                    let baseSubtotal = subtotal + pesoSubtotal;
+                                    let minValue = minBilling ? Number(minBilling) : 0;
+                                    let totalForGrandTotal = baseSubtotal;
+                                    if (minValue > 0 && baseSubtotal < minValue) {
+                                      totalForGrandTotal = minValue;
+                                    }
+                                    
+                                    // Calculate charges
+                                    let serviceCharge = 0;
+                                    let surchargeValue = 0;
+                                    let generalDeliveryChargeValue = 0;
+                                    
+                                    if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
+                                      serviceCharge = calculateCharge(
+                                        serviceChargeFormula,
+                                        Number(serviceChargePercent),
+                                        totalForGrandTotal,
+                                        1,
+                                        0
+                                      );
+                                    }
+                                    
+                                    if (surchargeEnabled && Number(surchargePercent) > 0) {
+                                      surchargeValue = calculateCharge(
+                                        surchargeFormula,
+                                        Number(surchargePercent),
+                                        totalForGrandTotal,
+                                        1,
+                                        0
+                                      );
+                                    }
+                                    
+                                    if (generalDeliveryCharge && Number(generalDeliveryCharge) > 0) {
+                                      generalDeliveryChargeValue = calculateCharge(
+                                        generalDeliveryChargeFormula,
+                                        Number(generalDeliveryCharge),
+                                        baseSubtotal,
+                                        1,
+                                        0
+                                      );
+                                    }
+                                    
+                                    // Sum grand total (excluding special delivery charges)
+                                    grandTotal = totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+                                    
+                                    return grandTotal > 0 ? `$${grandTotal.toFixed(2)}` : "";
+                                  })()}
+                                </b>
+                              </td>
+                              {/* Marbella Subtotal - shows subtotal for Marbella clients with same delivery date */}
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {(() => {
+                                    if (!inv.deliveryDate) return "";
+                                    
+                                    // Find Marbella clients with same delivery date
+                                    const deliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                    let marbellaSubtotal = 0;
+                                    
+                                    invoices
+                                      .filter(otherInv => {
+                                        if (!otherInv.deliveryDate) return false;
+                                        const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                        const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                        return otherDeliveryDate === deliveryDate && 
+                                               otherClient?.name?.toLowerCase().includes('marbella');
+                                      })
+                                      .forEach(marbellaInv => {
+                                        const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                                        if (marbellaClient) {
+                                          const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                                          let invSubtotal = 0;
+                                          let invPesoSubtotal = 0;
+                                          
+                                          marbellaProducts.forEach(prod => {
+                                            if (prod.name.toLowerCase().includes("peso")) {
+                                              const pesoPrice = productPrices[prod.id];
+                                              if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                                                invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                                              }
+                                            } else {
+                                              const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                                                return sum + (cart.items || [])
+                                                  .filter(item => item.productId === prod.id)
+                                                  .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                              }, 0);
+                                              const price = productPrices[prod.id];
+                                              if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                            }
+                                          });
+                                          
+                                          marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                                        }
+                                      });
+                                    
+                                    return marbellaSubtotal > 0 ? `$${marbellaSubtotal.toFixed(2)}` : "";
+                                  })()}
+                                </b>
+                              </td>
+                              {/* Nuevo Subtotal Colinas - Business rule: if (Colinas + Marbella) < $400, then $400 - (Colinas + Marbella), else $0 */}
+                              <td style={nowrapCellStyle}>
+                                <b>
+                                  {(() => {
+                                    if (!inv.deliveryDate) return "";
+                                    
+                                    const deliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                    let colinasSubtotal = 0;
+                                    let marbellaSubtotal = 0;
+                                    
+                                    // Calculate Colinas subtotal for same delivery date
+                                    invoices
+                                      .filter(otherInv => {
+                                        if (!otherInv.deliveryDate) return false;
+                                        const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                        const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                        return otherDeliveryDate === deliveryDate && 
+                                               otherClient?.name?.toLowerCase().includes('colinas');
+                                      })
+                                      .forEach(colinasInv => {
+                                        const colinasClient = clients.find(c => c.id === colinasInv.clientId);
+                                        if (colinasClient) {
+                                          const colinasProducts = allProducts.filter(p => colinasClient.selectedProducts.includes(p.id));
+                                          let invSubtotal = 0;
+                                          let invPesoSubtotal = 0;
+                                          
+                                          colinasProducts.forEach(prod => {
+                                            if (prod.name.toLowerCase().includes("peso")) {
+                                              const pesoPrice = productPrices[prod.id];
+                                              if (typeof colinasInv.totalWeight === "number" && pesoPrice > 0) {
+                                                invPesoSubtotal += colinasInv.totalWeight * pesoPrice;
+                                              }
+                                            } else {
+                                              const qty = (colinasInv.carts || []).reduce((sum, cart) => {
+                                                return sum + (cart.items || [])
+                                                  .filter(item => item.productId === prod.id)
+                                                  .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                              }, 0);
+                                              const price = productPrices[prod.id];
+                                              if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                            }
+                                          });
+                                          
+                                          colinasSubtotal += invSubtotal + invPesoSubtotal;
+                                        }
+                                      });
+                                    
+                                    // Calculate Marbella subtotal for same delivery date
+                                    invoices
+                                      .filter(otherInv => {
+                                        if (!otherInv.deliveryDate) return false;
+                                        const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                        const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                        return otherDeliveryDate === deliveryDate && 
+                                               otherClient?.name?.toLowerCase().includes('marbella');
+                                      })
+                                      .forEach(marbellaInv => {
+                                        const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                                        if (marbellaClient) {
+                                          const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                                          let invSubtotal = 0;
+                                          let invPesoSubtotal = 0;
+                                          
+                                          marbellaProducts.forEach(prod => {
+                                            if (prod.name.toLowerCase().includes("peso")) {
+                                              const pesoPrice = productPrices[prod.id];
+                                              if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                                                invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                                              }
+                                            } else {
+                                              const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                                                return sum + (cart.items || [])
+                                                  .filter(item => item.productId === prod.id)
+                                                  .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                              }, 0);
+                                              const price = productPrices[prod.id];
+                                              if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                            }
+                                          });
+                                          
+                                          marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                                        }
+                                      });
+                                    
+                                    // Business rule: if (Colinas + Marbella) < $400, then $400 - (Colinas + Marbella), else $0
+                                    const combinedSubtotal = colinasSubtotal + marbellaSubtotal;
+                                    const nuevoSubtotalColinas = combinedSubtotal < 400 ? (400 - combinedSubtotal) : 0;
+                                    
+                                    return nuevoSubtotalColinas > 0 ? `$${nuevoSubtotalColinas.toFixed(2)}` : "";
+                                  })()}
+                                </b>
+                              </td>
                               {/* General Delivery */}
                               {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
                                 <td style={nowrapCellStyle}>
@@ -3188,11 +3711,99 @@ const BillingPage: React.FC = () => {
                                   </b>
                                 </td>
                               )}
+                              {/* Total column - NOW SHOWS COLINAS SUBTOTAL + NUEVO SUBTOTAL COLINAS (swapped with Colinas Subtotal column) */}
                               <td style={nowrapCellStyle}>
                                 <b>
-                                  {grandTotal > 0
-                                    ? `$${grandTotal.toFixed(2)}`
-                                    : ""}
+                                  {(() => {
+                                    if (!inv.deliveryDate) return "";
+                                    
+                                    // Find Colinas clients with same delivery date
+                                    const deliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                    let colinasSubtotal = 0;
+                                    
+                                    invoices
+                                      .filter(otherInv => {
+                                        if (!otherInv.deliveryDate) return false;
+                                        const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                        const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                        return otherDeliveryDate === deliveryDate && 
+                                               otherClient?.name?.toLowerCase().includes('colinas');
+                                      })
+                                      .forEach(colinasInv => {
+                                        const colinasClient = clients.find(c => c.id === colinasInv.clientId);
+                                        if (colinasClient) {
+                                          const colinasProducts = allProducts.filter(p => colinasClient.selectedProducts.includes(p.id));
+                                          let invSubtotal = 0;
+                                          let invPesoSubtotal = 0;
+                                          
+                                          colinasProducts.forEach(prod => {
+                                            if (prod.name.toLowerCase().includes("peso")) {
+                                              const pesoPrice = productPrices[prod.id];
+                                              if (typeof colinasInv.totalWeight === "number" && pesoPrice > 0) {
+                                                invPesoSubtotal += colinasInv.totalWeight * pesoPrice;
+                                              }
+                                            } else {
+                                              const qty = (colinasInv.carts || []).reduce((sum, cart) => {
+                                                return sum + (cart.items || [])
+                                                  .filter(item => item.productId === prod.id)
+                                                  .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                              }, 0);
+                                              const price = productPrices[prod.id];
+                                              if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                            }
+                                          });
+                                          
+                                          colinasSubtotal += invSubtotal + invPesoSubtotal;
+                                        }
+                                      });
+                                    
+                                    // Calculate Marbella subtotal for same delivery date to determine Nuevo Subtotal Colinas
+                                    let marbellaSubtotal = 0;
+                                    invoices
+                                      .filter(otherInv => {
+                                        if (!otherInv.deliveryDate) return false;
+                                        const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                        const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                        return otherDeliveryDate === deliveryDate && 
+                                               otherClient?.name?.toLowerCase().includes('marbella');
+                                      })
+                                      .forEach(marbellaInv => {
+                                        const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                                        if (marbellaClient) {
+                                          const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                                          let invSubtotal = 0;
+                                          let invPesoSubtotal = 0;
+                                          
+                                          marbellaProducts.forEach(prod => {
+                                            if (prod.name.toLowerCase().includes("peso")) {
+                                              const pesoPrice = productPrices[prod.id];
+                                              if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                                                invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                                              }
+                                            } else {
+                                              const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                                                return sum + (cart.items || [])
+                                                  .filter(item => item.productId === prod.id)
+                                                  .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                              }, 0);
+                                              const price = productPrices[prod.id];
+                                              if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                            }
+                                          });
+                                          
+                                          marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                                        }
+                                      });
+                                    
+                                    // Calculate Nuevo Subtotal Colinas: if (Colinas + Marbella) < $400, then $400 - (Colinas + Marbella), else $0
+                                    const combinedSubtotal = colinasSubtotal + marbellaSubtotal;
+                                    const nuevoSubtotalColinas = combinedSubtotal < 400 ? (400 - combinedSubtotal) : 0;
+                                    
+                                    // Total = Colinas Subtotal + Nuevo Subtotal Colinas
+                                    const totalColinasSubtotal = colinasSubtotal + nuevoSubtotalColinas;
+                                    
+                                    return totalColinasSubtotal > 0 ? `$${totalColinasSubtotal.toFixed(2)}` : "";
+                                  })()}
                                 </b>
                               </td>
                               {fuelChargeEnabled && (
@@ -3532,6 +4143,239 @@ const BillingPage: React.FC = () => {
                             );
                           })()}
                         </td>
+                        {/* Colinas Subtotal total - NOW SHOWS GRAND TOTAL (swapped with Total column) */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let grandTotal = 0;
+                            clientInvoices
+                              .filter((inv) =>
+                                selectedInvoiceIds.includes(inv.id)
+                              )
+                              .forEach((inv) => {
+                                let subtotal = 0;
+                                let pesoSubtotal = 0;
+                                
+                                // Calculate product subtotals
+                                productColumns.forEach((prod) => {
+                                  if (prod.name.toLowerCase().includes("peso")) {
+                                    const pesoPrice = productPrices[prod.id];
+                                    if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
+                                      pesoSubtotal += inv.totalWeight * pesoPrice;
+                                    }
+                                  } else {
+                                    const qty = (inv.carts || []).reduce((sum, cart) => {
+                                      return sum + (cart.items || [])
+                                        .filter((item) => item.productId === prod.id)
+                                        .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                    }, 0);
+                                    const price = productPrices[prod.id];
+                                    if (qty > 0 && price > 0) subtotal += qty * price;
+                                  }
+                                });
+                                
+                                // Calculate base subtotal and apply minimum billing if needed
+                                let baseSubtotal = subtotal + pesoSubtotal;
+                                let minValue = minBilling ? Number(minBilling) : 0;
+                                let totalForGrandTotal = baseSubtotal;
+                                if (minValue > 0 && baseSubtotal < minValue) {
+                                  totalForGrandTotal = minValue;
+                                }
+                                
+                                // Calculate charges
+                                let serviceCharge = 0;
+                                let surchargeValue = 0;
+                                let generalDeliveryChargeValue = 0;
+                                
+                                if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
+                                  serviceCharge = calculateCharge(
+                                    serviceChargeFormula,
+                                    Number(serviceChargePercent),
+                                    totalForGrandTotal,
+                                    1,
+                                    0
+                                  );
+                                }
+                                
+                                if (surchargeEnabled && Number(surchargePercent) > 0) {
+                                  surchargeValue = calculateCharge(
+                                    surchargeFormula,
+                                    Number(surchargePercent),
+                                    totalForGrandTotal,
+                                    1,
+                                    0
+                                  );
+                                }
+                                
+                                if (generalDeliveryCharge && Number(generalDeliveryCharge) > 0) {
+                                  generalDeliveryChargeValue = calculateCharge(
+                                    generalDeliveryChargeFormula,
+                                    Number(generalDeliveryCharge),
+                                    baseSubtotal,
+                                    1,
+                                    0
+                                  );
+                                }
+                                
+                                // Sum grand total (excluding special delivery charges)
+                                grandTotal += totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+                              });
+                            return grandTotal > 0 ? `$${grandTotal.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Marbella Subtotal total */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let marbellaTotal = 0;
+                            
+                            // Get unique delivery dates from selected invoices
+                            const deliveryDates = [...new Set(
+                              clientInvoices
+                                .filter(inv => selectedInvoiceIds.includes(inv.id) && inv.deliveryDate)
+                                .map(inv => new Date(inv.deliveryDate!).toISOString().split('T')[0])
+                            )];
+                            
+                            // For each delivery date, sum up Marbella client subtotals
+                            deliveryDates.forEach(deliveryDate => {
+                              invoices
+                                .filter(inv => {
+                                  if (!inv.deliveryDate) return false;
+                                  const invDeliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                  const client = clients.find(c => c.id === inv.clientId);
+                                  return invDeliveryDate === deliveryDate && 
+                                         client?.name?.toLowerCase().includes('marbella');
+                                })
+                                .forEach(marbellaInv => {
+                                  const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                                  if (marbellaClient) {
+                                    const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                                    let invSubtotal = 0;
+                                    let invPesoSubtotal = 0;
+                                    
+                                    marbellaProducts.forEach(prod => {
+                                      if (prod.name.toLowerCase().includes("peso")) {
+                                        const pesoPrice = productPrices[prod.id];
+                                        if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                                          invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                                        }
+                                      } else {
+                                        const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                                          return sum + (cart.items || [])
+                                            .filter(item => item.productId === prod.id)
+                                            .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                        }, 0);
+                                        const price = productPrices[prod.id];
+                                        if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                      }
+                                    });
+                                    
+                                    marbellaTotal += invSubtotal + invPesoSubtotal;
+                                  }
+                                });
+                            });
+                            
+                            return marbellaTotal > 0 ? `$${marbellaTotal.toFixed(2)}` : "";
+                          })()}
+                        </td>
+                        {/* Nuevo Subtotal Colinas total */}
+                        <td style={nowrapCellStyle}>
+                          {(() => {
+                            let nuevoSubtotalColinasTotal = 0;
+                            
+                            // Get unique delivery dates from selected invoices
+                            const deliveryDates = [...new Set(
+                              clientInvoices
+                                .filter(inv => selectedInvoiceIds.includes(inv.id) && inv.deliveryDate)
+                                .map(inv => new Date(inv.deliveryDate!).toISOString().split('T')[0])
+                            )];
+                            
+                            // For each delivery date, calculate Nuevo Subtotal Colinas
+                            deliveryDates.forEach(deliveryDate => {
+                              let colinasSubtotal = 0;
+                              let marbellaSubtotal = 0;
+                              
+                              // Calculate Colinas subtotal for this delivery date
+                              invoices
+                                .filter(inv => {
+                                  if (!inv.deliveryDate) return false;
+                                  const invDeliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                  const client = clients.find(c => c.id === inv.clientId);
+                                  return invDeliveryDate === deliveryDate && 
+                                         client?.name?.toLowerCase().includes('colinas');
+                                })
+                                .forEach(colinasInv => {
+                                  const colinasClient = clients.find(c => c.id === colinasInv.clientId);
+                                  if (colinasClient) {
+                                    const colinasProducts = allProducts.filter(p => colinasClient.selectedProducts.includes(p.id));
+                                    let invSubtotal = 0;
+                                    let invPesoSubtotal = 0;
+                                    
+                                    colinasProducts.forEach(prod => {
+                                      if (prod.name.toLowerCase().includes("peso")) {
+                                        const pesoPrice = productPrices[prod.id];
+                                        if (typeof colinasInv.totalWeight === "number" && pesoPrice > 0) {
+                                          invPesoSubtotal += colinasInv.totalWeight * pesoPrice;
+                                        }
+                                      } else {
+                                        const qty = (colinasInv.carts || []).reduce((sum, cart) => {
+                                          return sum + (cart.items || [])
+                                            .filter(item => item.productId === prod.id)
+                                            .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                        }, 0);
+                                        const price = productPrices[prod.id];
+                                        if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                      }
+                                    });
+                                    
+                                    colinasSubtotal += invSubtotal + invPesoSubtotal;
+                                  }
+                                });
+                              
+                              // Calculate Marbella subtotal for this delivery date
+                              invoices
+                                .filter(inv => {
+                                  if (!inv.deliveryDate) return false;
+                                  const invDeliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                  const client = clients.find(c => c.id === inv.clientId);
+                                  return invDeliveryDate === deliveryDate && 
+                                         client?.name?.toLowerCase().includes('marbella');
+                                })
+                                .forEach(marbellaInv => {
+                                  const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                                  if (marbellaClient) {
+                                    const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                                    let invSubtotal = 0;
+                                    let invPesoSubtotal = 0;
+                                    
+                                    marbellaProducts.forEach(prod => {
+                                      if (prod.name.toLowerCase().includes("peso")) {
+                                        const pesoPrice = productPrices[prod.id];
+                                        if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                                          invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                                        }
+                                      } else {
+                                        const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                                          return sum + (cart.items || [])
+                                            .filter(item => item.productId === prod.id)
+                                            .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                        }, 0);
+                                        const price = productPrices[prod.id];
+                                        if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                      }
+                                    });
+                                    
+                                    marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                                  }
+                                });
+                              
+                              // Business rule: if (Colinas + Marbella) < $400, then $400 - (Colinas + Marbella), else $0
+                              const combinedSubtotal = colinasSubtotal + marbellaSubtotal;
+                              const nuevoSubtotalColinas = combinedSubtotal < 400 ? (400 - combinedSubtotal) : 0;
+                              nuevoSubtotalColinasTotal += nuevoSubtotalColinas;
+                            });
+                            
+                            return nuevoSubtotalColinasTotal > 0 ? `$${nuevoSubtotalColinasTotal.toFixed(2)}` : "";
+                          })()}
+                        </td>
                         {/* General Delivery total */}
                         {generalDeliveryCharge && Number(generalDeliveryCharge) > 0 && (
                           <td style={nowrapCellStyle}>
@@ -3700,10 +4544,103 @@ const BillingPage: React.FC = () => {
                                     subtotalForServiceCharge = minValue;
                                   }
                                   if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
+                                    // For Colinas clients, use Total amount instead of subtotal
+                                    let fuelChargeBase = subtotalForServiceCharge;
+                                    const client = clients.find(c => c.id === inv.clientId);
+                                    if (client?.name?.toLowerCase().includes('colinas')) {
+                                      // Calculate the Total amount (Colinas Subtotal + Nuevo Subtotal Colinas)
+                                      if (inv.deliveryDate) {
+                                        const deliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                        let colinasSubtotal = 0;
+                                        
+                                        // Calculate Colinas subtotal for same delivery date
+                                        invoices
+                                          .filter(otherInv => {
+                                            if (!otherInv.deliveryDate) return false;
+                                            const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                            const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                            return otherDeliveryDate === deliveryDate && 
+                                                   otherClient?.name?.toLowerCase().includes('colinas');
+                                          })
+                                          .forEach(colinasInv => {
+                                            const colinasClient = clients.find(c => c.id === colinasInv.clientId);
+                                            if (colinasClient) {
+                                              const colinasProducts = allProducts.filter(p => colinasClient.selectedProducts.includes(p.id));
+                                              let invSubtotal = 0;
+                                              let invPesoSubtotal = 0;
+                                              
+                                              colinasProducts.forEach(prod => {
+                                                if (prod.name.toLowerCase().includes("peso")) {
+                                                  const pesoPrice = productPrices[prod.id];
+                                                  if (typeof colinasInv.totalWeight === "number" && pesoPrice > 0) {
+                                                    invPesoSubtotal += colinasInv.totalWeight * pesoPrice;
+                                                  }
+                                                } else {
+                                                  const qty = (colinasInv.carts || []).reduce((sum, cart) => {
+                                                    return sum + (cart.items || [])
+                                                      .filter(item => item.productId === prod.id)
+                                                      .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                                  }, 0);
+                                                  const price = productPrices[prod.id];
+                                                  if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                                }
+                                              });
+                                              
+                                              colinasSubtotal += invSubtotal + invPesoSubtotal;
+                                            }
+                                          });
+                                        
+                                        // Calculate Marbella subtotal for same delivery date
+                                        let marbellaSubtotal = 0;
+                                        invoices
+                                          .filter(otherInv => {
+                                            if (!otherInv.deliveryDate) return false;
+                                            const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                            const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                            return otherDeliveryDate === deliveryDate && 
+                                                   otherClient?.name?.toLowerCase().includes('marbella');
+                                          })
+                                          .forEach(marbellaInv => {
+                                            const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                                            if (marbellaClient) {
+                                              const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                                              let invSubtotal = 0;
+                                              let invPesoSubtotal = 0;
+                                              
+                                              marbellaProducts.forEach(prod => {
+                                                if (prod.name.toLowerCase().includes("peso")) {
+                                                  const pesoPrice = productPrices[prod.id];
+                                                  if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                                                    invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                                                  }
+                                                } else {
+                                                  const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                                                    return sum + (cart.items || [])
+                                                      .filter(item => item.productId === prod.id)
+                                                      .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                                  }, 0);
+                                                  const price = productPrices[prod.id];
+                                                  if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                                }
+                                              });
+                                              
+                                              marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                                            }
+                                          });
+                                        
+                                        // Calculate Nuevo Subtotal Colinas and Total
+                                        const combinedSubtotal = colinasSubtotal + marbellaSubtotal;
+                                        const nuevoSubtotalColinas = combinedSubtotal < 400 ? (400 - combinedSubtotal) : 0;
+                                        const totalColinasSubtotal = colinasSubtotal + nuevoSubtotalColinas;
+                                        
+                                        fuelChargeBase = totalColinasSubtotal;
+                                      }
+                                    }
+                                    
                                     total += calculateCharge(
                                       fuelChargeFormula,
                                       Number(fuelChargePercent),
-                                      subtotalForServiceCharge,
+                                      fuelChargeBase,
                                       1,
                                       0
                                     );
@@ -3783,83 +4720,103 @@ const BillingPage: React.FC = () => {
                             })()}
                           </td>
                         )}
-                        {/* Total column */}
+                        {/* Total column - NOW SHOWS COLINAS SUBTOTAL + NUEVO SUBTOTAL COLINAS (swapped with Colinas Subtotal column) */}
                         <td style={nowrapCellStyle}>
                           {(() => {
-                            let grandTotal = 0;
+                            let totalColinasSubtotal = 0;
                             clientInvoices
                               .filter((inv) =>
                                 selectedInvoiceIds.includes(inv.id)
                               )
                               .forEach((inv) => {
-                                let subtotal = 0;
-                                let pesoSubtotal = 0;
+                                if (!inv.deliveryDate) return;
                                 
-                                // Calculate product subtotals
-                                productColumns.forEach((prod) => {
-                                  if (prod.name.toLowerCase().includes("peso")) {
-                                    const pesoPrice = productPrices[prod.id];
-                                    if (typeof inv.totalWeight === "number" && pesoPrice > 0) {
-                                      pesoSubtotal += inv.totalWeight * pesoPrice;
+                                // Find Colinas clients with same delivery date
+                                const deliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                let colinasSubtotal = 0;
+                                
+                                invoices
+                                  .filter(otherInv => {
+                                    if (!otherInv.deliveryDate) return false;
+                                    const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                    const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                    return otherDeliveryDate === deliveryDate && 
+                                           otherClient?.name?.toLowerCase().includes('colinas');
+                                  })
+                                  .forEach(colinasInv => {
+                                    const colinasClient = clients.find(c => c.id === colinasInv.clientId);
+                                    if (colinasClient) {
+                                      const colinasProducts = allProducts.filter(p => colinasClient.selectedProducts.includes(p.id));
+                                      let invSubtotal = 0;
+                                      let invPesoSubtotal = 0;
+                                      
+                                      colinasProducts.forEach(prod => {
+                                        if (prod.name.toLowerCase().includes("peso")) {
+                                          const pesoPrice = productPrices[prod.id];
+                                          if (typeof colinasInv.totalWeight === "number" && pesoPrice > 0) {
+                                            invPesoSubtotal += colinasInv.totalWeight * pesoPrice;
+                                          }
+                                        } else {
+                                          const qty = (colinasInv.carts || []).reduce((sum, cart) => {
+                                            return sum + (cart.items || [])
+                                              .filter(item => item.productId === prod.id)
+                                              .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                          }, 0);
+                                          const price = productPrices[prod.id];
+                                          if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                        }
+                                      });
+                                      
+                                      colinasSubtotal += invSubtotal + invPesoSubtotal;
                                     }
-                                  } else {
-                                    const qty = (inv.carts || []).reduce((sum, cart) => {
-                                      return sum + (cart.items || [])
-                                        .filter((item) => item.productId === prod.id)
-                                        .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
-                                    }, 0);
-                                    const price = productPrices[prod.id];
-                                    if (qty > 0 && price > 0) subtotal += qty * price;
-                                  }
-                                });
+                                  });
                                 
-                                // Calculate base subtotal and apply minimum billing if needed
-                                let baseSubtotal = subtotal + pesoSubtotal;
-                                let minValue = minBilling ? Number(minBilling) : 0;
-                                let totalForGrandTotal = baseSubtotal;
-                                if (minValue > 0 && baseSubtotal < minValue) {
-                                  totalForGrandTotal = minValue;
-                                }
+                                // Calculate Marbella subtotal for same delivery date to determine Nuevo Subtotal Colinas
+                                let marbellaSubtotal = 0;
+                                invoices
+                                  .filter(otherInv => {
+                                    if (!otherInv.deliveryDate) return false;
+                                    const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                    const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                    return otherDeliveryDate === deliveryDate && 
+                                           otherClient?.name?.toLowerCase().includes('marbella');
+                                  })
+                                  .forEach(marbellaInv => {
+                                    const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                                    if (marbellaClient) {
+                                      const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                                      let invSubtotal = 0;
+                                      let invPesoSubtotal = 0;
+                                      
+                                      marbellaProducts.forEach(prod => {
+                                        if (prod.name.toLowerCase().includes("peso")) {
+                                          const pesoPrice = productPrices[prod.id];
+                                          if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                                            invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                                          }
+                                        } else {
+                                          const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                                            return sum + (cart.items || [])
+                                              .filter(item => item.productId === prod.id)
+                                              .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                          }, 0);
+                                          const price = productPrices[prod.id];
+                                          if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                        }
+                                      });
+                                      
+                                      marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                                    }
+                                  });
                                 
-                                // Calculate charges
-                                let serviceCharge = 0;
-                                let surchargeValue = 0;
-                                let generalDeliveryChargeValue = 0;
+                                // Calculate Nuevo Subtotal Colinas: if (Colinas + Marbella) < $400, then $400 - (Colinas + Marbella), else $0
+                                const combinedSubtotal = colinasSubtotal + marbellaSubtotal;
+                                const nuevoSubtotalColinas = combinedSubtotal < 400 ? (400 - combinedSubtotal) : 0;
                                 
-                                if (serviceChargeEnabled && Number(serviceChargePercent) > 0) {
-                                  serviceCharge = calculateCharge(
-                                    serviceChargeFormula,
-                                    Number(serviceChargePercent),
-                                    totalForGrandTotal,
-                                    1,
-                                    0
-                                  );
-                                }
-                                
-                                if (surchargeEnabled && Number(surchargePercent) > 0) {
-                                  surchargeValue = calculateCharge(
-                                    surchargeFormula,
-                                    Number(surchargePercent),
-                                    totalForGrandTotal,
-                                    1,
-                                    0
-                                  );
-                                }
-                                
-                                if (generalDeliveryCharge && Number(generalDeliveryCharge) > 0) {
-                                  generalDeliveryChargeValue = calculateCharge(
-                                    generalDeliveryChargeFormula,
-                                    Number(generalDeliveryCharge),
-                                    baseSubtotal,
-                                    1,
-                                    0
-                                  );
-                                }
-                                
-                                // Sum grand total (excluding special delivery charges)
-                                grandTotal += totalForGrandTotal + surchargeValue + serviceCharge + generalDeliveryChargeValue;
+                                // Total Colinas = Original Colinas Subtotal + Nuevo Subtotal Colinas
+                                totalColinasSubtotal += colinasSubtotal + nuevoSubtotalColinas;
                               });
-                            return grandTotal > 0 ? `$${grandTotal.toFixed(2)}` : "";
+                            return totalColinasSubtotal > 0 ? `$${totalColinasSubtotal.toFixed(2)}` : "";
                           })()}
                         </td>
                         {/* Fuel Charge total */}
@@ -3919,10 +4876,103 @@ const BillingPage: React.FC = () => {
                                     subtotalForServiceCharge = minValue;
                                   }
                                   if (fuelChargeEnabled && Number(fuelChargePercent) > 0) {
+                                    // For Colinas clients, use Total amount instead of subtotal
+                                    let fuelChargeBase = subtotalForServiceCharge;
+                                    const client = clients.find(c => c.id === inv.clientId);
+                                    if (client?.name?.toLowerCase().includes('colinas')) {
+                                      // Calculate the Total amount (Colinas Subtotal + Nuevo Subtotal Colinas)
+                                      if (inv.deliveryDate) {
+                                        const deliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
+                                        let colinasSubtotal = 0;
+                                        
+                                        // Calculate Colinas subtotal for same delivery date
+                                        invoices
+                                          .filter(otherInv => {
+                                            if (!otherInv.deliveryDate) return false;
+                                            const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                            const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                            return otherDeliveryDate === deliveryDate && 
+                                                   otherClient?.name?.toLowerCase().includes('colinas');
+                                          })
+                                          .forEach(colinasInv => {
+                                            const colinasClient = clients.find(c => c.id === colinasInv.clientId);
+                                            if (colinasClient) {
+                                              const colinasProducts = allProducts.filter(p => colinasClient.selectedProducts.includes(p.id));
+                                              let invSubtotal = 0;
+                                              let invPesoSubtotal = 0;
+                                              
+                                              colinasProducts.forEach(prod => {
+                                                if (prod.name.toLowerCase().includes("peso")) {
+                                                  const pesoPrice = productPrices[prod.id];
+                                                  if (typeof colinasInv.totalWeight === "number" && pesoPrice > 0) {
+                                                    invPesoSubtotal += colinasInv.totalWeight * pesoPrice;
+                                                  }
+                                                } else {
+                                                  const qty = (colinasInv.carts || []).reduce((sum, cart) => {
+                                                    return sum + (cart.items || [])
+                                                      .filter(item => item.productId === prod.id)
+                                                      .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                                  }, 0);
+                                                  const price = productPrices[prod.id];
+                                                  if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                                }
+                                              });
+                                              
+                                              colinasSubtotal += invSubtotal + invPesoSubtotal;
+                                            }
+                                          });
+                                        
+                                        // Calculate Marbella subtotal for same delivery date
+                                        let marbellaSubtotal = 0;
+                                        invoices
+                                          .filter(otherInv => {
+                                            if (!otherInv.deliveryDate) return false;
+                                            const otherDeliveryDate = new Date(otherInv.deliveryDate!).toISOString().split('T')[0];
+                                            const otherClient = clients.find(c => c.id === otherInv.clientId);
+                                            return otherDeliveryDate === deliveryDate && 
+                                                   otherClient?.name?.toLowerCase().includes('marbella');
+                                          })
+                                          .forEach(marbellaInv => {
+                                            const marbellaClient = clients.find(c => c.id === marbellaInv.clientId);
+                                            if (marbellaClient) {
+                                              const marbellaProducts = allProducts.filter(p => marbellaClient.selectedProducts.includes(p.id));
+                                              let invSubtotal = 0;
+                                              let invPesoSubtotal = 0;
+                                              
+                                              marbellaProducts.forEach(prod => {
+                                                if (prod.name.toLowerCase().includes("peso")) {
+                                                  const pesoPrice = productPrices[prod.id];
+                                                  if (typeof marbellaInv.totalWeight === "number" && pesoPrice > 0) {
+                                                    invPesoSubtotal += marbellaInv.totalWeight * pesoPrice;
+                                                  }
+                                                } else {
+                                                  const qty = (marbellaInv.carts || []).reduce((sum, cart) => {
+                                                    return sum + (cart.items || [])
+                                                      .filter(item => item.productId === prod.id)
+                                                      .reduce((s, item) => s + (Number(item.quantity) || 0), 0);
+                                                  }, 0);
+                                                  const price = productPrices[prod.id];
+                                                  if (qty > 0 && price > 0) invSubtotal += qty * price;
+                                                }
+                                              });
+                                              
+                                              marbellaSubtotal += invSubtotal + invPesoSubtotal;
+                                            }
+                                          });
+                                        
+                                        // Calculate Nuevo Subtotal Colinas and Total
+                                        const combinedSubtotal = colinasSubtotal + marbellaSubtotal;
+                                        const nuevoSubtotalColinas = combinedSubtotal < 400 ? (400 - combinedSubtotal) : 0;
+                                        const totalColinasSubtotal = colinasSubtotal + nuevoSubtotalColinas;
+                                        
+                                        fuelChargeBase = totalColinasSubtotal;
+                                      }
+                                    }
+                                    
                                     total += calculateCharge(
                                       fuelChargeFormula,
                                       Number(fuelChargePercent),
-                                      subtotalForServiceCharge,
+                                      fuelChargeBase,
                                       1,
                                       0
                                     );
@@ -3937,7 +4987,7 @@ const BillingPage: React.FC = () => {
                           <td style={nowrapCellStyle}>
                             {(() => {
                               let total = 0;
-                              const sabanasProd = productColumns.find(
+                              const sabanasProducts = productColumns.filter(
                                 (p) =>
                                   p.name.toLowerCase().includes("sabana") &&
                                   !p.name.toLowerCase().includes("nudo")
@@ -3948,27 +4998,31 @@ const BillingPage: React.FC = () => {
                                 )
                                 .forEach((inv) => {
                                   let sabanasQty = 0;
-                                  if (sabanasProd) {
-                                    sabanasQty = (inv.carts || []).reduce(
-                                      (sum, cart) => {
-                                        return (
-                                          sum +
-                                          (cart.items || [])
-                                            .filter(
-                                              (item) =>
-                                                item.productId ===
-                                                sabanasProd.id
-                                            )
-                                            .reduce(
-                                              (s, item) =>
-                                                s +
-                                                (Number(item.quantity) || 0),
-                                              0
-                                            )
-                                      );
-                                    },
-                                    0
-                                  );
+                                  if (sabanasProducts.length > 0) {
+                                    // Sum up quantities from all sabanas products in this invoice
+                                    sabanasQty = sabanasProducts.reduce((totalQty, sabanasProd) => {
+                                      const productQty = (inv.carts || []).reduce(
+                                        (sum, cart) => {
+                                          return (
+                                            sum +
+                                            (cart.items || [])
+                                              .filter(
+                                                (item) =>
+                                                  item.productId ===
+                                                  sabanasProd.id
+                                              )
+                                              .reduce(
+                                                (s, item) =>
+                                                  s +
+                                                  (Number(item.quantity) || 0),
+                                                0
+                                              )
+                                        );
+                                      },
+                                      0
+                                    );
+                                    return totalQty + productQty;
+                                  }, 0);
                                   }
                                   if (sabanasQty > 0 && Number(nudosSabanasPrice) > 0) {
                                     // Get subtotal for percentage-based calculations
