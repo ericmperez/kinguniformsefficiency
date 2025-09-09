@@ -584,10 +584,25 @@ const BillingPage: React.FC = () => {
       return;
     }
 
-    // Get selected invoices
-    const selectedInvoices = invoices.filter((inv) => 
-      selectedInvoiceIds.includes(inv.id)
-    );
+    // Get selected invoices, filter by date range and sort by delivery date
+    const selectedInvoices = invoices
+      .filter((inv) => selectedInvoiceIds.includes(inv.id))
+      .filter((inv) => {
+        if (!inv.deliveryDate) return false;
+        const invDeliveryDate = new Date(inv.deliveryDate).toISOString().split('T')[0];
+        return invDeliveryDate >= startDate && invDeliveryDate <= endDate;
+      })
+      .sort((a, b) => {
+        const dateA = a.deliveryDate ? new Date(a.deliveryDate) : new Date(0);
+        const dateB = b.deliveryDate ? new Date(b.deliveryDate) : new Date(0);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+    // Check if any invoices remain after filtering
+    if (selectedInvoices.length === 0) {
+      alert(`No invoices found with delivery dates between ${startDate} and ${endDate}. Please adjust your date range or check that selected invoices have delivery dates.`);
+      return;
+    }
 
     // Define CSV row type
     type CSVRow = {
@@ -829,6 +844,11 @@ const BillingPage: React.FC = () => {
       csvRow["Locked By"] = inv.lockedBy || "";
       csvRow["Locked At"] = inv.lockedAt ? new Date(inv.lockedAt).toLocaleString() : "";
       
+      // Add Special Service as the last column - show price if requested, blank if not
+      csvRow["Special Service"] = inv.specialServiceRequested && deliveryChargeValue > 0 
+        ? `$${deliveryChargeValue.toFixed(2)}` 
+        : "";
+      
       return csvRow;
     });
 
@@ -888,10 +908,25 @@ const BillingPage: React.FC = () => {
       return;
     }
 
-    // Get selected invoices
-    const selectedInvoices = invoices.filter((inv) => 
-      selectedInvoiceIds.includes(inv.id)
-    );
+    // Get selected invoices, filter by date range and sort by delivery date
+    const selectedInvoices = invoices
+      .filter((inv) => selectedInvoiceIds.includes(inv.id))
+      .filter((inv) => {
+        if (!inv.deliveryDate) return false;
+        const invDeliveryDate = new Date(inv.deliveryDate).toISOString().split('T')[0];
+        return invDeliveryDate >= startDate && invDeliveryDate <= endDate;
+      })
+      .sort((a, b) => {
+        const dateA = a.deliveryDate ? new Date(a.deliveryDate) : new Date(0);
+        const dateB = b.deliveryDate ? new Date(b.deliveryDate) : new Date(0);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+    // Check if any invoices remain after filtering
+    if (selectedInvoices.length === 0) {
+      alert(`No invoices found with delivery dates between ${startDate} and ${endDate}. Please adjust your date range or check that selected invoices have delivery dates.`);
+      return;
+    }
 
     // Define CSV row type
     type ReportsCSVRow = {
@@ -1022,7 +1057,9 @@ const BillingPage: React.FC = () => {
         
         return {
           "Boleta": invoiceNumberWithIndicator,
-          "Special Service": inv.specialServiceRequested ? "YES" : "NO",
+          "Special Service": inv.specialServiceRequested && deliveryChargeValue > 0 
+            ? `$${deliveryChargeValue.toFixed(2)}` 
+            : "",
           "Total": `$${grandTotal.toFixed(2)}`
         };
       });
@@ -1267,6 +1304,11 @@ const BillingPage: React.FC = () => {
         // Add total
         csvRow["Total"] = `$${grandTotal.toFixed(2)}`;
         
+        // Add Special Service as the last column - show price if requested, blank if not
+        csvRow["Special Service"] = inv.specialServiceRequested && deliveryChargeValue > 0 
+          ? `$${deliveryChargeValue.toFixed(2)}` 
+          : "";
+        
         return csvRow;
       });
 
@@ -1492,6 +1534,11 @@ const BillingPage: React.FC = () => {
         
         // Add total
         csvRow["Total"] = `$${grandTotal.toFixed(2)}`;
+        
+        // Add Special Service as the last column - show price if requested, blank if not
+        csvRow["Special Service"] = inv.specialServiceRequested && deliveryChargeValue > 0 
+          ? `$${deliveryChargeValue.toFixed(2)}` 
+          : "";
         
         return csvRow;
       });
@@ -1795,6 +1842,11 @@ const BillingPage: React.FC = () => {
       if (nudosSabanasCharge > 0) csvRow["Nudos (Sabanas)"] = `$${nudosSabanasCharge.toFixed(2)}`;
       if (disposableFeeValue > 0) csvRow["Disposable Fee"] = `$${disposableFeeValue.toFixed(2)}`;
       if (deliveryChargeValue > 0) csvRow["Special Delivery"] = `$${deliveryChargeValue.toFixed(2)}`;
+      
+      // Add Special Service as the last column
+      csvRow["Special Service"] = inv.specialServiceRequested && deliveryChargeValue > 0 
+        ? `$${deliveryChargeValue.toFixed(2)}` 
+        : "";
       
       return csvRow;
     });
