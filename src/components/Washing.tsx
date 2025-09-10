@@ -175,6 +175,11 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   const [lintCollectorDoneToday, setLintCollectorDoneToday] = useState(false);
   const todayStr = new Date().toISOString().slice(0, 10);
 
+  // 90-second timer restriction for + button
+  const [lastButtonPressTime, setLastButtonPressTime] = useState<number | null>(null);
+  const [timerRemaining, setTimerRemaining] = useState<number>(0);
+  const [showTimer, setShowTimer] = useState<boolean>(false);
+
   // Subscribe to last 3 completions (live)
   useEffect(() => {
     try {
@@ -273,6 +278,40 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     
     return () => clearTimeout(midnightTimeout);
   }, []);
+
+  // 90-second timer management
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (lastButtonPressTime && !canReorder) {
+      const updateTimer = () => {
+        const now = Date.now();
+        const elapsed = now - lastButtonPressTime;
+        const remaining = Math.max(0, 90000 - elapsed); // 90 seconds in milliseconds
+        
+        setTimerRemaining(Math.ceil(remaining / 1000)); // Convert to seconds
+        
+        if (remaining <= 0) {
+          setShowTimer(false);
+          setLastButtonPressTime(null);
+          if (interval) {
+            clearInterval(interval);
+            interval = null;
+          }
+        }
+      };
+      
+      updateTimer();
+      setShowTimer(true);
+      interval = setInterval(updateTimer, 1000);
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [lastButtonPressTime, canReorder]);
 
   // Check if user can edit the alert banner
   const canEdit = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
@@ -1578,6 +1617,29 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     }
   };
 
+  // Helper function to check if + button should be disabled due to timer
+  const isButtonDisabledByTimer = () => {
+    if (canReorder) return false; // Supervisors and above can always use the button
+    if (!lastButtonPressTime) return false; // No previous press, button is available
+    
+    const now = Date.now();
+    const elapsed = now - lastButtonPressTime;
+    return elapsed < 90000; // 90 seconds in milliseconds
+  };
+
+  // Helper function to handle + button press with timer logic
+  const handlePlusButtonPress = async (callback: () => Promise<void>) => {
+    if (isButtonDisabledByTimer()) return;
+    
+    // Execute the callback function
+    await callback();
+    
+    // Set the timer for non-supervisors
+    if (!canReorder) {
+      setLastButtonPressTime(Date.now());
+    }
+  };
+
   return (
     <div className="container py-4">
       {/* Alert Banner */}
@@ -2149,6 +2211,24 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   >
                                     {cartCounter} / {maxCarts}
                                   </span>
+                                  {/* Timer display for non-supervisor users */}
+                                  {showTimer && !canReorder && (
+                                    <div
+                                      style={{
+                                        fontSize: "0.9rem",
+                                        color: "#dc3545",
+                                        fontWeight: 600,
+                                        padding: "4px 8px",
+                                        backgroundColor: "#fff3cd",
+                                        border: "1px solid #ffc107",
+                                        borderRadius: "4px",
+                                        minWidth: "60px",
+                                        textAlign: "center"
+                                      }}
+                                    >
+                                      🕐 {timerRemaining}s
+                                    </div>
+                                  )}
                                   <button
                                     className="btn btn-outline-primary btn-lg"
                                     style={{
@@ -2160,22 +2240,26 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     disabled={
                                       cartCounter >= maxCarts ||
                                       !canVerify ||
-                                      Boolean(rowControlsDisabled)
+                                      Boolean(rowControlsDisabled) ||
+                                      isButtonDisabledByTimer()
                                     }
                                     onClick={async () => {
-                                      if (!canVerify || rowControlsDisabled) return;
-                                      const newCount = Math.min(
-                                        cartCounter + 1,
-                                        maxCarts
-                                      );
-                                      setCartCounters((prev) => ({
-                                        ...prev,
-                                        [group.id]: newCount,
-                                      }));
-                                      await updateDoc(
-                                        doc(db, "pickup_groups", group.id),
-                                        { tunnelCartCount: newCount }
-                                      );
+                                      if (!canVerify || rowControlsDisabled || isButtonDisabledByTimer()) return;
+                                      
+                                      await handlePlusButtonPress(async () => {
+                                        const newCount = Math.min(
+                                          cartCounter + 1,
+                                          maxCarts
+                                        );
+                                        setCartCounters((prev) => ({
+                                          ...prev,
+                                          [group.id]: newCount,
+                                        }));
+                                        await updateDoc(
+                                          doc(db, "pickup_groups", group.id),
+                                          { tunnelCartCount: newCount }
+                                        );
+                                      });
                                     }}
                                   >
                                     +
@@ -2622,6 +2706,24 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                   >
                                     {cartCounter} / {getSegregatedCarts(group)}
                                   </span>
+                                  {/* Timer display for non-supervisor users */}
+                                  {showTimer && !canReorder && (
+                                    <div
+                                      style={{
+                                        fontSize: "0.9rem",
+                                        color: "#dc3545",
+                                        fontWeight: 600,
+                                        padding: "4px 8px",
+                                        backgroundColor: "#fff3cd",
+                                        border: "1px solid #ffc107",
+                                        borderRadius: "4px",
+                                        minWidth: "60px",
+                                        textAlign: "center"
+                                      }}
+                                    >
+                                      🕐 {timerRemaining}s
+                                    </div>
+                                  )}
                                   <button
                                     className="btn btn-outline-primary btn-lg"
                                     style={{
@@ -2633,38 +2735,42 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
                                     disabled={
                                       cartCounter >= getSegregatedCarts(group) ||
                                       !canVerify ||
-                                      Boolean(rowControlsDisabled)
+                                      Boolean(rowControlsDisabled) ||
+                                      isButtonDisabledByTimer()
                                     }
                                     onClick={async () => {
-                                      if (!canVerify || rowControlsDisabled) return;
-                                      const newCount = Math.min(
-                                        cartCounter + 1,
-                                        getSegregatedCarts(group)
-                                      );
+                                      if (!canVerify || rowControlsDisabled || isButtonDisabledByTimer()) return;
                                       
-                                      // Record button press for rapid press detection
-                                      try {
-                                        await tunnelCartAlertService.recordButtonPress(
-                                          group.id,
-                                          group.clientName,
-                                          'increment',
-                                          user?.username || 'Unknown User',
-                                          newCount
+                                      await handlePlusButtonPress(async () => {
+                                        const newCount = Math.min(
+                                          cartCounter + 1,
+                                          getSegregatedCarts(group)
                                         );
-                                      } catch (alertError) {
-                                        console.error("Failed to record tunnel cart button press:", alertError);
-                                      }
-                                      
-                                      setCartCounters((prev) => ({
-                                        ...prev,
-                                        [group.id]: newCount,
-                                      }));
-                                      await updateDoc(
-                                        doc(db, "pickup_groups", group.id),
-                                        {
-                                          tunnelCartCount: newCount,
+                                        
+                                        // Record button press for rapid press detection
+                                        try {
+                                          await tunnelCartAlertService.recordButtonPress(
+                                            group.id,
+                                            group.clientName,
+                                            'increment',
+                                            user?.username || 'Unknown User',
+                                            newCount
+                                          );
+                                        } catch (alertError) {
+                                          console.error("Failed to record tunnel cart button press:", alertError);
                                         }
-                                      );
+                                        
+                                        setCartCounters((prev) => ({
+                                          ...prev,
+                                          [group.id]: newCount,
+                                        }));
+                                        await updateDoc(
+                                          doc(db, "pickup_groups", group.id),
+                                          {
+                                            tunnelCartCount: newCount,
+                                          }
+                                        );
+                                      });
                                     }}
                                   >
                                     +

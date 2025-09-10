@@ -165,6 +165,10 @@ const Segregation: React.FC<SegregationProps> = ({
   const getCartCount = (groupId: string) =>
     entries.filter((e) => e.groupId === groupId).length;
 
+  // Helper: get actual cart IDs for a group
+  const getCartIds = (groupId: string) =>
+    entries.filter((e) => e.groupId === groupId).map((e) => e.cartId || "").filter(id => id.trim() !== "");
+
   // Helper: get expected verification value for a group
   const getExpectedVerificationValue = (
     group: any,
@@ -207,11 +211,13 @@ const Segregation: React.FC<SegregationProps> = ({
   const [cartsVerified, setCartsVerified] = useState<boolean>(false);
   const [showActualCarts, setShowActualCarts] = useState<boolean>(false);
 
-  // NEW: Cart count verification system
+  // NEW: Individual Cart ID verification system
   const [verificationStarted, setVerificationStarted] =
     useState<boolean>(false);
   const [verifyingClient, setVerifyingClient] = useState<string | null>(null);
-  const [expectedCartCount, setExpectedCartCount] = useState<string>("");
+  const [cartIdInputs, setCartIdInputs] = useState<{[groupId: string]: string[]}>({});
+  const [verifiedCartIds, setVerifiedCartIds] = useState<{[groupId: string]: Set<string>}>({});
+  const [currentCartInput, setCurrentCartInput] = useState<string>("");
   const [showVerificationError, setShowVerificationError] =
     useState<boolean>(false);
   const [verificationErrorUser, setVerificationErrorUser] =
@@ -224,8 +230,7 @@ const Segregation: React.FC<SegregationProps> = ({
       id: string;
       username: string;
       clientName: string;
-      expectedCount: string;
-      actualCount: number;
+      errorMessage: string;
       timestamp: Date;
     }>
   >([]);
@@ -1372,7 +1377,14 @@ const Segregation: React.FC<SegregationProps> = ({
 
   const startClientVerification = (groupId: string) => {
     setVerifyingClient(groupId);
-    setExpectedCartCount("");
+    setCurrentCartInput("");
+    // Initialize verified cart IDs set if it doesn't exist
+    if (!verifiedCartIds[groupId]) {
+      setVerifiedCartIds(prev => ({
+        ...prev,
+        [groupId]: new Set()
+      }));
+    }
   };
 
   // Get the current client that should be worked on
@@ -1398,17 +1410,13 @@ const Segregation: React.FC<SegregationProps> = ({
     return false;
   };
 
-  const sendVerificationErrorEmail = async (
+  const sendCartIdVerificationErrorEmail = async (
     groupId: string,
-    expectedCount: string,
-    actualCount: number,
+    clientName: string,
+    errorMessage: string,
     username: string
   ) => {
     try {
-      // Find the group and client name
-      const group = displayGroups.find((g) => g.id === groupId);
-      const clientName = group?.clientName || "Unknown Client";
-
       // Send email notification to the backend server running on port 3001
       const response = await fetch(
         "http://localhost:3001/api/send-verification-error-email",
@@ -1419,113 +1427,165 @@ const Segregation: React.FC<SegregationProps> = ({
           },
           body: JSON.stringify({
             clientName,
-            expectedCount,
-            actualCount,
+            errorMessage,
             username,
+            verificationType: "Cart ID Verification",
             date: new Date().toISOString(),
           }),
         }
       );
 
       if (!response.ok) {
-        console.error("Failed to send verification error email");
+        console.error("Failed to send cart ID verification error email");
       }
 
       // Log the verification error
       await logActivity({
-        type: "Cart Verification Error",
-        message: `${username} incorrectly counted carts for ${clientName}. Expected: ${expectedCount}, Actual: ${actualCount}`,
+        type: "Cart ID Verification Error",
+        message: `${username} failed cart ID verification for ${clientName}: ${errorMessage}`,
         user: username,
       });
     } catch (error) {
-      console.error("Error sending verification error email:", error);
+      console.error("Error sending cart ID verification error email:", error);
     }
   };
 
-  const verifyCartCount = async (groupId: string) => {
-    const actualCount = getCartCount(groupId);
-    const expectedCount = parseInt(expectedCartCount, 10);
+  const verifyIndividualCart = async (groupId: string, cartId: string) => {
+    const actualCartIds = getCartIds(groupId);
     const group = displayGroups.find((g) => g.id === groupId);
+    const clientName = group?.clientName || "Unknown Client";
+    const trimmedCartId = cartId.trim();
 
-    if (expectedCount !== actualCount) {
-      // Verification failed - create error record
-      const clientName = group?.clientName || "Unknown Client";
-      const errorRecord = {
-        id: Date.now().toString(),
-        username: user?.username || "Unknown User",
-        clientName,
-        expectedCount: expectedCartCount,
-        actualCount,
-        timestamp: new Date(),
-      };
-
-      // Add to verification errors list
-      setVerificationErrors((prev) => [errorRecord, ...prev]);
-
-      // Persist failure to Firestore for supervisor visibility
-      try {
-        await addDoc(collection(db, "verificationFailures"), {
-          username: errorRecord.username,
-          clientName: errorRecord.clientName,
-          expectedCount: errorRecord.expectedCount,
-          actualCount: errorRecord.actualCount,
-          groupId,
-          timestamp: new Date().toISOString(),
-        });
-        
-        // Create system alert for this error
-        await AlertService.createSegregationErrorAlert(
-          clientName,
-          errorRecord.username,
-          expectedCount,
-          actualCount,
-          groupId
-        );
-      } catch (e) {
-        console.error("❌ Failed to log verification failure to Firestore:", e);
-      }
-
-      // Show full screen red alert and errors sidebar
-      setShowVerificationError(true);
-      setVerificationErrorUser(user?.username || "Unknown User");
-      setShowErrorsSidebar(true);
-
-      // Send error email
-      await sendVerificationErrorEmail(
-        groupId,
-        expectedCartCount,
-        actualCount,
-        user?.username || "Unknown User"
-      );
-
-      // Reset verification state
-      setVerifyingClient(null);
-      setExpectedCartCount("");
+    // Check if cart ID is empty
+    if (!trimmedCartId) {
       return false;
-    } else {
-      // Verification succeeded
+    }
+
+    // Check if cart ID is valid
+    if (!actualCartIds.includes(trimmedCartId)) {
+      const errorMessage = `Cart ID "${trimmedCartId}" not found in group ${clientName}`;
+      console.error(`🚨 INVALID CART ID: ${errorMessage}`);
+      // Show error immediately - instant feedback
+      createVerificationError(groupId, clientName, errorMessage);
+      return false;
+    }
+
+    // Check if cart ID is already verified
+    const currentVerified = verifiedCartIds[groupId] || new Set();
+    if (currentVerified.has(trimmedCartId)) {
+      const errorMessage = `Cart ID "${trimmedCartId}" has already been verified`;
+      console.error(`🚨 DUPLICATE CART ID: ${errorMessage}`);
+      // Show error immediately - instant feedback
+      createVerificationError(groupId, clientName, errorMessage);
+      return false;
+    }
+
+    // Add to verified cart IDs
+    setVerifiedCartIds(prev => ({
+      ...prev,
+      [groupId]: new Set([...(prev[groupId] || new Set()), trimmedCartId])
+    }));
+
+    // Clear current input
+    setCurrentCartInput("");
+
+    // Check if all carts are now verified
+    const newVerifiedCount = (currentVerified.size + 1);
+    const totalCartsNeeded = actualCartIds.length;
+    
+    console.log(`✅ Cart "${trimmedCartId}" verified for ${clientName} (${newVerifiedCount}/${totalCartsNeeded})`);
+
+    // If all carts are verified, mark client as completely verified
+    if (newVerifiedCount === totalCartsNeeded) {
       setVerifiedClients((prev) => new Set([...prev, groupId]));
       setVerifyingClient(null);
-      setExpectedCartCount("");
-      setShowVerificationError(false);
-      setVerificationErrorUser("");
-
-      // Save verification status to Firestore for persistence across sessions
+      
+      // Save verification status to Firestore
       await updateDoc(doc(db, "pickup_groups", groupId), {
         cartCountVerified: true,
         verifiedAt: new Date().toISOString(),
         verifiedBy: user?.username || user?.id || "Unknown User",
-        verifiedCartCount: actualCount,
+        verifiedCartCount: totalCartsNeeded,
+        verifiedCartIds: Array.from(new Set([...(currentVerified || new Set()), trimmedCartId])),
       });
 
       // Initialize segregated count to 0 for the verified client
       setSegregatedCounts((prev) => ({ ...prev, [groupId]: "0" }));
-
-      // Don't move the client - keep them in their current position but now verified (green)
-      console.log(`✅ Client ${group?.clientName} verified and ready for segregation - status saved to Firestore`);
-
-      return true;
+      
+      console.log(`🎉 All carts verified for ${clientName}! Ready for segregation.`);
     }
+
+    return true;
+  };
+
+  const completeClientVerification = (groupId: string) => {
+    setVerifyingClient(null);
+    setCurrentCartInput("");
+  };
+
+  const createVerificationError = (groupId: string, clientName: string, errorMessage: string) => {
+    const errorRecord = {
+      id: Date.now().toString(),
+      username: user?.username || "Unknown User",
+      clientName,
+      errorMessage,
+      timestamp: new Date(),
+    };
+
+    // 🚀 INSTANT UI FEEDBACK - Zero delay error display
+    console.error(`🚨 VERIFICATION ERROR: ${errorMessage}`);
+    
+    // Update all UI state synchronously for instant feedback
+    setVerificationErrors((prev) => [errorRecord, ...prev]);
+    setShowVerificationError(true);
+    setVerificationErrorUser(user?.username || "Unknown User");
+    setShowErrorsSidebar(true);
+    setCurrentCartInput("");
+
+    // 🔄 BACKGROUND OPERATIONS - Fire and forget for maximum speed
+    // Use setTimeout to ensure UI updates happen first, then background tasks
+    setTimeout(() => {
+      Promise.all([
+        // Firestore logging
+        addDoc(collection(db, "verificationFailures"), {
+          username: errorRecord.username,
+          clientName: errorRecord.clientName,
+          errorMessage: errorRecord.errorMessage,
+          groupId,
+          timestamp: new Date().toISOString(),
+        }).catch(e => {
+          console.error("❌ Failed to log verification failure to Firestore:", e);
+        }),
+        
+        // System alert creation
+        AlertService.createAlert({
+          type: 'segregation_error',
+          severity: 'high',
+          title: 'Cart ID Verification Error',
+          message: `${errorRecord.username} failed cart ID verification for ${clientName}: ${errorMessage}`,
+          component: 'Segregation',
+          userName: errorRecord.username,
+          triggerData: { groupId, clientName, errorMessage },
+          createdBy: 'System'
+        }).catch(e => {
+          console.error("❌ Failed to create system alert:", e);
+        }),
+        
+        // Email notification
+        sendCartIdVerificationErrorEmail(
+          groupId,
+          clientName,
+          errorMessage,
+          user?.username || "Unknown User"
+        ).catch(e => {
+          console.error("❌ Failed to send verification error email:", e);
+        })
+      ]).then(() => {
+        console.log("✅ All verification error background operations completed");
+      }).catch(e => {
+        console.error("❌ Some verification error background operations failed:", e);
+      });
+    }, 0);
   };
 
   const resetVerificationError = () => {
@@ -1630,8 +1690,7 @@ const Segregation: React.FC<SegregationProps> = ({
                 color: "#721c24",
               }}
             >
-              <strong>{verificationErrorUser}</strong> provided incorrect cart
-              count
+              <strong>{verificationErrorUser}</strong> entered an invalid cart ID
             </div>
             <div
               style={{
@@ -1758,16 +1817,7 @@ const Segregation: React.FC<SegregationProps> = ({
                         marginBottom: "5px",
                       }}
                     >
-                      <strong>Expected:</strong> {error.expectedCount} carts
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "#721c24",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <strong>Actual:</strong> {error.actualCount} carts
+                      <strong>Error:</strong> {error.errorMessage}
                     </div>
                     <div style={{ fontSize: "12px", color: "#666" }}>
                       {error.timestamp.toLocaleString()}
@@ -1807,7 +1857,7 @@ const Segregation: React.FC<SegregationProps> = ({
         style={{
           width: "100vw",
           height: "100vh",
-          background: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)",
+          background: "linear-gradient(135deg, #721e1e 0%, #982a2a 100%)",
           position: "relative",
           overflow: "auto",
         }}
@@ -1857,8 +1907,8 @@ const Segregation: React.FC<SegregationProps> = ({
             width: "100%",
             height: "100%",
             padding: "80px 20px 20px 20px",
-            background: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(10px)",
+            background: "rgba(255, 255, 255, 0.1)",
+            backdropFilter: "blur(5px)",
             overflowY: "auto",
           }}
         >
@@ -1871,13 +1921,14 @@ const Segregation: React.FC<SegregationProps> = ({
           <div
             style={{
               width: "100%",
-              background: "#f3f4f6",
-              borderBottom: "2px solid #d1d5db",
+              background: "rgba(243, 244, 246, 0.3)",
+              borderBottom: "2px solid rgba(209, 213, 219, 0.5)",
               padding: "8px 0",
               textAlign: "center",
               position: "sticky",
               top: 0,
               zIndex: 1000,
+              backdropFilter: "blur(5px)",
             }}
           >
             <span>Loading...</span>
@@ -1886,16 +1937,17 @@ const Segregation: React.FC<SegregationProps> = ({
           <div
             style={{
               width: "100%",
-              background: alertMessage ? "#fef3c7" : "#f3f4f6",
+              background: alertMessage ? "rgba(254, 243, 199, 0.3)" : "rgba(243, 244, 246, 0.3)",
               borderBottom: alertMessage
-                ? "2px solid #f59e0b"
-                : "2px solid #d1d5db",
+                ? "2px solid rgba(245, 158, 11, 0.5)"
+                : "2px solid rgba(209, 213, 219, 0.5)",
               padding: "12px 0",
               textAlign: "center",
               position: "sticky",
               top: 0,
               zIndex: 1000,
               marginBottom: "16px",
+              backdropFilter: "blur(5px)",
               display:
                 !alertMessage && !canEdit && !isEditingAlert ? "none" : "block",
             }}
@@ -1968,10 +2020,11 @@ const Segregation: React.FC<SegregationProps> = ({
 
         {/* Summary Section */}
         <div
-          className="mb-4 p-4 shadow-lg rounded border bg-light"
+          className="mb-4 p-4 shadow-lg rounded border"
           style={{
-            backgroundColor: "#f8f9fa",
-            borderColor: "#dee2e6",
+            backgroundColor: "rgba(255, 255, 255, 0.2)",
+            borderColor: "rgba(255, 255, 255, 0.3)",
+            backdropFilter: "blur(10px)",
           }}
         >
           <h4
@@ -2205,16 +2258,7 @@ const Segregation: React.FC<SegregationProps> = ({
                             marginBottom: "5px",
                           }}
                         >
-                          <strong>Expected:</strong> {error.expectedCount} carts
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "14px",
-                            color: "#721c24",
-                            marginBottom: "5px",
-                          }}
-                        >
-                          <strong>Actual:</strong> {error.actualCount} carts
+                          <strong>Error:</strong> {error.errorMessage}
                         </div>
                         <div
                           style={{
@@ -2339,8 +2383,8 @@ const Segregation: React.FC<SegregationProps> = ({
               maxWidth: 720,
               minWidth: 320,
               width: "100%",
-              background: "#f8f9fa",
-              border: "2px solid #0E62A0",
+              background: "rgba(255, 255, 255, 0.15)",
+              border: "2px solid rgba(255, 255, 255, 0.3)",
               borderRadius: 16,
               boxShadow: "0 4px 16px rgba(14,98,160,0.10)",
               padding: "2rem 1rem 1.5rem 1rem",
@@ -2349,6 +2393,7 @@ const Segregation: React.FC<SegregationProps> = ({
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              backdropFilter: "blur(10px)",
             }}
           >
             <h4
@@ -2575,37 +2620,169 @@ const Segregation: React.FC<SegregationProps> = ({
                                   ?
                                 </button>
                               ) : (
-                                <div className="d-flex align-items-center gap-2">
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    className="form-control form-control-sm"
-                                    style={{ width: 110, maxWidth: "100%" }}
-                                    placeholder="How many carts did you count?"
-                                    value={expectedCartCount}
-                                    onChange={(e) =>
-                                      setExpectedCartCount(e.target.value)
-                                    }
-                                    autoFocus
-                                  />
-                                  <button
-                                    className="btn btn-primary btn-sm ms-2"
-                                    onClick={() =>
-                                      verifyCartCount(currentClient.id)
-                                    }
-                                    disabled={!expectedCartCount}
-                                  >
-                                    Verify
-                                  </button>
-                                  <button
-                                    className="btn btn-secondary btn-sm ms-2"
-                                    onClick={() => {
-                                      setVerifyingClient(null);
-                                      setExpectedCartCount("");
+                                <div className="w-100">
+                                  {/* Status Header */}
+                                  <div
+                                    style={{
+                                      marginBottom: "20px",
+                                      padding: "15px",
+                                      background: "#e3f2fd",
+                                      border: "2px solid #2196f3",
+                                      borderRadius: "12px",
+                                      textAlign: "center"
                                     }}
                                   >
-                                    Cancel
-                                  </button>
+                                    <div style={{ fontSize: "18px", fontWeight: "700", color: "#1976d2", marginBottom: "8px" }}>
+                                      🔍 Verify Carts Individually
+                                    </div>
+                                    <div style={{ fontSize: "20px", fontWeight: "800", color: "#0d47a1", marginBottom: "8px", textShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>
+                                      {currentClient.clientName}
+                                    </div>
+                                    <div style={{ 
+                                      fontSize: "18px", 
+                                      color: "#333",
+                                      fontWeight: "600",
+                                      background: "linear-gradient(135deg, rgba(248, 249, 250, 0.3) 0%, rgba(233, 236, 239, 0.3) 100%)",
+                                      padding: "12px 16px",
+                                      borderRadius: "8px",
+                                      border: "2px solid rgba(222, 226, 230, 0.4)",
+                                      backdropFilter: "blur(5px)",
+                                      textAlign: "center",
+                                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                                    }}>
+                                      Progress: <span style={{ 
+                                        fontSize: "32px", 
+                                        fontWeight: "900", 
+                                        color: "#0d47a1",
+                                        textShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                                        marginLeft: "8px"
+                                      }}>
+                                        {(verifiedCartIds[currentClient.id] || new Set()).size}
+                                      </span>
+                                      <span style={{ fontSize: "24px", color: "#666", margin: "0 4px" }}>/</span>
+                                      <span style={{ 
+                                        fontSize: "32px", 
+                                        fontWeight: "900", 
+                                        color: "#0d47a1",
+                                        textShadow: "0 1px 2px rgba(0,0,0,0.2)"
+                                      }}>
+                                        {getCartCount(currentClient.id)}
+                                      </span>
+                                      <span style={{ fontSize: "18px", color: "#333", marginLeft: "8px" }}>carts verified</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Verified Carts Display */}
+                                  {(verifiedCartIds[currentClient.id] || new Set()).size > 0 && (
+                                    <div
+                                      style={{
+                                        marginBottom: "20px",
+                                        padding: "12px",
+                                        background: "#d4edda",
+                                        border: "2px solid #28a745",
+                                        borderRadius: "8px"
+                                      }}
+                                    >
+                                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#155724", marginBottom: "8px" }}>
+                                        ✅ Verified Cart IDs:
+                                      </div>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                        {Array.from(verifiedCartIds[currentClient.id] || new Set()).map(cartId => (
+                                          <span
+                                            key={cartId}
+                                            style={{
+                                              background: "#28a745",
+                                              color: "#fff",
+                                              padding: "4px 8px",
+                                              borderRadius: "4px",
+                                              fontSize: "12px",
+                                              fontWeight: "600"
+                                            }}
+                                          >
+                                            {cartId}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Single Cart Input */}
+                                  <div
+                                    style={{
+                                      marginBottom: "20px",
+                                      padding: "15px",
+                                      background: "rgba(248, 249, 250, 0.3)",
+                                      border: "2px solid rgba(222, 226, 230, 0.4)",
+                                      borderRadius: "8px",
+                                      backdropFilter: "blur(5px)"
+                                    }}
+                                  >
+                                    <label
+                                      style={{
+                                        fontSize: "14px",
+                                        fontWeight: "600",
+                                        color: "#666",
+                                        marginBottom: "8px",
+                                        display: "block"
+                                      }}
+                                    >
+                                      Enter Cart ID for <strong style={{ color: "#0d47a1" }}>{currentClient.clientName}</strong>:
+                                    </label>
+                                    <div className="d-flex align-items-center gap-2">
+                                      <input
+                                        type="text"
+                                        className="form-control"
+                                        placeholder="Scan or type cart ID"
+                                        value={currentCartInput}
+                                        onChange={(e) => setCurrentCartInput(e.target.value)}
+                                        onKeyPress={(e) => {
+                                          if (e.key === 'Enter' && currentCartInput.trim()) {
+                                            verifyIndividualCart(currentClient.id, currentCartInput);
+                                          }
+                                        }}
+                                        style={{
+                                          fontSize: "24px",
+                                          padding: "20px 24px",
+                                          fontWeight: "600",
+                                          minHeight: "60px"
+                                        }}
+                                        autoFocus
+                                      />
+                                      <button
+                                        className="btn btn-success btn-lg"
+                                        onClick={() => verifyIndividualCart(currentClient.id, currentCartInput)}
+                                        disabled={!currentCartInput.trim()}
+                                        style={{
+                                          fontSize: "28px",
+                                          fontWeight: "700",
+                                          padding: "20px 30px",
+                                          minWidth: "180px",
+                                          minHeight: "70px"
+                                        }}
+                                      >
+                                        ✅ Verify
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  <div className="text-center">
+                                    <button
+                                      className="btn btn-secondary btn-lg"
+                                      onClick={() => {
+                                        setVerifyingClient(null);
+                                        setCurrentCartInput("");
+                                      }}
+                                      style={{
+                                        fontSize: "20px",
+                                        fontWeight: "700",
+                                        padding: "16px 40px",
+                                        borderRadius: "8px"
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
                                 </div>
                               )
                             ) : (
@@ -2738,12 +2915,14 @@ const Segregation: React.FC<SegregationProps> = ({
                               style={{
                                 fontWeight: 700,
                                 fontSize: isVerified ? 32 : 28, // Bigger font for verified clients
-                                color: isVerified ? "#27ae60" : "#6c757d", // Green for verified, gray for unverified
+                                color: isVerified ? "#27ae60" : isVerifying ? "#2196f3" : "#6c757d", // Green for verified, blue for verifying, gray for unverified
                                 marginBottom: 4,
                               }}
                             >
                               {isVerified ? (
                                 `🟢 ${group.clientName}` // Show actual name for verified clients
+                              ) : isVerifying ? (
+                                `🔍 ${group.clientName}` // Show actual name for client being verified
                               ) : idx === 0 ? (
                                 group.clientName // Show actual name for the first client (even if unverified)
                               ) : (
@@ -2811,37 +2990,157 @@ const Segregation: React.FC<SegregationProps> = ({
                                   ?
                                 </button>
                               ) : (
-                                <div className="d-flex align-items-center gap-2">
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    className="form-control form-control-sm"
-                                    style={{ width: 110, maxWidth: "100%" }}
-                                    placeholder="How many carts did you count?"
-                                    value={expectedCartCount}
-                                    onChange={(e) =>
-                                      setExpectedCartCount(e.target.value)
-                                    }
-                                    autoFocus
-                                  />
-                                  <button
-                                    className="btn btn-primary btn-sm ms-2"
-                                    onClick={() =>
-                                      verifyCartCount(group.id)
-                                    }
-                                    disabled={!expectedCartCount}
-                                  >
-                                    Verify
-                                  </button>
-                                  <button
-                                    className="btn btn-secondary btn-sm ms-2"
-                                    onClick={() => {
-                                      setVerifyingClient(null);
-                                      setExpectedCartCount("");
+                                <div className="w-100" style={{ maxWidth: "500px" }}>
+                                  {/* Status Header */}
+                                  <div
+                                    style={{
+                                      marginBottom: "15px",
+                                      padding: "12px",
+                                      background: "#e3f2fd",
+                                      border: "2px solid #2196f3",
+                                      borderRadius: "8px",
+                                      textAlign: "center"
                                     }}
                                   >
-                                    Cancel
-                                  </button>
+                                    <div style={{ fontSize: "14px", fontWeight: "600", color: "#1976d2", marginBottom: "5px" }}>
+                                      🔍 Verify Individual Carts
+                                    </div>
+                                    <div style={{ fontSize: "16px", fontWeight: "700", color: "#0d47a1", marginBottom: "8px" }}>
+                                      {group.clientName}
+                                    </div>
+                                    <div style={{ 
+                                      fontSize: "16px", 
+                                      color: "#333",
+                                      fontWeight: "600",
+                                      background: "linear-gradient(135deg, rgba(248, 249, 250, 0.3) 0%, rgba(233, 236, 239, 0.3) 100%)",
+                                      padding: "10px 14px",
+                                      borderRadius: "6px",
+                                      border: "2px solid rgba(222, 226, 230, 0.4)",
+                                      backdropFilter: "blur(5px)",
+                                      textAlign: "center",
+                                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                                    }}>
+                                      Progress: <span style={{ 
+                                        fontSize: "28px", 
+                                        fontWeight: "900", 
+                                        color: "#0d47a1",
+                                        textShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                                        marginLeft: "6px"
+                                      }}>
+                                        {(verifiedCartIds[group.id] || new Set()).size}
+                                      </span>
+                                      <span style={{ fontSize: "20px", color: "#666", margin: "0 3px" }}>/</span>
+                                      <span style={{ 
+                                        fontSize: "28px", 
+                                        fontWeight: "900", 
+                                        color: "#0d47a1",
+                                        textShadow: "0 1px 2px rgba(0,0,0,0.2)"
+                                      }}>
+                                        {getCartCount(group.id)}
+                                      </span>
+                                      <span style={{ fontSize: "16px", color: "#333", marginLeft: "6px" }}>carts verified</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Verified Carts Display */}
+                                  {(verifiedCartIds[group.id] || new Set()).size > 0 && (
+                                    <div
+                                      style={{
+                                        marginBottom: "15px",
+                                        padding: "8px",
+                                        background: "#d4edda",
+                                        border: "1px solid #28a745",
+                                        borderRadius: "6px"
+                                      }}
+                                    >
+                                      <div style={{ fontSize: "11px", fontWeight: "600", color: "#155724", marginBottom: "5px" }}>
+                                        ✅ Verified:
+                                      </div>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                                        {Array.from(verifiedCartIds[group.id] || new Set()).map(cartId => (
+                                          <span
+                                            key={cartId}
+                                            style={{
+                                              background: "#28a745",
+                                              color: "#fff",
+                                              padding: "2px 6px",
+                                              borderRadius: "3px",
+                                              fontSize: "10px",
+                                              fontWeight: "600"
+                                            }}
+                                          >
+                                            {cartId}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Single Cart Input */}
+                                  <div
+                                    style={{
+                                      marginBottom: "15px",
+                                      padding: "10px",
+                                      background: "rgba(248, 249, 250, 0.3)",
+                                      border: "1px solid rgba(222, 226, 230, 0.4)",
+                                      borderRadius: "6px",
+                                      backdropFilter: "blur(5px)"
+                                    }}
+                                  >
+                                    <div className="d-flex align-items-center gap-2">
+                                      <input
+                                        type="text"
+                                        className="form-control"
+                                        placeholder={`Cart ID for ${group.clientName}`}
+                                        value={currentCartInput}
+                                        onChange={(e) => setCurrentCartInput(e.target.value)}
+                                        onKeyPress={(e) => {
+                                          if (e.key === 'Enter' && currentCartInput.trim()) {
+                                            verifyIndividualCart(group.id, currentCartInput);
+                                          }
+                                        }}
+                                        style={{
+                                          fontSize: "20px",
+                                          padding: "16px 20px",
+                                          fontWeight: "600",
+                                          minHeight: "56px"
+                                        }}
+                                        autoFocus
+                                      />
+                                      <button
+                                        className="btn btn-success btn-lg"
+                                        onClick={() => verifyIndividualCart(group.id, currentCartInput)}
+                                        disabled={!currentCartInput.trim()}
+                                        style={{
+                                          fontSize: "20px",
+                                          fontWeight: "600",
+                                          padding: "16px 24px",
+                                          minWidth: "140px",
+                                          minHeight: "56px"
+                                        }}
+                                      >
+                                        ✅ Add
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  <div className="text-center">
+                                    <button
+                                      className="btn btn-secondary btn-lg"
+                                      onClick={() => {
+                                        setVerifyingClient(null);
+                                        setCurrentCartInput("");
+                                      }}
+                                      style={{
+                                        fontSize: "18px",
+                                        fontWeight: "600",
+                                        padding: "14px 32px"
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
                                 </div>
                               )
                             ) : (
@@ -3024,7 +3323,9 @@ const Segregation: React.FC<SegregationProps> = ({
                             fontWeight: 700,
                             fontSize: 20,
                             color: "#007bff",
-                            textAlign: "left",
+                            textAlign: "center",
+                            flex: 1,
+                            display: "block",
                           }}
                         >
                           {group.clientName}
@@ -3107,14 +3408,15 @@ const Segregation: React.FC<SegregationProps> = ({
                           </span>
                           <span
                             style={{
-                              fontSize: "0.95rem",
+                              fontSize: "1.2rem",
                               color: "#28a745",
                               minWidth: 70,
                               textAlign: "left",
+                              fontWeight: 600,
                             }}
                           >
-                            Total:{" "}
-                            <strong>
+                            Weight:{" "}
+                            <strong style={{ fontSize: "1.3rem" }}>
                               {typeof group.totalWeight === "number"
                                 ? group.totalWeight.toLocaleString(undefined, {
                                     maximumFractionDigits: 0,

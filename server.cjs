@@ -227,10 +227,10 @@ app.post('/api/historical-reports', async (req, res) => {
 
 // Endpoint for sending cart verification error emails
 app.post('/api/send-verification-error-email', async (req, res) => {
-  const { clientName, expectedCount, actualCount, username, date } = req.body;
+  const { clientName, expectedCount, actualCount, username, date, errorMessage, verificationType } = req.body;
   
-  if (!clientName || !expectedCount || !actualCount || !username) {
-    return res.status(400).json({ error: 'Missing required data' });
+  if (!clientName || !username) {
+    return res.status(400).json({ error: 'Missing required data: clientName and username are required' });
   }
 
   const formattedDate = new Date(date).toLocaleDateString('en-US', {
@@ -242,8 +242,32 @@ app.post('/api/send-verification-error-email', async (req, res) => {
     minute: '2-digit'
   });
 
-  const subject = `🚨 Cart Verification Error - ${clientName}`;
-  const text = `
+  // Handle both cart count and cart ID verification errors
+  let subject, text;
+  
+  if (verificationType === 'Cart ID Verification' && errorMessage) {
+    // Cart ID Verification Error
+    subject = `🚨 Cart ID Verification Error - ${clientName}`;
+    text = `
+Cart ID Verification Error
+
+Client: ${clientName}
+Employee: ${username}
+Date: ${formattedDate}
+
+Error Details: ${errorMessage}
+
+This error has been logged in the system activity logs.
+
+Please review with the employee to ensure proper cart ID verification procedures are being followed.
+
+---
+King Uniforms Laundry Management System
+    `;
+  } else {
+    // Legacy cart count verification error
+    subject = `🚨 Cart Count Verification Error - ${clientName}`;
+    text = `
 Cart Count Verification Error
 
 Client: ${clientName}
@@ -260,49 +284,92 @@ Please review with the employee to ensure accurate counting procedures are being
 
 ---
 King Uniforms Laundry Management System
-  `;
+    `;
+  }
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 8px;">
-      <div style="background: #dc3545; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
-        <h2 style="margin: 0; font-size: 24px;">🚨 Cart Verification Error</h2>
+  let html;
+  
+  if (verificationType === 'Cart ID Verification' && errorMessage) {
+    // Cart ID Verification Error HTML
+    html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 8px;">
+        <div style="background: #dc3545; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+          <h2 style="margin: 0; font-size: 24px;">🚨 Cart ID Verification Error</h2>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #dc3545;">
+          <h3 style="color: #dc3545; margin-top: 0;">Verification Details</h3>
+          
+          <div style="margin: 15px 0;">
+            <strong>Client:</strong> ${clientName}<br>
+            <strong>Employee:</strong> ${username}<br>
+            <strong>Date:</strong> ${formattedDate}
+          </div>
+          
+          <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 15px 0;">
+            <div style="color: #dc3545; font-weight: bold; margin-bottom: 10px;">
+              <strong>❌ Error Details:</strong>
+            </div>
+            <div style="background: #fff; border: 1px solid #dc3545; padding: 10px; border-radius: 4px; color: #721c24;">
+              ${errorMessage}
+            </div>
+          </div>
+          
+          <div style="background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 12px; border-radius: 6px; margin: 15px 0;">
+            <strong>⚠️ Action Required:</strong> Please review cart ID verification procedures with the employee to ensure accurate identification.
+          </div>
+          
+          <div style="font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 15px; margin-top: 20px;">
+            This error has been automatically logged in the system activity logs.<br>
+            <em>King Uniforms Laundry Management System</em>
+          </div>
+        </div>
       </div>
-      
-      <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #dc3545;">
-        <h3 style="color: #dc3545; margin-top: 0;">Verification Details</h3>
-        
-        <div style="margin: 15px 0;">
-          <strong>Client:</strong> ${clientName}<br>
-          <strong>Employee:</strong> ${username}<br>
-          <strong>Date:</strong> ${formattedDate}
+    `;
+  } else {
+    // Legacy cart count verification error HTML
+    html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 8px;">
+        <div style="background: #dc3545; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+          <h2 style="margin: 0; font-size: 24px;">🚨 Cart Count Verification Error</h2>
         </div>
         
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 15px 0;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-            <span><strong>Expected Count:</strong></span>
-            <span style="color: #28a745; font-weight: bold;">${expectedCount} carts</span>
+        <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #dc3545;">
+          <h3 style="color: #dc3545; margin-top: 0;">Verification Details</h3>
+          
+          <div style="margin: 15px 0;">
+            <strong>Client:</strong> ${clientName}<br>
+            <strong>Employee:</strong> ${username}<br>
+            <strong>Date:</strong> ${formattedDate}
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-            <span><strong>Actual Count:</strong></span>
-            <span style="color: #dc3545; font-weight: bold;">${actualCount} carts</span>
+          
+          <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 15px 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+              <span><strong>Expected Count:</strong></span>
+              <span style="color: #28a745; font-weight: bold;">${expectedCount} carts</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+              <span><strong>Actual Count:</strong></span>
+              <span style="color: #dc3545; font-weight: bold;">${actualCount} carts</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-top: 1px solid #dee2e6; padding-top: 10px;">
+              <span><strong>Difference:</strong></span>
+              <span style="color: #dc3545; font-weight: bold;">${Math.abs(expectedCount - actualCount)} cart(s)</span>
+            </div>
           </div>
-          <div style="display: flex; justify-content: space-between; border-top: 1px solid #dee2e6; padding-top: 10px;">
-            <span><strong>Difference:</strong></span>
-            <span style="color: #dc3545; font-weight: bold;">${Math.abs(expectedCount - actualCount)} cart(s)</span>
+          
+          <div style="background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 12px; border-radius: 6px; margin: 15px 0;">
+            <strong>⚠️ Action Required:</strong> Please review counting procedures with the employee to ensure accuracy.
           </div>
-        </div>
-        
-        <div style="background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 12px; border-radius: 6px; margin: 15px 0;">
-          <strong>⚠️ Action Required:</strong> Please review counting procedures with the employee to ensure accuracy.
-        </div>
-        
-        <div style="font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 15px; margin-top: 20px;">
-          This error has been automatically logged in the system activity logs.<br>
-          <em>King Uniforms Laundry Management System</em>
+          
+          <div style="font-size: 12px; color: #6c757d; border-top: 1px solid #dee2e6; padding-top: 15px; margin-top: 20px;">
+            This error has been automatically logged in the system activity logs.<br>
+            <em>King Uniforms Laundry Management System</em>
+          </div>
         </div>
       </div>
-    </div>
-  `;
+    `;
+  }
 
   const msg = {
     to: [

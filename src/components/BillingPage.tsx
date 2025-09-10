@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import InvoiceDetailsModal from "./InvoiceDetailsModal";
+import BillingSummaryPdfModal from "./BillingSummaryPdfModal";
 import html2pdf from "html2pdf.js";
 import { formatDateOnlySpanish, formatDateForCSV } from "../utils/dateFormatter";
 import { API_BASE_URL } from '../config/api';
@@ -475,6 +476,9 @@ const BillingPage: React.FC = () => {
   const [newGroupInvoiceNumber, setNewGroupInvoiceNumber] =
     useState<string>("");
   const [isProcessingGroup, setIsProcessingGroup] = useState<boolean>(false);
+
+  // State for PDF summary modal
+  const [showBillingSummaryPdfModal, setShowBillingSummaryPdfModal] = useState<boolean>(false);
 
   // Handler to group invoices under one invoice number and lock them
   const groupAndLockInvoices = async () => {
@@ -2732,6 +2736,13 @@ const BillingPage: React.FC = () => {
           >
             <i className="bi bi-download me-1"></i> Export{" "}
             {selectedInvoiceIds.length} Selected to CSV
+          </button>
+          <button
+            className="btn btn-danger"
+            onClick={() => setShowBillingSummaryPdfModal(true)}
+          >
+            <i className="bi bi-file-pdf me-1"></i> Generate{" "}
+            {selectedInvoiceIds.length} PDF Summary
           </button>
           <div>
             <label className="form-label mb-0">Report Type</label>
@@ -5601,6 +5612,38 @@ const BillingPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Billing Summary PDF Modal */}
+      <BillingSummaryPdfModal
+        isOpen={showBillingSummaryPdfModal}
+        onClose={() => setShowBillingSummaryPdfModal(false)}
+        selectedInvoices={invoices.filter(inv => selectedInvoiceIds.includes(inv.id))}
+        clients={clients}
+        products={allProducts}
+        chargeSettings={{
+          serviceChargeEnabled,
+          serviceChargePercent,
+          serviceChargeFormula,
+          fuelChargeEnabled,
+          fuelChargePercent,
+          fuelChargeFormula,
+          surchargeEnabled,
+          surchargePercent,
+          surchargeFormula,
+          deliveryCharge,
+          deliveryChargeFormula,
+          generalDeliveryCharge,
+          generalDeliveryChargeFormula,
+          disposableFee,
+          disposableFeeFormula,
+          minBilling,
+          productPrices
+        }}
+        onGenerated={(pdfDataUri, settings) => {
+          console.log('✅ PDF generated successfully with settings:', settings);
+          setShowBillingSummaryPdfModal(false);
+        }}
+      />
     </div>
   );
 };

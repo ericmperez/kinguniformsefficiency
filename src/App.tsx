@@ -1142,8 +1142,8 @@ function App() {
 
   return (
     <Router>
-      {/* Navigation Bar - conditionally hidden for pickup/entradas page */}
-      {activePage !== "entradas" && (
+      {/* Navigation Bar - conditionally hidden for pickup/entradas and segregation pages */}
+      {activePage !== "entradas" && activePage !== "segregation" && (
         <AppBar
           position="fixed"
           color="default"
@@ -1426,8 +1426,8 @@ function App() {
       </AppBar>
       )}
       {/* Add top margin to main content to prevent it from being hidden behind the fixed navbar - only when navbar is visible */}
-      {activePage !== "entradas" && <div style={{ marginTop: 64 }} />}
-      {activePage !== "entradas" && (
+      {activePage !== "entradas" && activePage !== "segregation" && <div style={{ marginTop: 64 }} />}
+      {activePage !== "entradas" && activePage !== "segregation" && (
         <Drawer
           anchor="left"
           open={drawerOpen}
