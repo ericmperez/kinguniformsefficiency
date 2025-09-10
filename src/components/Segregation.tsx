@@ -19,6 +19,7 @@ import {
   where,
   Timestamp,
   addDoc,
+  deleteField,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import "./Segregation.css";
@@ -1324,7 +1325,7 @@ const Segregation: React.FC<SegregationProps> = ({
     });
   }, [groups]);
 
-  // Load verified clients from Firestore on mount and when groups change
+  // Load verified clients and partial verification state from Firestore on mount and when groups change
   useEffect(() => {
     if (groups.length > 0) {
       const verifiedGroupIds = groups
@@ -1334,6 +1335,20 @@ const Segregation: React.FC<SegregationProps> = ({
       if (verifiedGroupIds.length > 0) {
         console.log(`📋 Loading ${verifiedGroupIds.length} verified clients from Firestore`);
         setVerifiedClients(new Set(verifiedGroupIds));
+      }
+
+      // Load partial verification state for groups that aren't fully verified
+      const partialVerificationState: { [groupId: string]: Set<string> } = {};
+      groups.forEach((group) => {
+        if (!group.cartCountVerified && group.partialVerifiedCartIds && Array.isArray(group.partialVerifiedCartIds)) {
+          partialVerificationState[group.id] = new Set(group.partialVerifiedCartIds);
+          console.log(`📋 Loading ${group.partialVerifiedCartIds.length} partially verified carts for ${group.client?.name || group.id}`);
+        }
+      });
+
+      if (Object.keys(partialVerificationState).length > 0) {
+        setVerifiedCartIds(partialVerificationState);
+        console.log(`📋 Loaded partial verification state for ${Object.keys(partialVerificationState).length} groups`);
       }
     }
   }, [groups]);
@@ -1481,16 +1496,29 @@ const Segregation: React.FC<SegregationProps> = ({
     }
 
     // Add to verified cart IDs
+    const updatedVerifiedCarts = new Set([...(currentVerified || new Set()), trimmedCartId]);
     setVerifiedCartIds(prev => ({
       ...prev,
-      [groupId]: new Set([...(prev[groupId] || new Set()), trimmedCartId])
+      [groupId]: updatedVerifiedCarts
     }));
+
+    // Save individual cart verification to Firestore immediately
+    try {
+      await updateDoc(doc(db, "pickup_groups", groupId), {
+        partialVerifiedCartIds: Array.from(updatedVerifiedCarts),
+        lastPartialVerificationAt: new Date().toISOString(),
+        lastPartialVerificationBy: user?.username || user?.id || "Unknown User",
+      });
+      console.log(`💾 Saved individual cart verification for ${trimmedCartId} to Firestore`);
+    } catch (error) {
+      console.error("❌ Failed to save individual cart verification:", error);
+    }
 
     // Clear current input
     setCurrentCartInput("");
 
     // Check if all carts are now verified
-    const newVerifiedCount = (currentVerified.size + 1);
+    const newVerifiedCount = updatedVerifiedCarts.size;
     const totalCartsNeeded = actualCartIds.length;
     
     console.log(`✅ Cart "${trimmedCartId}" verified for ${clientName} (${newVerifiedCount}/${totalCartsNeeded})`);
@@ -1506,7 +1534,11 @@ const Segregation: React.FC<SegregationProps> = ({
         verifiedAt: new Date().toISOString(),
         verifiedBy: user?.username || user?.id || "Unknown User",
         verifiedCartCount: totalCartsNeeded,
-        verifiedCartIds: Array.from(new Set([...(currentVerified || new Set()), trimmedCartId])),
+        verifiedCartIds: Array.from(updatedVerifiedCarts),
+        // Clean up partial verification fields since verification is now complete
+        partialVerifiedCartIds: deleteField(),
+        lastPartialVerificationAt: deleteField(),
+        lastPartialVerificationBy: deleteField(),
       });
 
       // Initialize segregated count to 0 for the verified client
@@ -1521,6 +1553,46 @@ const Segregation: React.FC<SegregationProps> = ({
   const completeClientVerification = (groupId: string) => {
     setVerifyingClient(null);
     setCurrentCartInput("");
+  };
+
+  const resetClientVerification = async (groupId: string) => {
+    try {
+      // Clear local state
+      setVerifiedClients((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(groupId);
+        return newSet;
+      });
+
+      // Clear verified cart IDs for this client
+      setVerifiedCartIds((prev) => ({
+        ...prev,
+        [groupId]: new Set()
+      }));
+
+      // Clear current verification state if this is the client being verified
+      if (verifyingClient === groupId) {
+        setVerifyingClient(null);
+        setCurrentCartInput("");
+      }
+
+      // Clean up Firestore - remove both complete and partial verification data
+      await updateDoc(doc(db, "pickup_groups", groupId), {
+        cartCountVerified: false,
+        verifiedAt: deleteField(),
+        verifiedBy: deleteField(),
+        verifiedCartCount: deleteField(),
+        verifiedCartIds: deleteField(),
+        // Clean up partial verification fields
+        partialVerifiedCartIds: deleteField(),
+        lastPartialVerificationAt: deleteField(),
+        lastPartialVerificationBy: deleteField(),
+      });
+
+      console.log(`🔄 Reset verification for group ${groupId}`);
+    } catch (error) {
+      console.error("❌ Failed to reset verification:", error);
+    }
   };
 
   const createVerificationError = (groupId: string, clientName: string, errorMessage: string) => {
@@ -2939,11 +3011,15 @@ const Segregation: React.FC<SegregationProps> = ({
                               <span style={{ fontSize: 14, color: "#666" }}>
                                 {isVerified ? (
                                   <>
-                                    Verified: {actualCartCount} carts | Weight: <span className="segregation-weight-badge">{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString() : "?"} lbs</span>
+                                    Verified: {actualCartCount} carts | Weight: <span className="segregation-weight-badge">{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString(undefined, {
+                                    maximumFractionDigits: 0,
+                                  }) : "?"} lbs</span>
                                   </>
                                 ) : (
                                   <>
-                                    Weight: <span className="segregation-weight-badge">{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString() : "?"} lbs</span>
+                                    Weight: <span className="segregation-weight-badge">{typeof group.totalWeight === "number" ? group.totalWeight.toLocaleString(undefined, {
+                                    maximumFractionDigits: 0,
+                                  }) : "?"} lbs</span>
                                   </>
                                 )}
                               </span>
