@@ -339,19 +339,14 @@ const Segregation: React.FC<SegregationProps> = ({
           );
 
           if (stillNewGroups.length > 0) {
-            const updatedOrder = [
-              ...groupOrder,
-              ...stillNewGroups.map((g) => g.id),
-            ];
-
-            // Log new groups being added to bottom
+            // 🚫 AUTOMATIC REORDERING DISABLED - New groups will not be automatically positioned
+            // They will appear in their natural order without forced positioning
             console.log(
-              "🆕 [ADDING NEW GROUPS] New clients being added to bottom of segregation queue"
+              "🆕 [NEW GROUPS DETECTED] New clients detected but automatic positioning is disabled"
             );
             stillNewGroups.forEach((group, idx) => {
-              const position = groupOrder.length + idx + 1;
               console.log(
-                `   📍 ${group.clientName} added at position ${position} (bottom of queue)`
+                `   📍 ${group.clientName} will appear in natural order (no automatic positioning)`
               );
               console.log(
                 `   📊 Group details: ID=${group.id}, Weight=${
@@ -360,25 +355,15 @@ const Segregation: React.FC<SegregationProps> = ({
               );
             });
             console.log(
-              "✅ New groups successfully positioned at bottom - order preserved during weight updates"
+              "✅ Groups will appear in natural order - manual arrow buttons required for positioning"
             );
 
-            // Update Firestore first, then let the listener update local state
-            setDoc(orderDocRef, { order: updatedOrder }, { merge: true }).catch(
-              (error) => {
-                console.error(
-                  "❌ Error updating group order in Firestore:",
-                  error
-                );
-              }
-            );
-
-            // Log to Firestore activity log
+            // Log to Firestore activity log (without automatic positioning)
             const currentUser = getCurrentUser();
             stillNewGroups.forEach(async (group) => {
               await logActivity({
                 type: "Segregation",
-                message: `New client "${group.clientName}" automatically added to bottom of segregation queue by system (user context: ${currentUser})`,
+                message: `New client "${group.clientName}" appeared in segregation queue (automatic positioning disabled - use arrow buttons to arrange)`,
                 user: currentUser,
               });
             });
@@ -925,46 +910,30 @@ const Segregation: React.FC<SegregationProps> = ({
 
       if (effectiveWashingType === "Tunnel") {
         newStatus = "Tunnel";
-        // Only assign order if group doesn't already have one (preserve supervisor-set order)
-        if (typeof group?.order !== "number") {
-          // Find max order among existing Tunnel groups and add 1 to put at bottom
-          const existingTunnelGroups = groups.filter(
-            (g) =>
-              g.status === "Tunnel" &&
-              clients.find((c) => c.id === g.clientId)?.washingType === "Tunnel"
-          );
-          const maxOrder = existingTunnelGroups.reduce(
-            (max, g) =>
-              typeof g.order === "number" && g.order > max ? g.order : max,
-            -1
-          );
-          orderUpdate = { order: maxOrder + 1 };
-          console.log(`📈 Assigned new tunnel order: ${maxOrder + 1}`);
-        } else {
+        // 🚫 AUTOMATIC ORDER ASSIGNMENT DISABLED - Only preserve existing supervisor-set orders
+        if (typeof group?.order === "number") {
           console.log(
             `🔒 Preserving existing tunnel order: ${group.order} (supervisor-set)`
           );
+          orderUpdate = { order: group.order };
+        } else {
+          console.log(
+            `🚫 No automatic order assignment - supervisors must manually set tunnel order using arrow buttons`
+          );
+          // No orderUpdate - let the group appear without an order field
         }
       } else {
-        // For Conventional groups, also assign order only if not already set
-        if (typeof group?.order !== "number") {
-          const existingConventionalGroups = groups.filter(
-            (g) =>
-              g.status === "Conventional" &&
-              clients.find((c) => c.id === g.clientId)?.washingType ===
-                "Conventional"
-          );
-          const maxOrder = existingConventionalGroups.reduce(
-            (max, g) =>
-              typeof g.order === "number" && g.order > max ? g.order : max,
-            -1
-          );
-          orderUpdate = { order: maxOrder + 1 };
-          console.log(`📈 Assigned new conventional order: ${maxOrder + 1}`);
-        } else {
+        // 🚫 AUTOMATIC ORDER ASSIGNMENT DISABLED - Only preserve existing supervisor-set orders
+        if (typeof group?.order === "number") {
           console.log(
             `🔒 Preserving existing conventional order: ${group.order} (supervisor-set)`
           );
+          orderUpdate = { order: group.order };
+        } else {
+          console.log(
+            `🚫 No automatic order assignment - supervisors must manually set conventional order using arrow buttons`
+          );
+          // No orderUpdate - let the group appear without an order field
         }
       }
 
@@ -1092,49 +1061,33 @@ const Segregation: React.FC<SegregationProps> = ({
         console.log(
           `🔄 Effective washing type is Tunnel, changing status to: ${newStatus}`
         );
-        // Only assign order if group doesn't already have one (preserve supervisor-set order)
-        if (typeof group?.order !== "number") {
-          // Find max order among existing Tunnel groups and add 1 to put at bottom
-          const existingTunnelGroups = groups.filter(
-            (g) =>
-              g.status === "Tunnel" &&
-              clients.find((c) => c.id === g.clientId)?.washingType === "Tunnel"
-          );
-          const maxOrder = existingTunnelGroups.reduce(
-            (max, g) =>
-              typeof g.order === "number" && g.order > max ? g.order : max,
-            -1
-          );
-          orderUpdate = { order: maxOrder + 1 };
-          console.log(`📈 Assigned new tunnel order: ${maxOrder + 1}`);
-        } else {
+        // 🚫 AUTOMATIC ORDER ASSIGNMENT DISABLED - Only preserve existing supervisor-set orders
+        if (typeof group?.order === "number") {
           console.log(
             `🔒 Preserving existing tunnel order: ${group.order} (supervisor-set)`
           );
+          orderUpdate = { order: group.order };
+        } else {
+          console.log(
+            `🚫 No automatic order assignment - supervisors must manually set tunnel order using arrow buttons`
+          );
+          // No orderUpdate - let the group appear without an order field
         }
       } else {
         console.log(
           `🔄 Effective washing type is Conventional, changing status to: ${newStatus}`
         );
-        // For Conventional groups, also assign order only if not already set
-        if (typeof group?.order !== "number") {
-          const existingConventionalGroups = groups.filter(
-            (g) =>
-              g.status === "Conventional" &&
-              clients.find((c) => c.id === g.clientId)?.washingType ===
-                "Conventional"
-          );
-          const maxOrder = existingConventionalGroups.reduce(
-            (max, g) =>
-              typeof g.order === "number" && g.order > max ? g.order : max,
-            -1
-          );
-          orderUpdate = { order: maxOrder + 1 };
-          console.log(`📈 Assigned new conventional order: ${maxOrder + 1}`);
-        } else {
+        // 🚫 AUTOMATIC ORDER ASSIGNMENT DISABLED - Only preserve existing supervisor-set orders
+        if (typeof group?.order === "number") {
           console.log(
             `🔒 Preserving existing conventional order: ${group.order} (supervisor-set)`
           );
+          orderUpdate = { order: group.order };
+        } else {
+          console.log(
+            `🚫 No automatic order assignment - supervisors must manually set conventional order using arrow buttons`
+          );
+          // No orderUpdate - let the group appear without an order field
         }
       }
 
