@@ -175,10 +175,80 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
   const [lintCollectorDoneToday, setLintCollectorDoneToday] = useState(false);
   const todayStr = new Date().toISOString().slice(0, 10);
 
-  // 90-second timer restriction for + button
+  // 90-second timer restriction for + button with persistence
   const [lastButtonPressTime, setLastButtonPressTime] = useState<number | null>(null);
   const [timerRemaining, setTimerRemaining] = useState<number>(0);
   const [showTimer, setShowTimer] = useState<boolean>(false);
+
+  // Generate unique storage key for each user
+  const getTimerStorageKey = () => {
+    const userId = user?.id || user?.username || 'anonymous';
+    return `tunnelButtonTimer_${userId}`;
+  };
+
+  // Load timer from localStorage on component mount
+  useEffect(() => {
+    if (!canReorder && user) { // Only load for non-supervisors
+      const storageKey = getTimerStorageKey();
+      const storedTime = localStorage.getItem(storageKey);
+      
+      if (storedTime) {
+        const lastPress = parseInt(storedTime, 10);
+        const now = Date.now();
+        const elapsed = now - lastPress;
+        
+        // Only restore if less than 90 seconds have passed
+        if (elapsed < 90000) {
+          setLastButtonPressTime(lastPress);
+          console.log(`⏰ [TIMER RESTORE] Restored 90s timer for user ${user?.username || user?.id}: ${Math.ceil((90000 - elapsed) / 1000)}s remaining`);
+        } else {
+          // Timer has expired, clear storage
+          localStorage.removeItem(storageKey);
+          console.log(`⏰ [TIMER RESTORE] Timer expired for user ${user?.username || user?.id}, cleared storage`);
+        }
+      }
+    }
+  }, [user, canReorder]);
+
+  // Persist timer to localStorage whenever it changes
+  const persistTimerState = (timestamp: number | null) => {
+    if (!canReorder && user) {
+      const storageKey = getTimerStorageKey();
+      
+      if (timestamp) {
+        localStorage.setItem(storageKey, timestamp.toString());
+        console.log(`💾 [TIMER PERSIST] Saved timer state for user ${user?.username || user?.id}`);
+      } else {
+        localStorage.removeItem(storageKey);
+        console.log(`🗑️ [TIMER PERSIST] Cleared timer state for user ${user?.username || user?.id}`);
+      }
+    }
+  };
+
+  // Cleanup expired timers from localStorage
+  const cleanupExpiredTimers = () => {
+    const now = Date.now();
+    
+    // Check all timer keys in localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('tunnelButtonTimer_')) {
+        const timestamp = localStorage.getItem(key);
+        if (timestamp) {
+          const lastPress = parseInt(timestamp, 10);
+          if (now - lastPress >= 90000) {
+            localStorage.removeItem(key);
+            console.log(`🧹 [TIMER CLEANUP] Removed expired timer: ${key}`);
+          }
+        }
+      }
+    }
+  };
+
+  // Run cleanup when component mounts and user changes
+  useEffect(() => {
+    cleanupExpiredTimers();
+  }, [user]);
 
   // Subscribe to last 3 completions (live)
   useEffect(() => {
@@ -279,7 +349,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     return () => clearTimeout(midnightTimeout);
   }, []);
 
-  // 90-second timer management
+  // 90-second timer management with persistence
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     
@@ -294,16 +364,20 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         if (remaining <= 0) {
           setShowTimer(false);
           setLastButtonPressTime(null);
+          persistTimerState(null); // Clear persistent storage when timer expires
           if (interval) {
             clearInterval(interval);
             interval = null;
           }
+          console.log(`✅ [TIMER COMPLETE] 90s timer completed for user ${user?.username || user?.id}`);
         }
       };
       
       updateTimer();
       setShowTimer(true);
       interval = setInterval(updateTimer, 1000);
+    } else if (!lastButtonPressTime) {
+      setShowTimer(false);
     }
     
     return () => {
@@ -311,7 +385,7 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
         clearInterval(interval);
       }
     };
-  }, [lastButtonPressTime, canReorder]);
+  }, [lastButtonPressTime, canReorder, user]);
 
   // Check if user can edit the alert banner
   const canEdit = user && ["Supervisor", "Admin", "Owner"].includes(user.role);
@@ -1627,16 +1701,19 @@ const Washing: React.FC<WashingProps> = ({ setSelectedInvoiceId }) => {
     return elapsed < 90000; // 90 seconds in milliseconds
   };
 
-  // Helper function to handle + button press with timer logic
+  // Helper function to handle + button press with timer logic and persistence
   const handlePlusButtonPress = async (callback: () => Promise<void>) => {
     if (isButtonDisabledByTimer()) return;
     
     // Execute the callback function
     await callback();
     
-    // Set the timer for non-supervisors
+    // Set the timer for non-supervisors with persistence
     if (!canReorder) {
-      setLastButtonPressTime(Date.now());
+      const now = Date.now();
+      setLastButtonPressTime(now);
+      persistTimerState(now);
+      console.log(`🚀 [TIMER START] Started 90s timer for user ${user?.username || user?.id}`);
     }
   };
 
