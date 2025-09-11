@@ -170,6 +170,11 @@ const Segregation: React.FC<SegregationProps> = ({
   const getCartIds = (groupId: string) =>
     entries.filter((e) => e.groupId === groupId).map((e) => e.cartId || "").filter(id => id.trim() !== "");
 
+  // Helper: normalize cart ID for comparison (remove spaces, convert to lowercase)
+  const normalizeCartId = (cartId: string) => {
+    return cartId.trim().toLowerCase().replace(/\s+/g, '');
+  };
+
   // Helper: get expected verification value for a group
   const getExpectedVerificationValue = (
     group: any,
@@ -1429,18 +1434,36 @@ const Segregation: React.FC<SegregationProps> = ({
       return false;
     }
 
+    // Normalize the entered cart ID for comparison
+    const normalizedEnteredCartId = normalizeCartId(trimmedCartId);
+    
+    // Normalize all actual cart IDs for comparison
+    const normalizedActualCartIds = actualCartIds.map(id => normalizeCartId(id));
+    
+    // Find the matching actual cart ID (case-insensitive)
+    const matchingCartIdIndex = normalizedActualCartIds.findIndex(id => id === normalizedEnteredCartId);
+    
     // Check if cart ID is valid
-    if (!actualCartIds.includes(trimmedCartId)) {
-      const errorMessage = `Cart ID "${trimmedCartId}" not found in group ${clientName}`;
+    if (matchingCartIdIndex === -1) {
+      const errorMessage = `Cart ID "${trimmedCartId}" not found in group ${clientName}. Available cart IDs: ${actualCartIds.join(', ')}`;
       console.error(`🚨 INVALID CART ID: ${errorMessage}`);
+      console.log(`🔍 Entered cart ID (normalized): "${normalizedEnteredCartId}"`);
+      console.log(`🔍 Available cart IDs (normalized): [${normalizedActualCartIds.join(', ')}]`);
       // Show error immediately - instant feedback
       createVerificationError(groupId, clientName, errorMessage);
       return false;
     }
 
-    // Check if cart ID is already verified
+    // Use the original (non-normalized) cart ID for verification tracking
+    const actualMatchingCartId = actualCartIds[matchingCartIdIndex];
+
+    // Check if cart ID is already verified (using normalized comparison)
     const currentVerified = verifiedCartIds[groupId] || new Set();
-    if (currentVerified.has(trimmedCartId)) {
+    const isAlreadyVerified = Array.from(currentVerified).some(verifiedId => 
+      normalizeCartId(verifiedId) === normalizedEnteredCartId
+    );
+    
+    if (isAlreadyVerified) {
       const errorMessage = `Cart ID "${trimmedCartId}" has already been verified`;
       console.error(`🚨 DUPLICATE CART ID: ${errorMessage}`);
       // Show error immediately - instant feedback
@@ -1448,12 +1471,41 @@ const Segregation: React.FC<SegregationProps> = ({
       return false;
     }
 
-    // Add to verified cart IDs
-    const updatedVerifiedCarts = new Set([...(currentVerified || new Set()), trimmedCartId]);
+    // Add to verified cart IDs using the actual matching cart ID from the system
+    const updatedVerifiedCarts = new Set([...(currentVerified || new Set()), actualMatchingCartId]);
     setVerifiedCartIds(prev => ({
       ...prev,
       [groupId]: updatedVerifiedCarts
     }));
+
+    console.log(`✅ Cart ID verified successfully: "${trimmedCartId}" matched with "${actualMatchingCartId}"`);
+
+    // INSTANT UI FEEDBACK - Show success immediately
+    const successSound = () => {
+      // Optional: Play success sound for better UX
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const context = new AudioContextClass();
+          const oscillator = context.createOscillator();
+          const gainNode = context.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(context.destination);
+          
+          oscillator.frequency.value = 800;
+          gainNode.gain.value = 0.1;
+          
+          oscillator.start();
+          oscillator.stop(context.currentTime + 0.1);
+        }
+      } catch (e) {
+        // Ignore audio errors - not critical
+      }
+    };
+    
+    // Play success sound for instant feedback
+    successSound();
 
     // Save individual cart verification to Firestore immediately
     try {
@@ -1478,26 +1530,65 @@ const Segregation: React.FC<SegregationProps> = ({
 
     // If all carts are verified, mark client as completely verified
     if (newVerifiedCount === totalCartsNeeded) {
+      // INSTANT UI FEEDBACK - Mark as verified immediately
       setVerifiedClients((prev) => new Set([...prev, groupId]));
       setVerifyingClient(null);
       
-      // Save verification status to Firestore
-      await updateDoc(doc(db, "pickup_groups", groupId), {
-        cartCountVerified: true,
-        verifiedAt: new Date().toISOString(),
-        verifiedBy: user?.username || user?.id || "Unknown User",
-        verifiedCartCount: totalCartsNeeded,
-        verifiedCartIds: Array.from(updatedVerifiedCarts),
-        // Clean up partial verification fields since verification is now complete
-        partialVerifiedCartIds: deleteField(),
-        lastPartialVerificationAt: deleteField(),
-        lastPartialVerificationBy: deleteField(),
-      });
-
       // Initialize segregated count to 0 for the verified client
       setSegregatedCounts((prev) => ({ ...prev, [groupId]: "0" }));
       
       console.log(`🎉 All carts verified for ${clientName}! Ready for segregation.`);
+      
+      // SUCCESS CELEBRATION - Play completion sound and visual feedback
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const context = new AudioContextClass();
+          
+          // Play success melody: C-E-G chord progression
+          const playNote = (frequency: number, startTime: number, duration: number) => {
+            const oscillator = context.createOscillator();
+            const gainNode = context.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(context.destination);
+            
+            oscillator.frequency.value = frequency;
+            gainNode.gain.setValueAtTime(0.05, startTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+            
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration);
+          };
+          
+          const currentTime = context.currentTime;
+          playNote(523, currentTime, 0.2); // C5
+          playNote(659, currentTime + 0.1, 0.2); // E5  
+          playNote(784, currentTime + 0.2, 0.4); // G5
+        }
+      } catch (e) {
+        // Ignore audio errors - not critical
+      }
+
+      // BACKGROUND FIRESTORE UPDATE - Don't block UI for database operations
+      setTimeout(async () => {
+        try {
+          await updateDoc(doc(db, "pickup_groups", groupId), {
+            cartCountVerified: true,
+            verifiedAt: new Date().toISOString(),
+            verifiedBy: user?.username || user?.id || "Unknown User",
+            verifiedCartCount: totalCartsNeeded,
+            verifiedCartIds: Array.from(updatedVerifiedCarts),
+            // Clean up partial verification fields since verification is now complete
+            partialVerifiedCartIds: deleteField(),
+            lastPartialVerificationAt: deleteField(),
+            lastPartialVerificationBy: deleteField(),
+          });
+          console.log(`💾 Completed verification saved to Firestore for ${clientName}`);
+        } catch (error) {
+          console.error("❌ Failed to save completed verification:", error);
+        }
+      }, 0);
     }
 
     return true;
