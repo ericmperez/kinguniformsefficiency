@@ -588,23 +588,19 @@ const BillingPage: React.FC = () => {
       return;
     }
 
-    // Get selected invoices, filter by date range and sort by delivery date
+    // Get selected invoices - DO NOT filter by date range for manual selections
+    // The date filter should only apply to display, not to export of manually selected invoices
     const selectedInvoices = invoices
       .filter((inv) => selectedInvoiceIds.includes(inv.id))
-      .filter((inv) => {
-        if (!inv.deliveryDate) return false;
-        const invDeliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
-        return invDeliveryDate >= startDate && invDeliveryDate <= endDate;
-      })
       .sort((a, b) => {
         const dateA = a.deliveryDate ? new Date(a.deliveryDate) : new Date(0);
         const dateB = b.deliveryDate ? new Date(b.deliveryDate) : new Date(0);
         return dateA.getTime() - dateB.getTime();
       });
 
-    // Check if any invoices remain after filtering
+    // Check if any invoices were found
     if (selectedInvoices.length === 0) {
-      alert(`No invoices found with delivery dates between ${startDate} and ${endDate}. Please adjust your date range or check that selected invoices have delivery dates.`);
+      alert("No invoices found for the selected IDs.");
       return;
     }
 
@@ -1010,23 +1006,19 @@ const BillingPage: React.FC = () => {
       return;
     }
 
-    // Get selected invoices, filter by date range and sort by delivery date
+    // Get selected invoices - DO NOT filter by date range for manual selections
+    // The date filter should only apply to display, not to export of manually selected invoices
     const selectedInvoices = invoices
       .filter((inv) => selectedInvoiceIds.includes(inv.id))
-      .filter((inv) => {
-        if (!inv.deliveryDate) return false;
-        const invDeliveryDate = new Date(inv.deliveryDate!).toISOString().split('T')[0];
-        return invDeliveryDate >= startDate && invDeliveryDate <= endDate;
-      })
       .sort((a, b) => {
         const dateA = a.deliveryDate ? new Date(a.deliveryDate) : new Date(0);
         const dateB = b.deliveryDate ? new Date(b.deliveryDate) : new Date(0);
         return dateA.getTime() - dateB.getTime();
       });
 
-    // Check if any invoices remain after filtering
+    // Check if any invoices were found
     if (selectedInvoices.length === 0) {
-      alert(`No invoices found with delivery dates between ${startDate} and ${endDate}. Please adjust your date range or check that selected invoices have delivery dates.`);
+      alert("No invoices found for the selected IDs.");
       return;
     }
 
@@ -2301,8 +2293,6 @@ const BillingPage: React.FC = () => {
                               handlePriceChange(product.id, e.target.value)
                             }
                             placeholder="Enter price"
-                            inputMode="none"
-                            readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                           />
                         </td>
                       </tr>
@@ -2386,8 +2376,6 @@ const BillingPage: React.FC = () => {
                           value={minBilling}
                           onChange={(e) => setMinBilling(e.target.value)}
                           placeholder="0.00"
-                          inputMode="none"
-                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2423,8 +2411,6 @@ const BillingPage: React.FC = () => {
                           onChange={(e) => setServiceChargePercent(e.target.value)}
                           placeholder="0.00"
                           disabled={!serviceChargeEnabled}
-                          inputMode="none"
-                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2469,8 +2455,6 @@ const BillingPage: React.FC = () => {
                           onChange={(e) => setFuelChargePercent(e.target.value)}
                           placeholder="0.00"
                           disabled={!fuelChargeEnabled}
-                          inputMode="none"
-                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2515,8 +2499,6 @@ const BillingPage: React.FC = () => {
                           onChange={(e) => setSurchargePercent(e.target.value)}
                           placeholder="0.00"
                           disabled={!surchargeEnabled}
-                          inputMode="none"
-                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2555,8 +2537,6 @@ const BillingPage: React.FC = () => {
                           value={generalDeliveryCharge}
                           onChange={(e) => setGeneralDeliveryCharge(e.target.value)}
                           placeholder="0.00"
-                          inputMode="none"
-                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2594,8 +2574,6 @@ const BillingPage: React.FC = () => {
                           value={deliveryCharge}
                           onChange={(e) => setDeliveryCharge(e.target.value)}
                           placeholder="0.00"
-                          inputMode="none"
-                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2633,8 +2611,6 @@ const BillingPage: React.FC = () => {
                           value={nudosSabanasPrice}
                           onChange={(e) => setNudosSabanasPrice(e.target.value)}
                           placeholder="0.00"
-                          inputMode="none"
-                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -2673,8 +2649,6 @@ const BillingPage: React.FC = () => {
                           value={disposableFee}
                           onChange={(e) => setDisposableFee(e.target.value)}
                           placeholder="0.00"
-                          inputMode="none"
-                          readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                         />
                       </td>
                       <td style={nowrapCellStyle}>
@@ -3376,8 +3350,6 @@ const BillingPage: React.FC = () => {
                                     borderRadius: 6,
                                     border: "1px solid #ccc",
                                   }}
-                                  inputMode="none"
-                                  readOnly={/iPad|iPhone|iPod/.test(navigator.userAgent)}
                                   onChange={async (e) => {
                                     const newWeight =
                                       e.target.value === ""

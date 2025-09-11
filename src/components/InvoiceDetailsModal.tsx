@@ -577,8 +577,19 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           const cartPosition = cartIndex + 1;
           const totalCarts = localInvoice.carts.length;
 
-          // Split items into two columns only if there are more than 5 items
-          const shouldUseTwoColumns = cart.items.length > 5;
+          // Consolidate duplicate items by summing their quantities
+          const consolidatedItems = cart.items.reduce((acc, item) => {
+            const existingItem = acc.find(consolidated => consolidated.productName === item.productName);
+            if (existingItem) {
+              existingItem.quantity += item.quantity;
+            } else {
+              acc.push({ ...item });
+            }
+            return acc;
+          }, [] as CartItem[]);
+
+          // Split consolidated items into two columns only if there are more than 5 items
+          const shouldUseTwoColumns = consolidatedItems.length > 5;
           const splitItemsIntoColumns = (items: CartItem[]) => {
             if (!shouldUseTwoColumns) {
               return { column1: items, column2: [] };
@@ -589,7 +600,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             return { column1, column2 };
           };
 
-          const { column1, column2 } = splitItemsIntoColumns(cart.items);
+          const { column1, column2 } = splitItemsIntoColumns(consolidatedItems);
 
           return `
           <div style="page-break-after: ${
@@ -677,7 +688,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 margin-bottom: 12px;
               ">
                 ${
-                  cart.items.length === 0
+                  consolidatedItems.length === 0
                     ? `
                   <p style="
                     font-style: italic; 
@@ -1656,7 +1667,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   </div>
                 )}
               </div>
-              {localCarts.map((cart) => (
+              {localCarts.map((cart, cartIndex) => (
                 <div
                   key={`${cart.id}-${cart.name}`} // Include cart name in key to force re-render on name changes
                   className={`enhanced-cart-section ${
@@ -2026,65 +2037,65 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                       </span>
                     )}
                   </div>
+
+                  {/* Print Actions - Show only on the last cart */}
+                  {cartIndex === localCarts.length - 1 && localCarts.length > 0 && (
+                    <div className="mt-4 pt-3" style={{ borderTop: "2px solid #dee2e6" }}>
+                      <div className="d-flex justify-content-center gap-3 flex-wrap">
+                        <button
+                          className="btn btn-success btn-lg px-4 py-2"
+                          onClick={() => {
+                            // Print all carts functionality
+                            printAllCarts();
+                          }}
+                          title="Print all carts in this invoice"
+                          style={{ fontSize: "16px", fontWeight: "600" }}
+                        >
+                          <i className="bi bi-printer-fill me-2" />
+                          Print All Carts ({localCarts.length})
+                        </button>
+                        <button
+                          className="btn btn-info btn-lg px-4 py-2"
+                          onClick={() => setShowChecklistModal(true)}
+                          title="Print loading checklist for this invoice"
+                          style={{ fontSize: "16px", fontWeight: "600" }}
+                        >
+                          <i className="bi bi-list-check me-2" />
+                          Print Loading Checklist
+                        </button>
+                        <button
+                          className={`btn btn-lg px-4 py-2 ${
+                            showQuantitiesForThisInvoice
+                              ? "btn-outline-primary"
+                              : "btn-outline-secondary"
+                          }`}
+                          onClick={() =>
+                            setShowQuantitiesForThisInvoice(
+                              !showQuantitiesForThisInvoice
+                            )
+                          }
+                          title={`${
+                            showQuantitiesForThisInvoice ? "Hide" : "Show"
+                          } product quantities when printing`}
+                          style={{ fontSize: "16px", fontWeight: "600" }}
+                        >
+                          <i
+                            className={`bi ${
+                              showQuantitiesForThisInvoice ? "bi-123" : "bi-eye-slash"
+                            } me-2`}
+                          />
+                          {showQuantitiesForThisInvoice ? "Hide Qty" : "Show Qty"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Print Actions Section - Moved to bottom of cart cards */}
-        {localCarts.length > 0 && (
-          <div className="row mt-4 mb-4">
-            <div className="col-12">
-              <div className="d-flex justify-content-center gap-3 flex-wrap">
-                <button
-                  className="btn btn-success btn-lg px-4 py-2"
-                  onClick={() => {
-                    // Print all carts functionality
-                    printAllCarts();
-                  }}
-                  title="Print all carts in this invoice"
-                  style={{ fontSize: "16px", fontWeight: "600" }}
-                >
-                  <i className="bi bi-printer-fill me-2" />
-                  Print All Carts ({localCarts.length})
-                </button>
-                <button
-                  className="btn btn-info btn-lg px-4 py-2"
-                  onClick={() => setShowChecklistModal(true)}
-                  title="Print loading checklist for this invoice"
-                  style={{ fontSize: "16px", fontWeight: "600" }}
-                >
-                  <i className="bi bi-list-check me-2" />
-                  Print Loading Checklist
-                </button>
-                <button
-                  className={`btn btn-lg px-4 py-2 ${
-                    showQuantitiesForThisInvoice
-                      ? "btn-outline-primary"
-                      : "btn-outline-secondary"
-                  }`}
-                  onClick={() =>
-                    setShowQuantitiesForThisInvoice(
-                      !showQuantitiesForThisInvoice
-                    )
-                  }
-                  title={`${
-                    showQuantitiesForThisInvoice ? "Hide" : "Show"
-                  } product quantities when printing`}
-                  style={{ fontSize: "16px", fontWeight: "600" }}
-                >
-                  <i
-                    className={`bi ${
-                      showQuantitiesForThisInvoice ? "bi-123" : "bi-eye-slash"
-                    } me-2`}
-                  />
-                  {showQuantitiesForThisInvoice ? "Hide Qty" : "Show Qty"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+
 
         {/* Product Add Confirmation Modal */}
         {showAddConfirmation && confirmationProduct && (
@@ -2295,8 +2306,19 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               const cartPosition = cartIndex + 1;
               const totalCarts = localInvoice.carts.length;
 
-              // Split items into two columns only if there are more than 5 items (same as Print All Carts)
-              const shouldUseTwoColumns = cart.items.length > 5;
+              // Consolidate duplicate items by summing their quantities (same as Print All Carts)
+              const consolidatedItems = cart.items.reduce((acc, item) => {
+                const existingItem = acc.find(consolidated => consolidated.productName === item.productName);
+                if (existingItem) {
+                  existingItem.quantity += item.quantity;
+                } else {
+                  acc.push({ ...item });
+                }
+                return acc;
+              }, [] as CartItem[]);
+
+              // Split consolidated items into two columns only if there are more than 5 items (same as Print All Carts)
+              const shouldUseTwoColumns = consolidatedItems.length > 5;
               const splitItemsIntoColumns = (items: CartItem[]) => {
                 if (!shouldUseTwoColumns) {
                   return { column1: items, column2: [] };
@@ -2307,7 +2329,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 return { column1, column2 };
               };
 
-              const { column1, column2 } = splitItemsIntoColumns(cart.items);
+              const { column1, column2 } = splitItemsIntoColumns(consolidatedItems);
 
               return `
               <div style="
@@ -2392,7 +2414,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                   margin-bottom: 12px;
                 ">
                   ${
-                    cart.items.length === 0
+                    consolidatedItems.length === 0
                       ? `
                     <p style="
                       font-style: italic; 
