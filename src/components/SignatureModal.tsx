@@ -111,39 +111,92 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
     };
   }, [show]);
 
-  // Helper function to send signature email if configured
-  const sendSignatureEmailIfEnabled = async (receivedByName: string) => {
+  // Helper function to send automatic email if configured (using existing resend email functionality)
+  const sendAutomaticEmailIfEnabled = async (receivedByName: string, invoiceData: any) => {
     try {
-      if (!clientId || !invoice) {
-        console.log("Missing client ID or invoice data for signature email");
+      if (!clientId || !invoiceData) {
+        console.log("Missing client ID or invoice data for automatic email");
         return;
       }
 
-      // Prepare signature data
-      const now = new Date();
-      const signatureData = {
-        receivedBy: receivedByName,
-        signatureDate: now.toLocaleDateString(),
-        signatureTime: now.toLocaleTimeString(),
-        driverName: driverName || "Not Assigned",
-        deliveryDate: deliveryDate || now.toLocaleDateString(),
-      };
+      // Get client data to check email settings
+      const client = await getDoc(doc(db, "clients", clientId));
+      if (!client.exists()) {
+        console.log("Client not found for automatic email");
+        return;
+      }
 
-      // Send signature email using the new service
-      const success = await SignatureEmailService.sendSignatureEmail(
-        invoiceId,
-        clientId,
-        signatureData,
-        invoice
+      const clientData = { id: client.id, ...client.data() } as any;
+      const emailSettings = clientData.printConfig?.emailSettings;
+
+      // Check if auto-send on signature is enabled
+      if (!emailSettings?.enabled || !emailSettings?.autoSendOnSignature) {
+        console.log("ℹ️ Automatic email not enabled for client:", clientData.name);
+        return;
+      }
+
+      if (!clientData.email) {
+        console.log("❌ Client has no email address configured:", clientData.name);
+        return;
+      }
+
+      console.log("📧 Sending automatic email using resend email functionality...");
+
+      // Generate PDF with optimized email settings (same as resend email)
+      let pdfContent: string | undefined;
+      try {
+        const { generateDeliveryTicketPDF } = await import('../services/signedDeliveryPdfService');
+        pdfContent = await generateDeliveryTicketPDF(
+          invoiceData,
+          clientData,
+          {
+            optimizeLightweight: true,
+            compressImages: true,
+            imageQuality: 0.92,
+            scale: 0.90
+          },
+          driverName // Pass driver name if available
+        );
+      } catch (error) {
+        console.error('Failed to generate PDF for automatic email:', error);
+      }
+
+      // Send email using the same function as resend email
+      const { sendInvoiceEmail } = await import('../services/emailService');
+      const success = await sendInvoiceEmail(
+        clientData,
+        invoiceData,
+        emailSettings,
+        pdfContent
       );
 
       if (success) {
-        console.log("✅ Signature email sent successfully");
+        // Update email status to show as "Automatic Email" instead of signature email
+        const { updateInvoice } = await import('../services/firebaseService');
+        const emailStatusUpdate = {
+          emailStatus: {
+            ...invoiceData.emailStatus,
+            automaticEmailSent: true, // New field for automatic emails
+            automaticEmailSentAt: new Date().toISOString(),
+            lastEmailError: undefined,
+          },
+        };
+        
+        await updateInvoice(invoiceData.id, emailStatusUpdate);
+        
+        // Log the automatic email activity
+        const { logActivity } = await import('../services/firebaseService');
+        await logActivity({
+          type: "Email",
+          message: `Automatic email sent to ${clientData.name} (${clientData.email}) after signature capture for laundry ticket #${invoiceData.invoiceNumber || invoiceData.id}`,
+        });
+
+        console.log("✅ Automatic email sent successfully");
       } else {
-        console.log("❌ Failed to send signature email");
+        console.log("❌ Failed to send automatic email");
       }
     } catch (error) {
-      console.error("Error sending signature email:", error);
+      console.error("Error sending automatic email:", error);
     }
   };
 
@@ -175,9 +228,10 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
             "No authorized personnel available at the time of delivery",
         });
 
-        // Send signature email if configured (even for no personnel case)
-        await sendSignatureEmailIfEnabled(
-          "No authorized personnel available at the time of delivery"
+        // Send automatic email if configured (even for no personnel case)
+        await sendAutomaticEmailIfEnabled(
+          "No authorized personnel available at the time of delivery",
+          invoice
         );
 
         // Call the callback function if provided
@@ -225,8 +279,8 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         receivedBy: sigName,
       });
 
-      // Send signature email if configured
-      await sendSignatureEmailIfEnabled(sigName);
+      // Send automatic email if configured (using resend email functionality)
+      await sendAutomaticEmailIfEnabled(sigName, invoice);
 
       // Call the callback function if provided
       if (onSignatureSaved) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, setDoc, getDoc, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
 
 export interface ShippingInvoice {
@@ -122,10 +122,22 @@ export const useShippingData = (selectedDate: string) => {
   const fetchShippingData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch shipped invoices
+      // Calculate date range for optimization: today + 2 days back + future dates
+      const today = new Date();
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      twoDaysAgo.setHours(0, 0, 0, 0);
+      
+      const twoWeeksFromNow = new Date();
+      twoWeeksFromNow.setDate(twoWeeksFromNow.getDate() + 14);
+      twoWeeksFromNow.setHours(23, 59, 59, 999);
+      
+      // Optimized query: Fetch shipped invoices with delivery date constraints
       const shippedQuery = query(
         collection(db, "invoices"),
-        where("isShipped", "==", true)
+        where("isShipped", "==", true),
+        where("deliveryDate", ">=", twoDaysAgo.toISOString()),
+        where("deliveryDate", "<=", twoWeeksFromNow.toISOString())
       );
       const shippedSnapshot = await getDocs(shippedQuery);
       

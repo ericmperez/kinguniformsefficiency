@@ -167,6 +167,8 @@ export interface Invoice {
     shippingEmailSentAt?: string; // Timestamp when shipping email was sent
     signatureEmailSent?: boolean; // Whether email was sent on signature capture
     signatureEmailSentAt?: string; // Timestamp when signature email was sent
+    automaticEmailSent?: boolean; // Whether email was sent automatically after signature (using resend email functionality)
+    automaticEmailSentAt?: string; // Timestamp when automatic email was sent
     manualEmailSent?: boolean; // Manual single email sent
     manualEmailSentAt?: string; // Timestamp for manual single email
     bulkEmailSent?: boolean; // Bulk email sent (true if sent in bulk)

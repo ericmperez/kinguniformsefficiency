@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { collection, query, where, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, setDoc, getDoc, deleteDoc, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
 import { Invoice, TruckLoadingVerification, TruckPosition } from "../types";
 import "./ShippingPage.css";
@@ -955,18 +955,34 @@ const ShippingPage: React.FC = () => {
     try {
       setLoading(true);
 
-      // First, get all invoices with delivery dates to populate available dates
-      const allInvoicesQuery = query(
+      // Calculate date range: today + 2 days back + future dates (performance optimization)
+      const today = new Date();
+      today.setHours(23, 59, 59, 999); // End of today
+      
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      twoDaysAgo.setHours(0, 0, 0, 0); // Start of 2 days ago
+      
+      const twoWeeksFromNow = new Date();
+      twoWeeksFromNow.setDate(twoWeeksFromNow.getDate() + 14);
+      twoWeeksFromNow.setHours(23, 59, 59, 999); // End of 2 weeks from now
+      
+      console.log(`📅 [ShippingPage] Optimized date range: ${twoDaysAgo.toISOString()} to ${twoWeeksFromNow.toISOString()}`);
+
+      // Optimized query: Only load invoices with delivery dates in our target range
+      const optimizedInvoicesQuery = query(
         collection(db, "invoices"),
-        where("deliveryDate", "!=", null)
+        where("deliveryDate", ">=", twoDaysAgo.toISOString()),
+        where("deliveryDate", "<=", twoWeeksFromNow.toISOString()),
+        orderBy("deliveryDate", "desc")
       );
       
-      const allInvoicesSnapshot = await getDocs(allInvoicesQuery);
+      const allInvoicesSnapshot = await getDocs(optimizedInvoicesQuery);
       const allDates = new Set<string>();
 
-      console.log(`📅 [ShippingPage] Found ${allInvoicesSnapshot.size} invoices with delivery dates`);
+      console.log(`📅 [ShippingPage] Found ${allInvoicesSnapshot.size} invoices with delivery dates in optimized range (2 days back + future)`);
 
-      // Collect all delivery dates from all invoices
+      // Collect delivery dates from optimized query
       allInvoicesSnapshot.forEach((doc) => {
         const invoiceData = doc.data() as Invoice;
         if (invoiceData.deliveryDate) {
@@ -1001,16 +1017,19 @@ const ShippingPage: React.FC = () => {
         return;
       }
 
-      // Now query for only shipped invoices (status "done") for the truck view
+      // Optimized query for shipped invoices with delivery date constraints
       const shippedInvoicesQuery = query(
         collection(db, "invoices"),
-        where("status", "==", "done")
+        where("status", "==", "done"),
+        where("deliveryDate", ">=", twoDaysAgo.toISOString()),
+        where("deliveryDate", "<=", twoWeeksFromNow.toISOString()),
+        orderBy("deliveryDate", "desc")
       );
 
       const shippedSnapshot = await getDocs(shippedInvoicesQuery);
       const invoices: ShippingInvoice[] = [];
 
-      console.log(`🚛 [ShippingPage] Found ${shippedSnapshot.size} shipped invoices`);
+      console.log(`🚛 [ShippingPage] Found ${shippedSnapshot.size} shipped invoices in optimized range`);
 
       // Process the shipped invoices
       shippedSnapshot.forEach((doc) => {
@@ -1102,14 +1121,28 @@ const ShippingPage: React.FC = () => {
     try {
       console.log(`📋 [ShippingPage] Fetching scheduled invoices for ${date}`);
       
-      // Query for invoices that are NOT shipped but have delivery dates
+      // Calculate optimized date range for scheduled invoices
+      const today = new Date();
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      twoDaysAgo.setHours(0, 0, 0, 0);
+      
+      const twoWeeksFromNow = new Date();
+      twoWeeksFromNow.setDate(twoWeeksFromNow.getDate() + 14);
+      twoWeeksFromNow.setHours(23, 59, 59, 999);
+      
+      // Optimized query: Only fetch non-shipped invoices with delivery dates in our range
       const scheduledQuery = query(
         collection(db, "invoices"),
-        where("status", "!=", "done")
+        where("status", "!=", "done"),
+        where("deliveryDate", ">=", twoDaysAgo.toISOString()),
+        where("deliveryDate", "<=", twoWeeksFromNow.toISOString())
       );
 
       const querySnapshot = await getDocs(scheduledQuery);
       const scheduledInvoicesArray: ShippingInvoice[] = [];
+      
+      console.log(`📋 [ShippingPage] Found ${querySnapshot.size} scheduled invoices in optimized range`);
 
       querySnapshot.forEach((doc) => {
         const invoiceData = doc.data() as Invoice;

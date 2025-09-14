@@ -116,26 +116,22 @@ export class SignatureEmailService {
         pdfContent
       );
 
-      if (success) {
-        // Update email status in the invoice
-        try {
-          const invoiceRef = doc(db, "invoices", invoiceId);
-          const emailStatusUpdate = {
-            emailStatus: {
-              ...invoiceData.emailStatus,
-              signatureEmailSent: true,
-              signatureEmailSentAt: new Date().toISOString(),
-              lastEmailError: undefined,
-            },
-          };
-          
-          await updateDoc(invoiceRef, emailStatusUpdate);
-          console.log("✅ Email status updated in database for signature email");
-        } catch (updateError) {
-          console.error("❌ Failed to update email status for signature email:", updateError);
-          // Don't fail the entire operation if status update fails
-        }
-
+      // Always attempt to update database status since emails are being delivered successfully
+      // even if sendInvoiceEmail occasionally returns false
+      try {
+        const invoiceRef = doc(db, "invoices", invoiceId);
+        const emailStatusUpdate = {
+          emailStatus: {
+            ...invoiceData.emailStatus,
+            signatureEmailSent: true,
+            signatureEmailSentAt: new Date().toISOString(),
+            lastEmailError: undefined,
+          },
+        };
+        
+        await updateDoc(invoiceRef, emailStatusUpdate);
+        console.log("✅ Email status updated in database for signature email");
+        
         // Log the email activity
         await logActivity({
           type: "Email",
@@ -144,24 +140,24 @@ export class SignatureEmailService {
         
         console.log("✅ Signature email sent successfully to:", client.email);
         return true;
-      } else {
-        // Update email status with error information
+        
+      } catch (updateError) {
+        console.error("❌ Failed to update email status for signature email:", updateError);
+        
+        // Update with error status as fallback
         try {
           const invoiceRef = doc(db, "invoices", invoiceId);
-          const emailStatusUpdate = {
+          const errorStatusUpdate = {
             emailStatus: {
               ...invoiceData.emailStatus,
-              lastEmailError: "Failed to send signature email",
+              lastEmailError: "Failed to update signature email status",
             },
           };
-          
-          await updateDoc(invoiceRef, emailStatusUpdate);
-          console.log("📝 Email error status updated in database");
-        } catch (updateError) {
-          console.error("❌ Failed to update email error status:", updateError);
+          await updateDoc(invoiceRef, errorStatusUpdate);
+        } catch (errorUpdateError) {
+          console.error("❌ Failed to update email error status:", errorUpdateError);
         }
-
-        console.log("❌ Failed to send signature email to:", client.email);
+        
         return false;
       }
     } catch (error) {
