@@ -3,7 +3,6 @@ import SignatureCanvas from "react-signature-canvas";
 import { doc, updateDoc, Timestamp, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { logActivity } from "../services/firebaseService";
-import { SignatureEmailService } from "../services/signatureEmailService";
 import { Client, Invoice } from "../types";
 
 interface SignatureModalProps {
@@ -112,12 +111,24 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   }, [show]);
 
   // Helper function to send automatic email if configured (using existing resend email functionality)
-  const sendAutomaticEmailIfEnabled = async (receivedByName: string, invoiceData: any) => {
+  const sendAutomaticEmailIfEnabled = async (receivedByName: string) => {
     try {
-      if (!clientId || !invoiceData) {
-        console.log("Missing client ID or invoice data for automatic email");
+      if (!clientId || !invoiceId) {
+        console.log("Missing client ID or invoice ID for automatic email");
         return;
       }
+
+      // Always fetch fresh invoice data from database to ensure we have complete information
+      console.log("📋 Fetching current invoice data for automatic email...");
+      const invoiceRef = doc(db, "invoices", invoiceId);
+      const invoiceSnap = await getDoc(invoiceRef);
+      
+      if (!invoiceSnap.exists()) {
+        console.log("❌ Invoice not found for automatic email:", invoiceId);
+        return;
+      }
+      
+      const invoiceData = { id: invoiceSnap.id, ...invoiceSnap.data() } as any;
 
       // Get client data to check email settings
       const client = await getDoc(doc(db, "clients", clientId));
@@ -170,9 +181,11 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
         pdfContent
       );
 
+      // Always update the database status, whether success or failure
+      const { updateInvoice } = await import('../services/firebaseService');
+      
       if (success) {
-        // Update email status to show as "Automatic Email" instead of signature email
-        const { updateInvoice } = await import('../services/firebaseService');
+        // Update email status to show as "Automatic Email" for successful sends
         const emailStatusUpdate = {
           emailStatus: {
             ...invoiceData.emailStatus,
@@ -193,7 +206,16 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
 
         console.log("✅ Automatic email sent successfully");
       } else {
-        console.log("❌ Failed to send automatic email");
+        // Update with error status for failed sends
+        const errorStatusUpdate = {
+          emailStatus: {
+            ...invoiceData.emailStatus,
+            lastEmailError: "Failed to send automatic email after signature capture",
+          },
+        };
+        
+        await updateInvoice(invoiceData.id, errorStatusUpdate);
+        console.log("❌ Failed to send automatic email - status updated with error");
       }
     } catch (error) {
       console.error("Error sending automatic email:", error);
@@ -230,8 +252,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
 
         // Send automatic email if configured (even for no personnel case)
         await sendAutomaticEmailIfEnabled(
-          "No authorized personnel available at the time of delivery",
-          invoice
+          "No authorized personnel available at the time of delivery"
         );
 
         // Call the callback function if provided
@@ -280,7 +301,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
       });
 
       // Send automatic email if configured (using resend email functionality)
-      await sendAutomaticEmailIfEnabled(sigName, invoice);
+      await sendAutomaticEmailIfEnabled(sigName);
 
       // Call the callback function if provided
       if (onSignatureSaved) {
