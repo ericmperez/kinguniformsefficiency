@@ -143,6 +143,30 @@ const DailyPiecesReport: React.FC = () => {
   const [hoursDoblado, setHoursDoblado] = useState<string>("");
   const [hoursSegregation, setHoursSegregation] = useState<string>("");
 
+  // New: four-area hours and costs (Uniformes, Doblado, Industrial, Supervisores)
+  const [hoursUniformes, setHoursUniformes] = useState<string>("");
+  const [overtimeUniformes, setOvertimeUniformes] = useState<string>("");
+  const [costUniformes, setCostUniformes] = useState<string>("");
+  const [overtimeCostUniformes, setOvertimeCostUniformes] = useState<string>("");
+
+  const [hoursDobladoNew, setHoursDobladoNew] = useState<string>("");
+  const [overtimeDoblado, setOvertimeDoblado] = useState<string>("");
+  const [costDoblado, setCostDoblado] = useState<string>("");
+  const [overtimeCostDoblado, setOvertimeCostDoblado] = useState<string>("");
+
+  const [hoursIndustrial, setHoursIndustrial] = useState<string>("");
+  const [overtimeIndustrial, setOvertimeIndustrial] = useState<string>("");
+  const [costIndustrial, setCostIndustrial] = useState<string>("");
+  const [overtimeCostIndustrial, setOvertimeCostIndustrial] = useState<string>("");
+
+  const [hoursSupervisores, setHoursSupervisores] = useState<string>("");
+  const [overtimeSupervisores, setOvertimeSupervisores] = useState<string>("");
+  const [costSupervisores, setCostSupervisores] = useState<string>("");
+  const [overtimeCostSupervisores, setOvertimeCostSupervisores] = useState<string>("");
+
+  // New: control to include/exclude price-per-piece in PPH calculations (behavior pending clarification)
+  const [includePriceInPPH, setIncludePriceInPPH] = useState<boolean>(false);
+
   const [excludePeso, setExcludePeso] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [savedAt, setSavedAt] = useState<string>("");
@@ -221,6 +245,107 @@ const DailyPiecesReport: React.FC = () => {
       ignore = true;
     };
   }, []);
+
+  // Compute piece-equivalents from a segregation log entry
+  const computePiecesFromSegLog = (data: any): number => {
+    try {
+      // Prefer direct piece-like fields when present
+      const pieceKeys = [
+        "pieces",
+        "pieceCount",
+        "count",
+        "units",
+        "numPieces",
+        "numUnits",
+        "qty",
+        "quantity",
+      ];
+      for (const k of pieceKeys) {
+        const v = (data as any)?.[k];
+        const n = parseFloat(v);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      // Fallback to weight -> pieces using configured factor
+      const w = parseFloat((data as any)?.weight);
+      if (Number.isFinite(w) && w > 0) {
+        const factor = Number.isFinite(segWeightToPieceFactor) && segWeightToPieceFactor > 0 ? segWeightToPieceFactor : 1;
+        return Math.round(w * factor);
+      }
+    } catch {}
+    return 0;
+  };
+
+  // Fetch segregation logs and sum piece-equivalents for the given range.
+  // Robust to logs that store either a Firestore Timestamp `timestamp` or a string `date` (YYYY-MM-DD).
+  const fetchSegregationLogsPiecesForRange = async (range: DateRange): Promise<number> => {
+    const seen = new Set<string>();
+    let sum = 0;
+
+    // Primary: query by Firestore timestamp range (inclusive start, exclusive end)
+    try {
+      const qTs = query(
+        collection(db, "segregation_done_logs"),
+        where("timestamp", ">=", Timestamp.fromDate(range.start)),
+        where("timestamp", "<", Timestamp.fromDate(range.endExclusive))
+      );
+      const snapTs = await getDocs(qTs);
+      snapTs.docs.forEach((docSnap) => {
+        const id = docSnap.id;
+        if (seen.has(id)) return;
+        seen.add(id);
+        const data = docSnap.data();
+        sum += computePiecesFromSegLog(data);
+      });
+    } catch (e) {
+      console.warn("Segregation logs timestamp query failed", e);
+    }
+
+    // Secondary: query by string date range (YYYY-MM-DD)
+    const startYMD = toYMD(range.start);
+    const endYMD = toYMD(addDays(range.endExclusive, -1));
+    try {
+      const qDateRange = query(
+        collection(db, "segregation_done_logs"),
+        where("date", ">=", startYMD),
+        where("date", "<=", endYMD)
+      );
+      const snapDateRange = await getDocs(qDateRange);
+      snapDateRange.docs.forEach((docSnap) => {
+        const id = docSnap.id;
+        if (seen.has(id)) return;
+        seen.add(id);
+        const data = docSnap.data();
+        sum += computePiecesFromSegLog(data);
+      });
+    } catch (e) {
+      // Some projects may lack composite index or rely on equality; fall back to per-day equality queries
+      try {
+        let d = startOfDay(range.start);
+        const end = startOfDay(addDays(range.endExclusive, -1));
+        while (d <= end) {
+          const ymd = toYMD(d);
+          try {
+            const qEq = query(collection(db, "segregation_done_logs"), where("date", "==", ymd));
+            const snapEq = await getDocs(qEq);
+            snapEq.docs.forEach((docSnap) => {
+              const id = docSnap.id;
+              if (seen.has(id)) return;
+              seen.add(id);
+              const data = docSnap.data();
+              sum += computePiecesFromSegLog(data);
+            });
+          } catch (e2) {
+            console.warn("Segregation logs per-day query failed for", ymd, e2);
+          }
+          d = addDays(d, 1);
+        }
+      } catch (e2) {
+        console.warn("Segregation logs date queries failed", e2);
+      }
+    }
+
+    return sum;
+  };
 
   // Export per-product totals (with area and optional previous columns)
   const exportCsv = () => {
@@ -347,13 +472,71 @@ const DailyPiecesReport: React.FC = () => {
           setHoursMangle(Number.isFinite(hM) ? String(hM) : "");
           setHoursDoblado(Number.isFinite(hD) ? String(hD) : "");
           setHoursSegregation(Number.isFinite(hS) ? String(hS) : "");
+
+          // Load new-format fields (with fallback from legacy where sensible)
+          const u = typeof data?.hoursUniformes === "number" ? data.hoursUniformes : (typeof data?.hoursMangle === "number" ? data.hoursMangle : parseFloat(data?.hoursUniformes || data?.hoursMangle || ""));
+          const uOT = typeof data?.overtimeUniformes === "number" ? data.overtimeUniformes : parseFloat(data?.overtimeUniformes || "");
+          const uCost = typeof data?.costUniformes === "number" ? data.costUniformes : parseFloat(data?.costUniformes || "");
+          const uOtCost = typeof data?.overtimeCostUniformes === "number" ? data.overtimeCostUniformes : parseFloat(data?.overtimeCostUniformes || "");
+          setHoursUniformes(Number.isFinite(u) ? String(u) : "");
+          setOvertimeUniformes(Number.isFinite(uOT) ? String(uOT) : "");
+          setCostUniformes(Number.isFinite(uCost) ? String(uCost) : "");
+          setOvertimeCostUniformes(Number.isFinite(uOtCost) ? String(uOtCost) : "");
+
+          const dNew = typeof data?.hoursDobladoNew === "number" ? data.hoursDobladoNew : (typeof data?.hoursDoblado === "number" ? data.hoursDoblado : parseFloat(data?.hoursDobladoNew || data?.hoursDoblado || ""));
+          const dOT = typeof data?.overtimeDoblado === "number" ? data.overtimeDoblado : parseFloat(data?.overtimeDoblado || "");
+          const dCost = typeof data?.costDoblado === "number" ? data.costDoblado : parseFloat(data?.costDoblado || "");
+          const dOtCost = typeof data?.overtimeCostDoblado === "number" ? data.overtimeCostDoblado : parseFloat(data?.overtimeCostDoblado || "");
+          setHoursDobladoNew(Number.isFinite(dNew) ? String(dNew) : "");
+          setOvertimeDoblado(Number.isFinite(dOT) ? String(dOT) : "");
+          setCostDoblado(Number.isFinite(dCost) ? String(dCost) : "");
+          setOvertimeCostDoblado(Number.isFinite(dOtCost) ? String(dOtCost) : "");
+
+          const i = typeof data?.hoursIndustrial === "number" ? data.hoursIndustrial : parseFloat(data?.hoursIndustrial || "");
+          const iOT = typeof data?.overtimeIndustrial === "number" ? data.overtimeIndustrial : parseFloat(data?.overtimeIndustrial || "");
+          const iCost = typeof data?.costIndustrial === "number" ? data.costIndustrial : parseFloat(data?.costIndustrial || "");
+          const iOtCost = typeof data?.overtimeCostIndustrial === "number" ? data.overtimeCostIndustrial : parseFloat(data?.overtimeCostIndustrial || "");
+          setHoursIndustrial(Number.isFinite(i) ? String(i) : "");
+          setOvertimeIndustrial(Number.isFinite(iOT) ? String(iOT) : "");
+          setCostIndustrial(Number.isFinite(iCost) ? String(iCost) : "");
+          setOvertimeCostIndustrial(Number.isFinite(iOtCost) ? String(iOtCost) : "");
+
+          const s = typeof data?.hoursSupervisores === "number" ? data.hoursSupervisores : parseFloat(data?.hoursSupervisores || "");
+          const sOT = typeof data?.overtimeSupervisores === "number" ? data.overtimeSupervisores : parseFloat(data?.overtimeSupervisores || "");
+          const sCost = typeof data?.costSupervisores === "number" ? data.costSupervisores : parseFloat(data?.costSupervisores || "");
+          const sOtCost = typeof data?.overtimeCostSupervisores === "number" ? data.overtimeCostSupervisores : parseFloat(data?.overtimeCostSupervisores || "");
+          setHoursSupervisores(Number.isFinite(s) ? String(s) : "");
+          setOvertimeSupervisores(Number.isFinite(sOT) ? String(sOT) : "");
+          setCostSupervisores(Number.isFinite(sCost) ? String(sCost) : "");
+          setOvertimeCostSupervisores(Number.isFinite(sOtCost) ? String(sOtCost) : "");
+
+          // Load persisted toggle for price-per-piece inclusion
+          setIncludePriceInPPH(Boolean(data?.includePriceInPPH));
+
           setSavedAt(data?.updatedAt || "");
         } else if (!ignore) {
           setHours("");
           setHoursMangle("");
           setHoursDoblado("");
           setHoursSegregation("");
+          setHoursUniformes("");
+          setOvertimeUniformes("");
+          setCostUniformes("");
+          setOvertimeCostUniformes("");
+          setHoursDobladoNew("");
+          setOvertimeDoblado("");
+          setCostDoblado("");
+          setOvertimeCostDoblado("");
+          setHoursIndustrial("");
+          setOvertimeIndustrial("");
+          setCostIndustrial("");
+          setOvertimeCostIndustrial("");
+          setHoursSupervisores("");
+          setOvertimeSupervisores("");
+          setCostSupervisores("");
+          setOvertimeCostSupervisores("");
           setSavedAt("");
+          setIncludePriceInPPH(false);
         }
       } catch (e) {
         // keep current input on read errors
@@ -380,15 +563,30 @@ const DailyPiecesReport: React.FC = () => {
         const snap = await getDoc(ref);
         if (!ignore && snap.exists()) {
           const data: any = snap.data();
-          const hTotal = typeof data?.hoursTotal === "number" ? data.hoursTotal : (typeof data?.hours === "number" ? data.hours : parseFloat(data?.hours || ""));
-          const hM = typeof data?.hoursMangle === "number" ? data.hoursMangle : parseFloat(data?.hoursMangle || "");
-          const hD = typeof data?.hoursDoblado === "number" ? data.hoursDoblado : parseFloat(data?.hoursDoblado || "");
-          const hS = typeof data?.hoursSegregation === "number" ? data.hoursSegregation : parseFloat(data?.hoursSegregation || "");
-          const total = (Number.isFinite(hM) ? hM : 0) + (Number.isFinite(hD) ? hD : 0) + (Number.isFinite(hS) ? hS : 0);
-          setPrevHours(Number.isFinite(total) && total > 0 ? total : (Number.isFinite(hTotal) ? hTotal : null));
-          setPrevMangleHours(Number.isFinite(hM) ? hM : null);
-          setPrevDobladoHours(Number.isFinite(hD) ? hD : null);
-          setPrevSegregationHours(Number.isFinite(hS) ? hS : null);
+          // Prefer new format totals
+          const u = (typeof data?.hoursUniformes === "number" ? data.hoursUniformes : parseFloat(data?.hoursUniformes || "")) + (typeof data?.overtimeUniformes === "number" ? data.overtimeUniformes : parseFloat(data?.overtimeUniformes || ""));
+          const d = (typeof data?.hoursDobladoNew === "number" ? data.hoursDobladoNew : (typeof data?.hoursDoblado === "number" ? data.hoursDoblado : parseFloat(data?.hoursDobladoNew || data?.hoursDoblado || ""))) + (typeof data?.overtimeDoblado === "number" ? data.overtimeDoblado : parseFloat(data?.overtimeDoblado || ""));
+          const i = (typeof data?.hoursIndustrial === "number" ? data.hoursIndustrial : parseFloat(data?.hoursIndustrial || "")) + (typeof data?.overtimeIndustrial === "number" ? data.overtimeIndustrial : parseFloat(data?.overtimeIndustrial || ""));
+          const s = (typeof data?.hoursSupervisores === "number" ? data.hoursSupervisores : parseFloat(data?.hoursSupervisores || "")) + (typeof data?.overtimeSupervisores === "number" ? data.overtimeSupervisores : parseFloat(data?.overtimeSupervisores || ""));
+          const sumNew = [u, d, i, s].reduce((acc, v) => acc + (Number.isFinite(v) ? v : 0), 0);
+
+          if (sumNew > 0) {
+            setPrevHours(sumNew);
+            setPrevMangleHours(Number.isFinite(u) ? u : null);
+            setPrevDobladoHours(Number.isFinite(d) ? d : null);
+            setPrevSegregationHours(null);
+          } else {
+            // Fallback to legacy
+            const hTotal = typeof data?.hoursTotal === "number" ? data.hoursTotal : (typeof data?.hours === "number" ? data.hours : parseFloat(data?.hours || ""));
+            const hM = typeof data?.hoursMangle === "number" ? data.hoursMangle : parseFloat(data?.hoursMangle || "");
+            const hD = typeof data?.hoursDoblado === "number" ? data.hoursDoblado : parseFloat(data?.hoursDoblado || "");
+            const hS = typeof data?.hoursSegregation === "number" ? data.hoursSegregation : parseFloat(data?.hoursSegregation || "");
+            const total = (Number.isFinite(hM) ? hM : 0) + (Number.isFinite(hD) ? hD : 0) + (Number.isFinite(hS) ? hS : 0);
+            setPrevHours(Number.isFinite(total) && total > 0 ? total : (Number.isFinite(hTotal) ? hTotal : null));
+            setPrevMangleHours(Number.isFinite(hM) ? hM : null);
+            setPrevDobladoHours(Number.isFinite(hD) ? hD : null);
+            setPrevSegregationHours(Number.isFinite(hS) ? hS : null);
+          }
         }
       } catch (e) {
         console.warn("Failed to load previous hours", e);
@@ -403,95 +601,6 @@ const DailyPiecesReport: React.FC = () => {
       ignore = true;
     };
   }, [prevHoursDocId]);
-
-  // Helper: compute pieces for a segregation log entry using best-available fields
-  const computePiecesFromSegLog = (data: any): number => {
-    if (!data || typeof data !== "object") return 0;
-    const directFields = [
-      "pieces",
-      "pieceCount",
-      "count",
-      "units",
-      "numPieces",
-      "numUnits",
-      "carts",
-    ];
-    for (const f of directFields) {
-      const v = Number((data as any)[f]);
-      if (Number.isFinite(v) && v > 0) return v;
-    }
-    const w = Number((data as any)?.weight);
-    if (Number.isFinite(w) && w > 0) return w * (Number.isFinite(segWeightToPieceFactor) ? segWeightToPieceFactor : 1);
-    // Fallback: treat a log as 1 unit if nothing else provided
-    return 0;
-  };
-
-  // Robust fetch of segregation logs within a date range (handles timestamp/date and UTC/local)
-  const fetchSegregationLogsPiecesForRange = async (range: DateRange): Promise<number> => {
-    try {
-      const col = collection(db, "segregation_done_logs");
-      const results = new Map<string, any>();
-
-      // Primary: timestamp range (Firestore Timestamp type)
-      try {
-        const q1 = query(
-          col,
-          where("timestamp", ">=", Timestamp.fromDate(range.start)),
-          where("timestamp", "<", Timestamp.fromDate(range.endExclusive))
-        );
-        const snap1 = await getDocs(q1);
-        snap1.docs.forEach((d) => results.set(d.id, d.data()));
-      } catch (e) {
-        console.warn("Segregation logs timestamp-range query failed or empty", e);
-      }
-
-      // Secondary: date string range (YYYY-MM-DD), inclusive of all local days in the range
-      try {
-        const startY = toYMD(range.start);
-        const endPlus = toYMD(range.endExclusive); // exclusive upper bound
-        const q2 = query(
-          col,
-          where("date", ">=", startY),
-          where("date", "<", endPlus)
-        );
-        const snap2 = await getDocs(q2);
-        snap2.docs.forEach((d) => {
-          if (!results.has(d.id)) results.set(d.id, d.data());
-        });
-      } catch (e) {
-        console.warn("Segregation logs date-range query failed", e);
-      }
-
-      // Tertiary: for single-day ranges, also try UTC date equality (since logs used to be saved with UTC date string)
-      const rangeMs = range.endExclusive.getTime() - range.start.getTime();
-      if (results.size === 0 && rangeMs <= 24 * 60 * 60 * 1000 + 1) {
-        const localY = toYMD(range.start);
-        const utcY = new Date(range.start).toISOString().slice(0, 10);
-        if (utcY !== localY) {
-          try {
-            const q3 = query(col, where("date", "==", utcY));
-            const snap3 = await getDocs(q3);
-            snap3.docs.forEach((d) => {
-              if (!results.has(d.id)) results.set(d.id, d.data());
-            });
-          } catch (e) {
-            console.warn("Segregation logs UTC-date equality query failed", e);
-          }
-        }
-      }
-
-      // Sum pieces
-      let sum = 0;
-      results.forEach((data) => {
-        const pieces = computePiecesFromSegLog(data);
-        if (Number.isFinite(pieces) && pieces > 0) sum += pieces;
-      });
-      return sum;
-    } catch (e) {
-      console.warn("Failed to aggregate segregation logs for range", e);
-      return 0;
-    }
-  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -700,12 +809,42 @@ const DailyPiecesReport: React.FC = () => {
 
   const handleSaveHours = async () => {
     if (!dateRange || !hoursDocId) return;
+    const num = (v: string) => {
+      const n = parseFloat(v);
+      return Number.isFinite(n) && n >= 0 ? n : NaN;
+    };
+
+    const u = num(hoursUniformes);
+    const uOT = num(overtimeUniformes);
+    const uCost = num(costUniformes);
+    const uOtCost = num(overtimeCostUniformes);
+
+    const dNew = num(hoursDobladoNew);
+    const dOT = num(overtimeDoblado);
+    const dCost = num(costDoblado);
+    const dOtCost = num(overtimeCostDoblado);
+
+    const i = num(hoursIndustrial);
+    const iOT = num(overtimeIndustrial);
+    const iCost = num(costIndustrial);
+    const iOtCost = num(overtimeCostIndustrial);
+
+    const s = num(hoursSupervisores);
+    const sOT = num(overtimeSupervisores);
+    const sCost = num(costSupervisores);
+    const sOtCost = num(overtimeCostSupervisores);
+
+    // Total from new areas
+    const totalFromAreas = [u, uOT, dNew, dOT, i, iOT, s, sOT].reduce((acc, v) => acc + (Number.isFinite(v) ? v : 0), 0);
+
+    // Legacy total as fallback
     const h = parseFloat(hours);
     const hM = parseFloat(hoursMangle);
     const hD = parseFloat(hoursDoblado);
     const hS = parseFloat(hoursSegregation);
-    const totalFromAreas = (Number.isFinite(hM) ? hM : 0) + (Number.isFinite(hD) ? hD : 0) + (Number.isFinite(hS) ? hS : 0);
-    const hoursTotal = totalFromAreas > 0 ? totalFromAreas : (Number.isFinite(h) ? h : NaN);
+    const legacyAreas = (Number.isFinite(hM) ? hM : 0) + (Number.isFinite(hD) ? hD : 0) + (Number.isFinite(hS) ? hS : 0);
+    const hoursTotal = totalFromAreas > 0 ? totalFromAreas : (legacyAreas > 0 ? legacyAreas : (Number.isFinite(h) ? h : NaN));
+
     if (!Number.isFinite(hoursTotal) || hoursTotal < 0) return;
     setSaving(true);
     try {
@@ -713,17 +852,44 @@ const DailyPiecesReport: React.FC = () => {
         id: hoursDocId,
         type: rangeType,
         start: toYMD(dateRange.start),
-        end: toYMD(addDays(dateRange.endExclusive, -1)), // inclusive end
+        end: toYMD(addDays(dateRange.endExclusive, -1)),
         label: dateRange.label,
         weekStartsOn: rangeType === "week" ? weekStartsOn : undefined,
         month: rangeType === "month" ? (monthStr || toYM(dateRange.start)) : undefined,
         hours: hoursTotal, // backward compatible
         hoursTotal,
-        hoursMangle: Number.isFinite(hM) ? hM : undefined,
-        hoursDoblado: Number.isFinite(hD) ? hD : undefined,
-        hoursSegregation: Number.isFinite(hS) ? hS : undefined,
+        // New fields
+        hoursUniformes: Number.isFinite(u) ? u : undefined,
+        overtimeUniformes: Number.isFinite(uOT) ? uOT : undefined,
+        costUniformes: Number.isFinite(uCost) ? uCost : undefined,
+        overtimeCostUniformes: Number.isFinite(uOtCost) ? uOtCost : undefined,
+
+        hoursDobladoNew: Number.isFinite(dNew) ? dNew : undefined,
+        overtimeDoblado: Number.isFinite(dOT) ? dOT : undefined,
+        costDoblado: Number.isFinite(dCost) ? dCost : undefined,
+        overtimeCostDoblado: Number.isFinite(dOtCost) ? dOtCost : undefined,
+
+        hoursIndustrial: Number.isFinite(i) ? i : undefined,
+        overtimeIndustrial: Number.isFinite(iOT) ? iOT : undefined,
+        costIndustrial: Number.isFinite(iCost) ? iCost : undefined,
+        overtimeCostIndustrial: Number.isFinite(iOtCost) ? iOtCost : undefined,
+
+        hoursSupervisores: Number.isFinite(s) ? s : undefined,
+        overtimeSupervisores: Number.isFinite(sOT) ? sOT : undefined,
+        costSupervisores: Number.isFinite(sCost) ? sCost : undefined,
+        overtimeCostSupervisores: Number.isFinite(sOtCost) ? sOtCost : undefined,
+
+        // Persist toggle (no calculation effect yet; pending clarification)
+        includePriceInPPH,
+
         updatedAt: new Date().toISOString(),
       };
+
+      // Remove undefined fields as Firestore does not accept undefined values
+      Object.keys(payload).forEach((k) => {
+        if (payload[k] === undefined) delete payload[k];
+      });
+
       await setDoc(doc(db, "workHours", hoursDocId), payload, { merge: true });
       setSavedAt(payload.updatedAt);
       // Normalize displayed total hours to saved total
@@ -752,13 +918,63 @@ const DailyPiecesReport: React.FC = () => {
 
   // Effective hours used for overall PPH
   const effectiveTotalHours = useMemo(() => {
+    // Prefer new area-based total (sum of regular + overtime across 4 areas)
+    const num = (v: string) => {
+      const n = parseFloat(v);
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    };
+    const sumNew =
+      num(hoursUniformes) +
+      num(overtimeUniformes) +
+      num(hoursDobladoNew) +
+      num(overtimeDoblado) +
+      num(hoursIndustrial) +
+      num(overtimeIndustrial) +
+      num(hoursSupervisores) +
+      num(overtimeSupervisores);
+
+    if (sumNew > 0) return sumNew;
+
+    // Fallback to legacy segmented or total
     const h = parseFloat(hours);
     const hM = parseFloat(hoursMangle);
     const hD = parseFloat(hoursDoblado);
     const hS = parseFloat(hoursSegregation);
     const totalFromAreas = (Number.isFinite(hM) ? hM : 0) + (Number.isFinite(hD) ? hD : 0) + (Number.isFinite(hS) ? hS : 0);
     return totalFromAreas > 0 ? totalFromAreas : (Number.isFinite(h) ? h : 0);
-  }, [hours, hoursMangle, hoursDoblado, hoursSegregation]);
+  }, [hours, hoursMangle, hoursDoblado, hoursSegregation, hoursUniformes, overtimeUniformes, hoursDobladoNew, overtimeDoblado, hoursIndustrial, overtimeIndustrial, hoursSupervisores, overtimeSupervisores]);
+
+  // New: compute total labor cost and current price-per-piece (based on entered costs)
+  const totalLaborCost = useMemo(() => {
+    const num = (v: string) => {
+      const n = parseFloat(v);
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    };
+    return (
+      num(costUniformes) +
+      num(overtimeCostUniformes) +
+      num(costDoblado) +
+      num(overtimeCostDoblado) +
+      num(costIndustrial) +
+      num(overtimeCostIndustrial) +
+      num(costSupervisores) +
+      num(overtimeCostSupervisores)
+    );
+  }, [
+    costUniformes,
+    overtimeCostUniformes,
+    costDoblado,
+    overtimeCostDoblado,
+    costIndustrial,
+    overtimeCostIndustrial,
+    costSupervisores,
+    overtimeCostSupervisores,
+  ]);
+
+  const pricePerPiece = useMemo(() => {
+    if (totalPieces > 0 && totalLaborCost > 0) return totalLaborCost / totalPieces;
+    return 0;
+  }, [totalLaborCost, totalPieces]);
 
   const piecesPerHour = useMemo(() => {
     const h = effectiveTotalHours;
@@ -1062,78 +1278,95 @@ const DailyPiecesReport: React.FC = () => {
           </div>
         </div>
 
-        {/* Hours - segmented */}
-        <div className="col-auto">
-          <label className="form-label">Mangle hours</label>
-          <input
-            type="number"
-            className="form-control"
-            min={0}
-            step="0.1"
-            placeholder="e.g. 4"
-            value={hoursMangle}
-            onChange={(e) => setHoursMangle(e.target.value)}
-          />
-        </div>
-        <div className="col-auto">
-          <label className="form-label">Doblado hours</label>
-          <input
-            type="number"
-            className="form-control"
-            min={0}
-            step="0.1"
-            placeholder="e.g. 4"
-            value={hoursDoblado}
-            onChange={(e) => setHoursDoblado(e.target.value)}
-          />
-        </div>
-        <div className="col-auto">
-          <label className="form-label">Segregation hours</label>
-          <input
-            type="number"
-            className="form-control"
-            min={0}
-            step="0.1"
-            placeholder="e.g. 2"
-            value={hoursSegregation}
-            onChange={(e) => setHoursSegregation(e.target.value)}
-          />
-        </div>
-        {/* Total hours (kept for backward compat / quick entry) */}
-        <div className="col-auto">
-          <label className="form-label">Total man-hours</label>
-          <input
-            type="number"
-            className="form-control"
-            min={0}
-            step="0.1"
-            placeholder="sum or override"
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-          />
-          <small className="text-muted">If area hours set, total = Mangle + Doblado + Segregation.</small>
-        </div>
-        <div className="col-auto">
-          <button className="btn btn-primary mt-4" onClick={handleSaveHours} disabled={!hoursDocId || saving}>
-            {saving ? "Saving…" : "Save Hours"}
-          </button>
-        </div>
+        {/* New Four-Area Hours and Costs */}
+        <div className="w-100" />
+        <div className="col-12">
+          <div className="card p-3 border-0 bg-light">
+            <div className="row g-3">
+              <div className="col-12"><strong>Labor (hours and cost)</strong></div>
 
-        {/* Compare toggle */}
-        <div className="col-auto">
-          <div className="form-check mt-4 pt-1">
-            <input
-              id="comparePrev"
-              className="form-check-input"
-              type="checkbox"
-              checked={compareEnabled}
-              onChange={(e) => setCompareEnabled(e.target.checked)}
-            />
-            <label className="form-check-label" htmlFor="comparePrev">
-              Compare to previous period
-            </label>
+              {/* Uniformes */}
+              <div className="col-12 col-md-6 col-lg-3">
+                <div className="border rounded p-2 h-100">
+                  <div className="fw-semibold mb-2">Uniformes</div>
+                  <label className="form-label mb-1">Total hours</label>
+                  <input type="number" min={0} step="0.1" className="form-control mb-2" value={hoursUniformes} onChange={(e)=>setHoursUniformes(e.target.value)} />
+                  <label className="form-label mb-1">Overtime hours</label>
+                  <input type="number" min={0} step="0.1" className="form-control mb-2" value={overtimeUniformes} onChange={(e)=>setOvertimeUniformes(e.target.value)} />
+                  <label className="form-label mb-1">Cost (total hours)</label>
+                  <input type="number" min={0} step="0.01" className="form-control mb-2" value={costUniformes} onChange={(e)=>setCostUniformes(e.target.value)} />
+                  <label className="form-label mb-1">Cost (overtime)</label>
+                  <input type="number" min={0} step="0.01" className="form-control" value={overtimeCostUniformes} onChange={(e)=>setOvertimeCostUniformes(e.target.value)} />
+                </div>
+              </div>
+
+              {/* Doblado */}
+              <div className="col-12 col-md-6 col-lg-3">
+                <div className="border rounded p-2 h-100">
+                  <div className="fw-semibold mb-2">Doblado</div>
+                  <label className="form-label mb-1">Total hours</label>
+                  <input type="number" min={0} step="0.1" className="form-control mb-2" value={hoursDobladoNew} onChange={(e)=>setHoursDobladoNew(e.target.value)} />
+                  <label className="form-label mb-1">Overtime hours</label>
+                  <input type="number" min={0} step="0.1" className="form-control mb-2" value={overtimeDoblado} onChange={(e)=>setOvertimeDoblado(e.target.value)} />
+                  <label className="form-label mb-1">Cost (total hours)</label>
+                  <input type="number" min={0} step="0.01" className="form-control mb-2" value={costDoblado} onChange={(e)=>setCostDoblado(e.target.value)} />
+                  <label className="form-label mb-1">Cost (overtime)</label>
+                  <input type="number" min={0} step="0.01" className="form-control" value={overtimeCostDoblado} onChange={(e)=>setOvertimeCostDoblado(e.target.value)} />
+                </div>
+              </div>
+
+              {/* Industrial */}
+              <div className="col-12 col-md-6 col-lg-3">
+                <div className="border rounded p-2 h-100">
+                  <div className="fw-semibold mb-2">Industrial</div>
+                  <label className="form-label mb-1">Total hours</label>
+                  <input type="number" min={0} step="0.1" className="form-control mb-2" value={hoursIndustrial} onChange={(e)=>setHoursIndustrial(e.target.value)} />
+                  <label className="form-label mb-1">Overtime hours</label>
+                  <input type="number" min={0} step="0.1" className="form-control mb-2" value={overtimeIndustrial} onChange={(e)=>setOvertimeIndustrial(e.target.value)} />
+                  <label className="form-label mb-1">Cost (total hours)</label>
+                  <input type="number" min={0} step="0.01" className="form-control mb-2" value={costIndustrial} onChange={(e)=>setCostIndustrial(e.target.value)} />
+                  <label className="form-label mb-1">Cost (overtime)</label>
+                  <input type="number" min={0} step="0.01" className="form-control" value={overtimeCostIndustrial} onChange={(e)=>setOvertimeCostIndustrial(e.target.value)} />
+                </div>
+              </div>
+
+              {/* Supervisores */}
+              <div className="col-12 col-md-6 col-lg-3">
+                <div className="border rounded p-2 h-100">
+                  <div className="fw-semibold mb-2">Supervisores</div>
+                  <label className="form-label mb-1">Total hours</label>
+                  <input type="number" min={0} step="0.1" className="form-control mb-2" value={hoursSupervisores} onChange={(e)=>setHoursSupervisores(e.target.value)} />
+                  <label className="form-label mb-1">Overtime hours</label>
+                  <input type="number" min={0} step="0.1" className="form-control mb-2" value={overtimeSupervisores} onChange={(e)=>setOvertimeSupervisores(e.target.value)} />
+                  <label className="form-label mb-1">Cost (total hours)</label>
+                  <input type="number" min={0} step="0.01" className="form-control mb-2" value={costSupervisores} onChange={(e)=>setCostSupervisores(e.target.value)} />
+                  <label className="form-label mb-1">Cost (overtime)</label>
+                  <input type="number" min={0} step="0.01" className="form-control" value={overtimeCostSupervisores} onChange={(e)=>setOvertimeCostSupervisores(e.target.value)} />
+                </div>
+              </div>
+
+              {/* Toggle for including price-per-piece in PPH (exact behavior pending clarification) */}
+              <div className="col-12 d-flex align-items-center justify-content-between">
+                <div className="form-check">
+                  <input
+                    id="includePriceInPPH"
+                    className="form-check-input"
+                    type="checkbox"
+                    checked={includePriceInPPH}
+                    onChange={(e) => setIncludePriceInPPH(e.target.checked)}
+                  />
+                  <label className="form-check-label" htmlFor="includePriceInPPH">
+                    Include “price per piece” in PPH calculations
+                  </label>
+                </div>
+                <button className="btn btn-primary" onClick={handleSaveHours} disabled={!hoursDocId || saving}>
+                  {saving ? "Saving…" : "Save Hours"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+
         <div className="col-auto ms-auto">
           <button className="btn btn-outline-primary mt-4" onClick={exportCsv} disabled={loading || (!compareEnabled && byProduct.length === 0) || (compareEnabled && productCompareRows.length === 0)}>
             Export CSV
@@ -1242,6 +1475,26 @@ const DailyPiecesReport: React.FC = () => {
                     Δ {deltaPiecesS >= 0 ? "+" : ""}{deltaPiecesS.toLocaleString()} pieces{prevSegregationPPH != null ? ` | p/h ${((segregationPPH || 0) - (prevSegregationPPH || 0)).toFixed(2)}` : ""}
                   </small>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* New: Price per piece summary */}
+          <div className="d-flex flex-wrap gap-3 mb-4">
+            <div className="card border-danger" style={{ minWidth: 260 }}>
+              <div className="card-body">
+                <div className="text-muted">Price per piece</div>
+                <div className="display-6 fw-bold">
+                  {pricePerPiece > 0
+                    ? pricePerPiece.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 4,
+                      })
+                    : "-"}
+                </div>
+                <small className="text-muted">
+                  From entered labor costs{totalLaborCost > 0 ? ` (${totalLaborCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total)` : ""}
+                </small>
               </div>
             </div>
           </div>
