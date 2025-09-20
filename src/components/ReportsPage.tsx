@@ -17,7 +17,9 @@ import Report from "./Report";
 import WeightIntervalAnalytics from "./WeightIntervalAnalytics";
 import PieceIntervalAnalytics from "./PieceIntervalAnalytics";
 import AlertsDashboard from "./AlertsDashboard";
+import DailyPiecesReport from "./DailyPiecesReport";
 import { useAuth } from "./AuthContext";
+import ItemTotalsByProduct from "./ItemTotalsByProduct";
 
 const ReportsPage: React.FC = () => {
   const { user } = useAuth();
@@ -29,7 +31,7 @@ const ReportsPage: React.FC = () => {
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [activeSection, setActiveSection] = useState<
-    "boletas" | "reports" | "status" | "weightAnalytics" | "pieceAnalytics" | "alerts"
+    "boletas" | "reports" | "status" | "weightAnalytics" | "pieceAnalytics" | "alerts" | "dailyPieces" | "productTotals"
   >("boletas");
 
   // Status section query filter state
@@ -131,6 +133,26 @@ const ReportsPage: React.FC = () => {
           onClick={() => setActiveSection("alerts")}
         >
           🚨 Alerts
+        </button>
+        <button
+          className={`btn${
+            activeSection === "dailyPieces"
+              ? " btn-primary"
+              : " btn-outline-primary"
+          }`}
+          onClick={() => setActiveSection("dailyPieces")}
+        >
+          Daily Pieces
+        </button>
+        <button
+          className={`btn${
+            activeSection === "productTotals"
+              ? " btn-primary"
+              : " btn-outline-primary"
+          }`}
+          onClick={() => setActiveSection("productTotals")}
+        >
+          Product Totals
         </button>
       </div>
       {activeSection === "boletas" && (
@@ -1014,6 +1036,20 @@ const ReportsPage: React.FC = () => {
       {activeSection === "alerts" && (
         <>
           <AlertsDashboard />
+        </>
+      )}
+
+      {activeSection === "dailyPieces" && (
+        <>
+          <h2>Daily Pieces</h2>
+          <DailyPiecesReport />
+        </>
+      )}
+
+      {activeSection === "productTotals" && (
+        <>
+          <h2>Item Totals by Product</h2>
+          <ItemTotalsByProduct />
         </>
       )}
 

@@ -833,3 +833,95 @@ body.modal-open {
 .modal.show.product-confirmation-modal {
   z-index: 9999 !important;
 }
+
+/* --- Client Product Selection Grid (Create/Edit Client) --- */
+.client-product-grid {
+  pointer-events: auto; /* placeholder to avoid empty ruleset without affecting layout */
+}
+
+.client-product-card {
+  min-height: 120px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  border-radius: 12px !important;
+}
+
+.client-product-card.border-primary {
+  border-width: 3px !important;
+}
+
+.client-product-name {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #333 !important;
+  text-align: center !important;
+  white-space: normal !important;
+  writing-mode: horizontal-tb !important; /* enforce horizontal text */
+  transform: none !important; /* cancel any rotate transforms */
+  letter-spacing: normal !important;
+}
+
+@media (min-width: 768px) {
+  .client-product-card {
+    min-height: 140px !important;
+  }
+  .client-product-name {
+    font-size: 18px !important;
+  }
+}
+
+@media (min-width: 992px) {
+  .client-product-card {
+    min-height: 150px !important;
+  }
+  .client-product-name {
+    font-size: 18px !important;
+  }
+}
+
+/* --- Daily Pieces full-bleed layout --- */
+.daily-pieces-fullscreen {
+  /* Make the section span the full viewport width even inside a centered container */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+
+  /* Take up nearly full viewport height, accounting for top nav and page paddings */
+  min-height: calc(100vh - 140px);
+
+  /* Comfortable spacing */
+  padding: 1rem 2rem;
+
+  /* Keep background clean (no card look) */
+  background: #fff;
+
+  /* Prevent sideways scroll from full-bleed margins */
+  overflow-x: hidden;
+}
+
+/* Ensure tables and content inside full-bleed area behave nicely */
+.daily-pieces-fullscreen .table-responsive {
+  overflow-x: auto;
+}
+
+/* Centered header action buttons */
+.header-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.header-action-buttons .btn {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .header-action-buttons {
+    justify-content: center; /* keep centered on md+ */
+  }
+}

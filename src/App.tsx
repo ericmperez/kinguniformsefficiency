@@ -842,18 +842,6 @@ function App() {
           icon: <GroupWorkIcon />,
           visible: true,
         },
-        {
-          label: "Historical Reports",
-          page: "historicalReports",
-          icon: <AssessmentIcon />,
-          visible: true,
-        },
-        {
-          label: "Client Daily Analytics",
-          page: "clientDailyAnalytics",
-          icon: <AssessmentIcon />,
-          visible: true,
-        },
       ],
     },
     {

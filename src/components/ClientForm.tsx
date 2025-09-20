@@ -245,18 +245,18 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                   {selectedProducts.length} / {products.length} selected
                 </span>
               </div>
-              <div className="row g-3">
+              <div className="row g-3 client-product-grid">
                 {[...products]
                   .sort((a, b) => a.name.localeCompare(b.name))
                   .map((product) => (
                     <div key={product.id} className="col-6 col-md-4 col-lg-3">
                       <label
-                        className={`card h-100 shadow-sm position-relative product-checkbox-card ${
+                        className={`card h-100 shadow-sm position-relative product-checkbox-card client-product-card ${
                           selectedProducts.includes(product.id)
                             ? "border-primary"
                             : "border-light"
                         }`}
-                        style={{ cursor: "pointer", minHeight: 90 }}
+                        style={{ cursor: "pointer" }}
                       >
                         <input
                           type="checkbox"
@@ -273,20 +273,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                               src={product.imageUrl}
                               alt={product.name}
                               className="mb-2 rounded"
-                              style={{
-                                width: 40,
-                                height: 40,
-                                objectFit: "cover",
-                              }}
+                              style={{ width: 48, height: 48, objectFit: "cover" }}
                             />
-                          )}{" "}
-                          <span
-                            className="product-name medium interactive"
-                            style={{
-                              display: "block",
-                              width: "100%",
-                            }}
-                          >
+                          )}
+                          <span className="client-product-name" style={{ display: "block", width: "100%" }}>
                             {product.name}
                           </span>
                         </div>
@@ -847,7 +837,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                       </span>
                     </div>
                     <hr style={{ margin: "8px 0" }} />
-                    <div className="row g-3">
+                    <div className="row g-3 client-product-grid">
                       {[...products]
                         .sort((a, b) => a.name.localeCompare(b.name))
                         .map((product) => (
@@ -856,12 +846,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                             className="col-6 col-md-4 col-lg-3"
                           >
                             <label
-                              className={`card h-100 shadow-sm position-relative product-checkbox-card ${
+                              className={`card h-100 shadow-sm position-relative product-checkbox-card client-product-card ${
                                 selectedProducts.includes(product.id)
                                   ? "border-primary"
                                   : "border-light"
                               }`}
-                              style={{ cursor: "pointer", minHeight: 90 }}
+                              style={{ cursor: "pointer" }}
                             >
                               <input
                                 type="checkbox"
@@ -878,19 +868,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({
                                     src={product.imageUrl}
                                     alt={product.name}
                                     className="mb-2 rounded"
-                                    style={{
-                                      width: 40,
-                                      height: 40,
-                                      objectFit: "cover",
-                                    }}
+                                    style={{ width: 48, height: 48, objectFit: "cover" }}
                                   />
                                 )}
                                 <span
-                                  className="product-name medium interactive"
-                                  style={{
-                                    display: "block",
-                                    width: "100%",
-                                  }}
+                                  className="client-product-name"
+                                  style={{ display: "block", width: "100%" }}
                                 >
                                   {product.name}
                                 </span>

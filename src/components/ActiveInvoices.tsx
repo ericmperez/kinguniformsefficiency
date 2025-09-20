@@ -36,7 +36,13 @@ import {
   validateEmailSettings,
   generateInvoicePDF,
 } from "../services/emailService";
-import { collection, onSnapshot, query, where, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 import { formatDateSpanish } from "../utils/dateFormatter";
 
 interface ActiveInvoicesProps {
@@ -801,13 +807,15 @@ export default function ActiveInvoices({
 
     const loadPickupGroups = async () => {
       if (!isMounted) return;
-      
+
       try {
         setGroupsLoading(true);
         const groups = await getAllPickupGroups();
         if (isMounted) {
           setPickupGroups(groups);
-          console.log(`📦 Loaded ${groups.length} pickup groups (cached or filtered)`);
+          console.log(
+            `📦 Loaded ${groups.length} pickup groups (cached or filtered)`
+          );
         }
       } catch (error) {
         console.error("Error loading pickup groups:", error);
@@ -966,31 +974,38 @@ export default function ActiveInvoices({
     pending: ManualConventionalProduct[];
     lastUpdated: number;
   }>({ pending: [], lastUpdated: 0 });
-  
+
   const SPECIAL_ITEMS_CACHE_DURATION = 30 * 1000; // 30 seconds
 
   // Optimized function to check special items with caching
-  const checkSpecialItemsForInvoice = async (invoiceId: string): Promise<ManualConventionalProduct[]> => {
+  const checkSpecialItemsForInvoice = async (
+    invoiceId: string
+  ): Promise<ManualConventionalProduct[]> => {
     const now = Date.now();
-    
+
     // Use cached data if it's fresh (less than 30 seconds old)
-    if (specialItemsCache.pending.length >= 0 && 
-        (now - specialItemsCache.lastUpdated) < SPECIAL_ITEMS_CACHE_DURATION) {
+    if (
+      specialItemsCache.pending.length >= 0 &&
+      now - specialItemsCache.lastUpdated < SPECIAL_ITEMS_CACHE_DURATION
+    ) {
       console.log("📦 Using cached special items for invoice check");
-      return specialItemsCache.pending.filter(item => item.invoiceId === invoiceId);
+      return specialItemsCache.pending.filter(
+        (item) => item.invoiceId === invoiceId
+      );
     }
 
     try {
       console.log("🔄 Fetching fresh special items for invoice check");
-      const pendingSpecialItems = (await getPendingSpecialItems()) as ManualConventionalProduct[];
-      
+      const pendingSpecialItems =
+        (await getPendingSpecialItems()) as ManualConventionalProduct[];
+
       // Update cache
       setSpecialItemsCache({
         pending: pendingSpecialItems,
-        lastUpdated: now
+        lastUpdated: now,
       });
-      
-      return pendingSpecialItems.filter(item => item.invoiceId === invoiceId);
+
+      return pendingSpecialItems.filter((item) => item.invoiceId === invoiceId);
     } catch (error) {
       console.error("Error checking special items:", error);
       return [];
@@ -1003,7 +1018,9 @@ export default function ActiveInvoices({
     try {
       // Check for unconfirmed special items before marking as picked up
       try {
-        const invoiceSpecialItems = await checkSpecialItemsForInvoice(pickupSignatureInvoice.id);
+        const invoiceSpecialItems = await checkSpecialItemsForInvoice(
+          pickupSignatureInvoice.id
+        );
 
         if (invoiceSpecialItems.length > 0) {
           const itemNames = invoiceSpecialItems
@@ -1385,13 +1402,15 @@ export default function ActiveInvoices({
 
     const loadManualProducts = async () => {
       if (!mounted) return;
-      
+
       try {
         const products = await getManualConventionalProductsForDate(new Date());
         if (mounted) {
           setManualProducts(products);
           setManualProductsLoading(false);
-          console.log(`📦 Loaded ${products.length} manual products (cached or fresh)`);
+          console.log(
+            `📦 Loaded ${products.length} manual products (cached or fresh)`
+          );
         }
       } catch (error) {
         console.error("Error loading manual products:", error);
@@ -2953,7 +2972,8 @@ export default function ActiveInvoices({
                             } else {
                               // Check for unconfirmed special items before shipping
                               try {
-                                const invoiceSpecialItems = await checkSpecialItemsForInvoice(invoice.id);
+                                const invoiceSpecialItems =
+                                  await checkSpecialItemsForInvoice(invoice.id);
 
                                 if (invoiceSpecialItems.length > 0) {
                                   const itemNames = invoiceSpecialItems
@@ -4531,7 +4551,8 @@ export default function ActiveInvoices({
 
                     // Check for unconfirmed special items before shipping
                     try {
-                      const invoiceSpecialItems = await checkSpecialItemsForInvoice(invoice.id);
+                      const invoiceSpecialItems =
+                        await checkSpecialItemsForInvoice(invoice.id);
 
                       if (invoiceSpecialItems.length > 0) {
                         const itemNames = invoiceSpecialItems
